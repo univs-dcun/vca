@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VCA</title>
+    <!-- 런타임 환경설정: 컨테이너 시작 시 docker-entrypoint.sh가 이 파일을 생성한다.
+         빌드 산출물을 재빌드 없이 여러 환경(dev/prod)에 배포하기 위한 패턴. -->
+    <script src="/config.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

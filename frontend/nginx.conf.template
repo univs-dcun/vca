@@ -1,0 +1,27 @@
+server {
+    listen       80;
+    server_name  _;
+
+    root   /usr/share/nginx/html;
+    index  index.html;
+
+    # 런타임 config는 절대 캐시하지 않는다 (환경별로 매번 새로 주입되므로).
+    location = /config.js {
+        add_header Cache-Control "no-store";
+    }
+
+    # SPA 라우팅: 정적 파일이 없으면 index.html 로 폴백
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # /api → 백엔드(게이트웨이)로 프록시. 브라우저 입장에선 동일 오리진 → CORS 불필요.
+    # ${API_UPSTREAM} 는 컨테이너 시작 시 envsubst 로 치환된다.
+    location /api/ {
+        proxy_pass         ${API_UPSTREAM}/api/;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
