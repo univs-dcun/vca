@@ -1,23 +1,22 @@
 # 폴더별 소유권 / 리뷰어 자동 지정.
-# 아래 @플레이스홀더를 실제 GitHub 아이디로 교체하세요.
-#   @planner     = 기획자
-#   @backend-dev = 백엔드 개발자
+#   @univs-dcun    = 백엔드 개발자
+#   @hjkim-univsai = 기획자
 
 # 화면 계층 — 기획자
-/frontend/src/features/     @planner
-/frontend/src/components/   @planner
-/frontend/public/           @planner
+/frontend/src/features/     @hjkim-univsai
+/frontend/src/components/   @hjkim-univsai
+/frontend/public/           @hjkim-univsai
 
 # 데이터/연결 + 배포 계층 — 백엔드 개발자
-/frontend/src/api/          @backend-dev
-/frontend/Dockerfile        @backend-dev
-/frontend/nginx.conf.template @backend-dev
-/frontend/docker-entrypoint.sh @backend-dev
-/backend/                   @backend-dev
+/frontend/src/api/          @univs-dcun
+/frontend/Dockerfile        @univs-dcun
+/frontend/nginx.conf.template @univs-dcun
+/frontend/docker-entrypoint.sh @univs-dcun
+/backend/                   @univs-dcun
 
 # 공유 계약 — 둘 다 리뷰
-/openapi/                   @planner @backend-dev
+/openapi/                   @hjkim-univsai @univs-dcun
 
 # 프로젝트 규칙 — 둘 다 리뷰
-/CLAUDE.md                  @planner @backend-dev
-/CODEOWNERS                 @planner @backend-dev
+/CLAUDE.md                  @hjkim-univsai @univs-dcun
+/CODEOWNERS                 @hjkim-univsai @univs-dcun
