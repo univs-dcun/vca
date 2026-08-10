@@ -1,0 +1,164 @@
+@import "tailwindcss";
+@import 'leaflet/dist/leaflet.css';
+
+@font-face {
+  font-family: 'SUIT';
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('https://cdn.jsdelivr.net/gh/sunn-us/SUIT@latest/fonts/variable/woff2/SUIT-Variable.woff2') format('woff2-variations');
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'SUIT', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f8fafc;
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: 'SUIT', sans-serif;
+}
+
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 4px 4px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  width: 40px !important;
+  height: 40px !important;
+  line-height: 40px !important;
+  font-size: 18px !important;
+  color: #324055 !important;
+  background-color: white !important;
+  border: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.leaflet-control-zoom-in {
+  border-radius: 8px 8px 0 0 !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.leaflet-control-zoom-out {
+  border-radius: 0 0 8px 8px !important;
+}
+
+.leaflet-tile-pane {
+  filter: grayscale(0.1) brightness(0.98);
+}
+
+/* ── VCA custom popup ────────────────────────────────────── */
+.vca-custom-popup .leaflet-popup-content-wrapper {
+  padding: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 32px rgba(14, 22, 42, 0.18) !important;
+  border: 1px solid #E2E8F0 !important;
+  overflow: hidden;
+}
+
+.vca-custom-popup .leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.4;
+}
+
+.vca-custom-popup .leaflet-popup-tip-container {
+  display: none !important;
+}
+
+.vca-custom-popup .leaflet-popup-close-button {
+  top: 10px !important;
+  right: 10px !important;
+  width: 20px !important;
+  height: 20px !important;
+  font-size: 16px !important;
+  color: #94a3b8 !important;
+  background: #f1f5f9 !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+}
+
+.vca-custom-popup .leaflet-popup-close-button:hover {
+  color: #334155 !important;
+  background: #e2e8f0 !important;
+}
+
+/* zone label markers */
+.vca-zone-icon {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+.vca-hide-scrollbar {
+  scrollbar-width: none;
+}
+.vca-hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes vca-rise-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.vca-rise-in {
+  animation: vca-rise-in 0.4s ease-out;
+}
+
+/* Expanding/fading ring around a fixed-size alert dot (100+ event zones on the map) */
+@keyframes vca-alert-ping {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+.vca-alert-ping {
+  animation: vca-alert-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Flashing glow behind a VIP's map pin when they're detected (Dashboard map) — the halo divs
+   it's applied to are already positioned with `transform: translate(-50%, 50%)` inline, so the
+   keyframe must include that same translate alongside the scale, or the animation would
+   overwrite it and the halo would jump off-center. */
+@keyframes vca-vip-flash {
+  0%, 100% { transform: translate(-50%, 50%) scale(1); opacity: 0.9; }
+  50% { transform: translate(-50%, 50%) scale(1.2); opacity: 0.25; }
+}
+.vca-vip-flash {
+  animation: vca-vip-flash 0.9s ease-in-out infinite;
+}
+
+/* Flowing dashed line for a tracking route (Redmap search results, Dashboard Tracking events) */
+.vca-route-line {
+  stroke-dasharray: 10 8;
+  animation: vca-route-flow 0.9s linear infinite;
+}
+@keyframes vca-route-flow {
+  to { stroke-dashoffset: -18; }
+}
+
+/* ── Skeleton loading dashboard ──────────────────────────── */
+@keyframes vca-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.vca-skeleton-pulse {
+  animation: vca-skeleton-pulse 1.5s ease-in-out infinite;
+}
