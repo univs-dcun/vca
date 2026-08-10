@@ -15,8 +15,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
-  id: number;
+/**
+ * 등록 VIP (Registered VIP Targets 모달의 행)
+ */
+export interface Vip {
+  vipId: string;
   name: string;
-  email: string;
+  /**
+   * 설명 (예: Corporate Security — Executive Protection). 없으면 null
+   * @nullable
+   */
+  description?: string | null;
+  /** 얼굴 이미지 URL (상대경로) */
+  photoUrl: string;
+  /** 등록일 */
+  registeredAt: string;
 }

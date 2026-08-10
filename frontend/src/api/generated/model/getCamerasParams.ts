@@ -14,9 +14,24 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { PageParameter } from './pageParameter';
+import type { SizeParameter } from './sizeParameter';
+import type { CameraStatus } from './cameraStatus';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-}
+export type GetCamerasParams = {
+/**
+ * 페이지 번호 (0부터)
+ * @minimum 0
+ */
+page?: PageParameter;
+/**
+ * 페이지 크기
+ * @minimum 1
+ * @maximum 100
+ */
+size?: SizeParameter;
+/**
+ * 상태 필터. 미지정 시 전체
+ */
+status?: CameraStatus;
+};

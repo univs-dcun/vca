@@ -15,8 +15,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-}
+/**
+ * 페이지 번호 (0부터)
+ */
+export type PageParameter = number;

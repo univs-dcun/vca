@@ -14,9 +14,14 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { Detection } from './detection';
 
-export interface User {
-  id: number;
+/**
+ * Live Analytics 목록의 행. detections.length == 1이면 VIP 행, >= 2이면 Tracking 행.
+ */
+export interface LiveAnalyticsRow {
+  vipId: string;
   name: string;
-  email: string;
+  /** 당일 감지 이력, 시간 오름차순 */
+  detections: Detection[];
 }

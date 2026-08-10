@@ -15,8 +15,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
-  id: number;
+/**
+ * 로케이션 = 1개 이상의 카메라를 묶는 지역 그룹
+ */
+export interface Location {
+  /** @pattern ^[a-z0-9-]{1,64}$ */
+  locationId: string;
+  /** 표시 이름 (예: Novena) */
   name: string;
-  email: string;
 }

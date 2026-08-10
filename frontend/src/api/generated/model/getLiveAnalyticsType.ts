@@ -15,8 +15,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-}
+export type GetLiveAnalyticsType = typeof GetLiveAnalyticsType[keyof typeof GetLiveAnalyticsType];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const GetLiveAnalyticsType = {
+  ALL: 'ALL',
+  VIP: 'VIP',
+  TRACKING: 'TRACKING',
+} as const;

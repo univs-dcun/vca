@@ -14,9 +14,10 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { TopologyPoint } from './topologyPoint';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
+export interface DetectionTopology {
+  date: string;
+  /** 0시부터 23시까지 24개 버킷 (미래 시간대는 count 0) */
+  points: TopologyPoint[];
 }

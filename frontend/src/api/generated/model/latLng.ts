@@ -15,8 +15,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
+/**
+ * WGS84 좌표
+ */
+export interface LatLng {
+  lat: number;
+  lng: number;
 }

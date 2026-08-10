@@ -15,8 +15,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-}
+/**
+ * 카메라 작동 상태
+ */
+export type CameraStatus = typeof CameraStatus[keyof typeof CameraStatus];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const CameraStatus = {
+  RUNNING: 'RUNNING',
+  STOPPED: 'STOPPED',
+} as const;

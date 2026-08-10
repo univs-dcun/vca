@@ -15,8 +15,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-}
+/**
+ * 오류 시 null
+ * @nullable
+ */
+export type ErrorResponseData = unknown | null;

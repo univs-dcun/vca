@@ -14,9 +14,11 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { DateParameter } from './dateParameter';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-}
+export type GetDetectionTopologyParams = {
+/**
+ * 조회 기준일 (YYYY-MM-DD). 미지정 시 사이트 로컬(Asia/Singapore) 기준 오늘
+ */
+date?: DateParameter;
+};

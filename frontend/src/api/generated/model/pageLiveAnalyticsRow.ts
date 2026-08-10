@@ -14,9 +14,11 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { LiveAnalyticsRow } from './liveAnalyticsRow';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
+export interface PageLiveAnalyticsRow {
+  content: LiveAnalyticsRow[];
+  page: number;
+  size: number;
+  totalElements: number;
 }

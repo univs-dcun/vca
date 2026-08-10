@@ -15,8 +15,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
+export interface TopologyPoint {
+  /**
+   * 사이트 로컬 기준 시간대 (0~23)
+   * @minimum 0
+   * @maximum 23
+   */
+  hour: number;
+  /** 해당 시간대의 당일 감지 건수 */
+  count: number;
+  /**
+   * 최근 7일 동일 시간대 평균. 데이터 부족 시 null
+   * @nullable
+   */
+  average?: number | null;
 }

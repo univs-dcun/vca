@@ -14,9 +14,12 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { DetectedCamera } from './detectedCamera';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
+export interface VipDetectedCameras {
+  vipId: string;
+  /** 조회 기준일 (사이트 로컬) */
+  date: string;
+  /** 감지 이력이 없으면 빈 배열 — 프론트는 지도를 기존 상태로 유지 */
+  cameras: DetectedCamera[];
 }

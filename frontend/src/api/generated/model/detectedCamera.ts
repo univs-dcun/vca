@@ -14,9 +14,17 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { LatLng } from './latLng';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
+/**
+ * VIP가 감지된 카메라 (카메라 단위 중복 제거)
+ */
+export interface DetectedCamera {
+  /** @pattern ^[a-z0-9-]{1,64}$ */
+  cameraId: string;
+  /** @pattern ^[a-z0-9-]{1,64}$ */
+  locationId: string;
+  location: LatLng;
+  /** 해당 카메라에서의 마지막 감지 시각 */
+  lastDetectedAt: string;
 }

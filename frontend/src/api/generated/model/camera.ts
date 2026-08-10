@@ -14,9 +14,18 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { CameraStatus } from './cameraStatus';
+import type { LatLng } from './latLng';
 
-export interface User {
-  id: number;
+/**
+ * 카메라 (SYSTEM 탭 행). 상태의 실시간 변화는 MQTT cameras/{cameraId}/status로 수신
+ */
+export interface Camera {
+  /** @pattern ^[a-z0-9-]{1,64}$ */
+  cameraId: string;
   name: string;
-  email: string;
+  status: CameraStatus;
+  /** @pattern ^[a-z0-9-]{1,64}$ */
+  locationId: string;
+  location: LatLng;
 }

@@ -14,9 +14,12 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { PageVip } from './pageVip';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
+export interface VipListResponse {
+  success: boolean;
+  code: string;
+  /** @nullable */
+  message?: string | null;
+  data: PageVip;
 }

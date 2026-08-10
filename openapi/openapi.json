@@ -2,15 +2,198 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.0.0",
-    "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다."
+    "version": "0.1.0",
+    "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
+  "tags": [
+    { "name": "dashboard", "description": "DASHBOARD 화면 — Live Analytics 목록" },
+    { "name": "vips", "description": "등록 VIP(Registered VIP Targets) 및 VIP별 감지 조회" },
+    { "name": "locations", "description": "로케이션(카메라 지역 그룹) 목록" },
+    { "name": "cameras", "description": "카메라 목록 (SYSTEM 탭)" },
+    { "name": "stats", "description": "집계/그래프 (Detection Topology & Average)" },
+    { "name": "users", "description": "스캐폴드 데모 — 추후 제거 예정" }
+  ],
   "paths": {
+    "/dashboard/live-analytics": {
+      "get": {
+        "operationId": "getLiveAnalytics",
+        "summary": "Live Analytics 목록 조회 (페이징)",
+        "description": "당일 감지된 VIP 목록. 행마다 당일 감지 이력(detections)을 시간 오름차순으로 포함한다.\n- detections.length == 1 → VIP 행, >= 2 → Tracking 행 (행 타입은 프론트가 길이로 판정)\n- 이 스냅샷 위에 MQTT 감지 이벤트를 vipId 기준 upsert하여 실시간 목록을 구성한다 (중복은 eventId로 제거)\n- locationId 필터 적용 시 해당 로케이션 소속 카메라의 감지만 포함되며, MQTT 델타도 이벤트의 locationId로 동일하게 필터링한다",
+        "tags": ["dashboard"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" },
+          {
+            "name": "locationId",
+            "in": "query",
+            "required": false,
+            "description": "로케이션 필터. 미지정 시 전체(All Locations)",
+            "schema": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "행 타입 필터. VIP = 당일 감지 카메라 1개, TRACKING = 2개 이상",
+            "schema": { "type": "string", "enum": ["ALL", "VIP", "TRACKING"], "default": "ALL" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LiveAnalyticsListResponse" }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/vips": {
+      "get": {
+        "operationId": "getVips",
+        "summary": "등록 VIP 목록 조회 (페이징)",
+        "description": "Registered VIP Targets 모달의 목록. totalElements가 대시보드의 'Registered VIP Targets N' 카운트에 해당한다.",
+        "tags": ["vips"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VipListResponse" }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/vips/{vipId}/detected-cameras": {
+      "get": {
+        "operationId": "getVipDetectedCameras",
+        "summary": "VIP가 감지된 카메라 목록 조회 (일 단위)",
+        "description": "Registered VIP Targets 모달에서 VIP 행 클릭 시, 지도에 감지 카메라 위치를 점으로 표시하기 위한 데이터.\n- 카메라 단위로 중복 제거된 목록 (동일 카메라 다중 감지 시 lastDetectedAt만 최신값)\n- 감지 이력이 없으면 cameras: [] — 프론트는 지도를 기존 상태로 유지\n- 조회 후 실시간 추가는 MQTT 감지 이벤트의 vipId 매칭으로 처리 (cameraId 기준, 이미 있으면 무시)",
+        "tags": ["vips"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VipId" },
+          { "$ref": "#/components/parameters/Date" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VipDetectedCamerasResponse" }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/vips/{vipId}/detections": {
+      "get": {
+        "operationId": "getVipDetections",
+        "summary": "VIP 감지 이력(이동 경로) 조회 (일 단위)",
+        "description": "Live Analytics 행 클릭 시 지도에 이동 경로를 그리기 위한 좌표 이력. 시간 오름차순.\n- 조회 후 경로 연장은 MQTT 감지 이벤트의 vipId 매칭으로 append (중복은 eventId로 제거)",
+        "tags": ["vips"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VipId" },
+          { "$ref": "#/components/parameters/Date" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VipDetectionsResponse" }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/locations": {
+      "get": {
+        "operationId": "getLocations",
+        "summary": "로케이션 목록 조회",
+        "description": "Live Analytics의 Select Location 모달 목록. 로케이션 = 1개 이상의 카메라를 묶는 지역 그룹 (MQTT SPEC §7.4). 목록 규모가 작아 페이징 없음.",
+        "tags": ["locations"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LocationListResponse" }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/cameras": {
+      "get": {
+        "operationId": "getCameras",
+        "summary": "카메라 목록 조회 (페이징)",
+        "description": "SYSTEM 탭의 카메라 목록. 행 클릭 시 location 좌표로 지도를 이동한다.\n- 상태의 실시간 변화는 MQTT cameras/{cameraId}/status (retained)로 수신하여 목록에 반영",
+        "tags": ["cameras"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "상태 필터. 미지정 시 전체",
+            "schema": { "$ref": "#/components/schemas/CameraStatus" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CameraListResponse" }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/stats/detection-topology": {
+      "get": {
+        "operationId": "getDetectionTopology",
+        "summary": "Detection Topology & Average 그래프 데이터 조회 (일 단위)",
+        "description": "전체 카메라의 시간대별 VIP 감지 수. 실시간 push 대상이 아니며, 프론트가 주기적으로 재조회한다 (권장 60초).\n- count: 해당 시간대(1시간 버킷)의 당일 감지 건수\n- average: 최근 7일 동일 시간대 평균 (백엔드 산출, 데이터 부족 시 null)",
+        "tags": ["stats"],
+        "parameters": [{ "$ref": "#/components/parameters/Date" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DetectionTopologyResponse" }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/users": {
       "get": {
         "operationId": "getUsers",
-        "summary": "사용자 목록 조회",
+        "summary": "사용자 목록 조회 (스캐폴드 데모 — 추후 제거 예정)",
         "tags": ["users"],
         "responses": {
           "200": {
@@ -26,7 +209,290 @@
     }
   },
   "components": {
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "페이지 번호 (0부터)",
+        "schema": { "type": "integer", "minimum": 0, "default": 0 }
+      },
+      "Size": {
+        "name": "size",
+        "in": "query",
+        "required": false,
+        "description": "페이지 크기",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+      },
+      "Date": {
+        "name": "date",
+        "in": "query",
+        "required": false,
+        "description": "조회 기준일 (YYYY-MM-DD). 미지정 시 사이트 로컬(Asia/Singapore) 기준 오늘",
+        "schema": { "type": "string", "format": "date" }
+      },
+      "VipId": {
+        "name": "vipId",
+        "in": "path",
+        "required": true,
+        "description": "VIP 식별자",
+        "schema": { "type": "string" }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "오류. envelope의 success=false, code에 오류 코드, message에 사유",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      }
+    },
     "schemas": {
+      "LatLng": {
+        "type": "object",
+        "description": "WGS84 좌표",
+        "required": ["lat", "lng"],
+        "properties": {
+          "lat": { "type": "number", "format": "double" },
+          "lng": { "type": "number", "format": "double" }
+        }
+      },
+      "CameraStatus": {
+        "type": "string",
+        "enum": ["RUNNING", "STOPPED"],
+        "description": "카메라 작동 상태"
+      },
+      "Detection": {
+        "type": "object",
+        "description": "감지 1건 = 좌표 1개. MQTT cameras/{cameraId}/detections 이벤트와 동일 구조(vip 객체 제외 — 상위 컨텍스트가 VIP를 특정). eventId로 MQTT 델타와 중복 제거하여 병합한다.",
+        "required": ["eventId", "cameraId", "cameraName", "locationId", "location", "similarity", "detectedAt"],
+        "properties": {
+          "eventId": { "type": "string", "description": "감지 이벤트 고유 ID (멱등 처리 기준)" },
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "cameraName": { "type": "string" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$", "description": "감지한 카메라의 소속 로케이션" },
+          "location": { "$ref": "#/components/schemas/LatLng" },
+          "similarity": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "description": "등록 사진과의 유사도 (0~1)" },
+          "detectedAt": { "type": "string", "format": "date-time", "description": "감지 시각 (ISO-8601 UTC)" }
+        }
+      },
+      "LiveAnalyticsRow": {
+        "type": "object",
+        "description": "Live Analytics 목록의 행. detections.length == 1이면 VIP 행, >= 2이면 Tracking 행.",
+        "required": ["vipId", "name", "detections"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "name": { "type": "string" },
+          "detections": {
+            "type": "array",
+            "description": "당일 감지 이력, 시간 오름차순",
+            "items": { "$ref": "#/components/schemas/Detection" }
+          }
+        }
+      },
+      "Vip": {
+        "type": "object",
+        "description": "등록 VIP (Registered VIP Targets 모달의 행)",
+        "required": ["vipId", "name", "photoUrl", "registeredAt"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string", "nullable": true, "description": "설명 (예: Corporate Security — Executive Protection). 없으면 null" },
+          "photoUrl": { "type": "string", "description": "얼굴 이미지 URL (상대경로)" },
+          "registeredAt": { "type": "string", "format": "date", "description": "등록일" }
+        }
+      },
+      "DetectedCamera": {
+        "type": "object",
+        "description": "VIP가 감지된 카메라 (카메라 단위 중복 제거)",
+        "required": ["cameraId", "locationId", "location", "lastDetectedAt"],
+        "properties": {
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "location": { "$ref": "#/components/schemas/LatLng" },
+          "lastDetectedAt": { "type": "string", "format": "date-time", "description": "해당 카메라에서의 마지막 감지 시각" }
+        }
+      },
+      "VipDetectedCameras": {
+        "type": "object",
+        "required": ["vipId", "date", "cameras"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "date": { "type": "string", "format": "date", "description": "조회 기준일 (사이트 로컬)" },
+          "cameras": {
+            "type": "array",
+            "description": "감지 이력이 없으면 빈 배열 — 프론트는 지도를 기존 상태로 유지",
+            "items": { "$ref": "#/components/schemas/DetectedCamera" }
+          }
+        }
+      },
+      "VipDetections": {
+        "type": "object",
+        "required": ["vipId", "date", "detections"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "date": { "type": "string", "format": "date", "description": "조회 기준일 (사이트 로컬)" },
+          "detections": {
+            "type": "array",
+            "description": "감지 이력(이동 경로), 시간 오름차순",
+            "items": { "$ref": "#/components/schemas/Detection" }
+          }
+        }
+      },
+      "Location": {
+        "type": "object",
+        "description": "로케이션 = 1개 이상의 카메라를 묶는 지역 그룹",
+        "required": ["locationId", "name"],
+        "properties": {
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "name": { "type": "string", "description": "표시 이름 (예: Novena)" }
+        }
+      },
+      "Camera": {
+        "type": "object",
+        "description": "카메라 (SYSTEM 탭 행). 상태의 실시간 변화는 MQTT cameras/{cameraId}/status로 수신",
+        "required": ["cameraId", "name", "status", "locationId", "location"],
+        "properties": {
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "name": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/CameraStatus" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "location": { "$ref": "#/components/schemas/LatLng" }
+        }
+      },
+      "TopologyPoint": {
+        "type": "object",
+        "required": ["hour", "count"],
+        "properties": {
+          "hour": { "type": "integer", "minimum": 0, "maximum": 23, "description": "사이트 로컬 기준 시간대 (0~23)" },
+          "count": { "type": "integer", "description": "해당 시간대의 당일 감지 건수" },
+          "average": { "type": "number", "format": "double", "nullable": true, "description": "최근 7일 동일 시간대 평균. 데이터 부족 시 null" }
+        }
+      },
+      "DetectionTopology": {
+        "type": "object",
+        "required": ["date", "points"],
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "points": {
+            "type": "array",
+            "description": "0시부터 23시까지 24개 버킷 (미래 시간대는 count 0)",
+            "items": { "$ref": "#/components/schemas/TopologyPoint" }
+          }
+        }
+      },
+      "PageLiveAnalyticsRow": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": { "type": "array", "items": { "$ref": "#/components/schemas/LiveAnalyticsRow" } },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "PageVip": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": { "type": "array", "items": { "$ref": "#/components/schemas/Vip" } },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64", "description": "= Registered VIP Targets 카운트" }
+        }
+      },
+      "PageCamera": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": { "type": "array", "items": { "$ref": "#/components/schemas/Camera" } },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "LiveAnalyticsListResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/PageLiveAnalyticsRow" }
+        }
+      },
+      "VipListResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/PageVip" }
+        }
+      },
+      "VipDetectedCamerasResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/VipDetectedCameras" }
+        }
+      },
+      "VipDetectionsResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/VipDetections" }
+        }
+      },
+      "LocationListResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Location" } }
+        }
+      },
+      "CameraListResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/PageCamera" }
+        }
+      },
+      "DetectionTopologyResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/DetectionTopology" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["success", "code"],
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "code": { "type": "string", "description": "오류 코드 (예: VCA-4041)" },
+          "message": { "type": "string", "nullable": true, "description": "사람이 읽는 오류 사유" },
+          "data": { "nullable": true, "description": "오류 시 null" }
+        }
+      },
       "User": {
         "type": "object",
         "required": ["id", "name", "email"],

@@ -14,9 +14,20 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { ErrorResponseData } from './errorResponseData';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
+export interface ErrorResponse {
+  success: boolean;
+  /** 오류 코드 (예: VCA-4041) */
+  code: string;
+  /**
+   * 사람이 읽는 오류 사유
+   * @nullable
+   */
+  message?: string | null;
+  /**
+   * 오류 시 null
+   * @nullable
+   */
+  data?: ErrorResponseData;
 }

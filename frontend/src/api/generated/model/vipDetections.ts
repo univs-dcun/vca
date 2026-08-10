@@ -14,9 +14,12 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.1.0
  */
+import type { Detection } from './detection';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
+export interface VipDetections {
+  vipId: string;
+  /** 조회 기준일 (사이트 로컬) */
+  date: string;
+  /** 감지 이력(이동 경로), 시간 오름차순 */
+  detections: Detection[];
 }

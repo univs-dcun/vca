@@ -30,7 +30,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  UserListResponse
+  ErrorResponse,
+  LocationListResponse
 } from '.././model';
 
 import { customInstance } from '../../axios-instance';
@@ -39,16 +40,17 @@ import { customInstance } from '../../axios-instance';
 
 
 /**
- * @summary 사용자 목록 조회 (스캐폴드 데모 — 추후 제거 예정)
+ * Live Analytics의 Select Location 모달 목록. 로케이션 = 1개 이상의 카메라를 묶는 지역 그룹 (MQTT SPEC §7.4). 목록 규모가 작아 페이징 없음.
+ * @summary 로케이션 목록 조회
  */
-export const getUsers = (
+export const getLocations = (
     
  signal?: AbortSignal
 ) => {
       
       
-      return customInstance<UserListResponse>(
-      {url: `/users`, method: 'GET', signal
+      return customInstance<LocationListResponse>(
+      {url: `/locations`, method: 'GET', signal
     },
       );
     }
@@ -56,69 +58,69 @@ export const getUsers = (
 
 
 
-export const getGetUsersQueryKey = () => {
+export const getGetLocationsQueryKey = () => {
     return [
-    `/users`
+    `/locations`
     ] as const;
     }
 
     
-export const getGetUsersQueryOptions = <TData = Awaited<ReturnType<typeof getUsers>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, }
+export const getGetLocationsQueryOptions = <TData = Awaited<ReturnType<typeof getLocations>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLocations>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetUsersQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetLocationsQueryKey();
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsers>>> = ({ signal }) => getUsers(signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLocations>>> = ({ signal }) => getLocations(signal);
 
       
 
       
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLocations>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetUsersQueryResult = NonNullable<Awaited<ReturnType<typeof getUsers>>>
-export type GetUsersQueryError = unknown
+export type GetLocationsQueryResult = NonNullable<Awaited<ReturnType<typeof getLocations>>>
+export type GetLocationsQueryError = ErrorResponse
 
 
-export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> & Pick<
+export function useGetLocations<TData = Awaited<ReturnType<typeof getLocations>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLocations>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getUsers>>,
+          Awaited<ReturnType<typeof getLocations>>,
           TError,
-          Awaited<ReturnType<typeof getUsers>>
+          Awaited<ReturnType<typeof getLocations>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> & Pick<
+export function useGetLocations<TData = Awaited<ReturnType<typeof getLocations>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLocations>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getUsers>>,
+          Awaited<ReturnType<typeof getLocations>>,
           TError,
-          Awaited<ReturnType<typeof getUsers>>
+          Awaited<ReturnType<typeof getLocations>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, }
+export function useGetLocations<TData = Awaited<ReturnType<typeof getLocations>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLocations>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary 사용자 목록 조회 (스캐폴드 데모 — 추후 제거 예정)
+ * @summary 로케이션 목록 조회
  */
 
-export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, }
+export function useGetLocations<TData = Awaited<ReturnType<typeof getLocations>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLocations>>, TError, TData>>, }
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetUsersQueryOptions(options)
+  const queryOptions = getGetLocationsQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
