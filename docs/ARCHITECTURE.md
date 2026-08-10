@@ -12,17 +12,30 @@
 ```
                     발행 (MQTT TCP 1883)              구독 (MQTT over WS 8083 / WSS 8084)
 [분석 모듈] ─────────────────────────────> [EMQX 브로커] ─────────────────────────────> [브라우저 SPA]
-    │                                                                                      ▲
-    │  가공 데이터 적재 (경로 미정 — 추후 설계)                                              │ REST /api/...
-    └────────────────────────> [백엔드 API 서버 (Spring Boot, 예정)] ──────────────────────┘
+    │                                                                                      │
+    │ 모듈 API (module-api.json, envelope 없음)                                             │ REST /api (openapi.json, envelope)
+    └───────────────<─── [프록시 백엔드 (Spring Boot)] ───<────────────────────────────────┘
 ```
+
+- **실시간(변화분)**: 모듈 → EMQX → 브라우저. 계약: MQTT SPEC
+- **스냅샷·이력**: 브라우저 → 프록시 백엔드 → 모듈 API. **DB는 우리 쪽에 없다** — 감지 데이터의 저장·집계·조회는 원천인 모듈이 책임지고(단일 진실 원천), 프록시는 envelope 변환·오류 매핑·(추후) 인증·캐싱만 담당하는 얇은 계층이다
 
 | 구성 요소 | 역할 | 담당 | 저장소 |
 |---|---|---|---|
-| 분석 모듈 | 카메라 프레임 처리, 감지·집계 데이터 생산, MQTT 발행 | 모듈 개발자 | (모듈 저장소) |
+| 분석 모듈 | 카메라 프레임 처리, MQTT 발행 + **모듈 API 서빙** (저장·집계 포함) | 모듈 개발자 | (모듈 저장소) |
 | EMQX 브로커 | MQTT 메시지 중계. 브라우저 직결 (WebSocket) | 백엔드 (박상훈) | [vca-mqtt-broker](https://github.com/univs-dcun/vca-mqtt-broker) |
-| 백엔드 API | REST 스냅샷/이력 제공 (`{success, data, message, code}` envelope) | 백엔드 (박상훈) | `vca/backend/` |
+| 프록시 백엔드 | 브라우저 `/api` → 모듈 API 중계. envelope 변환, 오류 매핑, 타임아웃, (추후) JWT·캐싱 | 백엔드 (박상훈) | `vca/backend/proxy/` |
 | 프론트 SPA | 화면. Vite + React 19 + TS | 화면=기획자, 데이터 연결=백엔드 | `vca/frontend/` |
+
+### 프록시 변환 규칙
+
+두 REST 계약은 경로·파라미터·데이터 스키마가 동일하다 (`module-api.json` = `openapi.json` - envelope). 프록시의 일은:
+
+1. `GET /api/{path}?{query}` → `GET {MODULE_API_BASE}/{path}?{query}` 그대로 전달
+2. 모듈 2xx JSON → `{ "success": true, "code": "OK", "message": null, "data": <모듈 응답> }`
+3. 모듈 오류(`{ code, message }` + HTTP 상태) → 같은 상태코드로 `{ "success": false, "code": <모듈 code>, "message": ..., "data": null }`
+4. 모듈 연결 실패 → 502 `VCA-5020`, 타임아웃(5초) → 504 `VCA-5040`, 그 외 프록시 내부 오류 → 500 `VCA-5000`
+5. 예외: `/api/vips/{vipId}/photo`는 이미지 바이너리를 envelope 없이 스트리밍
 
 ## 채널 경계 — 어떤 데이터가 어디로 오는가
 
@@ -75,6 +88,7 @@ MQTT 구독 먼저 → REST 스냅샷 조회 → 이후 MQTT 델타를 스냅샷
 | 통신 규약은 브로커 담당이 정의·통보 | 별도 합의 절차 없음. 모듈·프론트는 SPEC을 따른다 | UV-23 |
 | 그래프는 REST 주기 재조회 | 대시보드 체감상 실시간 push 불필요 | UV-23 |
 | 집계는 모듈이 계산 (카운터·증감·전일 대비) | 프론트 계산은 새로고침 시 어긋남 | UV-23 |
+| 백엔드는 DB 없는 프록시, 데이터 저장·조회는 모듈 API | 모듈은 집계를 위해 어차피 저장함 — 사본 DB를 두면 이중 관리·불일치 위험. 단일 진실 원천 유지 | UV-27 |
 
 ## 개발 환경
 

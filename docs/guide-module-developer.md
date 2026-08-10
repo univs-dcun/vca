@@ -1,17 +1,20 @@
 # 모듈 개발자 가이드 — VCA MQTT 발행 계약
 
 > 대상 독자: 분석 모듈(카메라 프레임 처리·집계) 개발자.
-> **이 문서와 [MQTT SPEC](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/SPEC.md)을 클로드 세션에 그대로 전달하면 구현에 필요한 계약 정보가 모두 포함되어 있다.**
-> 계약의 원본은 SPEC.md이며, 이 문서는 모듈 관점의 실무 요약이다. 충돌 시 SPEC.md가 우선한다.
+> **이 문서 + [MQTT SPEC](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/SPEC.md) + [module-api.json](../openapi/module-api.json)을 클로드 세션에 그대로 전달하면 구현에 필요한 계약 정보가 모두 포함되어 있다.**
+> 계약 원본은 두 개 — 실시간은 SPEC.md, 조회 API는 module-api.json. 이 문서는 모듈 관점의 실무 요약이며, 충돌 시 계약 원본이 우선한다.
 
-## 당신(모듈)의 역할
+## 당신(모듈)의 역할 — 두 가지
 
-카메라 프레임을 처리해서 나온 결과를 **EMQX 브로커에 MQTT로 발행**한다. 구독자는 웹 브라우저(대시보드)다.
-브라우저는 구독만 하므로, 화면에 실시간으로 보이는 모든 값은 모듈이 발행한 그대로다.
+1. **MQTT 발행** — 감지·상태·집계의 변화분을 EMQX 브로커에 발행한다. 구독자는 웹 브라우저(대시보드)
+2. **모듈 API 서빙** — 페이징 목록·이력·그래프 조회 HTTP API를 제공한다. 호출자는 VCA 프록시 백엔드
 
 ```
-[모듈] --MQTT(TCP 1883, QoS 1)--> [EMQX] --WebSocket--> [브라우저]
+[모듈] --MQTT(TCP 1883, QoS 1)--> [EMQX] --WebSocket--> [브라우저]      (실시간 변화분)
+[모듈 API :8081] <--HTTP-- [VCA 프록시] <--/api-- [브라우저]             (스냅샷·이력 조회)
 ```
+
+감지 데이터의 저장·집계는 모듈 책임이다 (VCA 쪽에는 DB가 없다). 두 채널이 내보내는 값은 서로 일관되어야 한다.
 
 ## 접속 정보
 
@@ -116,10 +119,30 @@
 6. **envelope 금지**: `{ success, data, ... }` 같은 포장 없이 위 JSON 그대로 발행
 7. **필드 추가는 자유** (구독자는 모르는 필드를 무시), 필드 삭제·의미 변경은 계약 위반 — 브로커 담당(박상훈)과 협의
 
-## REST용 데이터 (참고)
+## 두 번째 책임: 모듈 API 서빙
 
-대시보드의 페이징 목록·이력·그래프는 백엔드 API 서버가 REST로 제공한다 ([openapi.json](../openapi/openapi.json)).
-이 데이터의 원천도 모듈이므로, **모듈 → 백엔드 데이터 적재 경로**(DB 직접 적재 vs EMQX 규칙 엔진 라우팅)는 추후 브로커 담당과 별도 설계한다. 현재 계약 범위는 MQTT 발행까지.
+대시보드의 페이징 목록·이력·그래프는 VCA 프록시 백엔드가 **모듈 API를 호출해서** 브라우저에 전달한다. 감지 데이터의 저장·집계·조회는 원천인 모듈의 책임이다 (VCA 쪽에는 DB가 없다).
+
+**계약: [`openapi/module-api.json`](../openapi/module-api.json)** — 이 OpenAPI 스펙이 원본이며, 클로드 세션에 그대로 전달하면 서버 구현이 가능하다. 요약:
+
+| 엔드포인트 | 내용 |
+|---|---|
+| `GET /v1/dashboard/live-analytics` | 당일 감지 VIP 목록 (페이징, `locationId`·`type` 필터, 행마다 감지 이력 시간 오름차순) |
+| `GET /v1/vips` | 등록 VIP 목록 (페이징) |
+| `GET /v1/vips/{vipId}/detected-cameras` | VIP가 감지된 카메라 (일 단위, 카메라 중복 제거, 없으면 `cameras: []`) |
+| `GET /v1/vips/{vipId}/detections` | VIP 감지 이력 = 이동 경로 (일 단위, 시간 오름차순) |
+| `GET /v1/vips/{vipId}/photo` | VIP 등록 사진 바이너리 (image/jpeg 또는 png) |
+| `GET /v1/locations` | 로케이션 목록 |
+| `GET /v1/cameras` | 카메라 목록 (페이징, `status` 필터) |
+| `GET /v1/stats/detection-topology` | 시간대별 감지 수 (0~23시 24버킷 + 7일 평균) |
+
+지킬 규칙:
+
+1. **응답은 데이터 그대로** — envelope 없음 (envelope은 프록시가 씌운다). 오류는 HTTP 상태코드 + `{ "code": "MOD-XXXX", "message": "..." }`
+2. **MQTT 발행 값과 일관성** — `eventId`는 MQTT 감지 이벤트와 동일한 값 (브라우저가 두 채널을 이 값으로 병합한다). 카메라 status·locationId·좌표도 MQTT 발행분과 같아야 함
+3. **날짜 파라미터** 기본값은 사이트 로컬(Asia/Singapore) 오늘, 응답의 시각 필드는 ISO-8601 UTC
+4. **성능 분리** — 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리(프로세스 또는 저장소). 프록시는 5초 타임아웃으로 호출하므로 통상 2초 이내 응답 목표
+5. **보존 기간** — 최소 당일+전일 데이터는 조회 가능해야 함 (증감 계산·date 파라미터 지원 범위). 장기 보존 정책은 모듈 재량
 
 ## 구현 검증 방법
 

@@ -344,3 +344,97 @@ export function useGetVipDetections<TData = Awaited<ReturnType<typeof getVipDete
 
 
 
+/**
+ * Vip.photoUrl이 가리키는 이미지 리소스. envelope 없이 이미지 바이너리를 그대로 반환하므로, 화면에서는 훅 없이 <img src={vip.photoUrl}>로 직접 사용한다.
+ * @summary VIP 등록 사진 (바이너리)
+ */
+export const getVipPhoto = (
+    vipId: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<Blob>(
+      {url: `/vips/${vipId}/photo`, method: 'GET',
+        responseType: 'blob', signal
+    },
+      );
+    }
+  
+
+
+
+export const getGetVipPhotoQueryKey = (vipId?: string,) => {
+    return [
+    `/vips/${vipId}/photo`
+    ] as const;
+    }
+
+    
+export const getGetVipPhotoQueryOptions = <TData = Awaited<ReturnType<typeof getVipPhoto>>, TError = ErrorResponse>(vipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVipPhoto>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVipPhotoQueryKey(vipId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVipPhoto>>> = ({ signal }) => getVipPhoto(vipId, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(vipId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVipPhoto>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetVipPhotoQueryResult = NonNullable<Awaited<ReturnType<typeof getVipPhoto>>>
+export type GetVipPhotoQueryError = ErrorResponse
+
+
+export function useGetVipPhoto<TData = Awaited<ReturnType<typeof getVipPhoto>>, TError = ErrorResponse>(
+ vipId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVipPhoto>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVipPhoto>>,
+          TError,
+          Awaited<ReturnType<typeof getVipPhoto>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVipPhoto<TData = Awaited<ReturnType<typeof getVipPhoto>>, TError = ErrorResponse>(
+ vipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVipPhoto>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getVipPhoto>>,
+          TError,
+          Awaited<ReturnType<typeof getVipPhoto>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetVipPhoto<TData = Awaited<ReturnType<typeof getVipPhoto>>, TError = ErrorResponse>(
+ vipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVipPhoto>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary VIP 등록 사진 (바이너리)
+ */
+
+export function useGetVipPhoto<TData = Awaited<ReturnType<typeof getVipPhoto>>, TError = ErrorResponse>(
+ vipId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getVipPhoto>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetVipPhotoQueryOptions(vipId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+

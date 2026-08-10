@@ -1,0 +1,393 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "VCA Module API (내부 계약)",
+    "version": "0.1.0",
+    "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
+    "contact": { "name": "계약 담당: 박상훈 (백엔드/브로커)" }
+  },
+  "servers": [
+    { "url": "http://localhost:8081/v1", "description": "개발 기본값 — 실제 호스트/포트는 배포 시 프록시 설정으로 주입" }
+  ],
+  "tags": [
+    { "name": "dashboard" },
+    { "name": "vips" },
+    { "name": "locations" },
+    { "name": "cameras" },
+    { "name": "stats" }
+  ],
+  "paths": {
+    "/dashboard/live-analytics": {
+      "get": {
+        "operationId": "getLiveAnalytics",
+        "summary": "Live Analytics 목록 (페이징)",
+        "description": "당일 감지된 VIP 목록. 행마다 당일 감지 이력(detections)을 시간 오름차순으로 포함.\n- 정렬: 각 행의 마지막 감지 시각 내림차순 (최근 감지가 위)\n- type 필터: VIP = 당일 감지 카메라 1개, TRACKING = 2개 이상\n- locationId 필터: 해당 로케이션 소속 카메라의 감지만 포함",
+        "tags": ["dashboard"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" },
+          {
+            "name": "locationId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["ALL", "VIP", "TRACKING"], "default": "ALL" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PageLiveAnalyticsRow" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/vips": {
+      "get": {
+        "operationId": "getVips",
+        "summary": "등록 VIP 목록 (페이징)",
+        "description": "totalElements가 대시보드의 'Registered VIP Targets N' 카운트가 된다. 정렬: registeredAt 오름차순.",
+        "tags": ["vips"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PageVip" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/vips/{vipId}/detected-cameras": {
+      "get": {
+        "operationId": "getVipDetectedCameras",
+        "summary": "VIP가 감지된 카메라 목록 (일 단위, 카메라 중복 제거)",
+        "description": "동일 카메라 다중 감지 시 lastDetectedAt만 최신값으로. 감지 이력이 없으면 cameras: [] (오류 아님).",
+        "tags": ["vips"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VipId" },
+          { "$ref": "#/components/parameters/Date" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/VipDetectedCameras" } }
+            }
+          },
+          "404": { "description": "존재하지 않는 vipId", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/vips/{vipId}/detections": {
+      "get": {
+        "operationId": "getVipDetections",
+        "summary": "VIP 감지 이력 = 이동 경로 (일 단위, 시간 오름차순)",
+        "tags": ["vips"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VipId" },
+          { "$ref": "#/components/parameters/Date" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/VipDetections" } }
+            }
+          },
+          "404": { "description": "존재하지 않는 vipId", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/vips/{vipId}/photo": {
+      "get": {
+        "operationId": "getVipPhoto",
+        "summary": "VIP 등록 사진 (바이너리)",
+        "description": "등록 시 업로드된 얼굴 이미지. 프록시가 그대로 스트리밍한다 (envelope 없음). Cache-Control 헤더를 내려주면 프록시·브라우저가 존중한다.",
+        "tags": ["vips"],
+        "parameters": [{ "$ref": "#/components/parameters/VipId" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": { "description": "존재하지 않는 vipId 또는 사진 없음", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/locations": {
+      "get": {
+        "operationId": "getLocations",
+        "summary": "로케이션 목록",
+        "description": "로케이션 = 1개 이상의 카메라를 묶는 지역 그룹 (MQTT SPEC §7.4). 정렬: name 오름차순.",
+        "tags": ["locations"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Location" } }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/cameras": {
+      "get": {
+        "operationId": "getCameras",
+        "summary": "카메라 목록 (페이징)",
+        "description": "status·locationId·location은 MQTT status 발행 값과 일치해야 한다. 정렬: name 오름차순.",
+        "tags": ["cameras"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/CameraStatus" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PageCamera" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/stats/detection-topology": {
+      "get": {
+        "operationId": "getDetectionTopology",
+        "summary": "시간대별 감지 수 그래프 데이터 (일 단위)",
+        "description": "0~23시 24개 버킷(사이트 로컬 기준), 미래 시간대는 count 0. average는 최근 7일 동일 시간대 평균 (데이터 부족 시 null). 프록시가 짧은 TTL로 캐싱할 수 있다.",
+        "tags": ["stats"],
+        "parameters": [{ "$ref": "#/components/parameters/Date" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/DetectionTopology" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "페이지 번호 (0부터)",
+        "schema": { "type": "integer", "minimum": 0, "default": 0 }
+      },
+      "Size": {
+        "name": "size",
+        "in": "query",
+        "required": false,
+        "description": "페이지 크기",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+      },
+      "Date": {
+        "name": "date",
+        "in": "query",
+        "required": false,
+        "description": "조회 기준일 (YYYY-MM-DD). 미지정 시 사이트 로컬(Asia/Singapore) 오늘",
+        "schema": { "type": "string", "format": "date" }
+      },
+      "VipId": {
+        "name": "vipId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "오류 — HTTP 상태코드 + { code, message }. 프록시가 envelope 오류로 변환한다",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+        }
+      }
+    },
+    "schemas": {
+      "ModuleApiError": {
+        "type": "object",
+        "description": "오류 본문. code는 MOD- 접두 규칙 (예: MOD-4040 = 리소스 없음, MOD-5000 = 내부 오류)",
+        "required": ["code"],
+        "properties": {
+          "code": { "type": "string", "example": "MOD-4040" },
+          "message": { "type": "string", "nullable": true }
+        }
+      },
+      "LatLng": {
+        "type": "object",
+        "required": ["lat", "lng"],
+        "properties": {
+          "lat": { "type": "number", "format": "double" },
+          "lng": { "type": "number", "format": "double" }
+        }
+      },
+      "CameraStatus": { "type": "string", "enum": ["RUNNING", "STOPPED"] },
+      "Detection": {
+        "type": "object",
+        "description": "감지 1건 = 좌표 1개. MQTT detections 이벤트와 동일 구조(vip 제외). eventId는 MQTT 발행분과 동일 값이어야 한다 (브라우저가 병합에 사용)",
+        "required": ["eventId", "cameraId", "cameraName", "locationId", "location", "similarity", "detectedAt"],
+        "properties": {
+          "eventId": { "type": "string" },
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "cameraName": { "type": "string" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "location": { "$ref": "#/components/schemas/LatLng" },
+          "similarity": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 },
+          "detectedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "LiveAnalyticsRow": {
+        "type": "object",
+        "required": ["vipId", "name", "detections"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "name": { "type": "string" },
+          "detections": {
+            "type": "array",
+            "description": "당일 감지 이력, 시간 오름차순",
+            "items": { "$ref": "#/components/schemas/Detection" }
+          }
+        }
+      },
+      "Vip": {
+        "type": "object",
+        "required": ["vipId", "name", "photoUrl", "registeredAt"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "photoUrl": { "type": "string", "description": "모듈 API 기준 상대경로 (/vips/{vipId}/photo). 프록시가 브라우저용 경로로 재작성한다" },
+          "registeredAt": { "type": "string", "format": "date" }
+        }
+      },
+      "DetectedCamera": {
+        "type": "object",
+        "required": ["cameraId", "locationId", "location", "lastDetectedAt"],
+        "properties": {
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "location": { "$ref": "#/components/schemas/LatLng" },
+          "lastDetectedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "VipDetectedCameras": {
+        "type": "object",
+        "required": ["vipId", "date", "cameras"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "date": { "type": "string", "format": "date" },
+          "cameras": { "type": "array", "items": { "$ref": "#/components/schemas/DetectedCamera" } }
+        }
+      },
+      "VipDetections": {
+        "type": "object",
+        "required": ["vipId", "date", "detections"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "date": { "type": "string", "format": "date" },
+          "detections": { "type": "array", "items": { "$ref": "#/components/schemas/Detection" } }
+        }
+      },
+      "Location": {
+        "type": "object",
+        "required": ["locationId", "name"],
+        "properties": {
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "name": { "type": "string" }
+        }
+      },
+      "Camera": {
+        "type": "object",
+        "required": ["cameraId", "name", "status", "locationId", "location"],
+        "properties": {
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "name": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/CameraStatus" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "location": { "$ref": "#/components/schemas/LatLng" }
+        }
+      },
+      "TopologyPoint": {
+        "type": "object",
+        "required": ["hour", "count"],
+        "properties": {
+          "hour": { "type": "integer", "minimum": 0, "maximum": 23 },
+          "count": { "type": "integer" },
+          "average": { "type": "number", "format": "double", "nullable": true }
+        }
+      },
+      "DetectionTopology": {
+        "type": "object",
+        "required": ["date", "points"],
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "points": { "type": "array", "items": { "$ref": "#/components/schemas/TopologyPoint" } }
+        }
+      },
+      "PageLiveAnalyticsRow": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": { "type": "array", "items": { "$ref": "#/components/schemas/LiveAnalyticsRow" } },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "PageVip": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": { "type": "array", "items": { "$ref": "#/components/schemas/Vip" } },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "PageCamera": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": { "type": "array", "items": { "$ref": "#/components/schemas/Camera" } },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      }
+    }
+  }
+}

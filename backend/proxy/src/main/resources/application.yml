@@ -1,0 +1,17 @@
+# VCA 프록시 백엔드 — 브라우저 /api 요청을 모듈 API로 중계한다.
+# 변환 규칙: docs/ARCHITECTURE.md "프록시 변환 규칙" / 계약: openapi/openapi.json(공개), openapi/module-api.json(내부)
+server:
+  port: 8080
+
+vca:
+  module-api:
+    # 분석 모듈 API의 베이스 URL (버전 경로 포함). 배포 환경에서는 환경변수 VCA_MODULE_API_BASE_URL로 덮어쓴다.
+    base-url: ${VCA_MODULE_API_BASE_URL:http://localhost:8081/v1}
+    # 모듈 호출 타임아웃 — 초과 시 브라우저에 504 / VCA-5040
+    timeout: 5s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
