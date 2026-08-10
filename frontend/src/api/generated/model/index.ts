@@ -3,8 +3,51 @@
  * Do not edit manually.
  * VCA API
  * 백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.
- * OpenAPI spec version: 0.0.0
+
+실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.
+
+공통 규약:
+- 모든 응답은 { success, data, message, code } envelope
+- 페이징은 { content, page, size, totalElements } (page는 0부터)
+- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
+- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
+- similarity는 0~1 실수 (표시 포맷은 프론트 책임)
+ * OpenAPI spec version: 0.1.0
  */
 
+export * from './camera';
+export * from './cameraListResponse';
+export * from './cameraStatus';
+export * from './dateParameter';
+export * from './detectedCamera';
+export * from './detection';
+export * from './detectionTopology';
+export * from './detectionTopologyResponse';
+export * from './errorResponse';
+export * from './errorResponseData';
+export * from './getCamerasParams';
+export * from './getDetectionTopologyParams';
+export * from './getLiveAnalyticsParams';
+export * from './getLiveAnalyticsType';
+export * from './getVipDetectedCamerasParams';
+export * from './getVipDetectionsParams';
+export * from './getVipsParams';
+export * from './latLng';
+export * from './liveAnalyticsListResponse';
+export * from './liveAnalyticsRow';
+export * from './location';
+export * from './locationListResponse';
+export * from './pageCamera';
+export * from './pageLiveAnalyticsRow';
+export * from './pageParameter';
+export * from './pageVip';
+export * from './sizeParameter';
+export * from './topologyPoint';
 export * from './user';
 export * from './userListResponse';
+export * from './vip';
+export * from './vipDetectedCameras';
+export * from './vipDetectedCamerasResponse';
+export * from './vipDetections';
+export * from './vipDetectionsResponse';
+export * from './vipListResponse';
