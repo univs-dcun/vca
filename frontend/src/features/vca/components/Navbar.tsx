@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "../compat/navigation";
 import { dashboardStats, formatTimeAgo, type LiveEvent } from "../lib/mockData";
 import { useVcaStore, vcaEventsToLiveEvents } from "../lib/vcaStore";
+import { useLiveDashboardStats } from "../../../lib/vca-bridge/useLiveDashboardStats";
 
 const BORDER = "1px solid #E2E8F0";
 export type NavTab = "DASHBOARD" | "BEST FRAME" | "DATA" | "REDMAP";
@@ -31,7 +32,11 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
     setInternalTab(tab);
     onTabChange?.(tab);
   };
-  const { aiRunning, aiStopped, timezone, location } = dashboardStats;
+  const { timezone, location } = dashboardStats;
+  // Running/Stopped come from the broker's stats/summary when live; mock values otherwise.
+  const live = useLiveDashboardStats();
+  const aiRunning = live?.aiRunning ?? dashboardStats.aiRunning;
+  const aiStopped = live?.aiStopped ?? dashboardStats.aiStopped;
 
   const [sgNow, setSgNow] = useState<Date | null>(null);
   useEffect(() => {

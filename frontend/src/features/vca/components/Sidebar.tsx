@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Search, Crown } from "lucide-react";
 import { dashboardStats, devices, type Device, type DeviceStatus, type FilterType, type SidebarTab, type LiveEvent, FACE_PHOTOS, getFacePhoto, formatTimeAgo } from "../lib/mockData";
 import { useVcaStore, vcaEventsToLiveEvents } from "../lib/vcaStore";
+import { useLiveDashboardStats } from "../../../lib/vca-bridge/useLiveDashboardStats";
 
 const BORDER = "1px solid #E2E8F0";
 const PAGE_SIZE = 12;
@@ -253,14 +254,17 @@ function StatusBadge({ status }: { status: string }) {
 
 // Same counts EventsSummary/CollapsedSidebar both show — derived from vcaStore so a live
 // detection added anywhere (e.g. the Data tab's monitoring feed) updates them everywhere.
+// When the broker is publishing stats/summary, the two daily counters come from there instead
+// (cumulative daily totals + real deltas); the store-derived row counts remain the mock fallback.
 function useEventCounts() {
+  const live = useLiveDashboardStats();
   const detections = vcaEventsToLiveEvents(useVcaStore(s => s.events));
   const persons = useVcaStore(s => s.persons);
   return {
     vipTargets: persons.filter(p => p.type === "VIP").length,
-    watchlistMatch: { ...dashboardStats.watchlistMatch, count: detections.filter(e => e.type === "VIP").length },
+    watchlistMatch: live?.watchlistMatch ?? { ...dashboardStats.watchlistMatch, count: detections.filter(e => e.type === "VIP").length },
     tracking: { ...dashboardStats.tracking, count: detections.filter(e => e.type === "Tracking").length },
-    eventsToday: { ...dashboardStats.eventsToday, count: detections.length },
+    eventsToday: live?.eventsToday ?? { ...dashboardStats.eventsToday, count: detections.length },
   };
 }
 
