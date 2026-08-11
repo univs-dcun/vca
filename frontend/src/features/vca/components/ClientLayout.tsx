@@ -15,6 +15,7 @@ import DetectionActivityChart from "./DetectionActivityChart";
 import { ToastProvider, useToast } from "./Toast";
 import { type LiveEvent, type Device, getFacePhoto } from "../lib/mockData";
 import { useVcaStore } from "../lib/vcaStore";
+import { useVcaLiveBridge } from "../../../lib/vca-bridge/useVcaLiveBridge";
 
 export type NavTab = "DASHBOARD" | "BEST FRAME" | "DATA" | "REDMAP";
 const VALID_TABS: NavTab[] = ["DASHBOARD", "BEST FRAME", "DATA", "REDMAP"];
@@ -128,6 +129,9 @@ function VipAlertTicker({ onNavigate }: { onNavigate: (event: LiveEvent) => void
 }
 
 export default function ClientLayout() {
+  // MQTT 브로커 연결 시 실데이터가 vcaStore로 주입된다. isLive면 아래 가짜 감지
+  // 시뮬레이션(VipAlertTicker)을 끈다. 브로커가 없으면 기존 mock 흐름 그대로.
+  const isLive = useVcaLiveBridge();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -183,7 +187,7 @@ export default function ClientLayout() {
 
   return (
     <ToastProvider>
-    <VipAlertTicker onNavigate={handleNotificationNavigate} />
+    {!isLive && <VipAlertTicker onNavigate={handleNotificationNavigate} />}
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
       <Navbar
         activeTab={activePage}
