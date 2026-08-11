@@ -4,7 +4,12 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VCA</title>
+    <title>UNIVS SMART CITY – VCA Dashboard</title>
+    <!-- 폰트: SUIT는 globals.css의 @font-face(woff2)로 로드, Jockey One은 Google Fonts.
+         온프레미스(오프라인) 납품 시 로컬 번들로 교체 필요 (UV-31 후속 플래그) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Jockey+One&display=swap" rel="stylesheet" />
     <!-- 런타임 환경설정: 컨테이너 시작 시 docker-entrypoint.sh가 이 파일을 생성한다.
          빌드 산출물을 재빌드 없이 여러 환경(dev/prod)에 배포하기 위한 패턴. -->
     <script src="/config.js"></script>

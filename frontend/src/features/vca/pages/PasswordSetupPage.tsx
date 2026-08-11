@@ -1,0 +1,121 @@
+
+import { useState } from "react";
+import { useRouter } from "../compat/navigation";
+import AuthHeader from "../components/AuthHeader";
+import { LockFieldIcon, EyeIcon, EyeOffIcon, ErrorCircleIcon } from "../components/AuthIcons";
+
+function fieldBorder(active: boolean) {
+  return active ? "1px solid #8c85ff" : "1px solid #ccd5e1";
+}
+
+export default function PasswordSetupPage() {
+  const router = useRouter();
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [focusedField, setFocusedField] = useState<"new" | "confirm" | null>(null);
+
+  const formatValid =
+    newPassword.length >= 8 &&
+    /[a-zA-Z]/.test(newPassword) &&
+    /[0-9]/.test(newPassword) &&
+    /[^a-zA-Z0-9]/.test(newPassword);
+  const mismatch = confirmPassword.length > 0 && confirmPassword !== newPassword;
+  const canSubmit = newPassword.length > 0 && confirmPassword.length > 0;
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    if (!formatValid || mismatch) return;
+    router.push("/login");
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", backgroundColor: "white" }}>
+      <AuthHeader />
+      <div style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "200px", overflowY: "auto" }}>
+        <div style={{
+          width: "480px", maxWidth: "480px", backgroundColor: "white",
+          borderRadius: "28px", padding: "36px",
+          display: "flex", flexDirection: "column", gap: "40px", alignItems: "center",
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", width: "100%" }}>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "#1d293b", letterSpacing: "-0.52px", lineHeight: "40px" }}>Set Password</h1>
+            <p style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "#475469", letterSpacing: "-0.32px" }}>Please set your new password.</p>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%" }}>
+              {/* New password */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                <label style={{ fontSize: "14px", fontWeight: 700, color: "#475469", letterSpacing: "-0.28px" }}>New password</label>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "48px", padding: "8px", border: fieldBorder(focusedField === "new"), borderRadius: "8px" }}>
+                  <LockFieldIcon />
+                  <input
+                    type={showNew ? "text" : "password"}
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    onFocus={() => setFocusedField("new")}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="••••••••"
+                    style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "#324055", letterSpacing: "-0.35px" }}
+                  />
+                  <button onClick={() => setShowNew(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
+                    {showNew ? <EyeIcon /> : <EyeOffIcon />}
+                  </button>
+                </div>
+              </div>
+              {/* Confirm password */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                <label style={{ fontSize: "14px", fontWeight: 700, color: "#475469", letterSpacing: "-0.28px" }}>Confirm password</label>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "48px", padding: "8px", border: fieldBorder(focusedField === "confirm"), borderRadius: "8px" }}>
+                  <LockFieldIcon />
+                  <input
+                    type={showConfirm ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    onFocus={() => setFocusedField("confirm")}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="••••••••"
+                    style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "#324055", letterSpacing: "-0.35px" }}
+                  />
+                  <button onClick={() => setShowConfirm(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
+                    {showConfirm ? <EyeIcon /> : <EyeOffIcon />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p style={{ margin: 0, fontSize: "12px", fontWeight: 600, color: "#475469", letterSpacing: "-0.24px" }}>
+              At least 8 characters, including letters, numbers, and special characters
+            </p>
+
+            {mismatch && (
+              <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                <ErrorCircleIcon />
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "#f43f5e", letterSpacing: "-0.26px" }}>
+                  Passwords do not match. Please try again.
+                </span>
+              </div>
+            )}
+
+            <button
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              style={{
+                height: "48px", width: "100%", border: "none", borderRadius: "8px",
+                backgroundColor: canSubmit ? "#5a3dfb" : "#f1f5f9",
+                color: canSubmit ? "white" : "#94a3b8",
+                fontSize: "16px", fontWeight: 800, letterSpacing: "-0.32px",
+                cursor: canSubmit ? "pointer" : "default",
+                transition: "background-color 0.15s, color 0.15s",
+              }}
+            >
+              Set Password
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

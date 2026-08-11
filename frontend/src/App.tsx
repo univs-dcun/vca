@@ -1,12 +1,22 @@
-import { UsersPage } from './features/users/UsersPage'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import ClientLayout from './features/vca/components/ClientLayout'
+import LoginPage from './features/vca/pages/LoginPage'
+import MyPage from './features/vca/pages/MyPage'
+import PasswordSetupPage from './features/vca/pages/PasswordSetupPage'
 
+// 라우트 구성 (import/frontend-ui 원본과 동일):
+// 메인 4개 화면(DASHBOARD/BEST FRAME/DATA/REDMAP)은 별도 라우트가 아니라
+// "/" 안에서 ?tab= 쿼리 + 상태로 전환된다 (ClientLayout 내부).
 function App() {
   return (
-    <main style={{ maxWidth: 640, margin: '2rem auto', padding: '0 1rem' }}>
-      <h1>VCA</h1>
-      <p>스캐폴드 예시 화면입니다. (features/users)</p>
-      <UsersPage />
-    </main>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<ClientLayout />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/mypage" element={<MyPage />} />
+        <Route path="/password-setup" element={<PasswordSetupPage />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
