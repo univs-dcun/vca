@@ -17,7 +17,7 @@ const DET_COLOR: Record<DetType, string> = { VIP: "#5a3dfb", Vehicle: "#38bdf8",
 
 const AVATAR = [
   "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
-  "https://images.unsplash.com/photo-1605289982774-9a6fef564df8?auto=format&fit=crop&w=200&q=80",
+  "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=200&q=80",
   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
   "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80",
 ];

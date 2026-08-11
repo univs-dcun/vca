@@ -525,7 +525,7 @@ function VipEventRow({ event, isSelected, photoUrl, onClick }: { event: LiveEven
         <PersonThumb isSelected={isSelected} photoUrl={photoUrl} />
         <div style={{ display:"flex", flexDirection:"column", gap:"5px", flex:1, minWidth:0 }}>
           <div style={{ display:"flex", gap:"6px", alignItems:"baseline" }}>
-            <span style={{ fontSize:"13px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.26px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            <span title={event.name} style={{ fontSize:"13px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.26px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
               {event.name}
             </span>
             <span style={{
@@ -535,7 +535,7 @@ function VipEventRow({ event, isSelected, photoUrl, onClick }: { event: LiveEven
           </div>
           <div style={{ display:"flex", gap:"5px", alignItems:"center" }}>
             <LocationPinIcon color="#324055" />
-            <span style={{ fontSize:"12px", fontWeight:600, color:"#324055", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            <span title={`${event.location}${event.cameraLabel ? ` · ${event.cameraLabel}` : ""}`} style={{ fontSize:"12px", fontWeight:600, color:"#324055", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
               {event.location}{event.cameraLabel ? ` · ${event.cameraLabel}` : ""}
             </span>
             <span style={{ color:"#cbd5e1", fontSize:"11px", flexShrink:0 }}>·</span>
@@ -883,7 +883,7 @@ function nearestZoneName(lat: number, lng: number, cameras: { name: string; lat:
   return best?.name ?? "Unknown";
 }
 
-function CollapsedSidebar() {
+function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }) {
   const [tab, setTab] = usePersistedSidebarTab();
   const [hovered, setHovered] = useState<{ id: string; top: number; item: LiveEvent | Device } | null>(null);
   const { vipTargets, watchlistMatch, tracking } = useEventCounts();
@@ -898,7 +898,7 @@ function CollapsedSidebar() {
   };
 
   return (
-    <div onMouseLeave={() => setHovered(null)} style={{ width:"60px", flexShrink:0, height:"100%", backgroundColor:"white", borderRight:BORDER, display:"flex", flexDirection:"column", alignItems:"center", padding:"12px 0", overflow:"hidden", position:"relative" }}>
+    <div onMouseLeave={() => setHovered(null)} style={{ width:"60px", flexShrink:0, height:"100%", backgroundColor:"white", ...(position === "right" ? { borderLeft: BORDER } : { borderRight: BORDER }), display:"flex", flexDirection:"column", alignItems:"center", padding:"12px 0", overflow:"hidden", position:"relative" }}>
       {/* Tab toggle */}
       <div style={{ width:"44px", backgroundColor:"#f1f5f9", borderRadius:"12px", padding:"4px", display:"flex", flexDirection:"column", gap:"4px", flexShrink:0 }}>
         <button onClick={() => setTab("EVENTS")} style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="EVENTS" ? "#5a3dfb" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
@@ -993,7 +993,7 @@ function CollapsedSidebar() {
           const event = hovered.item as LiveEvent;
           const photoUrl = getFacePhoto(event.id);
           return (
-            <div style={{ position:"fixed", left:"64px", top: clampedTop, zIndex:1000, width:"210px", backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(0,0,0,0.12)", pointerEvents:"none" }}>
+            <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"210px", backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(0,0,0,0.12)", pointerEvents:"none" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:"8px", marginBottom:"8px", borderBottom:"1px solid #f1f5f9" }}>
                 <span style={{ fontSize:"10px", fontWeight:800, color: event.type==="VIP" ? "#5a3dfb" : "#6d9300", backgroundColor: event.type==="VIP" ? "#eef2ff" : "#f6f9ec", padding:"2px 6px", borderRadius:"4px" }}>
                   {event.type==="VIP" ? `VIP · ${event.confidence}%` : "TRACKING"}
@@ -1014,7 +1014,7 @@ function CollapsedSidebar() {
           const isLive = device.status === "Live";
           const zone = nearestZoneName(device.lat, device.lng, cameras);
           return (
-            <div style={{ position:"fixed", left:"64px", top: clampedTop, zIndex:1000, width:"180px", backgroundColor:"#0e162a", border:"1px solid #334155", borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(0,0,0,0.2)", pointerEvents:"none" }}>
+            <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"180px", backgroundColor:"#0e162a", border:"1px solid #334155", borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(0,0,0,0.2)", pointerEvents:"none" }}>
               <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"3px" }}>{zone}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span style={{ fontSize:"12px", fontWeight:800, color:"white" }}>{device.name}</span>
@@ -1041,16 +1041,18 @@ interface SidebarProps {
   pinnedDeviceId?: string | null;
   isCollapsed?: boolean;
   onToggleDetectionChart?: () => void;
+  /** Which side of the map this sidebar sits on — flips which edge carries the border. */
+  position?: "left" | "right";
 }
 
-export default function Sidebar({ onEventSelect, selectedEventId, locationFilter, onLocationClear, onLocationSelect, onPinDevice, pinnedDeviceId, isCollapsed, onToggleDetectionChart }: SidebarProps) {
+export default function Sidebar({ onEventSelect, selectedEventId, locationFilter, onLocationClear, onLocationSelect, onPinDevice, pinnedDeviceId, isCollapsed, onToggleDetectionChart, position = "left" }: SidebarProps) {
   const [activeTab, setActiveTab] = usePersistedSidebarTab();
   const [personFilter, setPersonFilter] = useState<string | null>(null);
 
-  if (isCollapsed) return <CollapsedSidebar />;
+  if (isCollapsed) return <CollapsedSidebar position={position} />;
 
   return (
-    <div style={{ width:"380px", flexShrink:0, height:"100%", backgroundColor:"white", borderRight:BORDER, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+    <div style={{ width:"380px", flexShrink:0, height:"100%", backgroundColor:"white", ...(position === "right" ? { borderLeft: BORDER } : { borderRight: BORDER }), display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
       {/* Tab toggle */}
       <div style={{ padding:"12px 20px 6px", flexShrink:0 }}>

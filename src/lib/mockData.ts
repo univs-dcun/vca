@@ -8,8 +8,41 @@ export const FACE_PHOTOS = [
 ];
 
 export function getFacePhoto(eventId: string): string {
-  return FACE_PHOTOS[parseInt(eventId) % FACE_PHOTOS.length];
+  // A plain parseInt() only works for purely-numeric ids ("1", "2", ...) — any id with a
+  // non-numeric prefix (e.g. a simulated live-alert id) parses to NaN, so FACE_PHOTOS[NaN]
+  // comes back undefined and the <img> renders broken. Hash the whole string instead so any
+  // id shape maps to a valid, stable photo.
+  let hash = 0;
+  for (let i = 0; i < eventId.length; i++) {
+    hash = (hash * 31 + eventId.charCodeAt(i)) | 0;
+  }
+  return FACE_PHOTOS[Math.abs(hash) % FACE_PHOTOS.length];
 }
+
+// The 17 Singapore district centers used by the Dashboard map's zoomed-out cluster-pill view
+// (and, historically, RedmapMap's now-disabled STATUS_ZONES) — shared reference data so both
+// the camera-count and today's-VIP-count aggregations bucket detections/cameras the same way.
+export interface District { id: string; label: string; lat: number; lng: number; }
+
+export const DISTRICTS: District[] = [
+  { id: "amk",  label: "Angmokio",     lat: 1.3691, lng: 103.8454 },
+  { id: "sea",  label: "Serangoon",    lat: 1.3554, lng: 103.8679 },
+  { id: "geo1", label: "Geylang",      lat: 1.3202, lng: 103.8649 },
+  { id: "aug",  label: "August",       lat: 1.3380, lng: 103.8840 },
+  { id: "houg", label: "Hougang",      lat: 1.3717, lng: 103.8927 },
+  { id: "geo2", label: "Geylang",      lat: 1.3108, lng: 103.8572 },
+  { id: "bis",  label: "Bishan",       lat: 1.3517, lng: 103.8490 },
+  { id: "bkt",  label: "Bukit",        lat: 1.3522, lng: 103.7786 },
+  { id: "tp",   label: "Toa payoh",    lat: 1.3343, lng: 103.8565 },
+  { id: "nov",  label: "Novena",       lat: 1.3195, lng: 103.8410 },
+  { id: "kal1", label: "Kallang",      lat: 1.3108, lng: 103.8715 },
+  { id: "geo3", label: "Geylang",      lat: 1.3158, lng: 103.8920 },
+  { id: "bdk",  label: "Bedok",        lat: 1.3250, lng: 103.9291 },
+  { id: "tam",  label: "Tampines",     lat: 1.3527, lng: 103.9442 },
+  { id: "cen",  label: "Central area", lat: 1.2895, lng: 103.8500 },
+  { id: "mar",  label: "Marine",       lat: 1.3020, lng: 103.9090 },
+  { id: "kal2", label: "Kallang",      lat: 1.3088, lng: 103.8648 },
+];
 
 // Deterministic pseudo-random in [0,1) — a plain Math.random() would differ between the
 // server-rendered and client-hydrated pass and trigger a hydration mismatch.

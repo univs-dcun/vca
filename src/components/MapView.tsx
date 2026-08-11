@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { LiveEvent, Device, TrackingHop, getFacePhoto, formatTimeAgo } from "@/lib/mockData";
+import { useEffect, useRef, useState } from "react";
+import { LiveEvent, Device, TrackingHop, District, DISTRICTS, getFacePhoto, formatTimeAgo } from "@/lib/mockData";
 import { useVcaStore, vcaEventsToLiveEvents } from "@/lib/vcaStore";
 
 // Leaflet popups are raw HTML strings, not React — values dropped into an inline onclick="...('...')"
@@ -25,6 +25,51 @@ function recentPingHtml(color: string): string {
     </div>`;
 }
 
+// Zoomed out (zoom <= breakpoint) shows district cluster pills (real counts, computed below);
+// zoomed in past it shows the per-camera recent-activity dots instead — the same breakpoint
+// idea as RedmapMap's tracking-route decluttering, just gating which layer draws at all.
+const CLUSTER_ZOOM_BREAKPOINT = 14;
+
+function nearestDistrict(lat: number, lng: number, districts: District[]): District {
+  let best = districts[0];
+  let bestDist = Infinity;
+  for (const d of districts) {
+    const dist = (d.lat - lat) ** 2 + (d.lng - lng) ** 2;
+    if (dist < bestDist) { bestDist = dist; best = d; }
+  }
+  return best;
+}
+
+// Ported from RedmapMap.tsx's statusMarkerHtml() — same colors/thresholds/dashed-camera-icon —
+// but driven by real computed { count, hasCamera } instead of RedmapMap's hardcoded STATUS_ZONES.
+function districtPillHtml(label: string, count: number, hasCamera: boolean): string {
+  const isAlert = count >= 100;
+  const isDark = !isAlert && count >= 20;
+  const isDashed = !hasCamera;
+  let bg: string, textColor: string, border: string;
+  if (isAlert)      { bg = "#f43f5e"; textColor = "white";   border = ""; }
+  else if (isDark)  { bg = "#0e162a"; textColor = "white";   border = ""; }
+  else if (isDashed){ bg = "white";   textColor = "#64748a"; border = "border:1.5px dashed #cbd5e1;"; }
+  else              { bg = "white";   textColor = "#334155"; border = "border:1.5px solid #e2e8f0;"; }
+  const camSvg = isDashed
+    ? `<svg width="14" height="11" viewBox="0 0 14 11" fill="none" style="flex-shrink:0">
+        <path d="M1 1L13 10" stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round"/>
+        <path d="M6 1H2A1.5 1.5 0 0 0 0.5 2.5v5A1.5 1.5 0 0 0 2 9h9A1.5 1.5 0 0 0 11.5 7.5V5"
+              stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M10 2L13.5 0.5V10L10 8.5"
+              stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>`
+    : "";
+  const labelHtml = isDashed ? label : `${label}&nbsp;&nbsp;${count}`;
+  const fw = isDark || isAlert ? 700 : 600;
+  const shadow = isDark || isAlert ? "0 2px 10px rgba(0,0,0,0.2)" : "0 2px 6px rgba(0,0,0,0.08)";
+  return `<div style="transform:translateX(-50%) translateY(-50%);display:inline-flex;align-items:center;
+      gap:5px;background:${bg};${border}border-radius:999px;padding:5px 12px;
+      font-family:'SUIT',system-ui,sans-serif;font-size:12px;font-weight:${fw};
+      color:${textColor};box-shadow:${shadow};white-space:nowrap;letter-spacing:-0.2px">
+    ${camSvg}${labelHtml}</div>`;
+}
+
 function getPopupHTML(event: LiveEvent): string {
   const typeColor = event.type === "VIP" ? "#8b5cf6" : "#6d9300";
   const typeBg = event.type === "VIP" ? "#f6f6fe" : "#f6f9ec";
@@ -38,19 +83,19 @@ function getPopupHTML(event: LiveEvent): string {
        </div>`;
 
   return `
-    <div style="font-family:'SUIT',system-ui,sans-serif;width:256px;padding:14px 28px 12px 14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-right:4px">
-        <div style="display:flex;align-items:center;gap:5px">
-          <svg width="14" height="14" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <div style="font-family:'SUIT',system-ui,sans-serif;width:256px;padding:14px 14px 12px 14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;padding-right:18px;gap:8px">
+        <div style="display:flex;align-items:flex-start;gap:5px;min-width:0">
+          <svg width="14" height="14" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;margin-top:1px">
             <path d="M12.5625 9.00781H15.2865C15.4143 9.00788 15.5399 9.0406 15.6515 9.10287C15.7631 9.16514 15.857 9.25489 15.9241 9.36361C15.9913 9.47233 16.0296 9.5964 16.0353 9.72407C16.0411 9.85173 16.0141 9.97875 15.957 10.0931L14.4315 13.1448C14.3737 13.2605 14.2869 13.3592 14.1796 13.4314C14.0724 13.5036 13.9483 13.5469 13.8194 13.557C13.6905 13.5671 13.5612 13.5437 13.444 13.4891C13.3268 13.4345 13.2257 13.3505 13.1505 13.2453L11.5575 11.0178" stroke="#475469" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M12.8295 6.79756C13.0073 6.88655 13.1424 7.04246 13.2053 7.23105C13.2681 7.41964 13.2536 7.62547 13.1647 7.80331L10.8352 12.4616C10.7912 12.5497 10.7302 12.6282 10.6558 12.6928C10.5813 12.7573 10.4949 12.8066 10.4015 12.8377C10.308 12.8688 10.2093 12.8812 10.111 12.8742C10.0128 12.8672 9.91685 12.8409 9.82875 12.7968L2.7075 9.23281C2.19025 8.97227 1.79727 8.51745 1.61454 7.96786C1.43181 7.41828 1.47423 6.8187 1.7325 6.30031L2.7675 4.20781C2.8965 3.95073 3.07488 3.72157 3.29245 3.53344C3.51003 3.3453 3.76253 3.20187 4.03554 3.11133C4.30855 3.02079 4.59673 2.98491 4.8836 3.00576C5.17048 3.0266 5.45044 3.10376 5.7075 3.23281L12.8295 6.79756Z" stroke="#475469" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M1.5 14.2578H4.32C4.59955 14.2598 4.87408 14.1835 5.11261 14.0378C5.35115 13.892 5.54421 13.6825 5.67 13.4328L6.75 11.2578" stroke="#475469" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M1.5 15.7578V12.7578" stroke="#475469" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M5.25 7H5.25729" stroke="#475469" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span style="font-size:12px;font-weight:800;color:#0e162a;letter-spacing:-0.24px">${event.location}${event.cameraLabel ? ` · ${event.cameraLabel}` : ""}</span>
+          <span style="font-size:12px;font-weight:800;color:#0e162a;letter-spacing:-0.24px;line-height:1.3">${event.location}${event.cameraLabel ? ` · ${event.cameraLabel}` : ""}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:4px">
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;margin-top:1px">
           <div style="width:6px;height:6px;background:#22c55e;border-radius:50%"></div>
           <span style="font-size:11px;color:#64748a;letter-spacing:-0.22px">${formatTimeAgo(event.timestamp)}</span>
         </div>
@@ -86,6 +131,14 @@ function getPopupHTML(event: LiveEvent): string {
         <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(14,22,42,0.8), rgba(14,22,42,0) 55%)"></div>
         <span style="position:absolute;bottom:8px;left:10px;font-size:9px;color:rgba(255,255,255,0.85);font-weight:700;letter-spacing:0.5px">CAPTURED FRAME</span>
       </div>
+
+      <button onclick="window.__vcaGoAnalyzeFrame && window.__vcaGoAnalyzeFrame('${escapeAttr(event.location)}')"
+        style="margin-top:10px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;
+        background:#0e162a;color:white;border:none;border-radius:6px;padding:8px 0;
+        font-family:'SUIT',system-ui,sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 3.5L8.5 6L4.5 8.5V3.5Z" fill="white"/></svg>
+        Analyze Frame
+      </button>
     </div>
   `;
 }
@@ -194,23 +247,34 @@ interface MapViewProps {
   pinnedDevice?: Device | null;
   onGoLiveCam?: (location: string) => void;
   onGoRedmapTrace?: (personName: string) => void;
+  onAnalyzeFrame?: (location: string) => void;
 }
 
-export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, onGoLiveCam, onGoRedmapTrace }: MapViewProps) {
+export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, onGoLiveCam, onGoRedmapTrace, onAnalyzeFrame }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<unknown>(null);
   const popupRef = useRef<unknown>(null);
+  // Flips once Leaflet's async init resolves — the selectedEvent/pinnedDevice/district-cluster
+  // effects below read mapInstanceRef synchronously and bail if it's still null, so without this
+  // they silently no-op when data arrives on the very first mount (init hasn't resolved yet) and
+  // never retry.
+  const [mapReady, setMapReady] = useState(false);
+  // Mirrors the map's own zoom level — read by the district-cluster/recent-activity effect to
+  // decide whether to draw the zoomed-out cluster pills or the zoomed-in per-camera dots.
+  const [zoom, setZoom] = useState(12);
 
   // Bridge for clicks inside Leaflet's raw-HTML popups (they aren't React, so they can't call
   // these handlers directly) — the popup markup calls window.__vcaGoLiveCam(...) / __vcaGoRedmapTrace(...).
   useEffect(() => {
     (window as unknown as { __vcaGoLiveCam?: (location: string) => void }).__vcaGoLiveCam = onGoLiveCam;
     (window as unknown as { __vcaGoRedmapTrace?: (name: string) => void }).__vcaGoRedmapTrace = onGoRedmapTrace;
+    (window as unknown as { __vcaGoAnalyzeFrame?: (location: string) => void }).__vcaGoAnalyzeFrame = onAnalyzeFrame;
     return () => {
       delete (window as unknown as { __vcaGoLiveCam?: (location: string) => void }).__vcaGoLiveCam;
       delete (window as unknown as { __vcaGoRedmapTrace?: (name: string) => void }).__vcaGoRedmapTrace;
+      delete (window as unknown as { __vcaGoAnalyzeFrame?: (location: string) => void }).__vcaGoAnalyzeFrame;
     };
-  }, [onGoLiveCam, onGoRedmapTrace]);
+  }, [onGoLiveCam, onGoRedmapTrace, onAnalyzeFrame]);
   const pinMarkerRef = useRef<unknown>(null);
   const deviceMarkerRef = useRef<unknown>(null);
   const devicePopupRef = useRef<unknown>(null);
@@ -225,11 +289,9 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
   const camerasRef = useRef(cameras);
   useEffect(() => { camerasRef.current = cameras; }, [cameras]);
 
-  // Recently-detected locations — replaces the old static, always-on zone-count pills with
-  // markers that only appear where something was actually just found.
+  // Recently-detected locations — feeds the district-cluster/recent-activity effect below
+  // directly (no ref needed there since that effect already re-runs on every change).
   const recentEvents = vcaEventsToLiveEvents(useVcaStore(s => s.events));
-  const recentEventsRef = useRef(recentEvents);
-  useEffect(() => { recentEventsRef.current = recentEvents; }, [recentEvents]);
 
   // ── Map initialization ───────────────────────────────────────────
   useEffect(() => {
@@ -275,19 +337,68 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
         }
       ).addTo(map);
 
+      map.zoomControl.setPosition("topright");
+      map.on("zoomend", () => setZoom(map.getZoom()));
+      mapInstanceRef.current = map;
+      setZoom(map.getZoom());
+      setMapReady(true);
+    }
 
-      // Recently-detected locations only — no static zone layer, no zoom-dependent behavior.
-      function drawRecentActivityMarkers() {
-        if (zoneLayerRef.current) {
-          (zoneLayerRef.current as { remove: () => void }).remove();
-          zoneLayerRef.current = null;
-        }
-        const group = L.layerGroup();
+    initMap();
 
+    return () => {
+      cancelled = true;
+      if (mapInstanceRef.current) {
+        (mapInstanceRef.current as { remove: () => void }).remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  // ── District cluster pills (zoomed out) / per-camera activity pings (zoomed in) ─
+  // Zoom <= CLUSTER_ZOOM_BREAKPOINT: aggregate into district pill badges — camera counts and
+  // today's VIP-hit counts, real computed data rather than the old hardcoded RedmapMap mock.
+  // Zoom > breakpoint: fall back to the original per-location recent-activity dots so individual
+  // detections are still identifiable once zoomed in far enough to tell sites apart.
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const map = mapInstanceRef.current as any;
+    if (!map) return;
+
+    if (zoneLayerRef.current) {
+      (zoneLayerRef.current as { remove: () => void }).remove();
+      zoneLayerRef.current = null;
+    }
+
+    import("leaflet").then(({ default: L }) => {
+      const group = L.layerGroup();
+
+      if (zoom <= CLUSTER_ZOOM_BREAKPOINT) {
+        // ── Zoomed out: one pill per district ──
+        const today = new Date().toDateString();
+        DISTRICTS.forEach((district) => {
+          const camerasInDistrict = cameras.filter(c => nearestDistrict(c.lat, c.lng, DISTRICTS).id === district.id);
+          const hasCamera = camerasInDistrict.length > 0;
+          const count = recentEvents.filter(ev =>
+            ev.type === "VIP" &&
+            new Date(ev.timestamp).toDateString() === today &&
+            nearestDistrict(ev.lat, ev.lng, DISTRICTS).id === district.id
+          ).length;
+
+          const icon = L.divIcon({
+            html: districtPillHtml(district.label, count, hasCamera),
+            iconSize: [1, 1],
+            iconAnchor: [0, 0],
+            className: "vca-zone-icon",
+          });
+          L.marker([district.lat, district.lng], { icon }).addTo(group);
+        });
+      } else {
+        // ── Zoomed in: per-location recent-activity dots (same visual as before) ──
         // Dedupe by rounded lat/lng so repeat hits at the same site (e.g. a person seen on two
         // cameras in the same zone) don't stack multiple pings on top of each other.
         const seen = new Set<string>();
-        recentEventsRef.current.forEach((ev) => {
+        recentEvents.forEach((ev) => {
           const key = `${ev.lat.toFixed(4)},${ev.lng.toFixed(4)}`;
           if (seen.has(key)) return;
           seen.add(key);
@@ -303,27 +414,11 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
             .addTo(group)
             .on("click", () => onCameraSelectRef.current?.(ev.location));
         });
-
-        group.addTo(map);
-        zoneLayerRef.current = group;
       }
-
-      drawRecentActivityMarkers();
-
-      map.zoomControl.setPosition("topright");
-      mapInstanceRef.current = map;
-    }
-
-    initMap();
-
-    return () => {
-      cancelled = true;
-      if (mapInstanceRef.current) {
-        (mapInstanceRef.current as { remove: () => void }).remove();
-        mapInstanceRef.current = null;
-      }
-    };
-  }, []);
+      group.addTo(map);
+      zoneLayerRef.current = group;
+    });
+  }, [recentEvents, cameras, zoom, mapReady]);
 
   // ── Keep the map's internal canvas in sync with its container ───
   // Leaflet only measures its container once on init, so collapsing/expanding the sidebar
@@ -475,8 +570,7 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
         }
       });
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEvent]);
+  }, [selectedEvent, mapReady]);
 
   // ── Pinned device (SYSTEM tab) → flyTo + marker ────────────────
   useEffect(() => {
@@ -516,8 +610,7 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
         .openOn(map);
       devicePopupRef.current = popup;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pinnedDevice]);
+  }, [pinnedDevice, mapReady]);
 
   return (
     <div

@@ -697,7 +697,7 @@ function getGridLayout(n: number): { cols: number; rows: number; sidePanelOnHove
 }
 
 /* ── Main component ──────────────────────────────────────────── */
-export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedmapTrace }: { focusLocation?: string | null; onFocusConsumed?: () => void; onGoRedmapTrace?: (name: string) => void } = {}) {
+export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedmapTrace, analyzeFrameLocation, onAnalyzeFrameConsumed }: { focusLocation?: string | null; onFocusConsumed?: () => void; onGoRedmapTrace?: (name: string) => void; analyzeFrameLocation?: string | null; onAnalyzeFrameConsumed?: () => void } = {}) {
   const [normalCams, setNormalCams] = useState<Camera[]>(NORMAL_CAMS_INIT);
   const [videoCams,  setVideoCams]  = useState<Camera[]>(VIDEO_CAMS_INIT);
   const [imageCams,  setImageCams]  = useState<Camera[]>(IMAGE_CAMS_INIT);
@@ -710,6 +710,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   // Tracks the last `focusLocation` value already processed, following React's "adjusting
   // state when a prop changes" pattern (state, not a ref, so it's safe to read during render).
   const [prevFocusLocation, setPrevFocusLocation] = useState(focusLocation ?? null);
+  const [prevAnalyzeFrameLocation, setPrevAnalyzeFrameLocation] = useState(analyzeFrameLocation ?? null);
 
   const mainRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -739,6 +740,34 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   useEffect(() => {
     if (focusLocation) onFocusConsumed?.();
   }, [focusLocation, onFocusConsumed]);
+
+  // Deep-link from Dashboard's map popup ("Analyze Frame") — same camera-isolate as above, but
+  // also jumps straight to that camera's Inspection Detail (its first detection) instead of just
+  // maximizing the live tile, since the whole point of this entry point is to land on analysis.
+  if ((analyzeFrameLocation ?? null) !== prevAnalyzeFrameLocation) {
+    setPrevAnalyzeFrameLocation(analyzeFrameLocation ?? null);
+    if (analyzeFrameLocation) {
+      const hint = analyzeFrameLocation.toLowerCase();
+      const match = normalCams.find(c => {
+        const loc = CAM_DATA[c.id]?.location.toLowerCase() ?? "";
+        return loc.includes(hint) || hint.includes(loc);
+      });
+      if (match) {
+        setNormalCams(prev => prev.map(c => ({ ...c, checked: c.id === match.id })));
+        setVideoCams(prev => prev.map(c => ({ ...c, checked: false })));
+        setImageCams(prev => prev.map(c => ({ ...c, checked: false })));
+        setHighlightCamId(match.id);
+        const data = CAM_DATA[match.id] ?? DEFAULT_DATA;
+        if (data.detections[0]) setDetailView({ camId: match.id, data, det: data.detections[0] });
+      } else {
+        showToast({ variant:"warning", title:"No matching camera", desc:`No Best Frame camera is set up yet for "${analyzeFrameLocation}".` });
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (analyzeFrameLocation) onAnalyzeFrameConsumed?.();
+  }, [analyzeFrameLocation, onAnalyzeFrameConsumed]);
 
   // Auto-clear the highlight a few seconds after it's set (setState inside the timer's
   // callback, not synchronously in the effect body, so this is the sanctioned effect pattern).

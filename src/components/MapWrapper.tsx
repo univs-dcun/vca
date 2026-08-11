@@ -11,9 +11,10 @@ interface MapWrapperProps {
   pinnedDevice?: Device | null;
   onGoLiveCam?: (location: string) => void;
   onGoRedmapTrace?: (personName: string) => void;
+  onAnalyzeFrame?: (location: string) => void;
 }
 
-export default function MapWrapper({ selectedEvent, onCameraSelect, pinnedDevice, onGoLiveCam, onGoRedmapTrace }: MapWrapperProps) {
+export default function MapWrapper({ selectedEvent, onCameraSelect, pinnedDevice, onGoLiveCam, onGoRedmapTrace, onAnalyzeFrame }: MapWrapperProps) {
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <MapView
@@ -22,6 +23,7 @@ export default function MapWrapper({ selectedEvent, onCameraSelect, pinnedDevice
         pinnedDevice={pinnedDevice}
         onGoLiveCam={onGoLiveCam}
         onGoRedmapTrace={onGoRedmapTrace}
+        onAnalyzeFrame={onAnalyzeFrame}
       />
     </div>
   );

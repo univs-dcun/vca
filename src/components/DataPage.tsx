@@ -31,7 +31,7 @@ const TRAJECTORY = [
 
 // ── Re-ID grid data ────────────────────────────────────────────
 const PHOTO_POOL = [
-  "1507003211169-0a1dd7228f2d","1605289982774-9a6fef564df8","1519085360753-af0119f7cbe7",
+  "1507003211169-0a1dd7228f2d","1494790108377-be9c29b29330","1519085360753-af0119f7cbe7",
   "1534528741775-53994a69daeb","1544005313-94ddf0286df2","1531746020798-e6953c6e8e04",
   "1552374196-1ab2a1c593e8","1472099645785-5658abf4ff4e","1573497019236-17f8177b81e8",
   "1548142813-c348350df52b","1524504388940-b1c1722653e1","1529626455594-4ff0802cfb7e",
@@ -158,16 +158,6 @@ function DetailModal({ item, onClose }: { item:MatchItem; onClose:()=>void }) {
 }
 
 // ── Monitor Card (Live Monitoring landing / detail) ─────────────
-function ReidIconSm() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-      <path d="M12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M4 6C5.10457 6 6 5.10457 6 4C6 2.89543 5.10457 2 4 2C2.89543 2 2 2.89543 2 4C2 5.10457 2.89543 6 4 6Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8.6665 4H10.6665C11.0201 4 11.3593 4.14048 11.6093 4.39052C11.8594 4.64057 11.9998 4.97971 11.9998 5.33333V10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M7.33333 12H5.33333C4.97971 12 4.64057 11.8595 4.39052 11.6095C4.14048 11.3594 4 11.0203 4 10.6667V6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
 function RedFaceIconSm() {
   return (
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -198,6 +188,16 @@ function SearchIconSm() {
   );
 }
 
+function ReidIconSm() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+      <path d="M12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M4 6C5.10457 6 6 5.10457 6 4C6 2.89543 5.10457 2 4 2C2.89543 2 2 2.89543 2 4C2 5.10457 2.89543 6 4 6Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8.6665 4H10.6665C11.0201 4 11.3593 4.14048 11.6093 4.39052C11.8594 4.64057 11.9998 4.97971 11.9998 5.33333V10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7.33333 12H5.33333C4.97971 12 4.64057 11.8595 4.39052 11.6095C4.14048 11.3594 4 11.0203 4 10.6667V6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
 function HoverActionBtn({ label, icon, color, onClick }:
   { label:string; icon:React.ReactNode; color:string; onClick:(e:React.MouseEvent)=>void }) {
   return (
@@ -276,11 +276,6 @@ function MonitorCard({ p, onClick, showCam = false, fill = false }: { p: (typeof
   );
 }
 
-const NAV_BTN_STYLE: React.CSSProperties = {
-  width:"28px", height:"28px", borderRadius:"999px", border:BORDER, backgroundColor:"white",
-  display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, padding:0,
-};
-
 function CameraGlyph({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
@@ -292,43 +287,6 @@ function CameraGlyph({ size = 20 }: { size?: number }) {
     </svg>
   );
 }
-function ChevronRightSm() {
-  return <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#94a3b8" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>;
-}
-function NavArrowIcon({ dir }: { dir:"left"|"right" }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <path d={dir==="left" ? "M8 2L4 6l4 4" : "M4 2l4 4-4 4"} stroke="#475469" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
-
-// ── Carousel Section (per camera, Live Monitoring landing) ──────
-function CarouselSection({ label, items, onViewMore, onCardClick }:
-  { label:string; items:(typeof REID_DATA); onViewMore:()=>void; onCardClick:(id:number)=>void }) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const scrollBy = (dx:number) => scrollerRef.current?.scrollBy({ left: dx, behavior:"smooth" });
-
-  return (
-    <div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"12px" }}>
-        <button onClick={onViewMore} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", padding:0, color:"#0e162a" }}>
-          <CameraGlyph />
-          <span style={{ fontSize:"16px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.32px" }}>{label}</span>
-          <ChevronRightSm />
-        </button>
-        <div style={{ display:"flex", gap:"8px" }}>
-          <button onClick={() => scrollBy(-300)} style={NAV_BTN_STYLE}><NavArrowIcon dir="left" /></button>
-          <button onClick={() => scrollBy(300)} style={NAV_BTN_STYLE}><NavArrowIcon dir="right" /></button>
-        </div>
-      </div>
-      <div ref={scrollerRef} className="vca-hide-scrollbar" style={{ display:"flex", gap:"12px", overflowX:"auto", paddingBottom:"2px" }}>
-        {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} />)}
-      </div>
-    </div>
-  );
-}
-
 // ── Live Monitoring Landing (Figma: "Live monitoring landing") ──
 function CameraStatusHoverTag({ label, color, cameras }: { label:string; color:string; cameras:Camera[] }) {
   const [hover, setHover] = useState(false);
@@ -356,74 +314,36 @@ function CameraStatusHoverTag({ label, color, cameras }: { label:string; color:s
   );
 }
 
-function LiveMonitoringLanding({ feed, onOpenCam, onCardClick }:
-  { feed: Record<string, (typeof REID_DATA)>; onOpenCam:(camId:string)=>void; onCardClick:(id:number)=>void }) {
-  const cameras = useVcaStore(s => s.cameras);
-  const onlineCameras = cameras.filter(c => c.status === "online");
-  const offlineCameras = cameras.filter(c => c.status !== "online");
-  const [viewMode, setViewMode] = useState<"byCamera"|"all">("byCamera");
-  const allItems = onlineCameras.flatMap(cam => feed[cam.code] ?? []);
+// Landing always shows the by-camera carousel stack — the old By Camera/All Cameras toggle was
+// redundant with the camera-select dropdown inside CameraDetailView, which now offers
+// "All Cameras" as one of its own options (see ALL_CAMERAS_ID) instead of a separate top-level
+// switch.
+// Sentinel camId meaning "no single camera — the flattened feed of every online camera."
+// Lets the camera-select dropdown itself offer "All Cameras" as one of its options instead of
+// a separate top-level By Camera/All Cameras toggle (the two were redundant) and a separate
+// horizontal-scrolling per-camera carousel landing (removed — replaced by this one screen).
+const ALL_CAMERAS_ID = "__ALL__";
 
-  return (
-    <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto", padding:"20px 24px", display:"flex", flexDirection:"column", gap:"16px", backgroundColor:"white" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:"24px" }}>
-        <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"8px", padding:"4px" }}>
-          {(["byCamera","all"] as const).map(v => {
-            const active = viewMode === v;
-            return (
-              <button key={v} onClick={() => setViewMode(v)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px",
-                borderRadius:"6px", border:"none", cursor:"pointer",
-                backgroundColor: active ? "white" : "transparent", color: active ? "#0f172a" : "#64748a",
-                fontSize:"12px", fontWeight: active ? 700 : 600 }}>
-                {v === "byCamera" ? <CameraGlyph size={14}/> : <LayersIconSm/>} {v === "byCamera" ? "By Camera" : "All Cameras"}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:"16px", fontSize:"12px", fontWeight:700, color:"#475469" }}>
-          <span>Total Cameras {cameras.length}</span>
-          <CameraStatusHoverTag label="Online" color="#16a34a" cameras={onlineCameras} />
-          <CameraStatusHoverTag label="Offline" color="#94a3b8" cameras={offlineCameras} />
-        </div>
-      </div>
-      {viewMode === "byCamera" ? (
-        <div style={{ display:"flex", flexDirection:"column", gap:"24px" }}>
-          {onlineCameras.map(cam => (
-            <CarouselSection
-              key={cam.id}
-              label={cam.code}
-              items={feed[cam.code] ?? []}
-              onViewMore={() => onOpenCam(cam.code)}
-              onCardClick={onCardClick}
-            />
-          ))}
-        </div>
-      ) : (
-        // flex-wrap + flex-grow on each card (not CSS grid — grid's column tracks are shared
-        // across every row, so a full row elsewhere forces the same narrow columns everywhere;
-        // flexbox distributes leftover space per wrapped LINE, so only the actual trailing
-        // partial row stretches to fill, without narrowing the fully-packed rows above it).
-        <div style={{ display:"flex", flexWrap:"wrap", columnGap:"12px", rowGap:"20px", marginTop:"8px" }}>
-          {allItems.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} showCam fill />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Camera Detail View (Figma: "Live monitoring detail") ───────────
-function CameraDetailView({ camId, items, onBack, onSwitchCam, onCardClick }:
-  { camId:string; items:(typeof REID_DATA); onBack:()=>void; onSwitchCam:(camId:string)=>void; onCardClick:(id:number)=>void }) {
+// ── Camera Detail View (Figma: "Live monitoring detail") — now the ONLY Live Monitoring
+// screen; the camera-select dropdown's "All Cameras" option covers what the old separate
+// landing page (horizontal per-camera carousels) used to show. ───────────
+function CameraDetailView({ camId, items, onSwitchCam, onCardClick }:
+  { camId:string; items:(typeof REID_DATA); onSwitchCam:(camId:string)=>void; onCardClick:(id:number)=>void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const cameras = useVcaStore(s => s.cameras);
   const camera = cameras.find(c => c.code === camId);
+  const isAll = camId === ALL_CAMERAS_ID;
+  const pickerLabel = isAll ? "All Cameras" : camId;
+  const onlineCameras = cameras.filter(c => c.status === "online");
+  const offlineCameras = cameras.filter(c => c.status !== "online");
 
   return (
     <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto", padding:"20px 24px", backgroundColor:"#f8fafc" }}>
-      <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:"8px", background:"none", border:"none", cursor:"pointer", padding:0, marginBottom:"20px" }}>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="#0e162a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        <span style={{ fontSize:"16px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.32px" }}>Back to All Cameras</span>
-      </button>
+      <div style={{ display:"flex", alignItems:"center", gap:"16px", fontSize:"12px", fontWeight:700, color:"#475469", marginBottom:"20px" }}>
+        <span>Total Cameras {cameras.length}</span>
+        <CameraStatusHoverTag label="Online" color="#16a34a" cameras={onlineCameras} />
+        <CameraStatusHoverTag label="Offline" color="#94a3b8" cameras={offlineCameras} />
+      </div>
 
       <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"12px" }}>
         <div style={{ position:"relative", width:"152px" }}>
@@ -435,7 +355,7 @@ function CameraDetailView({ camId, items, onBack, onSwitchCam, onCardClick }:
             <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"14px", fontWeight:700, color:"#5a3dfb",
               minWidth:0, overflow:"hidden" }}>
               <CameraGlyph />
-              <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{camId}</span>
+              <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pickerLabel}</span>
             </span>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink:0, transform: pickerOpen?"rotate(180deg)":"none", transition:"transform 0.15s" }}>
               <path d="M4 6l4 4 4-4" stroke="#5a3dfb" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -444,6 +364,14 @@ function CameraDetailView({ camId, items, onBack, onSwitchCam, onCardClick }:
           {pickerOpen && (
             <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, width:"100%", backgroundColor:"white",
               border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden" }}>
+              <button onClick={() => { onSwitchCam(ALL_CAMERAS_ID); setPickerOpen(false); }} style={{
+                display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
+                backgroundColor: isAll ? "#f0f0ff" : "white",
+                fontSize:"13px", fontWeight: isAll ? 700:500, color: isAll ? "#5a3dfb":"#334155",
+              }}>
+                All Cameras
+              </button>
+              <div style={{ height:"1px", backgroundColor:"#e2e8f0" }} />
               {cameras.map(cam => (
                 <button key={cam.id} onClick={() => { onSwitchCam(cam.code); setPickerOpen(false); }} style={{
                   display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
@@ -472,7 +400,7 @@ function CameraDetailView({ camId, items, onBack, onSwitchCam, onCardClick }:
 
       {/* flex-wrap + flex-grow (not CSS grid) — see the "All Cameras" grid above for why. */}
       <div style={{ display:"flex", flexWrap:"wrap", gap:"12px" }}>
-        {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} fill />)}
+        {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} showCam={isAll} fill />)}
       </div>
     </div>
   );
@@ -528,7 +456,7 @@ function seedLiveFeed(): Record<string, (typeof REID_DATA)> {
 
 // ── Live Monitoring Tab (wrapper: landing ↔ per-camera detail) ──
 function LiveMonitoringTab() {
-  const [openCam, setOpenCam]   = useState<string|null>(null);
+  const [openCam, setOpenCam]   = useState<string>(ALL_CAMERAS_ID);
   const [detailId, setDetailId] = useState<number|null>(null);
   const [feed, setFeed]         = useState(seedLiveFeed);
   const seedRef = useRef(1);
@@ -556,13 +484,14 @@ function LiveMonitoringTab() {
 
   const allItems = Object.values(feed).flat();
   const detailItem = detailId !== null ? allItems.find(p => p.id===detailId) ?? null : null;
+  const onlineCameraCodes = useVcaStore(s => s.cameras).filter(c => c.status === "online").map(c => c.code);
+  const camDetailItems = openCam === ALL_CAMERAS_ID
+    ? onlineCameraCodes.flatMap(code => feed[code] ?? [])
+    : feed[openCam] ?? [];
 
   return (
     <>
-      {openCam
-        ? <CameraDetailView camId={openCam} items={feed[openCam] ?? []} onBack={() => setOpenCam(null)} onSwitchCam={setOpenCam} onCardClick={setDetailId} />
-        : <LiveMonitoringLanding feed={feed} onOpenCam={setOpenCam} onCardClick={setDetailId} />
-      }
+      <CameraDetailView camId={openCam} items={camDetailItems} onSwitchCam={setOpenCam} onCardClick={setDetailId} />
       {detailItem && <DetailModal item={reidToMatchItem(detailItem)} onClose={() => setDetailId(null)} />}
     </>
   );

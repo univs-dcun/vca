@@ -109,6 +109,10 @@ export default function RedmapMap({
   const mapInstanceRef = useRef<unknown>(null);
   const overlayLayersRef = useRef<unknown[]>([]);
   const [zoom, setZoom] = useState(12);
+  // Flips once Leaflet's async init resolves — the overlay-drawing effect below reads
+  // mapInstanceRef synchronously and bails if it's still null, so without this the landing-state
+  // status pills silently never draw (nothing else changes to re-trigger that effect afterward).
+  const [mapReady, setMapReady] = useState(false);
 
   // ── Map init ──────────────────────────────────────────────────
   useEffect(() => {
@@ -145,6 +149,7 @@ export default function RedmapMap({
       map.on("zoomend", () => setZoom(map.getZoom()));
       mapInstanceRef.current = map;
       setZoom(map.getZoom());
+      setMapReady(true);
     }
 
     initMap();
@@ -323,7 +328,7 @@ export default function RedmapMap({
       });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackingActive, showStatus, activeNode, hits, zoom]);
+  }, [trackingActive, showStatus, activeNode, hits, zoom, mapReady]);
 
   return (
     <>

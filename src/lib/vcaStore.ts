@@ -1,5 +1,13 @@
 import { create } from "zustand";
-import { liveEvents, getFacePhoto, type EventType, type LiveEvent, type TrackingHop } from "@/lib/mockData";
+import { liveEvents, getFacePhoto, DISTRICTS, type EventType, type LiveEvent, type TrackingHop } from "@/lib/mockData";
+
+// Deterministic pseudo-random in [0,1) — same formula as mockData.ts's own seededRandom — used
+// below to bulk-generate cameras without Math.random(), which would differ between the
+// server-rendered and client-hydrated pass and trigger a hydration mismatch.
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
 
 export type CameraStatus = "online" | "offline";
 
@@ -73,11 +81,15 @@ interface VcaStoreState {
   cameras: Camera[];
   persons: Person[];
   events: VcaEvent[];
+  // Notifications (header bell) only care about VIP-match events from this point forward —
+  // events seeded at load are historical and start out already "read".
+  lastReadNotifAt: string;
   setCameraStatus: (cameraId: string, status: CameraStatus) => void;
   addCamera: (camera: Omit<Camera, "id">) => void;
   addProject: (project: Omit<Project, "id">) => void;
   addPerson: (person: Omit<Person, "id">) => void;
   addEvent: (event: Omit<VcaEvent, "id">) => void;
+  markNotificationsRead: () => void;
 }
 
 const ORGANIZATIONS: Organization[] = [
@@ -145,6 +157,42 @@ const CAMERAS: Camera[] = [
     thumbnail: "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80",
     lat: 1.3329, lng: 103.7436,
   },
+  // Bulk-generated, deterministic (seededRandom, not Math.random — see above) — one small batch
+  // per district so the Dashboard map's zoomed-out cluster pills have real, non-zero counts to
+  // aggregate instead of showing mostly-empty districts. Kept in the 50-60 total camera range on
+  // purpose: DataPage's LiveMonitoringTab seeds 120 live-feed items per camera and ticks one
+  // addEvent per online camera every few seconds, so going into the hundreds would make that
+  // "All Cameras" view and the per-tick store updates too heavy.
+  ...DISTRICTS.flatMap((district, di) => {
+    const thumbnails = [
+      "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80",
+    ];
+    const camCount = Math.floor(seededRandom(di * 4.13 + 9) * 7); // 0–6 cameras in this district
+    return Array.from({ length: camCount }, (_, j) => {
+      const idx = di * 6 + j; // stable per-camera seed base, unique across all districts
+      const isOnline = seededRandom(idx * 8.17 + 2) > 0.1; // ~90% online
+      const jitterLat = (seededRandom(idx * 3.31 + 3) - 0.5) * 0.02; // ±0.01°, ~±1km
+      const jitterLng = (seededRandom(idx * 5.71 + 4) - 0.5) * 0.02;
+      return {
+        id: `cam-bulk-${idx}`,
+        projectId: "proj-sg",
+        code: `CAM-BLK-${String(idx).padStart(3, "0")}`,
+        name: `${district.label} ${j + 1}`,
+        ip: `10.30.${1 + (idx >> 8)}.${idx % 256}`,
+        mac: `00:1B:44:22:${String(10 + (idx % 90)).padStart(2, "0")}:${String(idx % 100).padStart(2, "0")}`,
+        rtspUrl: `rtsp://10.30.${1 + (idx >> 8)}.${idx % 256}:554/stream1`,
+        status: (isOnline ? "online" : "offline") as CameraStatus,
+        location: district.label,
+        zone: district.label,
+        thumbnail: thumbnails[idx % thumbnails.length],
+        lat: Math.round((district.lat + jitterLat) * 10000) / 10000,
+        lng: Math.round((district.lng + jitterLng) * 10000) / 10000,
+      };
+    });
+  }),
 ];
 
 function cameraIdForLocation(location: string): string {
@@ -205,12 +253,17 @@ let projectSeq = PROJECTS.length;
 let personSeq = PERSONS.length;
 let eventSeq = SEED_EVENTS.length;
 
+// Latest seed timestamp — anything at or before this is historical, so the bell starts with
+// nothing unread instead of surfacing all 12 seed VIP hits as "new" on first load.
+const LATEST_SEED_TIMESTAMP = SEED_EVENTS.reduce((max, e) => (e.timestamp > max ? e.timestamp : max), "");
+
 export const useVcaStore = create<VcaStoreState>((set) => ({
   organizations: ORGANIZATIONS,
   projects: PROJECTS,
   cameras: CAMERAS,
   persons: PERSONS,
   events: SEED_EVENTS,
+  lastReadNotifAt: LATEST_SEED_TIMESTAMP,
   setCameraStatus: (cameraId, status) =>
     set(state => ({ cameras: state.cameras.map(c => (c.id === cameraId ? { ...c, status } : c)) })),
   addCamera: (camera) =>
@@ -221,6 +274,7 @@ export const useVcaStore = create<VcaStoreState>((set) => ({
     set(state => ({ persons: [...state.persons, { ...person, id: `person-${++personSeq}` }] })),
   addEvent: (event) =>
     set(state => ({ events: [{ ...event, id: `evt-${++eventSeq}` }, ...state.events].slice(0, 500) })),
+  markNotificationsRead: () => set({ lastReadNotifAt: new Date().toISOString() }),
 }));
 
 // Converts store events back into the Dashboard/Sidebar's LiveEvent shape. Only events carrying

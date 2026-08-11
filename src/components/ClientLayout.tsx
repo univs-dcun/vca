@@ -13,11 +13,15 @@ import SkeletonBestFrame from "./SkeletonBestFrame";
 import SkeletonData from "./SkeletonData";
 import SkeletonRedmap from "./SkeletonRedmap";
 import DetectionActivityChart from "./DetectionActivityChart";
-import { ToastProvider } from "./Toast";
-import { LiveEvent, Device } from "@/lib/mockData";
+import { ToastProvider, useToast } from "./Toast";
+import { LiveEvent, Device, getFacePhoto } from "@/lib/mockData";
+import { useVcaStore } from "@/lib/vcaStore";
 
 export type NavTab = "DASHBOARD" | "BEST FRAME" | "DATA" | "REDMAP";
 const VALID_TABS: NavTab[] = ["DASHBOARD", "BEST FRAME", "DATA", "REDMAP"];
+
+export type SidebarPosition = "left" | "right";
+const SIDEBAR_POSITION_KEY = "vca-sidebar-position";
 
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
   // Right-pointing triangle = "펼치기" (expand, shown while collapsed); left-pointing = "접기"
@@ -60,6 +64,70 @@ function PlaceholderPage({ title }: { title: string }) {
   );
 }
 
+// Simulates VIP detections arriving over time: periodically fires a new VIP hit (random
+// registered person + random online camera), records it in the store, and surfaces it as a
+// dismiss-after-a-few-seconds toast banner. The banner never auto-jumps the map — only its
+// "View on Map" action (via onNavigate) does, so an operator isn't yanked away from what they're
+// currently looking at just because a detection came in.
+function VipAlertTicker({ onNavigate }: { onNavigate: (event: LiveEvent) => void }) {
+  const { showToast } = useToast();
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleNext = () => {
+      const delay = 15000 + Math.random() * 15000;
+      timer = setTimeout(() => {
+        const { persons, cameras, addEvent } = useVcaStore.getState();
+        const onlineCameras = cameras.filter(c => c.status === "online");
+        if (persons.length > 0 && onlineCameras.length > 0) {
+          const person = persons[Math.floor(Math.random() * persons.length)];
+          const camera = onlineCameras[Math.floor(Math.random() * onlineCameras.length)];
+          const confidence = Math.round((68 + Math.random() * 27) * 10) / 10;
+          const timestamp = new Date().toISOString();
+          const liveEvent: LiveEvent = {
+            id: `sim-${timestamp}-${person.id}`,
+            name: person.name,
+            description: person.description,
+            confidence,
+            location: camera.name,
+            cameraLabel: camera.code,
+            timestamp,
+            type: "VIP",
+            lat: camera.lat,
+            lng: camera.lng,
+          };
+          addEvent({
+            cameraId: camera.id,
+            type: "VIP Match",
+            severity: "warning",
+            timestamp,
+            personId: liveEvent.id,
+            personName: person.name,
+            personDescription: person.description,
+            personType: "VIP",
+            confidence,
+            location: camera.name,
+            cameraLabel: camera.code,
+            lat: camera.lat,
+            lng: camera.lng,
+            photoUrl: getFacePhoto(liveEvent.id),
+          });
+          showToast({
+            variant: "warning",
+            title: "VIP Detected",
+            desc: `${person.name} · ${camera.name}`,
+            actionLabel: "View on Map",
+            onAction: () => onNavigate(liveEvent),
+          });
+        }
+        scheduleNext();
+      }, delay);
+    };
+    scheduleNext();
+    return () => clearTimeout(timer);
+  }, [onNavigate, showToast]);
+  return null;
+}
+
 export default function ClientLayout() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -75,10 +143,24 @@ export default function ClientLayout() {
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
   const [pinnedDevice, setPinnedDevice] = useState<Device | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Default "left" on the server-rendered pass so hydration never mismatches; a client-only
+  // effect then applies whatever the user last chose on this browser.
+  const [sidebarPosition, setSidebarPositionState] = useState<SidebarPosition>("left");
+  useEffect(() => {
+    queueMicrotask(() => {
+      const saved = localStorage.getItem(SIDEBAR_POSITION_KEY);
+      if (saved === "left" || saved === "right") setSidebarPositionState(saved);
+    });
+  }, []);
+  const setSidebarPosition = (pos: SidebarPosition) => {
+    setSidebarPositionState(pos);
+    localStorage.setItem(SIDEBAR_POSITION_KEY, pos);
+  };
   const [showDetectionChart, setShowDetectionChart] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [bestFrameFocusLocation, setBestFrameFocusLocation] = useState<string | null>(null);
   const [redmapAutoSearchName, setRedmapAutoSearchName] = useState<string | null>(null);
+  const [bestFrameAnalyzeLocation, setBestFrameAnalyzeLocation] = useState<string | null>(null);
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 700);
     return () => clearTimeout(timer);
@@ -91,11 +173,26 @@ export default function ClientLayout() {
     setRedmapAutoSearchName(personName);
     setActivePage("REDMAP");
   };
+  const handleNotificationNavigate = (event: LiveEvent) => {
+    setSelectedEvent(event);
+    setActivePage("DASHBOARD");
+  };
+  const handleGoAnalyzeFrame = (location: string) => {
+    setBestFrameAnalyzeLocation(location);
+    setActivePage("BEST FRAME");
+  };
 
   return (
     <ToastProvider>
+    <VipAlertTicker onNavigate={handleNotificationNavigate} />
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
-      <Navbar activeTab={activePage} onTabChange={setActivePage} />
+      <Navbar
+        activeTab={activePage}
+        onTabChange={setActivePage}
+        onNotificationSelect={handleNotificationNavigate}
+        sidebarPosition={sidebarPosition}
+        onSidebarPositionChange={setSidebarPosition}
+      />
       <div style={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
         {isLoading ? (
           <>
@@ -104,9 +201,11 @@ export default function ClientLayout() {
             {activePage === "DATA" && <SkeletonData />}
             {activePage === "REDMAP" && <SkeletonRedmap />}
           </>
-        ) : activePage === "DASHBOARD" && (
-          <>
+        ) : activePage === "DASHBOARD" && (() => {
+          const sidebarEl = (
             <Sidebar
+              key="sidebar"
+              position={sidebarPosition}
               isCollapsed={sidebarCollapsed}
               onEventSelect={setSelectedEvent}
               selectedEventId={selectedEvent?.id}
@@ -117,24 +216,31 @@ export default function ClientLayout() {
               pinnedDeviceId={pinnedDevice?.id ?? null}
               onToggleDetectionChart={() => setShowDetectionChart(v => !v)}
             />
-            {/* Map area */}
-            <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+          );
+          const isRight = sidebarPosition === "right";
+          const mapAreaEl = (
+            /* Map area */
+            <div key="map" style={{ flex: 1, position: "relative", minWidth: 0 }}>
               <MapWrapper
                 selectedEvent={selectedEvent}
                 onCameraSelect={(label) => setLocationFilter((prev) => (prev === label ? null : label))}
                 pinnedDevice={pinnedDevice}
                 onGoLiveCam={handleGoLiveCam}
                 onGoRedmapTrace={handleGoRedmapTrace}
+                onAnalyzeFrame={handleGoAnalyzeFrame}
               />
-              {/* Sidebar toggle button - absolutely positioned over the map. Shifted -3px: the
-                  SidebarToggleIcon's pill shape starts at x=3 within its own 34px-wide viewBox
-                  (padding for its drop shadow), so left:0 left a 3px sliver of the map's gray
-                  background showing between the sidebar's edge and the button. */}
+              {/* Sidebar toggle button - absolutely positioned over the map, on whichever edge
+                  is adjacent to the sidebar. Shifted 3px past that edge: the SidebarToggleIcon's
+                  pill shape starts at x=3 within its own 34px-wide viewBox (padding for its drop
+                  shadow), so 0 left a 3px sliver of the map's gray background showing through.
+                  Mirrored (scaleX(-1)) when the sidebar is on the right so the pill still bulges
+                  into the map and the triangle still points the correct expand/collapse way. */}
               <div
                 onClick={() => setSidebarCollapsed(c => !c)}
                 style={{
-                  position: "absolute", top: "50%", left: "-3px",
-                  transform: "translateY(-50%)",
+                  position: "absolute", top: "50%",
+                  ...(isRight ? { right: "-3px" } : { left: "-3px" }),
+                  transform: isRight ? "translateY(-50%) scaleX(-1)" : "translateY(-50%)",
                   zIndex: 1000,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   cursor: "pointer",
@@ -171,8 +277,9 @@ export default function ClientLayout() {
                 </button>
               )}
             </div>
-          </>
-        )}
+          );
+          return isRight ? <>{mapAreaEl}{sidebarEl}</> : <>{sidebarEl}{mapAreaEl}</>;
+        })()}
         {/* Best Frame stays mounted once loaded (display:none instead of unmounting) so its
             camera selection / detail view survives switching to another tab and back. */}
         {!isLoading && (
@@ -181,6 +288,8 @@ export default function ClientLayout() {
               focusLocation={bestFrameFocusLocation}
               onFocusConsumed={() => setBestFrameFocusLocation(null)}
               onGoRedmapTrace={handleGoRedmapTrace}
+              analyzeFrameLocation={bestFrameAnalyzeLocation}
+              onAnalyzeFrameConsumed={() => setBestFrameAnalyzeLocation(null)}
             />
           </div>
         )}
