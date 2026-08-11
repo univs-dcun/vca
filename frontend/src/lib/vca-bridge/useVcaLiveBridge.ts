@@ -13,7 +13,7 @@ import { useVcaStore } from '../../features/vca/lib/vcaStore'
 import { getConnectionStatus, onConnectionStatusChange, subscribe } from '../realtime/mqttClient'
 import { cameraIdFromTopic, topics } from '../realtime/topics'
 import type { CameraStatusMessage, DetectionEvent, MqttConnectionStatus } from '../realtime/types'
-import { detectionToVcaEvent, statusToCamera } from './adapter'
+import { detectionToVcaEvent, statusToCamera, type VipTrack } from './adapter'
 
 export function useVcaLiveBridge(): boolean {
   const [isLive, setIsLive] = useState(false)
@@ -54,14 +54,29 @@ export function useVcaLiveBridge(): boolean {
     })
   }, [])
 
-  // VIP 감지 이벤트 — eventId 멱등 처리 후 스토어에 addEvent
+  // VIP 감지 이벤트 — eventId 멱등 처리 후 vipId 기준 단일 행 유지 (upsert).
+  // 같은 VIP가 서로 다른 카메라 2대 이상에서 감지되면 경로를 가진 Tracking 행으로 승격.
+  const tracks = useRef<Map<string, VipTrack>>(new Map())
   useEffect(() => {
     return subscribe(topics.cameraDetectionsAll(), (payload) => {
       if (!isLiveRef.current || payload === null) return
       const e = payload as DetectionEvent
       if (seenEventIds.current.has(e.eventId)) return
       seenEventIds.current.add(e.eventId)
-      useVcaStore.getState().addEvent(detectionToVcaEvent(e))
+
+      const track = tracks.current.get(e.vip.vipId) ?? {
+        hops: [],
+        cameraIds: new Set<string>(),
+        storeId: `live-${e.vip.vipId}`,
+      }
+      track.hops.push({ location: e.cameraName, cameraLabel: e.cameraId, timestamp: e.detectedAt })
+      track.cameraIds.add(e.cameraId)
+      tracks.current.set(e.vip.vipId, track)
+
+      // 이 VIP의 기존 행을 제거하고 최신 상태(VIP 또는 Tracking)로 교체
+      const { events } = useVcaStore.getState()
+      useVcaStore.setState({ events: events.filter((ev) => ev.personId !== track.storeId) })
+      useVcaStore.getState().addEvent(detectionToVcaEvent(e, track))
     })
   }, [])
 
