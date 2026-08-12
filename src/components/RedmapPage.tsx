@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import RedmapMap, { TRACKING_ORIGIN } from "./RedmapMap";
 import type { RedmapMode as Mode, SimilarityLimit, HitResult, DateRange } from "@/types/redmap";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const BORDER = "1px solid #e2e8f0";
 
@@ -52,6 +53,74 @@ export const MOCK_RESULTS: HitResult[] = [
     lat: 1.3015, lng: 103.9070,
   },
 ];
+
+// A real search doesn't always come back with a full 3-camera trail — sometimes the person only
+// shows up once or twice, sometimes not at all. These extra sets let a search "miss" or come back
+// thin instead of always returning the same rich trace, which was the whole trace feature reading
+// as fake. `RESULT_SETS` is what searches actually pick from; `MOCK_RESULTS` stays as its own
+// export (unchanged) since `lib/api/redmap.ts` already imports it as the future-backend stub's
+// default payload.
+const RESULT_SET_MODERATE: HitResult[] = [
+  {
+    id: "hit-m1",
+    camera: "Jurong Gateway JR1",
+    location: "Jurong Gateway Mall",
+    date: "2026-06-15",
+    time: "14:02:20",
+    score: "81.2%",
+    bodyScore: "73.5%",
+    isUnregistered: true,
+    faceUrl: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=100&h=100&q=80",
+    bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
+    mapLabel: "Jurong",
+    lat: 1.3329, lng: 103.7436,
+    elapsed: "1h 40m Elapsed", elapsedAlert: true,
+  },
+  {
+    id: "hit-m2",
+    camera: "Clarke Quay CQ1",
+    location: "Clarke Quay Riverside",
+    date: "2026-06-15",
+    time: "15:42:55",
+    score: "79.8%",
+    bodyScore: "71.0%",
+    isUnregistered: true,
+    faceUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=100&h=100&q=80",
+    bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
+    mapLabel: "Clarke Quay",
+    lat: 1.2884, lng: 103.8460,
+  },
+];
+
+const RESULT_SET_SPARSE: HitResult[] = [
+  {
+    id: "hit-s1",
+    camera: "Tampines Hub TH1",
+    location: "Tampines Concourse",
+    date: "2026-06-16",
+    time: "09:12:03",
+    score: "76.4%",
+    bodyScore: "68.0%",
+    isUnregistered: true,
+    faceUrl: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=100&h=100&q=80",
+    bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
+    mapLabel: "Tampines",
+    lat: 1.3530, lng: 103.9440,
+  },
+];
+
+const RESULT_SET_EMPTY: HitResult[] = [];
+
+const RESULT_SETS: HitResult[][] = [MOCK_RESULTS, RESULT_SET_MODERATE, RESULT_SET_SPARSE, RESULT_SET_EMPTY];
+
+// Deterministic (not random) so re-running the exact same search — same uploaded file, same
+// license plate — always lands on the same result set instead of flickering between runs.
+// Different inputs will usually (not always — it's a small hash space) land on a different one.
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
 
 /* ── SVG Icons ──────────────────────────────────────────────── */
 function PersonIcon({ color = "currentColor", size = 16 }: { color?: string; size?: number }) {
@@ -195,6 +264,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
   const [viewMonth, setViewMonth] = useState(5); // 0-indexed
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  useEscapeKey(() => setOpen(false), open);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -293,6 +363,8 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
                   key={`${year}-${month}`}
                   data-active={active ? "true" : undefined}
                   onClick={() => { setViewYear(year); setViewMonth(month); }}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor = "transparent"; }}
                   style={{
                     padding: "9px 16px", fontSize: "13px",
                     fontWeight: active ? 700 : 500,
@@ -325,9 +397,9 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
 
             {/* Month nav */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-              <button onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#17191A", padding: "2px 6px", lineHeight: 1 }}>‹</button>
+              <button onClick={prevMonth} aria-label="Previous month" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#17191A", padding: "2px 6px", lineHeight: 1 }}>‹</button>
               <span style={{ fontSize: "14px", fontWeight: 700, color: "#17191A" }}>{MONTHS_FULL[viewMonth]} {viewYear}</span>
-              <button onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#17191A", padding: "2px 6px", lineHeight: 1 }}>›</button>
+              <button onClick={nextMonth} aria-label="Next month" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#17191A", padding: "2px 6px", lineHeight: 1 }}>›</button>
             </div>
 
             {/* Day headers */}
@@ -347,6 +419,8 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
                   <div
                     key={day}
                     onClick={() => handleDayClick(day)}
+                    onMouseEnter={e => { if (ds === "none") e.currentTarget.style.backgroundColor = "#f1f5f9"; }}
+                    onMouseLeave={e => { if (ds === "none") e.currentTarget.style.backgroundColor = "transparent"; }}
                     style={{
                       height: "34px", display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: "13px", fontWeight: ds === "start" || ds === "end" ? 700 : 400,
@@ -388,12 +462,19 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   const [licensePlate, setLicensePlate] = useState("");
   const [faceImage, setFaceImage] = useState<string | null>(null);
   const [bodyImage, setBodyImage] = useState<string | null>(null);
+  // Identifies the uploaded file's content (name+size) independently of its blob: URL, which is
+  // randomly generated per upload and can't be hashed for a reproducible result set — see
+  // `handleSearch` below.
+  const [faceFileKey, setFaceFileKey] = useState<string | null>(null);
+  const [bodyFileKey, setBodyFileKey] = useState<string | null>(null);
+  const [results, setResults] = useState<HitResult[]>(MOCK_RESULTS);
   const [hasSearched, setHasSearched] = useState(false);
   const [activeHit, setActiveHit] = useState<number | null>(null);
   const [activeNode, setActiveNode] = useState<number | null>(null);
   const [uploadFor, setUploadFor] = useState<"face" | "body" | null>(null);
   const [hoverUpload, setHoverUpload] = useState<"face" | "body" | null>(null);
   const [traceName, setTraceName] = useState<string | null>(null);
+  const [timelineNewestFirst, setTimelineNewestFirst] = useState(true);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   // Tracks the last `initialSearchName` value already consumed, following React's "adjusting
   // state when a prop changes" pattern (state, not a ref, so it's safe to read during render).
@@ -402,6 +483,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // is the common case, not an edge case) is still detected as "new" instead of being silently
   // treated as already-consumed because it happened to match the initial state.
   const [consumedSearchName, setConsumedSearchName] = useState<string | null | undefined>(undefined);
+  useEscapeKey(() => setUploadFor(null), uploadFor !== null);
 
   // Deep-link from Dashboard's Tracking route popup ("View Full Trace on RedMap") — jump
   // straight to the completed-search view instead of requiring the user to fill the form.
@@ -409,6 +491,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   if (initialSearchName != null && initialSearchName !== consumedSearchName) {
     setConsumedSearchName(initialSearchName);
     setMode("person");
+    setResults(MOCK_RESULTS);
     setHasSearched(true);
     setActiveHit(MOCK_RESULTS.length - 1);
     setActiveNode(MOCK_RESULTS.length - 1);
@@ -426,18 +509,45 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     e.target.value = "";
     if (!file) return;
     const url = URL.createObjectURL(file);
-    if (uploadFor === "face") setFaceImage(url);
-    else if (uploadFor === "body") setBodyImage(url);
+    const key = `${file.name}_${file.size}`;
+    if (uploadFor === "face") { setFaceImage(url); setFaceFileKey(key); }
+    else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); }
+    setUploadFor(null);
+  };
+
+  // Backs the "Drag and drop an image here" copy in the upload popup — without this the dropzone
+  // was decorative (only the "Choose Image" button actually worked).
+  const handleDropFile = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const key = `${file.name}_${file.size}`;
+    if (uploadFor === "face") { setFaceImage(url); setFaceFileKey(key); }
+    else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); }
     setUploadFor(null);
   };
 
   const handleSearch = () => {
+    // Which result set comes back depends on what was actually searched for — the same
+    // face/body/plate always reproduces the same outcome, but a different upload will usually
+    // land on a different (or empty) set instead of always showing the same 3-camera trail
+    // regardless of input.
+    const searchKey = mode === "car"
+      ? `car:${licensePlate.trim().toUpperCase()}`
+      : `person:${faceFileKey ?? ""}|${bodyFileKey ?? ""}`;
+    const picked = RESULT_SETS[hashStr(searchKey) % RESULT_SETS.length];
+    setResults(picked);
     setHasSearched(true);
     // The map/right panel show the combined tracking route for ALL search results as soon as a
     // search runs — not just after clicking one. Pre-select the most recent hit so it's highlighted
     // by default; clicking any result or map marker afterwards just moves which node is highlighted.
-    setActiveHit(MOCK_RESULTS.length - 1);
-    setActiveNode(MOCK_RESULTS.length - 1);
+    setActiveHit(picked.length ? picked.length - 1 : null);
+    setActiveNode(picked.length ? picked.length - 1 : null);
+    // A manual search is a fresh, untargeted query — clear any "Tracing: <name>" label left over
+    // from a Dashboard deep-link, otherwise these generic results stay mislabeled as tracing that
+    // earlier person until Reset is clicked.
+    setTraceName(null);
   };
 
   const handleReset = () => {
@@ -447,6 +557,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     setLicensePlate("");
     setFaceImage(null);
     setBodyImage(null);
+    setFaceFileKey(null);
+    setBodyFileKey(null);
+    setResults(MOCK_RESULTS);
     setHasSearched(false);
     setActiveHit(null);
     setActiveNode(null);
@@ -471,8 +584,8 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
 
   // The tracking route (map line + right panel timeline) reflects the whole set of search
   // results, so it should appear as soon as a search has run — not only once a specific
-  // result is clicked.
-  const trackingActive = hasSearched;
+  // result is clicked. A search that came back with no hits has nothing to trace.
+  const trackingActive = hasSearched && results.length > 0;
 
   const inputBase: React.CSSProperties = {
     background: "none", border: "none", outline: "none",
@@ -487,29 +600,34 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
 
       {/* ── Image upload popup ── */}
       {uploadFor && (
-        <div style={{
-          position: "absolute", inset: 0, zIndex: 2000,
-          display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: "24px", pointerEvents: "none",
-        }}>
+        <div
+          onClick={e => { if (e.target === e.currentTarget) setUploadFor(null); }}
+          style={{
+            position: "absolute", inset: 0, zIndex: 2000, backgroundColor: "rgba(14,22,42,0.15)",
+            display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: "24px",
+          }}>
           <div style={{
-            pointerEvents: "auto", width: "730px", height: "303px", boxSizing: "border-box", backgroundColor: "white",
+            width: "730px", height: "303px", boxSizing: "border-box", backgroundColor: "white",
             border: "1px solid #e2e8f0", borderRadius: "8px",
             boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
             padding: "12px", display: "flex", flexDirection: "column", gap: "10px",
           }}>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={() => setUploadFor(null)} style={{
+              <button onClick={() => setUploadFor(null)} aria-label="Close" style={{
                 width: "37px", height: "37px", borderRadius: "8px", backgroundColor: "#f5f6f8",
                 border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 <CloseIcon />
               </button>
             </div>
-            <div style={{
-              flex: 1, borderRadius: "12px", border: "1px dashed #cbd5e1",
-              backgroundColor: "#f8fafc", display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: "12px", padding: "20px 24px",
-            }}>
+            <div
+              onDragOver={e => e.preventDefault()}
+              onDrop={handleDropFile}
+              style={{
+                flex: 1, borderRadius: "12px", border: "1px dashed #cbd5e1",
+                backgroundColor: "#f8fafc", display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center", gap: "12px", padding: "20px 24px",
+              }}>
               <div style={{
                 width: "48px", height: "48px", borderRadius: "24px", backgroundColor: "#f1f5f9",
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -710,7 +828,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
               fontFamily: "'SUIT', sans-serif", flexShrink: 0,
             }}
           >
-            {mode === "car" ? "Search Vehicle" : "Search persons"}
+            {mode === "car" ? "Search Vehicle" : "Search Persons"}
           </button>
         </div>
       </div>
@@ -789,7 +907,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 color: "#324055", fontSize: "10px", fontWeight: 600,
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
-                {hasSearched ? MOCK_RESULTS.length : 0}
+                {hasSearched ? results.length : 0}
               </span>
               {traceName && (
                 <span style={{
@@ -810,17 +928,31 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 </svg>
                 <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "#94a3b8" }}>
                   {mode === "person"
-                    ? <>Upload a face or body image<br />above and click <strong style={{ color: "#334155" }}>Search persons</strong></>
+                    ? <>Upload a face or body image<br />above and click <strong style={{ color: "#334155" }}>Search Persons</strong></>
                     : <>Enter a license plate and click<br /><strong style={{ color: "#334155" }}>Search Vehicle</strong></>
                   }
                 </p>
               </div>
+            ) : results.length === 0 ? (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", padding: "24px 0" }}>
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                  <circle cx="12" cy="12" r="8" stroke="#e2e8f0" strokeWidth="2" />
+                  <path d="M18 18L25 25" stroke="#e2e8f0" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M9 9l6 6M15 9l-6 6" stroke="#fda4af" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+                <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "#94a3b8" }}>
+                  <strong style={{ color: "#334155" }}>No matching sightings found.</strong><br />
+                  Try a different image, a wider date range,<br />or a lower similarity threshold.
+                </p>
+              </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                {MOCK_RESULTS.map((hit, index) => (
+                {results.map((hit, index) => (
                   <div
                     key={hit.id}
                     onClick={() => handleHitClick(index)}
+                    onMouseEnter={e => { if (activeHit !== index) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                    onMouseLeave={e => { if (activeHit !== index) e.currentTarget.style.backgroundColor = "transparent"; }}
                     style={{
                       cursor: "pointer", display: "flex", flexDirection: "column", gap: "6px",
                       padding: "4px", borderRadius: "10px",
@@ -853,9 +985,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             )}
           </div>
 
-          {hasSearched && (
+          {hasSearched && results.length > 0 && (
             <div style={{ padding: "10px 20px", borderTop: BORDER, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-              <span style={{ fontSize: "10px", fontWeight: 600, color: "#1e293b" }}>1–{MOCK_RESULTS.length} of {MOCK_RESULTS.length}</span>
+              <span style={{ fontSize: "10px", fontWeight: 600, color: "#1e293b" }}>1–{results.length} of {results.length}</span>
             </div>
           )}
         </div>
@@ -864,7 +996,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
         {/* CENTER: Leaflet Map */}
         <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
           <RedmapMap
-            hits={hasSearched ? MOCK_RESULTS.map((h) => ({
+            hits={trackingActive ? results.map((h) => ({
               lat: h.lat, lng: h.lng,
               mapLabel: h.mapLabel,
               time: h.time.slice(0, 5),
@@ -890,12 +1022,12 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             <h3 style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.32px" }}>
               Multi-Track Route History
             </h3>
-            <button style={{
+            <button onClick={() => setTimelineNewestFirst(v => !v)} style={{
               display: "flex", alignItems: "center", gap: "4px", background: "none", border: "none",
               cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#64748a",
             }}>
-              Newest first
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              {timelineNewestFirst ? "Newest first" : "Oldest first"}
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: timelineNewestFirst ? "none" : "rotate(180deg)" }}>
                 <path d="M3.5 4L6 1.5L8.5 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M6 10.5V2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -903,7 +1035,15 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           </div>
 
           <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            {!trackingActive ? (
+            {hasSearched && results.length === 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "12px" }}>
+                <TimelineIcon />
+                <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "#94a3b8" }}>
+                  No sightings to trace —<br />
+                  <strong style={{ color: "#334155" }}>this search came back empty</strong>
+                </p>
+              </div>
+            ) : !trackingActive ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "12px" }}>
                 <TimelineIcon />
                 <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "#94a3b8" }}>
@@ -918,18 +1058,23 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                   {(() => {
                     const nodes = [
                       { key: "origin", location: TRACKING_ORIGIN.label, date: TRACKING_ORIGIN.date, time: TRACKING_ORIGIN.time, faceUrl: TRACKING_ORIGIN.faceUrl, elapsed: undefined as string | undefined, elapsedAlert: false },
-                      ...MOCK_RESULTS.map((hit) => ({ key: hit.id, location: hit.location, date: hit.date, time: hit.time, faceUrl: hit.faceUrl, elapsed: hit.elapsed, elapsedAlert: hit.elapsedAlert })),
+                      ...results.map((hit) => ({ key: hit.id, location: hit.location, date: hit.date, time: hit.time, faceUrl: hit.faceUrl, elapsed: hit.elapsed, elapsedAlert: hit.elapsedAlert })),
                     ];
-                    return [...nodes].reverse().map((node, revIndex) => {
-                      const index = nodes.length - 1 - revIndex; // hit index: -1 = origin, 0..N-1 = MOCK_RESULTS
-                      const num = nodes.length - revIndex;
-                      const isLatest = revIndex === 0;
+                    const ordered = timelineNewestFirst ? [...nodes].reverse() : nodes;
+                    return ordered.map((node, i) => {
+                      // Position in the original chronological array (origin=-1..MOCK_RESULTS.length-1),
+                      // independent of which direction we're currently displaying it in.
+                      const index = timelineNewestFirst ? nodes.length - 1 - i : i;
+                      const num = i + 1; // display rank — always 1..N top-to-bottom either way
+                      const isLatest = index === nodes.length - 1;
                       const isActive = activeNode === index - 1;
                       return (
                         <div
                           key={node.key}
                           onClick={() => { if (index > 0) handleNodeClick(index - 1); }}
-                          style={{ display: "flex", alignItems: "flex-start", gap: "12px", position: "relative", zIndex: 1, cursor: index > 0 ? "pointer" : "default" }}
+                          onMouseEnter={e => { if (index > 0 && !isActive) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                          onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                          style={{ display: "flex", alignItems: "flex-start", gap: "12px", position: "relative", zIndex: 1, cursor: index > 0 ? "pointer" : "default", borderRadius: "12px", transition: "background-color 0.15s" }}
                         >
                           <div style={{
                             width: "44px", height: "44px", borderRadius: "999px", flexShrink: 0,

@@ -44,6 +44,27 @@ export const DISTRICTS: District[] = [
   { id: "kal2", label: "Kallang",      lat: 1.3088, lng: 103.8648 },
 ];
 
+// Shared by MapView.tsx (aggregating the cluster-pill counts) and Sidebar.tsx (filtering the
+// events list to just one district's pins when a pill is clicked) — both need to bucket a given
+// lat/lng into the SAME district, or a pill's count and what clicking it shows would disagree.
+export function nearestDistrict(lat: number, lng: number): District {
+  let best = DISTRICTS[0];
+  let bestDist = Infinity;
+  for (const d of DISTRICTS) {
+    const dist = (d.lat - lat) ** 2 + (d.lng - lng) ** 2;
+    if (dist < bestDist) { bestDist = dist; best = d; }
+  }
+  return best;
+}
+
+// User-configurable via My Page → "Map Alert Thresholds" — read from localStorage by MapView.tsx,
+// not hardcoded, since different operators may want a different count to count as "alert" vs
+// "moderate" for the district cluster pills.
+export const DISTRICT_ALERT_THRESHOLD_KEY = "vca-district-alert-threshold";
+export const DISTRICT_MODERATE_THRESHOLD_KEY = "vca-district-moderate-threshold";
+export const DEFAULT_DISTRICT_ALERT_THRESHOLD = 100;
+export const DEFAULT_DISTRICT_MODERATE_THRESHOLD = 20;
+
 // Deterministic pseudo-random in [0,1) — a plain Math.random() would differ between the
 // server-rendered and client-hydrated pass and trigger a hydration mismatch.
 function seededRandom(seed: number): number {

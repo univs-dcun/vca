@@ -15,7 +15,7 @@ import SkeletonRedmap from "./SkeletonRedmap";
 import DetectionActivityChart from "./DetectionActivityChart";
 import { ToastProvider, useToast } from "./Toast";
 import { LiveEvent, Device, getFacePhoto } from "@/lib/mockData";
-import { useVcaStore } from "@/lib/vcaStore";
+import { useVcaStore, VIP_SIMULATION_CAMERAS } from "@/lib/vcaStore";
 
 export type NavTab = "DASHBOARD" | "BEST FRAME" | "DATA" | "REDMAP";
 const VALID_TABS: NavTab[] = ["DASHBOARD", "BEST FRAME", "DATA", "REDMAP"];
@@ -50,25 +50,16 @@ function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div style={{
-      flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-      flexDirection: "column", gap: "12px", backgroundColor: "#f8fafc",
-    }}>
-      <span style={{ fontSize: "32px", color: "#e2e8f0" }}>⚙️</span>
-      <span style={{ fontSize: "18px", fontWeight: 700, color: "#94a3b8" }}>
-        {title} — Coming Soon
-      </span>
-    </div>
-  );
-}
-
 // Simulates VIP detections arriving over time: periodically fires a new VIP hit (random
 // registered person + random online camera), records it in the store, and surfaces it as a
 // dismiss-after-a-few-seconds toast banner. The banner never auto-jumps the map — only its
 // "View on Map" action (via onNavigate) does, so an operator isn't yanked away from what they're
 // currently looking at just because a detection came in.
+// Drawn from the ~1,000-camera simulation pool (VIP_SIMULATION_CAMERAS), not the store's `cameras`
+// state — that pool is deliberately kept small for other features' performance. Computed once
+// since the pool is static; no reason to re-filter it on every tick.
+const VIP_SIM_ONLINE_CAMERAS = VIP_SIMULATION_CAMERAS.filter(c => c.status === "online");
+
 function VipAlertTicker({ onNavigate }: { onNavigate: (event: LiveEvent) => void }) {
   const { showToast } = useToast();
   useEffect(() => {
@@ -76,8 +67,8 @@ function VipAlertTicker({ onNavigate }: { onNavigate: (event: LiveEvent) => void
     const scheduleNext = () => {
       const delay = 15000 + Math.random() * 15000;
       timer = setTimeout(() => {
-        const { persons, cameras, addEvent } = useVcaStore.getState();
-        const onlineCameras = cameras.filter(c => c.status === "online");
+        const { persons, addEvent } = useVcaStore.getState();
+        const onlineCameras = VIP_SIM_ONLINE_CAMERAS;
         if (persons.length > 0 && onlineCameras.length > 0) {
           const person = persons[Math.floor(Math.random() * persons.length)];
           const camera = onlineCameras[Math.floor(Math.random() * onlineCameras.length)];
@@ -141,6 +132,10 @@ export default function ClientLayout() {
   };
   const [selectedEvent, setSelectedEvent] = useState<LiveEvent | null>(null);
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
+  // Clicking a district cluster pill (zoomed-out map view) filters the sidebar to just that
+  // district's VIP hits — separate from locationFilter (an exact camera/site name match) since
+  // a district groups several sites by geographic proximity, not by a shared name substring.
+  const [districtFilter, setDistrictFilter] = useState<string | null>(null);
   const [pinnedDevice, setPinnedDevice] = useState<Device | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // Default "left" on the server-rendered pass so hydration never mismatches; a client-only
@@ -190,8 +185,11 @@ export default function ClientLayout() {
         activeTab={activePage}
         onTabChange={setActivePage}
         onNotificationSelect={handleNotificationNavigate}
-        sidebarPosition={sidebarPosition}
-        onSidebarPositionChange={setSidebarPosition}
+        // Only actually affects the Dashboard tab's Sidebar+Map layout — hidden on the other tabs
+        // (via Navbar's own `{onSidebarPositionChange && (...)}` guard) so the Settings dropdown
+        // doesn't show a "Sidebar" control that would do nothing while looking at Best Frame/Data/RedMap.
+        sidebarPosition={activePage === "DASHBOARD" ? sidebarPosition : undefined}
+        onSidebarPositionChange={activePage === "DASHBOARD" ? setSidebarPosition : undefined}
       />
       <div style={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
         {isLoading ? (
@@ -211,7 +209,9 @@ export default function ClientLayout() {
               selectedEventId={selectedEvent?.id}
               locationFilter={locationFilter}
               onLocationClear={() => setLocationFilter(null)}
-              onLocationSelect={(loc) => setLocationFilter(loc)}
+              onLocationSelect={(loc) => { setLocationFilter(loc); setDistrictFilter(null); }}
+              districtFilter={districtFilter}
+              onDistrictClear={() => setDistrictFilter(null)}
               onPinDevice={setPinnedDevice}
               pinnedDeviceId={pinnedDevice?.id ?? null}
               onToggleDetectionChart={() => setShowDetectionChart(v => !v)}
@@ -223,7 +223,8 @@ export default function ClientLayout() {
             <div key="map" style={{ flex: 1, position: "relative", minWidth: 0 }}>
               <MapWrapper
                 selectedEvent={selectedEvent}
-                onCameraSelect={(label) => setLocationFilter((prev) => (prev === label ? null : label))}
+                onCameraSelect={(label) => { setLocationFilter((prev) => (prev === label ? null : label)); setDistrictFilter(null); }}
+                onDistrictSelect={(id) => { setDistrictFilter((prev) => (prev === id ? null : id)); setLocationFilter(null); }}
                 pinnedDevice={pinnedDevice}
                 onGoLiveCam={handleGoLiveCam}
                 onGoRedmapTrace={handleGoRedmapTrace}
@@ -237,6 +238,10 @@ export default function ClientLayout() {
                   into the map and the triangle still points the correct expand/collapse way. */}
               <div
                 onClick={() => setSidebarCollapsed(c => !c)}
+                role="button"
+                tabIndex={0}
+                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSidebarCollapsed(c => !c); } }}
                 style={{
                   position: "absolute", top: "50%",
                   ...(isRight ? { right: "-3px" } : { left: "-3px" }),
@@ -293,7 +298,7 @@ export default function ClientLayout() {
             />
           </div>
         )}
-        {!isLoading && activePage === "DATA"   && <DataPage />}
+        {!isLoading && activePage === "DATA"   && <DataPage onGoRedmap={() => setActivePage("REDMAP")} onGoAnalyzeFrame={handleGoAnalyzeFrame} />}
         {!isLoading && activePage === "REDMAP" && (
           <RedmapPage
             initialSearchName={redmapAutoSearchName}

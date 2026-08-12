@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { hourlyDetections } from "@/lib/mockData";
 import { useVcaStore } from "@/lib/vcaStore";
+import { useApiData } from "@/hooks/useApiData";
+import { getHourlyDetections } from "@/lib/api/dashboard";
 
 const CHART_HEIGHT = 160;
 const FALLBACK_WIDTH = 900; // used only until the container's real width is measured
@@ -111,17 +112,21 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
   const cameras = useVcaStore(s => s.cameras);
   const [selectedCamera, setSelectedCamera] = useState<string>(ALL_CAMERAS);
   const [cameraPickerOpen, setCameraPickerOpen] = useState(false);
+  // Routed through the future-backend stub instead of importing the mock array directly — see
+  // lib/api/dashboard.ts. `data` is null for the brief window before the (currently mock-delayed)
+  // fetch resolves; every derived value below falls back to an empty/flat chart until then.
+  const { data: hourlyDetections } = useApiData(() => getHourlyDetections(), []);
   // The whole point of this chart is spotting when VIPs show up, so the line/bars/dots plot
   // vipCount directly (not total detection count) — re-scaled for the selected camera. There's
   // no real per-camera dataset behind this, just a stable, reproducible variation of the
   // citywide one.
   const scaledHourly = useMemo(() => {
     const scale = selectedCamera === ALL_CAMERAS ? 1 : cameraScaleFor(selectedCamera);
-    return hourlyDetections.map(h => ({
+    return (hourlyDetections ?? []).map(h => ({
       hour: h.hour,
       count: Math.max(0, h.vipCount * scale),
     }));
-  }, [selectedCamera]);
+  }, [selectedCamera, hourlyDetections]);
 
   const yMax = useMemo(() => {
     const peak = Math.max(...scaledHourly.map(h => h.count), 1);
@@ -144,8 +149,11 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
   const linePoints = steps.map(s => ({ x: xForStep(s.step, totalSteps, width), y: yForCount(s.count) }));
   const linePath = smoothPath(linePoints);
   // Area fill: the trend line's own path, closed along the top edge — so the wash only ever
-  // covers the region above the line, following its curve, instead of a flat rectangle.
-  const areaPath = `${linePath} L ${linePoints[linePoints.length - 1].x},0 L ${linePoints[0].x},0 Z`;
+  // covers the region above the line, following its curve, instead of a flat rectangle. Empty
+  // during the brief pre-fetch window (no points yet), not just while data is genuinely all-zero.
+  const areaPath = linePoints.length > 0
+    ? `${linePath} L ${linePoints[linePoints.length - 1].x},0 L ${linePoints[0].x},0 Z`
+    : "";
 
   return (
     <div className="vca-rise-in" style={{
@@ -226,8 +234,8 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
 
       <div style={{ display: "flex", gap: "8px" }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: `${CHART_HEIGHT}px`, paddingBottom: "1px" }}>
-          {[...yTicks].reverse().map(tick => (
-            <span key={tick} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", lineHeight: 1 }}>{tick}</span>
+          {[...yTicks].reverse().map((tick, i) => (
+            <span key={i} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", lineHeight: 1 }}>{tick}</span>
           ))}
         </div>
 
@@ -257,8 +265,8 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
               <rect x={0} y={0} width={width} height={CHART_HEIGHT} fill="url(#areaWash)" />
             </g>
 
-            {yTicks.map(tick => (
-              <line key={tick} x1={0} y1={yForCount(tick)} x2={width} y2={yForCount(tick)} stroke="#e2e8f0" strokeWidth={1} />
+            {yTicks.map((tick, i) => (
+              <line key={i} x1={0} y1={yForCount(tick)} x2={width} y2={yForCount(tick)} stroke="#e2e8f0" strokeWidth={1} />
             ))}
 
             {/* Baseline volume bars */}

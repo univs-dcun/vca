@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { MatchItem, ReIDStatus } from "@/types/reid";
 import { useVcaStore, type Camera } from "@/lib/vcaStore";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const BORDER = "1px solid #E2E8F0";
 type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
@@ -63,7 +64,8 @@ function ScoreBadge({ score }: { score: number }) {
 
 
 // ── Person Detail Modal ────────────────────────────────────────
-function DetailModal({ item, onClose }: { item:MatchItem; onClose:()=>void }) {
+function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:MatchItem; onClose:()=>void; onGoRedmap?:()=>void; onGoAnalyzeFrame?:(location:string)=>void }) {
+  useEscapeKey(onClose);
   return (
     <div onClick={e => { if (e.target===e.currentTarget) onClose(); }}
       style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.4)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
@@ -143,12 +145,17 @@ function DetailModal({ item, onClose }: { item:MatchItem; onClose:()=>void }) {
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Footer — Watchlist registration is a Portal(admin) function, not a VCA operator
+            screen action, so it doesn't live here; Analyze Frame (same wording as Best Frame's
+            own popup button) deep-links to that camera's Inspection Detail instead. */}
         <div style={{ padding:"12px 16px", borderTop:BORDER, backgroundColor:"#f8fafc", display:"flex", justifyContent:"flex-end", gap:"8px", flexShrink:0 }}>
-          <button onClick={onClose} style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", border:BORDER, backgroundColor:"white", fontSize:"11px", fontWeight:600, color:"#64748a", cursor:"pointer" }}>
-            Add to Watchlist
+          <button
+            onClick={() => onGoAnalyzeFrame?.(item.cam)}
+            style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", border:BORDER, backgroundColor:"white", fontSize:"11px", fontWeight:600, color:"#64748a", cursor:"pointer" }}
+          >
+            Analyze Frame
           </button>
-          <button style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", backgroundColor:"#0e162a", border:"none", color:"white", fontSize:"11px", fontWeight:700, cursor:"pointer" }}>
+          <button onClick={onGoRedmap} style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", backgroundColor:"#0e162a", border:"none", color:"white", fontSize:"11px", fontWeight:700, cursor:"pointer" }}>
             RedMap Trace
           </button>
         </div>
@@ -213,10 +220,9 @@ function HoverActionBtn({ label, icon, color, onClick }:
   );
 }
 
-function MonitorCard({ p, onClick, showCam = false, fill = false }: { p: (typeof REID_DATA)[number]; onClick: () => void; showCam?: boolean; fill?: boolean }) {
+function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab, onGoRedmap }: { p: (typeof REID_DATA)[number]; onClick: () => void; showCam?: boolean; fill?: boolean; onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void }) {
   const status = REID_STATUS_STYLE[p.status];
   const [hovered, setHovered] = useState(false);
-  const avatarRingColor = p.status === "RedFace" ? status.border : null;
   return (
     <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{
       position:"relative", height:"254px",
@@ -248,10 +254,10 @@ function MonitorCard({ p, onClick, showCam = false, fill = false }: { p: (typeof
       {hovered && (
         <div style={{ position:"absolute", inset:0, backgroundColor:"rgba(14,22,42,0.6)",
           display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", zIndex:20 }}>
-          <HoverActionBtn label="Re-ID" icon={<ReidIconSm />} color="#5a3dfb" onClick={e => { e.stopPropagation(); onClick(); }} />
-          <HoverActionBtn label="RedFace" icon={<RedFaceIconSm />} color="#f97316" onClick={e => e.stopPropagation()} />
-          <HoverActionBtn label="RedMap" icon={<RedMapIconSm />} color="#16a34a" onClick={e => e.stopPropagation()} />
-          <HoverActionBtn label="Search" icon={<SearchIconSm />} color="#0e162a" onClick={e => e.stopPropagation()} />
+          <HoverActionBtn label="Re-ID" icon={<ReidIconSm />} color="#5a3dfb" onClick={e => { e.stopPropagation(); onNavigateTab?.("Re-ID Analysis", p); }} />
+          <HoverActionBtn label="RedFace" icon={<RedFaceIconSm />} color="#f97316" onClick={e => { e.stopPropagation(); onNavigateTab?.("RedFace", p); }} />
+          <HoverActionBtn label="RedMap" icon={<RedMapIconSm />} color="#16a34a" onClick={e => { e.stopPropagation(); onGoRedmap?.(); }} />
+          <HoverActionBtn label="Search" icon={<SearchIconSm />} color="#0e162a" onClick={e => { e.stopPropagation(); onNavigateTab?.("Smart Search", p); }} />
         </div>
       )}
       <div style={{ position:"absolute", left:"-1px", right:"-1px", bottom:"-2px", height:"72px", backgroundColor:"white",
@@ -268,9 +274,15 @@ function MonitorCard({ p, onClick, showCam = false, fill = false }: { p: (typeof
       </div>
       <div style={{ position:"absolute", right:"6px", bottom:"40px", width:"60px", height:"60px",
         borderRadius:"8px", overflow:"hidden", transform:"translateZ(0)",
-        border: avatarRingColor ? `2px solid ${avatarRingColor}` : "none" }}>
-        {/* Zoomed-in crop of the same big photo's face area, not a separate unrelated image */}
-        <img src={p.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"top", display:"block", transform:"scale(2.2)", transformOrigin:"top center" }} />
+        // Same white ring SearchResultCard's face crop always has, for the same separation from
+        // the photo behind it. RedFace already gets its own dedicated "REDFACE" badge on this card
+        // (below), so it doesn't need a second, redundant signal here too.
+        boxShadow:"0 0 0 2px white" }}>
+        {/* Zoomed-in crop of the same big photo's face area, not a separate unrelated image —
+            anchored a bit below the very top edge (most head-and-shoulders stock photos frame
+            the face around 15-25% down, not flush at 0%) and zoomed less aggressively than a
+            tight face-only crop so a slightly-off guess still leaves the face in frame. */}
+        <img src={p.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"50% 20%", display:"block", transform:"scale(1.8)", transformOrigin:"50% 20%" }} />
       </div>
     </div>
   );
@@ -327,8 +339,8 @@ const ALL_CAMERAS_ID = "__ALL__";
 // ── Camera Detail View (Figma: "Live monitoring detail") — now the ONLY Live Monitoring
 // screen; the camera-select dropdown's "All Cameras" option covers what the old separate
 // landing page (horizontal per-camera carousels) used to show. ───────────
-function CameraDetailView({ camId, items, onSwitchCam, onCardClick }:
-  { camId:string; items:(typeof REID_DATA); onSwitchCam:(camId:string)=>void; onCardClick:(id:number)=>void }) {
+function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTab, onGoRedmap }:
+  { camId:string; items:(typeof REID_DATA); onSwitchCam:(camId:string)=>void; onCardClick:(id:number)=>void; onNavigateTab?:(tab:DataTab, card:(typeof REID_DATA)[number])=>void; onGoRedmap?:()=>void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const cameras = useVcaStore(s => s.cameras);
   const camera = cameras.find(c => c.code === camId);
@@ -400,14 +412,17 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick }:
 
       {/* flex-wrap + flex-grow (not CSS grid) — see the "All Cameras" grid above for why. */}
       <div style={{ display:"flex", flexWrap:"wrap", gap:"12px" }}>
-        {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} showCam={isAll} fill />)}
+        {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} showCam={isAll} fill onNavigateTab={onNavigateTab} onGoRedmap={onGoRedmap} />)}
       </div>
     </div>
   );
 }
 
 function reidToMatchItem(p: (typeof REID_DATA)[number]): MatchItem {
-  return { id:p.id, face:p.face, body:p.url, cam:p.cam, time:p.time, similarity:p.score ?? 0, gender:p.gender as "M"|"F", age:p.age, plate:p.plate };
+  // face:p.url (not p.face) — p.face cycles through an unrelated stock-photo pool independent of
+  // the person's own photo, so DetailModal's "Face Detection Crop" would show a different
+  // person's face than the "Full-Body Object Crop" (body:p.url) right next to it.
+  return { id:p.id, face:p.url, body:p.url, cam:p.cam, time:p.time, similarity:p.score ?? 0, gender:p.gender as "M"|"F", age:p.age, plate:p.plate };
 }
 
 const LIVE_FEED_STATUS_CYCLE: ReIDStatus[] = ["VIP","Unknown","Unknown"];
@@ -455,7 +470,7 @@ function seedLiveFeed(): Record<string, (typeof REID_DATA)> {
 }
 
 // ── Live Monitoring Tab (wrapper: landing ↔ per-camera detail) ──
-function LiveMonitoringTab() {
+function LiveMonitoringTab({ onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
   const [openCam, setOpenCam]   = useState<string>(ALL_CAMERAS_ID);
   const [detailId, setDetailId] = useState<number|null>(null);
   const [feed, setFeed]         = useState(seedLiveFeed);
@@ -463,20 +478,29 @@ function LiveMonitoringTab() {
 
   useEffect(() => {
     const interval = setInterval(() => {
+      // Compute the new items first (pure), then hand setFeed a pure updater — React may
+      // invoke a state updater more than once (e.g. Strict Mode), so calling addEvent (a side
+      // effect on a different store) from inside one risked firing it twice per tick and
+      // triggering a "setState during render" warning. addEvent runs once, after, instead.
+      const newItems = useVcaStore.getState().cameras
+        .filter(cam => cam.status === "online")
+        .map(cam => ({ cam, item: makeLiveItem(seedRef.current++, cam.code, 0) }));
+
       setFeed(prev => {
         const next = { ...prev };
-        useVcaStore.getState().cameras.forEach(cam => {
-          if (cam.status !== "online") return;
-          const item = makeLiveItem(seedRef.current++, cam.code, 0);
+        newItems.forEach(({ cam, item }) => {
           next[cam.code] = [item, ...(prev[cam.code] ?? [])].slice(0, 300);
-          useVcaStore.getState().addEvent({
-            cameraId: cam.id,
-            type: item.status === "VIP" ? "VIP Match" : item.status === "RedFace" ? "RedFace Match" : "Re-ID Detection",
-            severity: item.status === "RedFace" ? "critical" : item.status === "VIP" ? "warning" : "info",
-            timestamp: new Date().toISOString(),
-          });
         });
         return next;
+      });
+
+      newItems.forEach(({ cam, item }) => {
+        useVcaStore.getState().addEvent({
+          cameraId: cam.id,
+          type: item.status === "VIP" ? "VIP Match" : item.status === "RedFace" ? "RedFace Match" : "Re-ID Detection",
+          severity: item.status === "RedFace" ? "critical" : item.status === "VIP" ? "warning" : "info",
+          timestamp: new Date().toISOString(),
+        });
       });
     }, 4000);
     return () => clearInterval(interval);
@@ -491,8 +515,8 @@ function LiveMonitoringTab() {
 
   return (
     <>
-      <CameraDetailView camId={openCam} items={camDetailItems} onSwitchCam={setOpenCam} onCardClick={setDetailId} />
-      {detailItem && <DetailModal item={reidToMatchItem(detailItem)} onClose={() => setDetailId(null)} />}
+      <CameraDetailView camId={openCam} items={camDetailItems} onSwitchCam={setOpenCam} onCardClick={setDetailId} onNavigateTab={onNavigateTab} onGoRedmap={onGoRedmap} />
+      {detailItem && <DetailModal item={reidToMatchItem(detailItem)} onClose={() => setDetailId(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
     </>
   );
 }
@@ -596,6 +620,7 @@ function DateRangePopover({ anchorRef, value, onApply, onClose }: {
   const [tempStart, setTempStart] = useState<Date|null>(value.start);
   const [tempEnd, setTempEnd] = useState<Date|null>(value.end);
   const [pos, setPos] = useState<{ top:number; left:number } | null>(null);
+  useEscapeKey(onClose);
 
   useEffect(() => {
     if (!anchorRef.current) return;
@@ -704,38 +729,18 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
 }
 
 function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP:number; onSelect:(i:number)=>void; compact?:boolean }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chipRef = useRef<HTMLButtonElement>(null);
-  const [visibleCount, setVisibleCount] = useState(VIP_QUICK.length);
-
-  useEffect(() => {
-    const recalc = () => {
-      const container = containerRef.current;
-      const chip = chipRef.current;
-      if (!container || !chip) return;
-      const gap = 8;
-      const chipWidth = chip.offsetWidth + gap;
-      const overflowWidth = 48;
-      const available = container.offsetWidth;
-      const count = Math.max(1, Math.min(VIP_QUICK.length, Math.floor((available - overflowWidth) / chipWidth)));
-      setVisibleCount(count);
-    };
-    recalc();
-    const ro = new ResizeObserver(recalc);
-    if (containerRef.current) ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, []);
-
-  const hidden = VIP_QUICK.length - visibleCount;
   const avatarSize = compact ? 28 : 32;
   const fontSize = compact ? "11px" : "12px";
 
+  // A horizontal scroll (same pattern as the Recent Targets row above/beside it) instead of
+  // clipping to whatever fits and stashing the rest behind a "+N" chip — every VIP stays one
+  // scroll away instead of an extra click into a flyout.
   return (
-    <div ref={containerRef} style={{ display:"flex", gap:"8px", alignItems:"center", flexWrap:"nowrap", overflow:"hidden", width:"100%" }}>
-      {VIP_QUICK.slice(0, visibleCount).map((v, i) => {
+    <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"8px", overflowX:"auto", width:"100%" }}>
+      {VIP_QUICK.map((v, i) => {
         const active = activeVIP === i;
         return (
-          <button key={v.name} ref={i === 0 ? chipRef : undefined} onClick={() => onSelect(i)} style={{
+          <button key={v.name} onClick={() => onSelect(i)} style={{
             display:"flex", alignItems:"center", gap:"6px", padding:"4px 12px 4px 4px", borderRadius:"999px",
             backgroundColor: active ? "#f0f0ff" : "white",
             border: active ? "1px solid #5a3dfb" : "1px solid #e2e8f0", cursor:"pointer", flexShrink:0,
@@ -745,9 +750,6 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
           </button>
         );
       })}
-      {hidden > 0 && (
-        <span style={{ fontSize, fontWeight:600, color:"#0e162a", backgroundColor:"#f1f5f9", padding:"6px 10px", borderRadius:"999px", flexShrink:0 }}>+{hidden}</span>
-      )}
     </div>
   );
 }
@@ -766,11 +768,20 @@ function AttrChip({ label, active, onClick, size = "md" }: { label:string; activ
   );
 }
 
-function FilterChip({ children, icon }: { children:React.ReactNode; icon?:React.ReactNode }) {
+// One shape for "this is a criterion currently shaping the results below" — whether that's a
+// picked target (photo + remove) or a plain attribute chip. Two different-looking chips for the
+// same kind of information (what's actually driving these results) read as two different things.
+function FilterChip({ children, icon, avatar, onRemove }: { children:React.ReactNode; icon?:React.ReactNode; avatar?:string; onRemove?:()=>void }) {
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 16px", borderRadius:"100px",
-      backgroundColor:"#f8fafc", border:"1px solid #ccd5e1", fontSize:"12px", fontWeight:700, color:"#324055", whiteSpace:"nowrap", flexShrink:0 }}>
+    <div style={{ display:"flex", alignItems:"center", gap:"6px", padding: avatar ? "4px 8px 4px 4px" : "6px 16px", borderRadius:"100px",
+      backgroundColor:"#f0f0ff", border:"1px solid #5a3dfb", fontSize:"12px", fontWeight:700, color:"#5a3dfb", whiteSpace:"nowrap", flexShrink:0 }}>
+      {avatar && <img src={avatar} alt="" style={{ width:22, height:22, borderRadius:"50%", objectFit:"cover" }} />}
       {icon}{children}
+      {onRemove && (
+        <button onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", padding:"2px", display:"flex", color:"#5a3dfb" }}>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        </button>
+      )}
     </div>
   );
 }
@@ -808,7 +819,7 @@ function SmartSearchForm({ state, onSearch }: { state: SearchFilterState; onSear
       <div style={{ backgroundColor:"white", padding:"40px 24px", display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
           <SmartSearchTitleIconSm />
-          <span style={{ fontSize:"18px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.36px" }}>Smart Attribute Search</span>
+          <span style={{ fontSize:"18px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.36px" }}>Smart Search</span>
         </div>
         <span style={{ fontSize:"13px", fontWeight:600, color:"#475469", letterSpacing:"-0.26px" }}>
           Enter images or search conditions for the target person or vehicle
@@ -817,7 +828,7 @@ function SmartSearchForm({ state, onSearch }: { state: SearchFilterState; onSear
 
       <div style={{ maxWidth:"1440px", margin:"0 auto", padding:"48px 24px 40px", display:"flex", flexDirection:"column", gap:"20px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ display:"flex", backgroundColor:"#f1f5f9", border:BORDER, borderRadius:"12px", padding:"1px", height:"42px", width:"288px" }}>
+          <div style={{ display:"flex", backgroundColor:"#e2e8f0", border:"1px solid #ccd5e1", borderRadius:"12px", padding:"1px", height:"42px", width:"288px" }}>
             {(["PERSON","VEHICLE"] as const).map(t => {
               const active = searchType === t;
               return (
@@ -835,7 +846,7 @@ function SmartSearchForm({ state, onSearch }: { state: SearchFilterState; onSear
           </div>
           <div style={{ display:"flex", gap:"12px" }}>
             <button onClick={reset} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 20px", height:"42px", boxSizing:"border-box",
-              borderRadius:"8px", border:"1px solid #ccd5e1", backgroundColor:"#f8fafc", cursor:"pointer",
+              borderRadius:"8px", border:"1px solid #ccd5e1", backgroundColor:"white", cursor:"pointer",
               fontSize:"13px", fontWeight:700, color:"#475469" }}>
               <ResetIconSm /> Reset
             </button>
@@ -975,7 +986,7 @@ function SmartSearchForm({ state, onSearch }: { state: SearchFilterState; onSear
   );
 }
 
-function SearchResultCard({ p, onClick }: { p: (typeof REID_DATA)[number]; onClick: () => void }) {
+function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_DATA)[number]; onClick: () => void; matchReasons?: string[] }) {
   const status = REID_STATUS_STYLE[p.status];
   return (
     <div onClick={onClick} style={{
@@ -990,48 +1001,96 @@ function SearchResultCard({ p, onClick }: { p: (typeof REID_DATA)[number]; onCli
         backgroundColor:"rgba(14,22,42,0.7)", padding:"4px 8px", borderRadius:"12px", letterSpacing:"-0.2px" }}>
         {p.cam}
       </div>
+      {/* Similarity is a property of the match itself (how well this result answers the search),
+          not of the identity label next to it — a precise-looking % right beside "Unknown" read as
+          if there were some specific certainty about an unidentified person. Off the status line,
+          onto the photo, matching the badge ClusterMatchCard/CandidateCard already use for this
+          same number. */}
+      <div style={{ position:"absolute", top:8, right:8, fontSize:"10px", fontWeight:800, color:"white",
+        backgroundColor:"rgba(14,22,42,0.7)", padding:"4px 8px", borderRadius:"12px", letterSpacing:"-0.2px" }}>
+        {p.similarity}%
+      </div>
+      {/* Same REDFACE badge Live Monitoring's MonitorCard uses — a search shouldn't quietly hide
+          that one of its hits is already flagged. */}
+      {p.status === "RedFace" && (
+        <div style={{ position:"absolute", bottom:"60px", left:8, fontSize:"8px", fontWeight:800, color:"white",
+          backgroundColor:"#ef4444", padding:"1px 5px", borderRadius:"2px", letterSpacing:"0.3px" }}>
+          REDFACE
+        </div>
+      )}
       <div style={{ position:"absolute", left:"-1px", right:"-1px", bottom:"-2px", height:"66px", backgroundColor:"white",
         padding:"10px 11px 7px", boxSizing:"border-box", display:"flex", flexDirection:"column", gap:"2px" }}>
         <div style={{ display:"flex", alignItems:"baseline", gap:"6px" }}>
           {p.plate
             ? <span style={{ fontSize:"12px", fontWeight:800, color:"#0e162a", fontFamily:"monospace", letterSpacing:"-0.24px" }}>{p.plate}</span>
             : <span style={{ fontSize:"12px", fontWeight:800, color:status.text, letterSpacing:"-0.24px" }}>{p.status}</span>}
-          {!p.plate && p.status === "VIP" && p.score !== null && <span style={{ fontSize:"11px", fontWeight:600, color:"#475469" }}>{p.score}%</span>}
+          {matchReasons.length > 0 && (
+            <span title={`Matched on: ${matchReasons.join(", ")}`} style={{ fontSize:"10px", fontWeight:800, color:"#16a34a", cursor:"help" }}>
+              ✓{matchReasons.length}
+            </span>
+          )}
         </div>
         <span style={{ fontSize:"10px", color:"#94a3b8", fontFamily:"monospace" }}>2026-10-21 {p.time}</span>
       </div>
-      {!p.plate && <img src={p.face} alt="" style={{ position:"absolute", right:"10px", bottom:"38px", width:"56px", height:"56px",
+      {/* Crop of the same big photo (p.url), not p.face — that field cycles through an unrelated
+          stock-photo pool, which would show a different person's face here than the body photo
+          filling the rest of the card. objectPosition "top" favors the head/shoulders area. */}
+      {!p.plate && <img src={p.url} alt="" style={{ position:"absolute", right:"10px", bottom:"38px", width:"56px", height:"56px",
         borderRadius:"8px", boxShadow:"0 0 0 2px white", transform:"translateZ(0)",
-        objectFit:"cover", display:"block", backgroundColor:"white" }} />}
+        objectFit:"cover", objectPosition:"top", display:"block", backgroundColor:"white" }} />}
     </div>
   );
 }
 
 function SmartSearchResults({ state, results, onCardClick, onRefine, onReset }:
   { state: SearchFilterState; results:(typeof REID_DATA); onCardClick:(id:number)=>void; onRefine:()=>void; onReset:()=>void }) {
-  const { searchType, threshold, gender, apparel, props, dateRange, licensePlate, camera } = state;
-  const activeChips = [
-    searchType === "PERSON" ? "Person" : "Vehicle",
-    ...(dateRange.start || dateRange.end
-      ? [`${dateRange.start ? fmtDate(dateRange.start) : "…"} ~ ${dateRange.end ? fmtDate(dateRange.end) : "…"}`]
-      : ["Last 7 days"]),
+  const { searchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP, threshold, gender, apparel, props, dateRange, licensePlate, camera } = state;
+  // Captured once when results first land, not read live on every render — otherwise "as of"
+  // would silently keep advancing on any unrelated re-render, making the Refresh button's job
+  // (bump this to "now") indistinguishable from doing nothing.
+  const [refreshedAt, setRefreshedAt] = useState(() => new Date());
+  // A named target (VIP Quick Select / Recent Targets) shouldn't disappear once you're looking at
+  // results — otherwise there's no way to tell "who am I even looking for" without going back to
+  // the form. Reuse the same toggle-off logic the picker rows use, so clearing it here is
+  // identical to clicking it again in the form.
+  const target = selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : activeVIP >= 0 ? VIP_QUICK[activeVIP] : null;
+  const clearTarget = () => { if (selectedTarget >= 0) selectRecentTarget(selectedTarget); else if (activeVIP >= 0) selectVIP(activeVIP); };
+  // What each card in the grid actually satisfied to be included — filterReidData() already hard-
+  // filters on these, so every result matches all of them; surfacing that here turns the bare
+  // similarity % into "matched because of X, Y, Z" instead of an unexplained number. None of this
+  // applies once a target is picked, though: those results come from buildTargetResultRows (the
+  // target re-appearing), which never looks at gender/apparel/props/camera/date at all — showing
+  // them as if they're "active filters" on results they don't actually filter is exactly the kind
+  // of disconnect between the filter bar and the results that shouldn't happen.
+  const matchReasons = target ? [] : [
+    ...(gender ? [gender] : []),
+    ...(apparel.length ? [apparel.join("/")] : []),
+    ...(props.length ? [props.join("/")] : []),
     ...(camera ? [camera] : []),
-    ...(searchType === "VEHICLE"
-      ? (licensePlate ? [licensePlate] : [])
-      : [...(gender ? [gender] : []), ...apparel, ...props]),
   ];
+  const activeChips = target
+    ? [searchType === "PERSON" ? "Person" : "Vehicle", `≥ ${threshold}% similarity`]
+    : [
+        searchType === "PERSON" ? "Person" : "Vehicle",
+        ...(dateRange.start || dateRange.end
+          ? [`${dateRange.start ? fmtDate(dateRange.start) : "…"} ~ ${dateRange.end ? fmtDate(dateRange.end) : "…"}`]
+          : ["Last 7 days"]),
+        ...(camera ? [camera] : []),
+        ...(searchType === "VEHICLE"
+          ? (licensePlate ? [licensePlate] : [])
+          : [...(gender ? [gender] : []), ...apparel, ...props]),
+      ];
 
   return (
     <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto", backgroundColor:"#f8fafc" }}>
       <div style={{ padding:"16px 24px", backgroundColor:"white", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:"12px" }}>
         <div className="vca-hide-scrollbar" style={{ display:"flex", alignItems:"center", gap:"8px", overflowX:"auto" }}>
-          {activeChips.map((c, i) => <FilterChip key={i}>{c}</FilterChip>)}
-          {searchType !== "VEHICLE" && (
-            <>
-              <FilterChip icon={<PersonIconSm />}>Face</FilterChip>
-              <FilterChip icon={<BodyIconSm />}>Full Body</FilterChip>
-            </>
+          {target && (
+            <FilterChip avatar={target.face} onRemove={clearTarget}>
+              Similar to {"label" in target ? target.label : target.name}
+            </FilterChip>
           )}
+          {activeChips.map((c, i) => <FilterChip key={i}>{c}</FilterChip>)}
           <button onClick={onReset} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer",
             fontSize:"13px", fontWeight:600, color:"#475469", flexShrink:0, padding:"0 4px" }}>
             <ResetIconSm /> Reset Filters
@@ -1054,15 +1113,21 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset }:
             </span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
-            <span style={{ fontSize:"12px", color:"#94a3b8" }}>Results updated as of {new Date().toLocaleTimeString("en-US", { hour12:false })}</span>
-            <button style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:700, color:"#475469" }}>
+            <span style={{ fontSize:"12px", color:"#94a3b8" }}>Results updated as of {refreshedAt.toLocaleTimeString("en-US", { hour12:false })}</span>
+            <button onClick={() => setRefreshedAt(new Date())} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:700, color:"#475469" }}>
               <RefreshIconSm /> Refresh
             </button>
           </div>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(133px, 1fr))", gap:"16px", paddingBottom:"24px" }}>
-          {results.map(p => <SearchResultCard key={p.id} p={p} onClick={() => onCardClick(p.id)} />)}
-        </div>
+        {results.length === 0 ? (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"64px 0", color:"#94a3b8", fontSize:"13px", fontWeight:600 }}>
+            No matches for the current filters.
+          </div>
+        ) : (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(133px, 1fr))", gap:"16px", paddingBottom:"24px" }}>
+            {results.map(p => <SearchResultCard key={p.id} p={p} onClick={() => onCardClick(p.id)} matchReasons={matchReasons} />)}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1085,7 +1150,7 @@ interface SearchFilterState {
   reset: () => void;
 }
 
-function SmartSearchContent() {
+function SmartSearchContent({ seedCard, onSeedConsumed, onGoRedmap, onGoAnalyzeFrame }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
   const [searched, setSearched]         = useState(false);
   const [detailId, setDetailId]         = useState<number|null>(null);
   const [searchType, setSearchType]     = useState<"PERSON"|"VEHICLE">("PERSON");
@@ -1098,10 +1163,32 @@ function SmartSearchContent() {
   const [dateRange, setDateRange]       = useState<DateRangeValue>({ start:null, end:null });
   const [licensePlate, setLicensePlate] = useState("");
   const [camera, setCamera]             = useState("");
+  // "UNSET" (not seedCard's own initial value) so the block below still fires on this
+  // component's very first render even when seedCard is ALREADY set at mount time — this tab
+  // mounts fresh on every deep-link (it doesn't exist until activeTab switches to it), so
+  // seeding it from "the previous seedCard" would just equal the incoming one and never fire.
+  const [prevSeedCard, setPrevSeedCard] = useState<typeof seedCard | "UNSET">("UNSET");
 
   const toggleApparel = (a: string) => setApparel(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
   const toggleProps   = (a: string) => setProps(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
   const reset = () => { setSearchType("PERSON"); setThreshold(30); setGender(""); setApparel([]); setProps([]); setSelectedTarget(-1); setActiveVIP(-1); setDateRange({ start:null, end:null }); setLicensePlate(""); setCamera(""); };
+
+  // Deep-link from a Live Monitoring card's "Search" hover button — see ReIDContent's identical
+  // block for why camera/gender/date are what get seeded.
+  if (seedCard !== prevSeedCard) {
+    setPrevSeedCard(seedCard);
+    if (seedCard) {
+      setSelectedTarget(-1); setActiveVIP(-1); setApparel([]); setProps([]); setLicensePlate("");
+      setCamera(seedCard.cam);
+      setGender(seedCard.gender === "M" ? "Male" : "Female");
+      const day = new Date(seedCard.date);
+      setDateRange({ start: day, end: day });
+      setSearched(true);
+    }
+  }
+  useEffect(() => {
+    if (seedCard) onSeedConsumed?.();
+  }, [seedCard, onSeedConsumed]);
 
   // Picking a recent target means "search for someone matching this profile" — it cascades the
   // target's gender/apparel/props onto the rest of the form, and clicking the same one again
@@ -1124,7 +1211,15 @@ function SmartSearchContent() {
     dateRange, setDateRange, licensePlate, setLicensePlate, camera, setCamera, reset,
   };
 
-  const results = filterReidData({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera });
+  // A named target means "find this specific person elsewhere" — reuse their own photo across
+  // synthesized appearances instead of filterReidData, whose gender/apparel/props/date cycles are
+  // independent of any given target's cascaded profile and can easily have zero real overlap for
+  // a particular combination (see buildTargetResultRows).
+  const searchTarget = activeVIP >= 0 ? VIP_QUICK[activeVIP] : selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : null;
+  const results = searchType === "PERSON" && searchTarget
+    ? buildTargetResultRows(searchTarget.face, searchTarget.body, searchTarget.gender === "Male" ? "M" : "F", 20)
+        .filter(r => r.similarity >= threshold)
+    : filterReidData({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera });
   const detailItem = detailId !== null ? results.find(p => p.id===detailId) ?? null : null;
 
   return (
@@ -1134,7 +1229,7 @@ function SmartSearchContent() {
             onRefine={() => setSearched(false)} onReset={() => { reset(); setSearched(false); }} />
         : <SmartSearchForm state={state} onSearch={() => setSearched(true)} />
       }
-      {detailItem && <DetailModal item={reidToMatchItem(detailItem)} onClose={() => setDetailId(null)} />}
+      {detailItem && <DetailModal item={reidToMatchItem(detailItem)} onClose={() => setDetailId(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
     </>
   );
 }
@@ -1248,9 +1343,11 @@ function filterReidData(f: {
       .sort((a, b) => b.similarity - a.similarity);
   }
 
+  // RedFace hits used to be dropped from every attribute search entirely — surfacing them (with
+  // the same REDFACE badge Live Monitoring/SearchResultCard already use) is exactly the point:
+  // if a search happens to turn up someone already flagged, that's worth knowing, not hiding.
   const genderAbbrev = f.gender === "Male" ? "M" : f.gender === "Female" ? "F" : null;
   return REID_DATA
-    .filter(p => p.status !== "RedFace")
     .filter(p => !genderAbbrev || p.gender === genderAbbrev)
     .filter(p => f.apparel.length === 0 || f.apparel.includes(p.apparel))
     .filter(p => f.props.length === 0 || (p.prop !== null && f.props.includes(p.prop)))
@@ -1269,36 +1366,94 @@ interface ReidCluster {
   matches: MatchItem[];
 }
 
+// Unsplash serves images through imgix, so appending its query params re-renders the same
+// source photo with a slightly different blur/exposure/saturation per tile — enough that a
+// declining similarity score (97%, 96%, ... not literally the same file at every rank) reads as
+// "same person, progressively worse camera conditions" instead of a pixel-identical repeat.
+const MATCH_VARIATION_EXPOSURE = [0, -6, 5, -4, 7, -3, 4, -7, 3, -5, 6, -2];
+function withMatchVariation(url: string, i: number): string {
+  const blur = 1 + Math.min(i, 7);
+  const sat = -(2 + Math.min(i * 2, 22));
+  const exp = MATCH_VARIATION_EXPOSURE[i % MATCH_VARIATION_EXPOSURE.length];
+  return `${url}&blur=${blur}&sat=${sat}&exp=${exp}`;
+}
+
+// A Re-ID match list should show ONE identity re-appearing across cameras, not a mix of
+// different-looking people who merely share a gender. The mock photo pool has no multi-angle
+// shots of a single real identity, so each synthesized appearance reuses the target's own photo
+// across different cameras/times — the same convention the derived Tracking trail already uses
+// for one person crossing multiple cameras.
+function buildSuspectMatches(person: (typeof REID_DATA)[number], count: number): MatchItem[] {
+  const base = reidToMatchItem(person);
+  return Array.from({ length: count }, (_, i) => ({
+    ...base,
+    id: person.id * 1000 + i,
+    face: withMatchVariation(base.face, i),
+    body: withMatchVariation(base.body, i),
+    cam: CAMERA_OPTIONS[i % CAMERA_OPTIONS.length],
+    time: TIMES_P[i % TIMES_P.length],
+    similarity: Math.round((97 - i * 0.8) * 10) / 10,
+  }));
+}
+
+// Same idea as buildSuspectMatches, but for a live search target (VIP Quick Select / Recent
+// Targets) whose face/body photos come from a different pool than REID_DATA, so it can't reuse a
+// REID_DATA row directly. Returns REID_DATA-shaped rows (not MatchItem[]) so every search surface
+// — Smart Search's grid, Re-ID Analysis's cluster (via reidToMatchItem), RedFace's candidate list
+// — can reuse the same generator instead of each hitting filterReidData() with the target's
+// cascaded gender/apparel/props and risking zero real hits: REID_DATA's attribute cycles are
+// independent of what a named target's profile actually is, so a specific gender+apparel+props+
+// date combination can easily have no real overlap at all — the target is a person we already
+// have a photo of, not a filter that might come up empty.
+function buildTargetResultRows(face: string, body: string, genderAbbrev: "M" | "F", count: number): typeof REID_DATA {
+  return Array.from({ length: count }, (_, i) => ({
+    id: 700000 + i,
+    url: withMatchVariation(body, i),
+    face: withMatchVariation(face, i),
+    time: TIMES_P[i % TIMES_P.length],
+    badge: null as number | null,
+    status: "Unknown" as ReIDStatus,
+    cam: CAMERA_OPTIONS[i % CAMERA_OPTIONS.length],
+    similarity: Math.round((97 - i * 0.8) * 10) / 10,
+    gender: genderAbbrev,
+    age: "--",
+    score: null as number | null,
+    apparel: "",
+    prop: null as string | null,
+    date: REID_DATE_CYCLE[i % REID_DATE_CYCLE.length],
+    plate: null as string | null,
+  }));
+}
+
+const SUSPECT_1 = REID_DATA[0]; // gender F, matches REID_GENDER_CYCLE[0]
+const SUSPECT_2 = REID_DATA[1]; // gender M, matches REID_GENDER_CYCLE[1]
+
 const CLUSTERS: ReidCluster[] = [
   {
     id: "c1",
-    thumbnail: MATCH_DATA[0].face,
+    thumbnail: SUSPECT_1.url,
     title: "Suspect #1 (TS017323)",
     meta: [
       { label:"Gender", value:"F" },
       { label:"Age", value:"20s" },
-      { label:"Wear", value:"Dark Knit" },
-      { label:"Bag", value:"None" },
-      { label:"Hair", value:"Long" },
+      { label:"Apparel", value:"Skirts" },
+      { label:"Props", value:"None" },
     ],
     action: "RedFace",
-    matches: REID_DATA.filter(p => p.gender === "F" && p.status !== "RedFace").slice(0, 20)
-      .map((p, i) => ({ ...reidToMatchItem(p), similarity: Math.round((97 - i * 0.8) * 10) / 10 })),
+    matches: buildSuspectMatches(SUSPECT_1, 20),
   },
   {
     id: "c2",
-    thumbnail: MATCH_DATA[1].face,
+    thumbnail: SUSPECT_2.url,
     title: "Suspect #2 (TS015942)",
     meta: [
       { label:"Gender", value:"M" },
       { label:"Age", value:"30s" },
-      { label:"Wear", value:"White T-Shirt" },
-      { label:"Bag", value:"Backpack" },
-      { label:"Hair", value:"Short" },
+      { label:"Apparel", value:"Short Sleeve" },
+      { label:"Props", value:"Backpack/Bag" },
     ],
     action: "RedFace",
-    matches: REID_DATA.filter(p => p.gender === "M" && p.status !== "RedFace").slice(0, 20)
-      .map((p, i) => ({ ...reidToMatchItem(p), similarity: Math.round((97 - i * 0.8) * 10) / 10 })),
+    matches: buildSuspectMatches(SUSPECT_2, 20),
   },
 ];
 
@@ -1314,10 +1469,10 @@ function MetaDivider() {
   return <div style={{ width:"1px", height:"8px", backgroundColor:"#e2e8f0", flexShrink:0 }} />;
 }
 
-function ClusterMatchCard({ item }: { item: MatchItem }) {
+function ClusterMatchCard({ item, onClick }: { item: MatchItem; onClick?: () => void }) {
   const badgeColor = item.similarity >= 85 ? "#334155" : item.similarity >= 80 ? "#f59e0b" : "#64748a";
   return (
-    <div style={{ backgroundColor:"white", borderRadius:"8px", overflow:"hidden", width:"133px", flexShrink:0, display:"flex", flexDirection:"column", gap:"8px" }}>
+    <div onClick={onClick} style={{ backgroundColor:"white", borderRadius:"8px", overflow:"hidden", width:"133px", flexShrink:0, display:"flex", flexDirection:"column", gap:"8px", cursor: onClick ? "pointer" : "default" }}>
       <div style={{ position:"relative", height:"160px", overflow:"hidden" }}>
         <img src={item.body} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
         <span style={{ position:"absolute", top:6, left:6, backgroundColor:badgeColor, color:"white", fontSize:"10px", fontWeight:600, padding:"2px 6px", borderRadius:"4px", letterSpacing:"-0.2px" }}>{item.similarity}%</span>
@@ -1332,7 +1487,7 @@ function ClusterMatchCard({ item }: { item: MatchItem }) {
   );
 }
 
-function ClusterCard({ cluster }: { cluster: ReidCluster }) {
+function ClusterCard({ cluster, onNavigateTab, onMatchClick }: { cluster: ReidCluster; onNavigateTab?: (tab: DataTab) => void; onMatchClick?: (id: number) => void }) {
   return (
     <div style={{ backgroundColor:"white", borderRadius:"12px", padding:"12px 24px", display:"flex", flexDirection:"column", gap:"16px", width:"100%", boxSizing:"border-box" }}>
       <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:"16px" }}>
@@ -1350,35 +1505,35 @@ function ClusterCard({ cluster }: { cluster: ReidCluster }) {
             </div>
           </div>
         </div>
-        <button style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px", borderRadius:"8px",
+        <button onClick={() => onNavigateTab?.(cluster.action as DataTab)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px", borderRadius:"8px",
           backgroundColor:"#f1f5f9", border:"none", cursor:"pointer", flexShrink:0 }}>
           <RedFaceIconSm />
           <span style={{ fontSize:"13px", fontWeight:600, color:"#475469", letterSpacing:"-0.26px", whiteSpace:"nowrap" }}>{cluster.action}</span>
         </button>
       </div>
       <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"12px", overflowX:"auto" }}>
-        {cluster.matches.map(m => <ClusterMatchCard key={m.id} item={m} />)}
+        {cluster.matches.map(m => <ClusterMatchCard key={m.id} item={m} onClick={() => onMatchClick?.(m.id)} />)}
       </div>
     </div>
   );
 }
 
 const VIP_QUICK = [
-  { name:"Mina", face: MATCH_DATA[0].face, body: MATCH_DATA[0].body },
-  { name:"Joon", face: MATCH_DATA[1].face, body: MATCH_DATA[1].body },
-  { name:"Taeho", face: MATCH_DATA[3].face, body: MATCH_DATA[3].body },
-  { name:"Yuna", face: MATCH_DATA[2].face, body: MATCH_DATA[2].body },
-  { name:"Minho", face: MATCH_DATA[4].face, body: MATCH_DATA[4].body },
-  { name:"Seoyeon", face: MATCH_DATA[5].face, body: MATCH_DATA[5].body },
-  { name:"Jihoon", face: MATCH_DATA[6].face, body: MATCH_DATA[6].body },
-  { name:"Areum", face: MATCH_DATA[7].face, body: MATCH_DATA[7].body },
-  { name:"Doyoon", face: MATCH_DATA[0].face, body: MATCH_DATA[0].body },
-  { name:"Haeun", face: MATCH_DATA[1].face, body: MATCH_DATA[1].body },
-  { name:"Junseo", face: MATCH_DATA[2].face, body: MATCH_DATA[2].body },
-  { name:"Somin", face: MATCH_DATA[3].face, body: MATCH_DATA[3].body },
-  { name:"Yejun", face: MATCH_DATA[4].face, body: MATCH_DATA[4].body },
-  { name:"Chaewon", face: MATCH_DATA[5].face, body: MATCH_DATA[5].body },
-  { name:"Hyunwoo", face: MATCH_DATA[6].face, body: MATCH_DATA[6].body },
+  { name:"Mina", face: MATCH_DATA[0].face, body: MATCH_DATA[0].body, gender:"Female" },
+  { name:"Joon", face: MATCH_DATA[1].face, body: MATCH_DATA[1].body, gender:"Male" },
+  { name:"Taeho", face: MATCH_DATA[3].face, body: MATCH_DATA[3].body, gender:"Male" },
+  { name:"Yuna", face: MATCH_DATA[2].face, body: MATCH_DATA[2].body, gender:"Female" },
+  { name:"Minho", face: MATCH_DATA[4].face, body: MATCH_DATA[4].body, gender:"Male" },
+  { name:"Seoyeon", face: MATCH_DATA[5].face, body: MATCH_DATA[5].body, gender:"Female" },
+  { name:"Jihoon", face: MATCH_DATA[6].face, body: MATCH_DATA[6].body, gender:"Male" },
+  { name:"Areum", face: MATCH_DATA[7].face, body: MATCH_DATA[7].body, gender:"Female" },
+  { name:"Doyoon", face: MATCH_DATA[0].face, body: MATCH_DATA[0].body, gender:"Male" },
+  { name:"Haeun", face: MATCH_DATA[1].face, body: MATCH_DATA[1].body, gender:"Female" },
+  { name:"Junseo", face: MATCH_DATA[2].face, body: MATCH_DATA[2].body, gender:"Male" },
+  { name:"Somin", face: MATCH_DATA[3].face, body: MATCH_DATA[3].body, gender:"Female" },
+  { name:"Yejun", face: MATCH_DATA[4].face, body: MATCH_DATA[4].body, gender:"Male" },
+  { name:"Chaewon", face: MATCH_DATA[5].face, body: MATCH_DATA[5].body, gender:"Female" },
+  { name:"Hyunwoo", face: MATCH_DATA[6].face, body: MATCH_DATA[6].body, gender:"Male" },
 ];
 
 // gender/apparel/props here are what picking this target cascades onto the rest of the filter
@@ -1468,13 +1623,6 @@ function ResetIconSm() {
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <path d="M2 8C2 9.18669 2.35189 10.3467 3.01118 11.3334C3.67047 12.3201 4.60754 13.0892 5.7039 13.5433C6.80026 13.9974 8.00666 14.1162 9.17054 13.8847C10.3344 13.6532 11.4035 13.0818 12.2426 12.2426C13.0818 11.4035 13.6532 10.3344 13.8847 9.17054C14.1162 8.00666 13.9974 6.80026 13.5433 5.7039C13.0892 4.60754 12.3201 3.67047 11.3334 3.01118C10.3467 2.35189 9.18669 2 8 2C6.32263 2.00631 4.71265 2.66082 3.50667 3.82667L2 5.33333" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M2 2V5.33333H5.33333" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
-function BodyIconSm() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <path d="M14.4001 4.80039C14.4001 3.47664 13.3239 2.40039 12.0001 2.40039C10.6764 2.40039 9.60014 3.47664 9.60014 4.80039C9.60014 6.12414 10.6764 7.20039 12.0001 7.20039C13.3239 7.20039 14.4001 6.12414 14.4001 4.80039ZM10.5339 8.74914C9.64514 8.43414 8.86514 7.83789 8.32889 7.03164L7.59764 5.93289C7.23014 5.38164 6.48764 5.23539 5.93639 5.60289C5.38514 5.97039 5.23514 6.71289 5.60264 7.26789L6.33389 8.36289C7.01264 9.37914 7.93889 10.1779 9.00014 10.7029V20.4004C9.00014 21.0641 9.53639 21.6004 10.2001 21.6004C10.8639 21.6004 11.4001 21.0641 11.4001 20.4004V16.8004H12.6001V20.4004C12.6001 21.0641 13.1364 21.6004 13.8001 21.6004C14.4639 21.6004 15.0001 21.0641 15.0001 20.4004V10.7104C16.0914 10.1779 17.0401 9.35289 17.7264 8.30289L18.4089 7.25664C18.7689 6.70164 18.6114 5.95914 18.0564 5.59539C17.5014 5.23164 16.7589 5.38914 16.3951 5.94789L15.7126 6.99039C14.8951 8.24289 13.5039 9.00039 12.0076 9.00039C11.5351 9.00039 11.0739 8.92539 10.6351 8.78289C10.6014 8.77164 10.5676 8.75664 10.5339 8.74914Z" stroke="#94A3B8"/>
     </svg>
   );
 }
@@ -1718,9 +1866,10 @@ function SearchPanel({ state, onSearch, onCollapse }: { state: SearchFilterState
   );
 }
 
-function ReIDContent() {
+function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onNavigateTab?: (tab: DataTab) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
   const [expanded, setExpanded]         = useState(false);
   const [hasSearched, setHasSearched]   = useState(false);
+  const [detailId, setDetailId]         = useState<number | null>(null);
   const [searchType, setSearchType]     = useState<"PERSON"|"VEHICLE">("PERSON");
   const [selectedTarget, setSelectedTarget] = useState(-1);
   const [activeVIP, setActiveVIP]       = useState(-1);
@@ -1731,10 +1880,34 @@ function ReIDContent() {
   const [dateRange, setDateRange]       = useState<DateRangeValue>({ start:null, end:null });
   const [licensePlate, setLicensePlate] = useState("");
   const [camera, setCamera]             = useState("");
+  // "UNSET" (not seedCard's own initial value) so the block below still fires on this
+  // component's very first render even when seedCard is ALREADY set at mount time — this tab
+  // mounts fresh on every deep-link (it doesn't exist until activeTab switches to it), so
+  // seeding it from "the previous seedCard" would just equal the incoming one and never fire.
+  const [prevSeedCard, setPrevSeedCard] = useState<typeof seedCard | "UNSET">("UNSET");
 
   const toggleApparel = (a: string) => setApparel(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
   const toggleProps   = (a: string) => setProps(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
-  const reset = () => { setThreshold(30); setGender(""); setApparel([]); setProps([]); setSelectedTarget(-1); setActiveVIP(-1); setDateRange({ start:null, end:null }); setLicensePlate(""); setCamera(""); setHasSearched(false); };
+  const reset = () => { setSearchType("PERSON"); setThreshold(30); setGender(""); setApparel([]); setProps([]); setSelectedTarget(-1); setActiveVIP(-1); setDateRange({ start:null, end:null }); setLicensePlate(""); setCamera(""); setHasSearched(false); };
+
+  // Deep-link from a Live Monitoring card's "Re-ID" hover button — seed the filters that
+  // actually narrow filterReidData() (camera/gender/date) so this lands on that person's
+  // real results instead of a blank form the operator has to fill in by hand.
+  if (seedCard !== prevSeedCard) {
+    setPrevSeedCard(seedCard);
+    if (seedCard) {
+      setExpanded(true);
+      setSelectedTarget(-1); setActiveVIP(-1); setApparel([]); setProps([]); setLicensePlate("");
+      setCamera(seedCard.cam);
+      setGender(seedCard.gender === "M" ? "Male" : "Female");
+      const day = new Date(seedCard.date);
+      setDateRange({ start: day, end: day });
+      setHasSearched(true);
+    }
+  }
+  useEffect(() => {
+    if (seedCard) onSeedConsumed?.();
+  }, [seedCard, onSeedConsumed]);
 
   const selectRecentTarget = (i: number) => {
     if (selectedTarget === i) { setSelectedTarget(-1); setGender(""); setApparel([]); setProps([]); return; }
@@ -1758,11 +1931,26 @@ function ReIDContent() {
   // state and the live-filtered dataset — the target's face if one was picked, else a generic
   // "Search Result" placeholder.
   const searchTarget = activeVIP >= 0 ? VIP_QUICK[activeVIP] : selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : null;
+  // A named target (VIP Quick Select / Recent Targets) means "find this specific person
+  // elsewhere" — the results should be that one identity re-appearing, not just anyone who shares
+  // the filter attributes. Only the attribute-only search (no target picked) falls back to
+  // filterReidData, where a spread of different people genuinely matching the criteria is the
+  // correct result. buildTargetResultRows never looks at camera/gender/apparel/props/date, so once
+  // a target's picked those stop being real filters — the meta line below only lists what's
+  // actually driving the results, same reasoning as Smart Search's results-bar chips.
+  const targetMatches = searchType === "PERSON" && searchTarget
+    ? buildTargetResultRows(searchTarget.face, searchTarget.body, searchTarget.gender === "Male" ? "M" : "F", 20)
+        .filter(r => r.similarity >= threshold)
+        .map(reidToMatchItem)
+    : null;
   const searchResultCluster: ReidCluster | null = hasSearched ? {
     id: "search-result",
     thumbnail: searchType === "VEHICLE" ? carSvgDataUri(VEHICLE_COLOR_CYCLE[0]) : (searchTarget?.face ?? MATCH_DATA[0].face),
     title: searchType === "VEHICLE" ? "Vehicle Search Result" : searchTarget && "label" in searchTarget ? searchTarget.label : searchTarget ? searchTarget.name : "Search Result",
-    meta: searchType === "VEHICLE" ? [
+    meta: targetMatches ? [
+      { label:"Type", value: searchType },
+      { label:"Min. Similarity", value:`${threshold}%` },
+    ] : searchType === "VEHICLE" ? [
       { label:"Type", value: searchType },
       ...(camera ? [{ label:"Camera", value:camera }] : []),
       ...(licensePlate ? [{ label:"Plate", value:licensePlate }] : []),
@@ -1776,10 +1964,11 @@ function ReIDContent() {
       { label:"Min. Similarity", value:`${threshold}%` },
     ],
     action: "RedFace",
-    matches: filterReidData({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera }).slice(0, 20)
+    matches: targetMatches ?? filterReidData({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera }).slice(0, 20)
       .map(p => ({ ...reidToMatchItem(p), similarity: p.similarity })),
   } : null;
   const clusters = hasSearched ? (searchResultCluster ? [searchResultCluster] : []) : CLUSTERS;
+  const detailItem = detailId !== null ? clusters.flatMap(c => c.matches).find(m => m.id === detailId) ?? null : null;
 
   return (
     <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"24px 24px 12px", backgroundColor:"#f1f5f9", boxSizing:"border-box" }}>
@@ -1798,7 +1987,7 @@ function ReIDContent() {
       }
       <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:"16px" }}>
         {clusters.length > 0
-          ? clusters.map(c => <ClusterCard key={c.id} cluster={c} />)
+          ? clusters.map(c => <ClusterCard key={c.id} cluster={c} onNavigateTab={onNavigateTab} onMatchClick={setDetailId} />)
           : (
             <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8", fontSize:"13px", fontWeight:600 }}>
               No matches for the current filters.
@@ -1806,6 +1995,7 @@ function ReIDContent() {
           )
         }
       </div>
+      {detailItem && <DetailModal item={detailItem} onClose={() => setDetailId(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
     </div>
   );
 }
@@ -1910,6 +2100,7 @@ function TableIconSm() {
 
 function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   { onConfirm:(c:RedfaceCandidate)=>void; onCancel:()=>void }) {
+  useEscapeKey(onCancel);
   const [searchType, setSearchType]         = useState<"PERSON"|"VEHICLE">("PERSON");
   const [selectedTarget, setSelectedTarget] = useState(-1);
   const [activeVIP, setActiveVIP]           = useState(-1);
@@ -1961,9 +2152,17 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
     setSelectedTarget(-1); setActiveVIP(-1); setUploadedFace(null); setUploadedBody(null);
     setDateRange({ start:null, end:null }); setLicensePlate(""); setCamera(""); setSearched(false);
   };
-  const candidates = searched ? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera }) : [];
+  // Same reasoning as Smart Search / Re-ID Analysis: a named target's cascaded gender/apparel/
+  // props/date can coincidentally match nothing in REID_DATA, even though we already have a photo
+  // of exactly who we're looking for — reuse that photo instead of risking an empty result.
+  const targetCandidates: RedfaceCandidate[] | null = searchType === "PERSON" && target
+    ? buildTargetResultRows(target.face, target.body, target.gender === "Male" ? "M" : "F", 20)
+        .filter(r => r.similarity >= threshold)
+        .map(p => ({ id: p.id, url: p.url, cam: p.cam, time: p.time, similarity: p.similarity, plate: p.plate }))
+    : null;
+  const candidates = searched ? (targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera })) : [];
   const handleSearch = () => {
-    const c = candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera });
+    const c = targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera });
     setSearched(true);
     setSelectedCandidate(c[0]?.id ?? null);
   };
@@ -2717,20 +2916,43 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{
   );
 }
 
-function RedFaceContent() {
+function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void } = {}) {
   const [primaryTarget, setPrimaryTarget] = useState<{ name:string; face:string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(true);
+  // "UNSET" (not seedCard's own initial value) so the block below still fires on this
+  // component's very first render even when seedCard is ALREADY set at mount time — this tab
+  // mounts fresh on every deep-link (it doesn't exist until activeTab switches to it), so
+  // seeding it from "the previous seedCard" would just equal the incoming one and never fire.
+  const [prevSeedCard, setPrevSeedCard] = useState<typeof seedCard | "UNSET">("UNSET");
 
   const handleConfirm = (c: RedfaceCandidate) => {
     setPrimaryTarget({ name:`Suspect #1 (TS${String(c.id).padStart(6,"0")})`, face:c.url });
     setPickerOpen(false);
   };
 
+  // Deep-link from a Live Monitoring card's "RedFace" hover button — skip the picker and go
+  // straight to this person as the confirmed primary target. Uses the card's full photo (url),
+  // not its unrelated `face` stock-photo field, so the "same person" stays visually consistent.
+  if (seedCard !== prevSeedCard) {
+    setPrevSeedCard(seedCard);
+    if (seedCard) {
+      const label = seedCard.status === "VIP" ? "VIP Match" : `Suspect (TS${String(seedCard.id).padStart(6,"0")})`;
+      setPrimaryTarget({ name: label, face: seedCard.url });
+      setPickerOpen(false);
+    }
+  }
+  useEffect(() => {
+    if (seedCard) onSeedConsumed?.();
+  }, [seedCard, onSeedConsumed]);
+
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", position:"relative", backgroundColor:"#f8fafc", overflow:"hidden" }}>
       {primaryTarget && <AssociateGraphView primaryTarget={primaryTarget} onSwitchTarget={() => setPickerOpen(true)} />}
       {pickerOpen && (
-        <div style={{ position:"absolute", inset:0, zIndex:50, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"24px", paddingTop:"6vh", overflow:"auto" }}>
+        <div
+          onClick={e => { if (e.target === e.currentTarget && primaryTarget) setPickerOpen(false); }}
+          style={{ position:"absolute", inset:0, zIndex:50, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"24px", paddingTop:"6vh", overflow:"auto" }}
+        >
           <div style={{ position:"absolute", inset:0, backdropFilter:"blur(9px)", backgroundColor:"rgba(205,205,205,0.4)" }} />
           <div style={{ position:"relative" }}>
             <PrimaryTargetPickerModal onConfirm={handleConfirm} onCancel={() => primaryTarget && setPickerOpen(false)} />
@@ -2778,11 +3000,18 @@ const TAB_ICONS: Record<DataTab, React.ReactNode> = {
 // ── Main DataPage ──────────────────────────────────────────────
 const DATA_TABS: DataTab[] = ["Live Monitoring","Re-ID Analysis","Smart Search","RedFace"];
 
-export default function DataPage() {
+export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
   // Always lands on Live Monitoring — deliberately not persisted, unlike Best Frame's
   // camera selection. Switching sub-tabs while on this screen is normal component state;
   // leaving Data and coming back should start fresh at Live Monitoring.
   const [activeTab, setActiveTab] = useState<DataTab>("Live Monitoring");
+  // Carries a Live Monitoring card's data into whichever tab its hover-action button targets,
+  // so that tab lands on real results for that person instead of a bare, empty search form.
+  const [seedCard, setSeedCard] = useState<(typeof REID_DATA)[number] | null>(null);
+  const handleNavigateFromCard = (tab: DataTab, card: (typeof REID_DATA)[number]) => {
+    setSeedCard(card);
+    setActiveTab(tab);
+  };
 
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", backgroundColor:"#f8fafc" }}>
@@ -2805,10 +3034,10 @@ export default function DataPage() {
         })}
       </div>
 
-      {activeTab==="Live Monitoring" && <LiveMonitoringTab />}
-      {activeTab==="Re-ID Analysis"   && <ReIDContent />}
-      {activeTab==="Smart Search"     && <SmartSearchContent />}
-      {activeTab==="RedFace"          && <RedFaceContent />}
+      {activeTab==="Live Monitoring" && <LiveMonitoringTab onNavigateTab={handleNavigateFromCard} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
+      {activeTab==="Re-ID Analysis"   && <ReIDContent seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} onNavigateTab={setActiveTab} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
+      {activeTab==="Smart Search"     && <SmartSearchContent seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
+      {activeTab==="RedFace"          && <RedFaceContent seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} />}
     </div>
   );
 }
