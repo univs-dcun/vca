@@ -144,7 +144,20 @@
 4. **성능 분리** — 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리(프로세스 또는 저장소). 프록시는 5초 타임아웃으로 호출하므로 통상 2초 이내 응답 목표
 5. **보존 기간** — 최소 당일+전일 데이터는 조회 가능해야 함 (증감 계산·date 파라미터 지원 범위). 장기 보존 정책은 모듈 재량
 
+## 참조 구현 (실행 가능)
+
+`vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 4종 토픽과 모듈 API의 `GET /v1/dashboard/live-analytics`를
+계약 그대로 구현한 Node 시뮬레이터. 발행 형식이나 응답 조립(행 = VIP별, `detections` 시간 오름차순,
+MQTT와 동일 `eventId`)이 헷갈릴 때 이 코드가 정답이다.
+
+```bash
+cd sim && npm install && npm start   # MQTT 발행 + :8081 모듈 API 서빙
+```
+
 ## 구현 검증 방법
+
+### MQTT 발행
 
 브로커를 로컬 기동한 뒤, 발행이 규약대로 나가는지 CLI로 확인할 수 있다:
 
@@ -161,3 +174,27 @@ docker run --rm --network vca-mqtt-broker_default eclipse-mosquitto:2 \
   - [ ] 감지 이벤트의 eventId가 건마다 고유한가
   - [ ] 자정(SGT) 리셋 후 카운터가 재발행되는가
   - [ ] deltaRate가 전일 0일 때 null인가
+
+### 모듈 API
+
+```bash
+# 응답이 module-api.json 계약대로 나오는지 직접 확인 (envelope 없어야 정상)
+curl "http://localhost:8081/v1/dashboard/live-analytics?page=0&size=20&type=ALL"
+```
+
+- 체크리스트:
+  - [ ] 응답에 `{success, data}` 포장이 **없는가** (envelope은 프록시 몫)
+  - [ ] 행의 `detections[].eventId`가 MQTT 발행분과 같은 값인가
+  - [ ] `detections`가 시간 오름차순인가
+  - [ ] 미지원 경로가 `{ "code": "MOD-XXXX", "message": ... }` 형태로 오류를 주는가
+
+### 대시보드 E2E
+
+VCA 프록시(`vca/backend/proxy`)를 모듈 API로 향하게 띄우면 화면에서 눈으로 확인된다:
+
+```bash
+cd vca/backend/proxy && VCA_MODULE_API_BASE_URL=http://localhost:8081/v1 ./gradlew bootRun
+```
+
+대시보드 웹(vca/frontend, `npm run dev`) 접속 후 — MQTT 발행이 실시간으로 목록·지도에 반영되고,
+**새로고침하면 모듈 API 스냅샷으로 당일 이력이 복원**되면 두 채널 모두 계약대로 동작하는 것이다.
