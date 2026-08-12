@@ -16,7 +16,7 @@ import { getConnectionStatus, onConnectionStatusChange, subscribe } from '../rea
 import { cameraIdFromTopic, topics } from '../realtime/topics'
 import type { CameraStatusMessage, DetectionEvent, MqttConnectionStatus } from '../realtime/types'
 import { collapseHops, detectionToVipEvent, statusToCamera, trackToTrackingEvent, type VipTrack } from './adapter'
-import { fetchLiveAnalyticsSnapshot, rowToDetectionEvents } from './snapshot'
+import { fetchLiveAnalyticsSnapshot, fetchVipPersons, isRestAvailable, rowToDetectionEvents } from './snapshot'
 
 export function useVcaLiveBridge(): boolean {
   const [isLive, setIsLive] = useState(false)
@@ -47,13 +47,15 @@ export function useVcaLiveBridge(): boolean {
     if (e.detectedAt >= track.latest.detectedAt) track.latest = e
     tracks.current.set(e.vip.vipId, track)
 
-    useVcaStore.getState().addEvent(detectionToVipEvent(e))
+    // REST가 살아있을 때만 실제 등록 사진 URL 부여 — 없으면 undefined로 두어 화면이 mock 사진 폴백
+    const photoUrl = isRestAvailable() ? `/api/vips/${e.vip.vipId}/photo` : undefined
+    useVcaStore.getState().addEvent(detectionToVipEvent(e, photoUrl))
 
     const hops = collapseHops(track.detections)
     if (hops.length >= 2) {
       const { events } = useVcaStore.getState()
       useVcaStore.setState({ events: events.filter((ev) => ev.personId !== track.trackingRowId) })
-      useVcaStore.getState().addEvent(trackToTrackingEvent(track, hops))
+      useVcaStore.getState().addEvent(trackToTrackingEvent(track, hops, photoUrl))
     }
   }, [])
 
@@ -68,6 +70,9 @@ export function useVcaLiveBridge(): boolean {
         return
       }
       for (const row of rows) for (const e of rowToDetectionEvents(row)) applyDetection(e)
+      // 등록 VIP 목록(Registered VIP Targets 카운트·모달)도 실데이터로 교체
+      const persons = await fetchVipPersons()
+      if (persons) useVcaStore.setState({ persons })
     }
     const goLive = (s: MqttConnectionStatus) => {
       if (s !== 'connected' || isLiveRef.current) return

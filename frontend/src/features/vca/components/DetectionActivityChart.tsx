@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { hourlyDetections } from "../lib/mockData";
 import { useVcaStore } from "../lib/vcaStore";
+import { useLiveHourlyDetections } from "../../../lib/vca-bridge/useLiveHourlyDetections";
 
 const CHART_HEIGHT = 160;
 const FALLBACK_WIDTH = 900; // used only until the container's real width is measured
@@ -114,13 +115,15 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
   // vipCount directly (not total detection count) — re-scaled for the selected camera. There's
   // no real per-camera dataset behind this, just a stable, reproducible variation of the
   // citywide one.
+  // Live topology data (REST, periodic refetch) when the module API is up; mock otherwise.
+  const liveHourly = useLiveHourlyDetections();
   const scaledHourly = useMemo(() => {
     const scale = selectedCamera === ALL_CAMERAS ? 1 : cameraScaleFor(selectedCamera);
-    return hourlyDetections.map(h => ({
+    return (liveHourly ?? hourlyDetections).map(h => ({
       hour: h.hour,
       count: Math.max(0, h.vipCount * scale),
     }));
-  }, [selectedCamera]);
+  }, [selectedCamera, liveHourly]);
 
   const yMax = useMemo(() => {
     const peak = Math.max(...scaledHourly.map(h => h.count), 1);
@@ -225,8 +228,10 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
 
       <div style={{ display: "flex", gap: "8px" }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: `${CHART_HEIGHT}px`, paddingBottom: "1px" }}>
-          {[...yTicks].reverse().map(tick => (
-            <span key={tick} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", lineHeight: 1 }}>{tick}</span>
+          {/* Key by position, not value — rounded ticks can repeat (e.g. yMax 2 → 0,0,1,1,2) and
+              duplicate keys leave stale labels behind when the dataset switches at runtime. */}
+          {[...yTicks].reverse().map((tick, i) => (
+            <span key={i} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", lineHeight: 1 }}>{tick}</span>
           ))}
         </div>
 
@@ -256,8 +261,8 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
               <rect x={0} y={0} width={width} height={CHART_HEIGHT} fill="url(#areaWash)" />
             </g>
 
-            {yTicks.map(tick => (
-              <line key={tick} x1={0} y1={yForCount(tick)} x2={width} y2={yForCount(tick)} stroke="#e2e8f0" strokeWidth={1} />
+            {yTicks.map((tick, i) => (
+              <line key={i} x1={0} y1={yForCount(tick)} x2={width} y2={yForCount(tick)} stroke="#e2e8f0" strokeWidth={1} />
             ))}
 
             {/* Baseline volume bars */}

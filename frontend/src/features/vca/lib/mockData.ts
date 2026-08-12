@@ -79,6 +79,8 @@ export interface LiveEvent {
   type: EventType;
   /** Present only for type "Tracking" — the multi-camera re-id trail shown instead of a single photo row. */
   path?: TrackingHop[];
+  /** Real registration photo (live data via /api). Absent on mock events — consumers fall back to getFacePhoto(). */
+  photoUrl?: string;
   lat: number;
   lng: number;
 }
