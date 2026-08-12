@@ -1,6 +1,6 @@
-
-import { useState } from "react";
-import type { DetType, Detection, CamData } from "../types/detection";
+import { useEffect, useRef, useState } from "react";
+import type { DetType, Detection, CamData } from "@/types/detection";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const BORDER = "1px solid #E2E8F0";
 
@@ -10,6 +10,10 @@ export interface DetailProps {
   initialDet: Detection;
   onBack: () => void;
   onGoRedmapTrace?: (name: string) => void;
+  /** Opens the AI Inspection Detail panel immediately instead of requiring a bounding-box click
+   *  first — for deep links (e.g. Dashboard's "Analyze Frame") whose whole point is landing on
+   *  the analysis itself, not the plain camera view. */
+  autoOpenDetail?: boolean;
 }
 
 const DET_COLOR: Record<DetType, string> = { VIP: "#5a3dfb", Vehicle: "#38bdf8", Unknown: "#976400" };
@@ -42,7 +46,7 @@ const PERSON_TAGS: Record<DetType, string[]> = {
 };
 
 const FRAMES = ["12:13:48","12:13:48","12:13:53","12:13:58","12:14:03","12:14:09","12:14:14","12:14:19","12:14:19","12:14:24","12:14:29","12:14:34","12:14:39"];
-const SELECTED_FRAME = 4;
+const DEFAULT_FRAME_INDEX = 4;
 
 /* ── Solid type icon ───────────────────────────────────────── */
 function TypeIcon({ type, color, size = 11 }: { type: DetType; color: string; size?: number }) {
@@ -150,8 +154,18 @@ function Tag({ label }: { label: string }) {
    Figma node 573:37303 ─────────────────────────────────────────── */
 function AlsoCapturedCard({ det, index, onClick }: { det: Detection; index: number; onClick: () => void }) {
   const photo = AVATAR[index % AVATAR.length];
+  const [hovered, setHovered] = useState(false);
   return (
-    <button onClick={onClick} style={{ background:"none", border:"none", padding:0, cursor:"pointer", flexShrink:0, width:"84px" }}>
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: hovered ? "#f8fafc" : "none", border:"none", borderRadius:"12px",
+        padding:"6px", margin:"-6px", cursor:"pointer", flexShrink:0, width:"84px",
+        transition:"background-color 0.15s",
+      }}
+    >
       <div style={{ position:"relative", width:"84px", height:"108px" }}>
         <div style={{ width:"84px", height:"108px", borderRadius:"10px", overflow:"hidden", backgroundColor:"#0e162a" }}>
           <img src={photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"top", display:"block" }} />
@@ -283,7 +297,7 @@ function AIInspectionDetail({ det, data, onClose, onSelectOther, onGoRedmapTrace
     <div style={{ width:"380px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER, display:"flex", flexDirection:"column", overflow:"hidden" }}>
       <div style={{ padding:"14px 16px 10px", borderBottom:BORDER, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <p style={{ fontSize:"16px", fontWeight:700, color:"#0e162a", letterSpacing:"-0.32px" }}>Inspection Detail</p>
-        <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", fontSize:"16px", lineHeight:1, padding:"0 2px" }}>✕</button>
+        <button onClick={onClose} aria-label="Close" style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", fontSize:"16px", lineHeight:1, padding:"0 2px" }}>✕</button>
       </div>
 
       <div style={{ flex:1, overflowY:"auto", padding:"14px" }}>
@@ -382,14 +396,36 @@ function AIInspectionDetail({ det, data, onClose, onSelectOther, onGoRedmapTrace
 /* ── Main component ──────────────────────────────────────────── */
 const TRACK_DATES = ["2026-06-25", "2026-06-24", "2026-06-23", "2026-06-22", "2026-06-21"];
 
-export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedmapTrace }: DetailProps) {
-  const [selectedPerson, setSelectedPerson] = useState<Detection | null>(null);
+export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedmapTrace, autoOpenDetail }: DetailProps) {
+  const [selectedPerson, setSelectedPerson] = useState<Detection | null>(autoOpenDetail ? initialDet : null);
   const [focusedDet, setFocusedDet] = useState<Detection>(initialDet);
   const [trackDate, setTrackDate] = useState(TRACK_DATES[0]);
   const [dateOpen, setDateOpen] = useState(false);
   const [cameraHovered, setCameraHovered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [reelFilter, setReelFilter] = useState<ReelFilter>("All");
+  const [selectedFrameIdx, setSelectedFrameIdx] = useState(DEFAULT_FRAME_INDEX);
+  const dateDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEscapeKey(() => setDateOpen(false), dateOpen);
+  useEffect(() => {
+    if (!dateOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (dateDropdownRef.current && !dateDropdownRef.current.contains(e.target as Node)) setDateOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dateOpen]);
+
+  // "Play" advances through the frame strip on a timer — without this, pressing Play only
+  // flipped its own icon with nothing else visibly happening.
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = setInterval(() => {
+      setSelectedFrameIdx(i => (i + 1) % FRAMES.length);
+    }, 700);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   return (
     <div style={{ flex:1, display:"flex", overflow:"hidden", backgroundColor:"white" }}>
@@ -485,8 +521,8 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
               display:"flex", alignItems:"center", justifyContent:"space-between",
               padding:"0 14px", boxSizing:"border-box",
             }}>
-              {/* Skip back */}
-              <button onClick={() => {}} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
+              {/* Skip back — jumps to the first frame in the strip */}
+              <button onClick={() => setSelectedFrameIdx(0)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
                   <rect width="32" height="32" rx="16" fill="white" fillOpacity="0.0784314"/>
                   <path d="M16 11.4997C15.9999 11.2031 15.9119 10.9131 15.7471 10.6665C15.5823 10.4199 15.348 10.2277 15.074 10.1142C14.7999 10.0007 14.4984 9.97095 14.2075 10.0288C13.9165 10.0867 13.6493 10.2295 13.4395 10.4392L8.9395 14.9392C8.65829 15.2205 8.50032 15.6019 8.50032 15.9997C8.50032 16.3974 8.65829 16.7789 8.9395 17.0602L13.4395 21.5602C13.6493 21.7699 13.9165 21.9127 14.2075 21.9706C14.4984 22.0284 14.7999 21.9987 15.074 21.8852C15.348 21.7717 15.5823 21.5795 15.7471 21.3329C15.9119 21.0863 15.9999 20.7963 16 20.4997V11.4997Z" fill="white" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
@@ -494,7 +530,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                 </svg>
               </button>
               {/* Prev frame */}
-              <button onClick={() => {}} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
+              <button onClick={() => setSelectedFrameIdx(i => Math.max(0, i - 1))} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
                   <rect width="32" height="32" rx="16" fill="white" fillOpacity="0.0784314"/>
                   <path d="M21.2311 10.0001C20.9657 10.0035 20.7059 10.0772 20.4783 10.2137L12.9784 14.7133C12.756 14.8466 12.572 15.0354 12.4444 15.261C12.3167 15.4867 12.2497 15.7415 12.25 16.0008C12.2502 16.26 12.3176 16.5148 12.4457 16.7402C12.5737 16.9657 12.758 17.154 12.9806 17.287L20.4783 21.7851C20.7059 21.9216 20.9657 21.9953 21.2311 21.9987C21.4965 22.002 21.7581 21.9349 21.9891 21.8041C22.22 21.6733 22.4122 21.4836 22.5459 21.2543C22.6796 21.025 22.75 20.7644 22.75 20.4989V11.4999C22.75 11.2344 22.6796 10.9738 22.5459 10.7445C22.4122 10.5152 22.22 10.3255 21.9891 10.1947C21.7581 10.0639 21.4965 9.99677 21.2311 10.0001Z" fill="white"/>
@@ -517,15 +553,15 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                 )}
               </button>
               {/* Next frame */}
-              <button onClick={() => {}} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
+              <button onClick={() => setSelectedFrameIdx(i => Math.min(FRAMES.length - 1, i + 1))} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
                   <rect width="32" height="32" rx="16" fill="white" fillOpacity="0.0784314"/>
                   <path d="M10.7689 10.0001C11.0344 10.0035 11.2941 10.0772 11.5217 10.2137L19.0217 14.7133C19.2441 14.8466 19.4281 15.0354 19.5557 15.261C19.6834 15.4867 19.7504 15.7415 19.7502 16.0008C19.7499 16.26 19.6825 16.5148 19.5544 16.7402C19.4264 16.9657 19.2421 17.154 19.0195 17.287L11.5217 21.7851C11.2941 21.9216 11.0344 21.9953 10.7689 21.9987C10.5035 22.002 10.2419 21.9349 10.0109 21.8041C9.77996 21.6733 9.58781 21.4836 9.45412 21.2543C9.32044 21.025 9.25 20.7644 9.25 20.4989V11.4999C9.25 11.2344 9.32044 10.9738 9.45412 10.7445C9.58781 10.5152 9.77996 10.3255 10.0109 10.1947C10.2419 10.0639 10.5035 9.99677 10.7689 10.0001Z" fill="white"/>
                   <path d="M22.75 10V21.9988M11.5217 10.2137C11.2941 10.0772 11.0344 10.0035 10.7689 10.0001C10.5035 9.99677 10.2419 10.0639 10.0109 10.1947C9.77996 10.3255 9.58781 10.5152 9.45412 10.7445C9.32044 10.9738 9.25 11.2344 9.25 11.4999V20.4989C9.25 20.7644 9.32044 21.025 9.45412 21.2543C9.58781 21.4836 9.77996 21.6733 10.0109 21.8041C10.2419 21.9349 10.5035 22.002 10.7689 21.9987C11.0344 21.9953 11.2941 21.9216 11.5217 21.7851L19.0195 17.287C19.2421 17.154 19.4264 16.9657 19.5544 16.7402C19.6825 16.5148 19.7499 16.26 19.7502 16.0008C19.7504 15.7415 19.6834 15.4867 19.5557 15.261C19.4281 15.0354 19.2441 14.8466 19.0217 14.7133L11.5217 10.2137Z" stroke="white" strokeLinecap="round"/>
                 </svg>
               </button>
-              {/* Skip forward */}
-              <button onClick={() => {}} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
+              {/* Skip forward — jumps to the last frame in the strip */}
+              <button onClick={() => setSelectedFrameIdx(FRAMES.length - 1)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
                   <rect width="32" height="32" rx="16" fill="white" fillOpacity="0.0784314"/>
                   <path d="M16 11.4997C16.0001 11.2031 16.0881 10.9131 16.2529 10.6665C16.4177 10.4199 16.652 10.2277 16.926 10.1142C17.2001 10.0007 17.5016 9.97095 17.7925 10.0288C18.0835 10.0867 18.3507 10.2295 18.5605 10.4392L23.0605 14.9392C23.3417 15.2205 23.4997 15.6019 23.4997 15.9997C23.4997 16.3974 23.3417 16.7789 23.0605 17.0602L18.5605 21.5602C18.3507 21.7699 18.0835 21.9127 17.7925 21.9706C17.5016 22.0284 17.2001 21.9987 16.926 21.8852C16.652 21.7717 16.4177 21.5795 16.2529 21.3329C16.0881 21.0863 16.0001 20.7963 16 20.4997V11.4997Z" fill="white" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
@@ -540,7 +576,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
         <div style={{ backgroundColor:"white", borderTop:BORDER, flexShrink:0, display: selectedPerson ? "none" : "block" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"18px 16px 14px" }}>
             <span style={{ fontSize:"13px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.26px" }}>Multi-Track Event History</span>
-            <div style={{ position:"relative" }}>
+            <div ref={dateDropdownRef} style={{ position:"relative" }}>
               <button onClick={() => setDateOpen(o => !o)} style={{ display:"flex", alignItems:"center", gap:"6px", backgroundColor:"white", borderRadius:"8px", padding:"6px 12px", border:"1px solid #ccd5e1", cursor:"pointer" }}>
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                   <circle cx="8" cy="8" r="6" stroke="#0e162a" strokeWidth="1.4"/>
@@ -596,9 +632,9 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
           {/* Frame strip */}
           <div style={{ display:"flex", gap:"6px", padding:"10px 16px 18px", overflowX:"auto" }}>
             {FRAMES.map((ts, i) => {
-              const isSelected = i === SELECTED_FRAME;
+              const isSelected = i === selectedFrameIdx;
               return (
-                <div key={i} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:"5px" }}>
+                <div key={i} onClick={() => setSelectedFrameIdx(i)} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:"5px", cursor:"pointer" }}>
                   <div style={{
                     width:"128px", height:"82px", boxSizing:"border-box",
                     padding: isSelected ? "2px" : "1.5px",

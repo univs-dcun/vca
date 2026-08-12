@@ -35,3 +35,15 @@ src/
 ## API 호출 규칙
 - 모든 호출은 상대경로 `/api/...`. dev는 vite proxy, prod는 nginx가 백엔드로 전달(동일 오리진).
 - 프레젠테이션 컴포넌트에서 직접 호출 금지 — 훅으로 받아 props로 내려준다.
+
+## 기획자 화면 코드 반입 (원본 프로젝트 → 이 레포)
+기획자는 별도 Next.js 프로젝트에서 화면을 개발한다. 반입 시 원본 코드를 **수정 없이** 가져올 수 있도록 어댑터가 설정되어 있다:
+- `@/*` → `src/features/vca/*` (tsconfig paths + vite alias)
+- `next/navigation` → `src/features/vca/compat/navigation` (react-router 기반 shim)
+- `process.env.NEXT_PUBLIC_*` → vite `define`으로 빌드 타임 치환
+- `verbatimModuleSyntax` 미사용 (원본이 type-only import를 구분하지 않음)
+
+절차: 기획자가 `import/frontend-ui-YYYYMMDD` 브랜치로 push → 태그로 동결 → 직전 태그와의 diff를
+경로 매핑(`src/components→features/vca/components`, `src/app/mypage/page.tsx→pages/MyPage.tsx` 등)해서
+3-way 적용 → 데이터 연결 주입 지점(ClientLayout·Navbar·Sidebar·DetectionActivityChart·MapView의
+`vca-bridge` import 부분) 재확인 → tsc + 시뮬레이터 E2E 검증.

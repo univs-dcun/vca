@@ -1,6 +1,12 @@
-
-import { useRouter } from "../compat/navigation";
-import Navbar from "../components/Navbar";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import {
+  DISTRICT_ALERT_THRESHOLD_KEY, DISTRICT_MODERATE_THRESHOLD_KEY,
+  DEFAULT_DISTRICT_ALERT_THRESHOLD, DEFAULT_DISTRICT_MODERATE_THRESHOLD,
+} from "@/lib/mockData";
+import { LockFieldIcon, EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const CARD_BORDER = "1px solid #e2e8f0";
 
@@ -32,10 +38,18 @@ function MonitorIcon() {
     </svg>
   );
 }
-export function SlidersIcon() {
+function SlidersIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <path d="M6.66667 5.33333H9.33333M8 14V8M8 5.33333V2M11.3333 10.6667H14M12.6667 8V2M12.6667 14V10.6667M2 9.33333H4.66667M3.33333 6.66667V2M3.33333 14V9.33333" stroke="#475469" strokeLinecap="round" strokeWidth="1.1"/>
+    </svg>
+  );
+}
+function AlertBellIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 1.5C5.79 1.5 4 3.29 4 5.5V8.5L2.5 10.5H13.5L12 8.5V5.5C12 3.29 10.21 1.5 8 1.5Z" stroke="#475469" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.1"/>
+      <path d="M6.5 13C6.5 13.8284 7.17157 14.5 8 14.5C8.82843 14.5 9.5 13.8284 9.5 13" stroke="#475469" strokeLinecap="round" strokeWidth="1.1"/>
     </svg>
   );
 }
@@ -73,7 +87,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-export function DropdownBtn({ value }: { value: string }) {
+function DropdownBtn({ value }: { value: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "6px 10px", cursor: "pointer" }}>
       <span style={{ fontSize: "12px", fontWeight: 600, color: "#324055", letterSpacing: "-0.24px" }}>{value}</span>
@@ -81,9 +95,322 @@ export function DropdownBtn({ value }: { value: string }) {
     </div>
   );
 }
+function ThresholdField({ label, value, onChange, min, max }: { label: string; value: number; onChange: (n: number) => void; min: number; max: number }) {
+  const clamp = (n: number) => Math.min(max, Math.max(min, n));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: "13px", fontWeight: 700, color: "#324055", letterSpacing: "-0.26px" }}>{label}</span>
+        <input
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => onChange(clamp(Number(e.target.value) || min))}
+          style={{ width: "72px", textAlign: "center", fontSize: "13px", fontWeight: 700, color: "#0e162a", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "6px 8px", outline: "none" }}
+        />
+      </div>
+      <input
+        className="vca-threshold-slider"
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(clamp(Number(e.target.value)))}
+        style={{ width: "100%", cursor: "pointer", margin: 0 }}
+      />
+    </div>
+  );
+}
+
+function fieldBorder(active: boolean) {
+  return active ? "1px solid #8c85ff" : "1px solid #ccd5e1";
+}
+
+// Changing a password from Settings shouldn't feel like leaving the app — this stays as an
+// in-page modal (same field/validation logic as the auth flow's /password-setup, which is a
+// different case: first-time setup, not an already-logged-in user changing theirs) instead of
+// navigating to a full standalone route.
+function PasswordChangeModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState<"current" | "new" | "done">("current");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [focusedField, setFocusedField] = useState<"current" | "new" | "confirm" | null>(null);
+  useEscapeKey(onClose);
+
+  // No real account backend to check against yet (same as /login, which accepts any non-empty
+  // credentials — see the auth-pages-are-mockups note). Requiring the field to be filled in is
+  // the honest stand-in: swap this for a real "verify current password" API call once one exists.
+  const canVerifyCurrent = currentPassword.length > 0;
+  const handleVerifyCurrent = () => {
+    if (!canVerifyCurrent) return;
+    setStep("new");
+  };
+
+  const formatValid =
+    newPassword.length >= 8 &&
+    /[a-zA-Z]/.test(newPassword) &&
+    /[0-9]/.test(newPassword) &&
+    /[^a-zA-Z0-9]/.test(newPassword);
+  const mismatch = confirmPassword.length > 0 && confirmPassword !== newPassword;
+  const canSubmit = newPassword.length > 0 && confirmPassword.length > 0;
+
+  const handleSubmit = () => {
+    if (!canSubmit || !formatValid || mismatch) return;
+    setStep("done");
+  };
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 2000, backgroundColor: "rgba(14,22,42,0.35)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <div style={{
+        width: "440px", maxWidth: "calc(100vw - 48px)", backgroundColor: "white",
+        borderRadius: "16px", padding: "28px", boxShadow: "0 12px 40px rgba(14,22,42,0.2)",
+        display: "flex", flexDirection: "column", gap: "20px",
+      }}>
+        {step === "done" ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", padding: "12px 0" }}>
+            <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M5 12.5L9.5 17L19 6" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <p style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0e162a" }}>Password changed</p>
+              <p style={{ margin: "4px 0 0", fontSize: "13px", fontWeight: 500, color: "#64748a" }}>Your password has been updated.</p>
+            </div>
+            <button
+              onClick={onClose}
+              style={{ height: "40px", padding: "0 24px", border: "none", borderRadius: "8px", backgroundColor: "#5a3dfb", color: "white", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.34px" }}>Change Password</h2>
+              <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M4 4L14 14M14 4L4 14" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+
+            {step === "current" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 700, color: "#475469", letterSpacing: "-0.26px" }}>Current password</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "44px", padding: "8px", border: fieldBorder(focusedField === "current"), borderRadius: "8px" }}>
+                    <LockFieldIcon />
+                    <input
+                      type={showCurrent ? "text" : "password"}
+                      value={currentPassword}
+                      onChange={e => setCurrentPassword(e.target.value)}
+                      onFocus={() => setFocusedField("current")}
+                      onBlur={() => setFocusedField(null)}
+                      onKeyDown={e => { if (e.key === "Enter") handleVerifyCurrent(); }}
+                      placeholder="Enter your current password"
+                      autoFocus
+                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "#324055", letterSpacing: "-0.35px" }}
+                    />
+                    <button onClick={() => setShowCurrent(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
+                      {showCurrent ? <EyeIcon /> : <EyeOffIcon />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleVerifyCurrent}
+                  disabled={!canVerifyCurrent}
+                  style={{
+                    height: "44px", width: "100%", border: "none", borderRadius: "8px",
+                    backgroundColor: canVerifyCurrent ? "#5a3dfb" : "#f1f5f9",
+                    color: canVerifyCurrent ? "white" : "#94a3b8",
+                    fontSize: "14px", fontWeight: 800, letterSpacing: "-0.28px",
+                    cursor: canVerifyCurrent ? "pointer" : "default",
+                    transition: "background-color 0.15s, color 0.15s",
+                  }}
+                >
+                  Verify
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 700, color: "#475469", letterSpacing: "-0.26px" }}>New password</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "44px", padding: "8px", border: fieldBorder(focusedField === "new"), borderRadius: "8px" }}>
+                    <LockFieldIcon />
+                    <input
+                      type={showNew ? "text" : "password"}
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      onFocus={() => setFocusedField("new")}
+                      onBlur={() => setFocusedField(null)}
+                      placeholder="••••••••"
+                      autoFocus
+                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "#324055", letterSpacing: "-0.35px" }}
+                    />
+                    <button onClick={() => setShowNew(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
+                      {showNew ? <EyeIcon /> : <EyeOffIcon />}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 700, color: "#475469", letterSpacing: "-0.26px" }}>Confirm password</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "44px", padding: "8px", border: fieldBorder(focusedField === "confirm"), borderRadius: "8px" }}>
+                    <LockFieldIcon />
+                    <input
+                      type={showConfirm ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      onFocus={() => setFocusedField("confirm")}
+                      onBlur={() => setFocusedField(null)}
+                      placeholder="••••••••"
+                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "#324055", letterSpacing: "-0.35px" }}
+                    />
+                    <button onClick={() => setShowConfirm(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
+                      {showConfirm ? <EyeIcon /> : <EyeOffIcon />}
+                    </button>
+                  </div>
+                </div>
+
+                <p style={{ margin: 0, fontSize: "11px", fontWeight: 600, color: "#475469", letterSpacing: "-0.22px" }}>
+                  At least 8 characters, including letters, numbers, and special characters
+                </p>
+
+                {mismatch && (
+                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                    <ErrorCircleIcon />
+                    <span style={{ fontSize: "12px", fontWeight: 600, color: "#f43f5e", letterSpacing: "-0.24px" }}>
+                      Passwords do not match. Please try again.
+                    </span>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit || (confirmPassword.length > 0 && (!formatValid || mismatch))}
+                  style={{
+                    height: "44px", width: "100%", border: "none", borderRadius: "8px",
+                    backgroundColor: canSubmit && formatValid && !mismatch ? "#5a3dfb" : "#f1f5f9",
+                    color: canSubmit && formatValid && !mismatch ? "white" : "#94a3b8",
+                    fontSize: "14px", fontWeight: 800, letterSpacing: "-0.28px",
+                    cursor: canSubmit && formatValid && !mismatch ? "pointer" : "default",
+                    transition: "background-color 0.15s, color 0.15s",
+                  }}
+                >
+                  Update Password
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Same in-page-modal treatment as PasswordChangeModal above — editing shouldn't require the
+// sliders/inputs to be permanently sprawled out in the card; the summary row + "Change" button
+// (matching Password Change's own row) opens this instead. Owns its own draft state so closing
+// without saving (X, outside click, Escape) discards any in-progress edits.
+function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { initialAlert: number; initialModerate: number; onSave: (alert: number, moderate: number) => void; onClose: () => void }) {
+  const [draftAlert, setDraftAlert] = useState(initialAlert);
+  const [draftModerate, setDraftModerate] = useState(initialModerate);
+  const [saved, setSaved] = useState(false);
+  useEscapeKey(onClose);
+
+  const dirty = draftAlert !== initialAlert || draftModerate !== initialModerate;
+  const handleSave = () => {
+    onSave(draftAlert, draftModerate);
+    setSaved(true);
+  };
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 2000, backgroundColor: "rgba(14,22,42,0.35)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <div style={{
+        width: "440px", maxWidth: "calc(100vw - 48px)", backgroundColor: "white",
+        borderRadius: "16px", padding: "28px", boxShadow: "0 12px 40px rgba(14,22,42,0.2)",
+        display: "flex", flexDirection: "column", gap: "20px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.34px" }}>Map Alert Thresholds</h2>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M4 4L14 14M14 4L4 14" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        <p style={{ margin: 0, fontSize: "12px", fontWeight: 500, color: "#94a3b8", lineHeight: 1.5 }}>
+          Today&apos;s VIP-hit count a district needs before its map badge turns red (alert) or navy (moderate).
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <ThresholdField label="Alert (red)" value={draftAlert} min={draftModerate + 1} max={300} onChange={setDraftAlert} />
+          <ThresholdField label="Moderate (navy)" value={draftModerate} min={1} max={draftAlert - 1} onChange={setDraftModerate} />
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button
+              onClick={handleSave}
+              disabled={!dirty}
+              style={{
+                height: "40px", padding: "0 20px", border: "none", borderRadius: "8px",
+                backgroundColor: dirty ? "#5a3dfb" : "#f1f5f9",
+                color: dirty ? "white" : "#94a3b8",
+                fontSize: "13px", fontWeight: 800, letterSpacing: "-0.26px",
+                cursor: dirty ? "pointer" : "default",
+                transition: "background-color 0.15s, color 0.15s",
+              }}
+            >
+              Save Changes
+            </button>
+            {saved && <span style={{ fontSize: "12px", fontWeight: 700, color: "#16a34a" }}>Saved</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function MyPage() {
   const router = useRouter();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showThresholdModal, setShowThresholdModal] = useState(false);
+  // Default on the server-rendered pass so hydration never mismatches; a client-only effect
+  // then applies whatever this browser last saved (same pattern as sidebarPosition elsewhere).
+  const [alertThreshold, setAlertThresholdState] = useState(DEFAULT_DISTRICT_ALERT_THRESHOLD);
+  const [moderateThreshold, setModerateThresholdState] = useState(DEFAULT_DISTRICT_MODERATE_THRESHOLD);
+  useEffect(() => {
+    queueMicrotask(() => {
+      const savedAlert = Number(localStorage.getItem(DISTRICT_ALERT_THRESHOLD_KEY));
+      const savedModerate = Number(localStorage.getItem(DISTRICT_MODERATE_THRESHOLD_KEY));
+      if (Number.isFinite(savedAlert) && savedAlert > 0) setAlertThresholdState(savedAlert);
+      if (Number.isFinite(savedModerate) && savedModerate > 0) setModerateThresholdState(savedModerate);
+    });
+  }, []);
+  const handleSaveThresholds = (alert: number, moderate: number) => {
+    setAlertThresholdState(alert);
+    setModerateThresholdState(moderate);
+    localStorage.setItem(DISTRICT_ALERT_THRESHOLD_KEY, String(alert));
+    localStorage.setItem(DISTRICT_MODERATE_THRESHOLD_KEY, String(moderate));
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
@@ -132,14 +459,14 @@ export default function MyPage() {
               <Card>
                 <CardHeader icon={<ShieldIcon />} title="Security & Access Control" />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                  <span style={{ fontSize: "12px", fontWeight: 800, color: "#0e162a", letterSpacing: "0.006px" }}>PASSWORD SETTINGS</span>
+                  <span style={{ fontSize: "12px", fontWeight: 800, color: "#0e162a", letterSpacing: "0.006px" }}>Password Settings</span>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderRadius: "10px", padding: "12px" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                       <span style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.28px" }}>Password Change</span>
                       <span style={{ fontSize: "10px", fontWeight: 600, color: "#475469", letterSpacing: "-0.2px" }}>Last changed 45 days ago</span>
                     </div>
                     <button
-                      onClick={() => router.push("/password-setup")}
+                      onClick={() => setShowPasswordModal(true)}
                       style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#324055", letterSpacing: "-0.24px" }}
                     >
                       Change
@@ -156,9 +483,6 @@ export default function MyPage() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderRadius: "10px", padding: "12px" }}>
                     <div style={{ display: "flex", gap: "10px", alignItems: "center", flex: 1, minWidth: 0 }}>
-                      <div style={{ width: "28px", height: "28px", borderRadius: "6px", backgroundColor: "#f0f0ff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <MonitorIcon />
-                      </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
                         <span style={{ fontSize: "13px", fontWeight: 700, color: "#324055", letterSpacing: "-0.26px" }}>MacBook Pro (Chrome)</span>
                         <span style={{ fontSize: "10px", fontWeight: 600, color: "#64748a", letterSpacing: "-0.2px" }}>Singapore · 1.3521, 103.8198</span>
@@ -172,26 +496,50 @@ export default function MyPage() {
               </Card>
             </div>
 
-            {/* System Preferences — hidden for now, not ready to show yet
+            {/* System Preferences */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <Card>
                 <CardHeader icon={<SlidersIcon />} title="System Preferences" />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#324055", letterSpacing: "-0.26px" }}>Interface Language</span>
+                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#0e162a", letterSpacing: "0.006px" }}>Interface Language</span>
                     <DropdownBtn value="English" />
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#324055", letterSpacing: "-0.26px" }}>Timezone</span>
+                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#0e162a", letterSpacing: "0.006px" }}>Timezone</span>
                     <DropdownBtn value="SGT (UTC+8)" />
+                  </div>
+                </div>
+                <div style={{ height: "1px", backgroundColor: "#e2e8f0", width: "100%" }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+                  <CardHeader icon={<AlertBellIcon />} title="Map Alert Thresholds" />
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderRadius: "10px", padding: "12px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.28px" }}>Alert Levels</span>
+                      <span style={{ fontSize: "10px", fontWeight: 600, color: "#475469", letterSpacing: "-0.2px" }}>Alert {alertThreshold} · Moderate {moderateThreshold}</span>
+                    </div>
+                    <button
+                      onClick={() => setShowThresholdModal(true)}
+                      style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#324055", letterSpacing: "-0.24px" }}
+                    >
+                      Change
+                    </button>
                   </div>
                 </div>
               </Card>
             </div>
-            */}
           </div>
         </div>
       </div>
+      {showPasswordModal && <PasswordChangeModal onClose={() => setShowPasswordModal(false)} />}
+      {showThresholdModal && (
+        <ThresholdModal
+          initialAlert={alertThreshold}
+          initialModerate={moderateThreshold}
+          onSave={handleSaveThresholds}
+          onClose={() => setShowThresholdModal(false)}
+        />
+      )}
     </div>
   );
 }

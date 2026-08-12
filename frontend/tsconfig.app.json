@@ -2,6 +2,14 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "es2023",
+
+    /* 기획자 원본 코드를 수정 없이 반입하기 위한 별칭 (vite.config.ts resolve.alias와 세트).
+       - "@/*": 원본 프로젝트의 src/* 가 이 레포에서는 화면 계층 폴더에 대응
+       - "next/navigation": Next.js 전용 API를 react-router 기반 compat shim으로 연결 */
+    "paths": {
+      "@/*": ["./src/features/vca/*"],
+      "next/navigation": ["./src/features/vca/compat/navigation"]
+    },
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
     "types": ["vite/client"],
@@ -11,7 +19,8 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
+    /* verbatimModuleSyntax 미사용: 기획자 원본 코드가 type-only import를 구분하지 않아,
+       켜두면 반입 때마다 전 파일 import 수정이 필요하다 (vite/esbuild는 꺼도 안전) */
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",

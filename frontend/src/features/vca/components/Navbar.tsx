@@ -1,8 +1,10 @@
-
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "../compat/navigation";
-import { dashboardStats, formatTimeAgo, type LiveEvent } from "../lib/mockData";
-import { useVcaStore, vcaEventsToLiveEvents } from "../lib/vcaStore";
+import { useRouter } from "next/navigation";
+import { formatTimeAgo, LiveEvent } from "@/lib/mockData";
+import { useVcaStore, vcaEventsToLiveEvents } from "@/lib/vcaStore";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { useApiData } from "@/hooks/useApiData";
+import { getDashboardStats } from "@/lib/api/dashboard";
 import { useLiveDashboardStats } from "../../../lib/vca-bridge/useLiveDashboardStats";
 
 const BORDER = "1px solid #E2E8F0";
@@ -32,11 +34,16 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
     setInternalTab(tab);
     onTabChange?.(tab);
   };
-  const { timezone, location } = dashboardStats;
-  // Running/Stopped come from the broker's stats/summary when live; mock values otherwise.
+  // Routed through the future-backend stub (`lib/api/dashboard.ts`) instead of importing the mock
+  // constant directly, so wiring in the real endpoint later is a one-file change. Falls back to 0/
+  // blank for the brief window before the (currently mock-delayed) fetch resolves.
+  const { data: dashboardStats } = useApiData(() => getDashboardStats(), []);
+  // Running/Stopped come from the broker's stats/summary when live; the stub values otherwise.
   const live = useLiveDashboardStats();
-  const aiRunning = live?.aiRunning ?? dashboardStats.aiRunning;
-  const aiStopped = live?.aiStopped ?? dashboardStats.aiStopped;
+  const aiRunning = live?.aiRunning ?? dashboardStats?.aiRunning ?? 0;
+  const aiStopped = live?.aiStopped ?? dashboardStats?.aiStopped ?? 0;
+  const timezone = dashboardStats?.timezone ?? "SGT";
+  const location = dashboardStats?.location ?? "Singapore";
 
   const [sgNow, setSgNow] = useState<Date | null>(null);
   useEffect(() => {
@@ -47,8 +54,8 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
   }, []);
   const sgDateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore", year: "numeric", month: "2-digit", day: "2-digit" });
   const sgTimeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-  const currentDate = sgNow ? sgDateFmt.format(sgNow) : dashboardStats.currentDate;
-  const currentTime = sgNow ? sgTimeFmt.format(sgNow) : dashboardStats.currentTime;
+  const currentDate = sgNow ? sgDateFmt.format(sgNow) : dashboardStats?.currentDate ?? "";
+  const currentTime = sgNow ? sgTimeFmt.format(sgNow) : dashboardStats?.currentTime ?? "";
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -72,6 +79,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+  useEscapeKey(() => { setNotifOpen(false); setSettingsOpen(false); }, notifOpen || settingsOpen);
 
   return (
     <>
@@ -244,6 +252,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
           <div ref={notifRef} style={{ position: "relative" }}>
             <button
               className="navbar-icon-btn"
+              aria-label="Notifications"
               onClick={() => {
                 setNotifOpen(o => {
                   const next = !o;
@@ -324,6 +333,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
           <div ref={settingsRef} style={{ position: "relative" }}>
             <button
               className="navbar-icon-btn"
+              aria-label="Settings"
               onClick={() => { setSettingsOpen(o => !o); setNotifOpen(false); }}
               style={{ border: "none", cursor: "pointer", display: "flex", padding: "8px" }}
             >
@@ -345,18 +355,24 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                   <div style={{ fontSize: "12px", fontWeight: 500, color: "#94a3b8", marginTop: "2px" }}>johndoe@email.com</div>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "#E2E8F0", margin: "0 4px 6px" }} />
-                <button className="navbar-dropdown-item" style={{
-                  display: "flex", alignItems: "center", gap: "10px", width: "100%",
-                  padding: "9px 8px", borderRadius: "10px", border: "none",
-                  cursor: "pointer", textAlign: "left",
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M7 12.8333C10.2217 12.8333 12.8333 10.2217 12.8333 7C12.8333 3.77834 10.2217 1.16667 7 1.16667C3.77834 1.16667 1.16667 3.77834 1.16667 7C1.16667 10.2217 3.77834 12.8333 7 12.8333Z" stroke="currentColor" strokeWidth="1.2"/>
-                    <path d="M1.16667 7H12.8333" stroke="currentColor" strokeWidth="1.2"/>
-                    <path d="M7 1.16667C8.45964 2.76353 9.28481 4.83629 9.33333 7C9.28481 9.16371 8.45964 11.2365 7 12.8333C5.54036 11.2365 4.71519 9.16371 4.66667 7C4.71519 4.83629 5.54036 2.76353 7 1.16667Z" stroke="currentColor" strokeWidth="1.2"/>
-                  </svg>
-                  <span style={{ fontSize: "13px", fontWeight: 600 }}>Portal</span>
-                </button>
+                <div
+                  title="Portal access isn't available for this account yet"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", width: "100%",
+                    padding: "9px 8px", borderRadius: "10px", border: "none",
+                    cursor: "default", textAlign: "left", color: "#94a3b8", boxSizing: "border-box",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M7 12.8333C10.2217 12.8333 12.8333 10.2217 12.8333 7C12.8333 3.77834 10.2217 1.16667 7 1.16667C3.77834 1.16667 1.16667 3.77834 1.16667 7C1.16667 10.2217 3.77834 12.8333 7 12.8333Z" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M1.16667 7H12.8333" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M7 1.16667C8.45964 2.76353 9.28481 4.83629 9.33333 7C9.28481 9.16371 8.45964 11.2365 7 12.8333C5.54036 11.2365 4.71519 9.16371 4.66667 7C4.71519 4.83629 5.54036 2.76353 7 1.16667Z" stroke="currentColor" strokeWidth="1.2"/>
+                    </svg>
+                    <span style={{ fontSize: "13px", fontWeight: 600 }}>Portal</span>
+                  </span>
+                  <span style={{ fontSize: "10px", fontWeight: 700, color: "#cbd5e1" }}>Unavailable</span>
+                </div>
                 <button
                   className="navbar-dropdown-item"
                   onClick={() => { setSettingsOpen(false); router.push("/mypage"); }}

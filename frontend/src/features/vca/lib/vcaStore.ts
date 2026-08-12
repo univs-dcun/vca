@@ -197,6 +197,44 @@ const CAMERAS: Camera[] = [
   }),
 ];
 
+// A separate, much larger camera pool that only the VIP-detection simulator (VipAlertTicker in
+// ClientLayout.tsx) picks from — NOT part of the `cameras` store state above, and not rendered as
+// a device list anywhere. Deliberately kept out of `CAMERAS`: that array is capped around 50-60 on
+// purpose (see the comment there) because LiveMonitoringTab seeds 120 feed items per camera and
+// ticks an addEvent per online camera every 4s, so a 1,000-entry `cameras` store would make that
+// feature very heavy. This pool exists purely so the Dashboard's VIP simulation feels like it's
+// running across the smart city's real ~1,000-camera deployment, without that cost.
+export const VIP_SIMULATION_CAMERAS: Camera[] = DISTRICTS.flatMap((district, di) => {
+  const thumbnails = [
+    "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80",
+  ];
+  const camCount = 58 + Math.floor(seededRandom(di * 7.77 + 50000) * 6); // ~58-63 per district, ~1,000 total across 17 districts
+  return Array.from({ length: camCount }, (_, j) => {
+    const idx = 50000 + di * 100 + j; // large offset keeps ids/seeds distinct from CAMERAS's own bulk pool
+    const isOnline = seededRandom(idx * 8.17 + 2) > 0.1; // ~90% online, same ratio as the small pool
+    const jitterLat = (seededRandom(idx * 3.31 + 3) - 0.5) * 0.02;
+    const jitterLng = (seededRandom(idx * 5.71 + 4) - 0.5) * 0.02;
+    return {
+      id: `cam-sim-${idx}`,
+      projectId: "proj-sg",
+      code: `CAM-SIM-${String(idx).padStart(5, "0")}`,
+      name: `${district.label} ${j + 1}`,
+      ip: `10.40.${1 + (idx >> 8)}.${idx % 256}`,
+      mac: `00:1B:44:33:${String(10 + (idx % 90)).padStart(2, "0")}:${String(idx % 100).padStart(2, "0")}`,
+      rtspUrl: `rtsp://10.40.${1 + (idx >> 8)}.${idx % 256}:554/stream1`,
+      status: (isOnline ? "online" : "offline") as CameraStatus,
+      location: district.label,
+      zone: district.label,
+      thumbnail: thumbnails[idx % thumbnails.length],
+      lat: Math.round((district.lat + jitterLat) * 10000) / 10000,
+      lng: Math.round((district.lng + jitterLng) * 10000) / 10000,
+    };
+  });
+});
+
 function cameraIdForLocation(location: string): string {
   return CAMERAS.find(c => c.name === location)?.id ?? CAMERAS[0].id;
 }
@@ -229,7 +267,7 @@ const PERSON_REGISTRY_INFO: Record<string, { registeredAt: string; description: 
   "Priya Nair":        { registeredAt: "2026-05-02", description: "VIP Watchlist — Frequent Visitor" },
 };
 
-const PERSONS: Person[] = (() => {
+export const PERSONS: Person[] = (() => {
   const seen = new Set<string>();
   const persons: Person[] = [];
   liveEvents.forEach((e) => {
@@ -259,6 +297,37 @@ let eventSeq = SEED_EVENTS.length;
 // nothing unread instead of surfacing all 12 seed VIP hits as "new" on first load.
 const LATEST_SEED_TIMESTAMP = SEED_EVENTS.reduce((max, e) => (e.timestamp > max ? e.timestamp : max), "");
 
+// A real recognition engine re-fires repeatedly while the same person lingers in one camera's
+// frame — that's one continuous sighting, not N separate visits, so those re-fires should update
+// the existing history row (bump its "last seen" time) rather than spam the list with duplicates.
+// Only a gap LONGER than this counts as the person genuinely leaving and reappearing later, which
+// still logs as a brand-new row (this window is intentionally short — a few minutes apart is a
+// real second visit, not the same dwell).
+const VIP_SESSION_WINDOW_MS = 2 * 60 * 1000;
+
+interface LiveHit { location: string; cameraLabel?: string; timestamp: string; confidence: number; lat: number; lng: number }
+
+function hitCameraKey(h: { cameraLabel?: string; location?: string }): string {
+  return `${h.location ?? ""}::${h.cameraLabel ?? ""}`;
+}
+
+// Same grouping rule as mockData.ts's deriveLiveEvents (2+ distinct cameras -> one collapsed
+// Tracking row), but applied incrementally so it also covers events added live via addEvent, not
+// just the static seed data. A person's full hit history lives disassembled across their current
+// event rows — a Tracking row's `personPath` for older hits, plain VIP rows for anything not yet
+// promoted — and gets rebuilt every time a new hit comes in for them.
+function personHitHistory(events: VcaEvent[], personName: string): LiveHit[] {
+  const hits: LiveHit[] = [];
+  events.filter(e => e.personName === personName).forEach(e => {
+    if (e.personType === "Tracking" && e.personPath) {
+      hits.push(...e.personPath.map(p => ({ location: p.location, cameraLabel: p.cameraLabel, timestamp: p.timestamp, confidence: 0, lat: e.lat ?? 0, lng: e.lng ?? 0 })));
+    } else {
+      hits.push({ location: e.location ?? "", cameraLabel: e.cameraLabel, timestamp: e.timestamp, confidence: e.confidence ?? 0, lat: e.lat ?? 0, lng: e.lng ?? 0 });
+    }
+  });
+  return hits.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
 export const useVcaStore = create<VcaStoreState>((set) => ({
   organizations: ORGANIZATIONS,
   projects: PROJECTS,
@@ -275,7 +344,59 @@ export const useVcaStore = create<VcaStoreState>((set) => ({
   addPerson: (person) =>
     set(state => ({ persons: [...state.persons, { ...person, id: `person-${++personSeq}` }] })),
   addEvent: (event) =>
-    set(state => ({ events: [{ ...event, id: `evt-${++eventSeq}` }, ...state.events].slice(0, 500) })),
+    set(state => {
+      if (!event.personName || !event.location) {
+        return { events: [{ ...event, id: `evt-${++eventSeq}` }, ...state.events].slice(0, 500) };
+      }
+
+      const personName = event.personName;
+      const otherEvents = state.events.filter(e => e.personName !== personName);
+      const history = personHitHistory(state.events, personName);
+      const newHit: LiveHit = { location: event.location, cameraLabel: event.cameraLabel, timestamp: event.timestamp, confidence: event.confidence ?? 0, lat: event.lat ?? 0, lng: event.lng ?? 0 };
+
+      // Session-merge against only the MOST RECENT prior hit, and only if it's the same camera —
+      // a return visit after being seen elsewhere in between must NOT merge into that older
+      // same-camera hit, since the person genuinely left and came back (that gap is exactly what
+      // makes it a trackable path rather than one long dwell).
+      const last = history[history.length - 1];
+      if (last && hitCameraKey(last) === hitCameraKey(newHit) &&
+          Math.abs(new Date(newHit.timestamp).getTime() - new Date(last.timestamp).getTime()) <= VIP_SESSION_WINDOW_MS) {
+        history[history.length - 1] = newHit;
+      } else {
+        history.push(newHit);
+      }
+
+      const distinctCameras = new Set(history.map(hitCameraKey));
+      let personEvents: VcaEvent[];
+      if (distinctCameras.size >= 2) {
+        // 2+ distinct cameras — collapse this person's entire history into one Tracking row
+        // (replaces whatever VIP/Tracking rows they had before), same rule as mockData.ts's
+        // deriveLiveEvents for the static seed data.
+        const latest = history[history.length - 1];
+        personEvents = [{
+          ...event,
+          id: `evt-${++eventSeq}`,
+          personType: "Tracking",
+          location: latest.location,
+          cameraLabel: latest.cameraLabel,
+          timestamp: latest.timestamp,
+          lat: latest.lat,
+          lng: latest.lng,
+          confidence: 0,
+          personPath: history.map(h => ({ location: h.location, cameraLabel: h.cameraLabel, timestamp: h.timestamp })),
+        }];
+      } else {
+        // Still only ever seen at one camera — one VIP row per (session-merged) hit.
+        personEvents = history.map(h => ({
+          ...event,
+          id: `evt-${++eventSeq}`,
+          personType: "VIP",
+          location: h.location, cameraLabel: h.cameraLabel, timestamp: h.timestamp, confidence: h.confidence, lat: h.lat, lng: h.lng,
+        }));
+      }
+
+      return { events: [...personEvents, ...otherEvents].slice(0, 500) };
+    }),
   markNotificationsRead: () => set({ lastReadNotifAt: new Date().toISOString() }),
 }));
 
