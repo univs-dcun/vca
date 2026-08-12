@@ -26,10 +26,13 @@ export function statusToCamera(msg: CameraStatusMessage): Camera {
 
 /** 브리지가 VIP별로 누적하는 당일 이동 이력 */
 export interface VipTrack {
+  /** 시간 오름차순 — 스냅샷(과거)과 MQTT 델타(현재)가 섞여 도착해도 순서를 유지한다 */
   hops: TrackingHop[]
   cameraIds: Set<string>
   /** 스토어에서 이 VIP의 행을 식별하는 고정 id (행 교체용) */
   storeId: string
+  /** 가장 최근 감지 — 목록 행의 표시 내용(시각·카메라·유사도)은 항상 이 이벤트 기준 */
+  latest: DetectionEvent
 }
 
 /**
