@@ -147,13 +147,23 @@
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 4종 토픽과 모듈 API의 `GET /v1/dashboard/live-analytics`를
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 4종 토픽과 **모듈 API 8개 엔드포인트 전부**를
 계약 그대로 구현한 Node 시뮬레이터. 발행 형식이나 응답 조립(행 = VIP별, `detections` 시간 오름차순,
-MQTT와 동일 `eventId`)이 헷갈릴 때 이 코드가 정답이다.
+MQTT와 동일 `eventId`, photoUrl 상대경로, 시간대 버킷)이 헷갈릴 때 이 코드가 정답이다.
 
 ```bash
 cd sim && npm install && npm start   # MQTT 발행 + :8081 모듈 API 서빙
 ```
+
+이 참조 구현 + 실제 프록시 + 실제 대시보드 조합으로 **전체 화면 E2E가 검증 완료**된 상태다
+(2026-08-12) — 즉 모듈이 이 계약대로만 구현하면 화면 연결에 추가 작업이 없다. 검증 과정에서
+확인된 구현 포인트:
+
+- `photoUrl`은 반드시 **모듈 기준 상대경로**(`/vips/{vipId}/photo`)로 반환 — 프록시가 `/api/...`로
+  재작성해서 브라우저에 전달한다. 절대 URL이나 `/api` 프리픽스를 모듈이 붙이면 안 된다
+- 사진 응답은 `image/png` 또는 `image/jpeg` 바이너리 + `Content-Type` 헤더 (프록시가 그대로 통과시킴)
+- `detection-topology`의 `average`는 7일 데이터가 없으면 `null` 허용 (계약의 nullable — 프론트는 null 안전)
+- 시간 버킷(`hour`)은 **사이트 로컬(Asia/Singapore) 기준** — UTC로 버킷하면 그래프가 8시간 밀린다
 
 ## 구현 검증 방법
 

@@ -451,7 +451,7 @@ const HOP_DASH_STYLE: React.CSSProperties = {
 };
 
 function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; isSelected: boolean; onClick: () => void }) {
-  const photoUrl = getFacePhoto(event.id);
+  const photoUrl = event.photoUrl ?? getFacePhoto(event.id);
   const hops = event.path ?? [];
   const [isHovered, setIsHovered] = useState(false);
   return (
@@ -649,7 +649,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
         )}
         {paginated.map((event, i) => {
           const isSelected = event.id === selectedEventId;
-          const photoUrl = getFacePhoto(event.id);
+          const photoUrl = event.photoUrl ?? getFacePhoto(event.id);
           return (
             <div key={event.id}>
               {event.type === "Tracking" ? (
@@ -960,7 +960,7 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
       <div style={{ flex:1, overflowY:"auto", width:"100%", display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", paddingBottom:"8px" }}>
         {tab === "EVENTS"
           ? liveEvents.map(event => {
-              const photoUrl = getFacePhoto(event.id);
+              const photoUrl = event.photoUrl ?? getFacePhoto(event.id);
               return (
                 <div key={event.id}
                   onMouseEnter={e => handleMouseEnter(e, event.id, event)}

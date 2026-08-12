@@ -61,9 +61,10 @@ export function collapseHops(detections: VipTrack['detections']): TrackingHop[] 
   return hops
 }
 
-/** 감지 1건 → 누적 VIP 행 */
-export function detectionToVipEvent(e: DetectionEvent): Omit<VcaEvent, 'id'> {
+/** 감지 1건 → 누적 VIP 행. photoUrl은 REST 가용 시에만 전달됨 (미전달 시 화면이 mock 사진 폴백) */
+export function detectionToVipEvent(e: DetectionEvent, photoUrl?: string): Omit<VcaEvent, 'id'> {
   return {
+    ...(photoUrl ? { photoUrl } : {}),
     cameraId: e.cameraId,
     type: 'VIP Match',
     severity: 'warning',
@@ -82,9 +83,10 @@ export function detectionToVipEvent(e: DetectionEvent): Omit<VcaEvent, 'id'> {
 }
 
 /** VIP당 1개 유지되는 Tracking 행 — collapseHops 결과가 2개 이상일 때만 만든다 */
-export function trackToTrackingEvent(track: VipTrack, hops: TrackingHop[]): Omit<VcaEvent, 'id'> {
+export function trackToTrackingEvent(track: VipTrack, hops: TrackingHop[], photoUrl?: string): Omit<VcaEvent, 'id'> {
   const e = track.latest
   return {
+    ...(photoUrl ? { photoUrl } : {}),
     cameraId: e.cameraId,
     type: 'Tracking Detection',
     severity: 'info',

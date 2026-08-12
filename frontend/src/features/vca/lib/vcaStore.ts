@@ -293,6 +293,7 @@ export function vcaEventsToLiveEvents(events: VcaEvent[]): LiveEvent[] {
       location: e.location ?? "",
       cameraLabel: e.cameraLabel,
       path: e.personPath,
+      photoUrl: e.photoUrl,
       timestamp: e.timestamp,
       type: e.personType,
       lat: e.lat ?? 0,

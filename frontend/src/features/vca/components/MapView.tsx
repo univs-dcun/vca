@@ -72,7 +72,7 @@ function districtPillHtml(label: string, count: number, hasCamera: boolean): str
 function getPopupHTML(event: LiveEvent): string {
   const typeColor = event.type === "VIP" ? "#8b5cf6" : "#6d9300";
   const typeBg = event.type === "VIP" ? "#f6f6fe" : "#f6f9ec";
-  const photoUrl = getFacePhoto(event.id);
+  const photoUrl = event.photoUrl ?? getFacePhoto(event.id);
   const vipBadge = event.type === "VIP"
     ? `<div style="background:#f6f6fe;border-radius:10px;padding:2px 8px;display:flex;align-items:center;gap:3px;flex-shrink:0">
          <span style="font-size:9px;font-weight:700;color:#8b5cf6">VIP</span>
@@ -542,7 +542,7 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
       map.flyTo([lat, lng], 15, { duration: 0.8, easeLinearity: 0.5 });
 
       const pinIcon = L.divIcon({
-        html: getMarkerHTML(selectedEvent.type, getFacePhoto(selectedEvent.id)),
+        html: getMarkerHTML(selectedEvent.type, selectedEvent.photoUrl ?? getFacePhoto(selectedEvent.id)),
         iconSize: [42, 56],
         iconAnchor: [21, 50],
         className: "",
