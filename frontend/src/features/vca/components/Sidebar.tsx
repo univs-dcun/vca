@@ -5,6 +5,7 @@ import { Search, Crown } from "lucide-react";
 import { dashboardStats, devices, type Device, type DeviceStatus, type FilterType, type SidebarTab, type LiveEvent, FACE_PHOTOS, getFacePhoto, formatTimeAgo } from "../lib/mockData";
 import { useVcaStore, vcaEventsToLiveEvents } from "../lib/vcaStore";
 import { useLiveDashboardStats } from "../../../lib/vca-bridge/useLiveDashboardStats";
+import { useLiveDevices } from "../../../lib/vca-bridge/useLiveDevices";
 
 const BORDER = "1px solid #E2E8F0";
 const PAGE_SIZE = 12;
@@ -710,9 +711,11 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
   const [localPinnedId, setLocalPinnedId] = useState<string | null>(null);
   const pinnedDeviceId = externalPinnedId ?? localPinnedId;
   const cameras = useVcaStore(s => s.cameras);
+  // Broker-fed camera list when live (MQTT status), mock devices otherwise.
+  const deviceList = useLiveDevices() ?? devices;
   const { linkedCams, offlineCams, availability } = dashboardStats;
-  const linkedCount  = devices.filter(d => d.status === "Live").length;
-  const offlineCount = devices.filter(d => d.status === "Off").length;
+  const linkedCount  = deviceList.filter(d => d.status === "Live").length;
+  const offlineCount = deviceList.filter(d => d.status === "Off").length;
 
   // The list has 1000 rows to draw from, so there's no reason a page should ever look emptier
   // than the space available for it — measure how tall the list container actually is and how
@@ -734,7 +737,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
     return () => ro.disconnect();
   }, []);
 
-  const filtered = devices.filter(d =>
+  const filtered = deviceList.filter(d =>
     (d.name.toLowerCase().includes(search.toLowerCase()) || d.ip.includes(search)) &&
     (statusFilter === "All" || d.status === statusFilter)
   );
@@ -894,6 +897,7 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
   const todayTotal = watchlistMatch.count + tracking.count;
   const liveEvents = vcaEventsToLiveEvents(useVcaStore(s => s.events));
   const cameras = useVcaStore(s => s.cameras);
+  const deviceList = useLiveDevices() ?? devices;
 
   const handleMouseEnter = (e: React.MouseEvent, id: string, item: LiveEvent | Device) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -971,7 +975,7 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
                 </div>
               );
             })
-          : devices.map(device => {
+          : deviceList.map(device => {
               const isLive = device.status === "Live";
               return (
                 <div key={device.id}
