@@ -11,7 +11,7 @@
 // 연결 여부로 구독을 게이트하면 연결이 영영 시작되지 않는다. 대신 스토어 쓰기만 isLive로 게이트.
 // 반환값 isLive는 ClientLayout이 가짜 감지 시뮬레이션(VipAlertTicker)을 끄는 데 쓴다.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useVcaStore } from '../../features/vca/lib/vcaStore'
+import { useVcaStore, type VcaEvent } from '../../features/vca/lib/vcaStore'
 import { getConnectionStatus, onConnectionStatusChange, subscribe } from '../realtime/mqttClient'
 import { cameraIdFromTopic, topics } from '../realtime/topics'
 import type { CameraStatusMessage, DetectionEvent, MqttConnectionStatus } from '../realtime/types'
@@ -49,13 +49,23 @@ export function useVcaLiveBridge(): boolean {
 
     // REST가 살아있을 때만 실제 등록 사진 URL 부여 — 없으면 undefined로 두어 화면이 mock 사진 폴백
     const photoUrl = isRestAvailable() ? `/api/vips/${e.vip.vipId}/photo` : undefined
-    useVcaStore.getState().addEvent(detectionToVipEvent(e, photoUrl))
+
+    // 스토어에 직접 삽입한다 — addEvent()를 쓰지 않는 것이 의도다.
+    // 화면의 addEvent는 mock 시뮬레이션용 인물 병합(2대 이상 감지 시 VIP 행들을 Tracking
+    // 1행으로 collapse)을 수행하는데, 확정된 라이브 행 규칙은 "VIP 행 누적 + Tracking 별개
+    // 1행"이라 충돌한다. 라이브 행 규칙의 소유자는 이 브리지이며 병합은 위 collapseHops가 한다.
+    // id는 eventId 기반이라 store 내 유일성이 보장된다.
+    const insert = (row: Omit<VcaEvent, 'id'>, id: string) => {
+      const { events } = useVcaStore.getState()
+      useVcaStore.setState({ events: [{ ...row, id }, ...events].slice(0, 500) })
+    }
+    insert(detectionToVipEvent(e, photoUrl), `live-evt-${e.eventId}`)
 
     const hops = collapseHops(track.detections)
     if (hops.length >= 2) {
       const { events } = useVcaStore.getState()
       useVcaStore.setState({ events: events.filter((ev) => ev.personId !== track.trackingRowId) })
-      useVcaStore.getState().addEvent(trackToTrackingEvent(track, hops, photoUrl))
+      insert(trackToTrackingEvent(track, hops, photoUrl), track.trackingRowId)
     }
   }, [])
 

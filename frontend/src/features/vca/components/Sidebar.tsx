@@ -1,9 +1,11 @@
-
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Search, Crown } from "lucide-react";
-import { dashboardStats, devices, type Device, type DeviceStatus, type FilterType, type SidebarTab, type LiveEvent, FACE_PHOTOS, getFacePhoto, formatTimeAgo } from "../lib/mockData";
-import { useVcaStore, vcaEventsToLiveEvents } from "../lib/vcaStore";
+import { Device, DeviceStatus, FilterType, SidebarTab, LiveEvent, FACE_PHOTOS, getFacePhoto, formatTimeAgo, nearestDistrict } from "@/lib/mockData";
+import { useVcaStore, vcaEventsToLiveEvents } from "@/lib/vcaStore";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { useApiData } from "@/hooks/useApiData";
+import { getDashboardStats, getDevices, getDistricts } from "@/lib/api/dashboard";
 import { useLiveDashboardStats } from "../../../lib/vca-bridge/useLiveDashboardStats";
 import { useLiveDevices } from "../../../lib/vca-bridge/useLiveDevices";
 
@@ -255,23 +257,29 @@ function StatusBadge({ status }: { status: string }) {
 
 // Same counts EventsSummary/CollapsedSidebar both show — derived from vcaStore so a live
 // detection added anywhere (e.g. the Data tab's monitoring feed) updates them everywhere.
-// When the broker is publishing stats/summary, the two daily counters come from there instead
-// (cumulative daily totals + real deltas); the store-derived row counts remain the mock fallback.
 function useEventCounts() {
-  const live = useLiveDashboardStats();
   const detections = vcaEventsToLiveEvents(useVcaStore(s => s.events));
   const persons = useVcaStore(s => s.persons);
+  // delta/deltaPct/down (yesterday-comparison fields) come from the future-backend stub rather
+  // than importing the mock object directly — see lib/api/dashboard.ts. Falls back to a flat
+  // (no change) delta for the brief window before the fetch resolves.
+  const { data: dashboardStats } = useApiData(() => getDashboardStats(), []);
+  // When the broker is publishing stats/summary, the two daily counters come from there instead
+  // (cumulative daily totals + real deltas); the stub/store-derived values remain the fallback.
+  const live = useLiveDashboardStats();
+  const flatDelta = { delta: 0, deltaPct: 0, down: false };
   return {
     vipTargets: persons.filter(p => p.type === "VIP").length,
-    watchlistMatch: live?.watchlistMatch ?? { ...dashboardStats.watchlistMatch, count: detections.filter(e => e.type === "VIP").length },
-    tracking: { ...dashboardStats.tracking, count: detections.filter(e => e.type === "Tracking").length },
-    eventsToday: live?.eventsToday ?? { ...dashboardStats.eventsToday, count: detections.length },
+    watchlistMatch: live?.watchlistMatch ?? { ...(dashboardStats?.watchlistMatch ?? flatDelta), count: detections.filter(e => e.type === "VIP").length },
+    tracking: { ...(dashboardStats?.tracking ?? flatDelta), count: detections.filter(e => e.type === "Tracking").length },
+    eventsToday: live?.eventsToday ?? { ...(dashboardStats?.eventsToday ?? flatDelta), count: detections.length },
   };
 }
 
 /* ── VIP list modal ── */
 function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPersonSelect: (name: string) => void }) {
   const persons = useVcaStore(s => s.persons).filter(p => p.type === "VIP");
+  useEscapeKey(onClose);
 
   return createPortal(
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -283,7 +291,7 @@ function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPers
             <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Registered VIP Targets</p>
             <span style={{ fontSize:"14px", fontWeight:800, color:"#5a3dfb" }}>{persons.length}</span>
           </div>
-          <button onClick={onClose} style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
+          <button onClick={onClose} aria-label="Close" style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
@@ -378,13 +386,14 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
 function LocationPickerModal({ current, onSelect, onClose }: { current: string | null; onSelect: (location: string | null) => void; onClose: () => void }) {
   const cameras = useVcaStore(s => s.cameras);
   const locations = Array.from(new Set(cameras.map(c => c.name)));
+  useEscapeKey(onClose);
   return createPortal(
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.4)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
       <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"320px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"70vh", overflow:"hidden", boxShadow:"0 20px 60px rgba(14,22,42,0.18)" }}>
         <div style={{ padding:"14px 16px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
           <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Select Location</p>
-          <button onClick={onClose} style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
+          <button onClick={onClose} aria-label="Close" style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
@@ -561,25 +570,37 @@ interface EventsListProps {
   locationFilter?: string | null;
   onLocationClear?: () => void;
   onLocationSelect?: (location: string) => void;
+  districtFilter?: string | null;
+  onDistrictClear?: () => void;
   personFilter?: string | null;
   onPersonClear?: () => void;
 }
 
-function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocationClear, onLocationSelect, personFilter, onPersonClear }: EventsListProps) {
+function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocationClear, onLocationSelect, districtFilter, onDistrictClear, personFilter, onPersonClear }: EventsListProps) {
   const [filter, setFilter] = useState<FilterType>("All");
   const [page, setPage] = useState(1);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const FILTERS: FilterType[] = ["All", "VIP Detection", "Tracking"];
   const liveEvents = vcaEventsToLiveEvents(useVcaStore(s => s.events));
+  // Routed through the future-backend stub instead of importing the mock array directly — see
+  // lib/api/dashboard.ts. Falls back to the raw district id (still a valid, if less pretty,
+  // label) for the brief pre-fetch window.
+  const { data: districts } = useApiData(() => getDistricts(), []);
+  const districtLabel = districtFilter ? districts?.find(d => d.id === districtFilter)?.label ?? districtFilter : null;
 
   const byType = filter === "All" ? liveEvents
     : liveEvents.filter(e => {
         if (filter === "VIP Detection") return e.type === "VIP";
         return e.type === filter;
       });
-  const byLocation = locationFilter
-    ? byType.filter(e => e.location.toLowerCase().includes(locationFilter.toLowerCase()))
-    : byType;
+  // A district groups several sites by geographic proximity (map-pill click), so it filters by
+  // nearest-district-to-lat/lng rather than locationFilter's plain name-substring match — the
+  // two are mutually exclusive (ClientLayout clears one whenever the other is set).
+  const byLocation = districtFilter
+    ? byType.filter(e => e.type === "VIP" && nearestDistrict(e.lat, e.lng).id === districtFilter)
+    : locationFilter
+      ? byType.filter(e => e.location.toLowerCase().includes(locationFilter.toLowerCase()))
+      : byType;
   const filtered = personFilter
     ? byLocation.filter(e => e.name.toLowerCase() === personFilter.toLowerCase())
     : byLocation;
@@ -619,17 +640,30 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
             <span style={{ fontSize:"12px", color:"#5a3dfb", fontWeight:700 }}>✕</span>
           </button>
         )}
+        {districtLabel && (
+          <button
+            onClick={onDistrictClear}
+            style={{ display:"flex", alignItems:"center", gap:"5px", background:"#f6f6fe", border:"none", borderRadius:"999px", padding:"5px 10px", cursor:"pointer", marginBottom:"12px" }}
+          >
+            <LocationPinIcon color="#5a3dfb" />
+            <span style={{ fontSize:"12px", fontWeight:700, color:"#5a3dfb" }}>{districtLabel} · VIP only</span>
+            <span style={{ fontSize:"12px", color:"#5a3dfb", fontWeight:700 }}>✕</span>
+          </button>
+        )}
         <div style={{ display:"flex", gap:"6px" }}>
           {FILTERS.map(id => {
             const active = filter === id;
             const color  = active ? "white" : "#324055";
             return (
-              <button key={id} onClick={() => { setFilter(id); setPage(1); }} style={{
-                display:"flex", alignItems:"center", gap:"4px",
-                padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
-                backgroundColor: active ? "#5a3dfb" : "#f1f5f9",
-                color, fontSize:"12px", fontWeight:500, letterSpacing:"-0.24px", transition:"all 0.15s",
-              }}>
+              <button key={id} onClick={() => { setFilter(id); setPage(1); }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "#e2e8f0"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor = "#f1f5f9"; }}
+                style={{
+                  display:"flex", alignItems:"center", gap:"4px",
+                  padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
+                  backgroundColor: active ? "#5a3dfb" : "#f1f5f9",
+                  color, fontSize:"12px", fontWeight:500, letterSpacing:"-0.24px", transition:"all 0.15s",
+                }}>
                 <FilterPillIcon id={id} color={color} />
                 {id === "VIP Detection" ? "VIP Detection" : id}
               </button>
@@ -651,7 +685,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
           const isSelected = event.id === selectedEventId;
           const photoUrl = event.photoUrl ?? getFacePhoto(event.id);
           return (
-            <div key={event.id}>
+            <div key={`${event.type}-${event.id}-${i}`}>
               {event.type === "Tracking" ? (
                 <TrackingEventRow event={event} isSelected={isSelected} onClick={() => onEventSelect?.(isSelected ? null : event)} />
               ) : (
@@ -672,10 +706,10 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
             onChange={e => setPage(Math.max(1, Math.min(totalPages, parseInt(e.target.value) || 1)))}
             style={{ width:"32px", textAlign:"center", fontSize:"12px", fontWeight:700, border:"1px solid #e2e8f0", borderRadius:"6px", padding:"2px 0", outline:"none", color:"#0e162a" }} />
           <span style={{ fontSize:"11px", color:"#94a3b8" }}>/ {totalPages}</span>
-          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={safePage===1} style={{ ...PAGE_BTN, opacity: safePage===1 ? 0.3 : 1 }}>
+          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={safePage===1} aria-label="Previous page" style={{ ...PAGE_BTN, opacity: safePage===1 ? 0.3 : 1 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
-          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={safePage===totalPages} style={{ ...PAGE_BTN, opacity: safePage===totalPages ? 0.3 : 1 }}>
+          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={safePage===totalPages} aria-label="Next page" style={{ ...PAGE_BTN, opacity: safePage===totalPages ? 0.3 : 1 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
         </div>
@@ -711,11 +745,19 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
   const [localPinnedId, setLocalPinnedId] = useState<string | null>(null);
   const pinnedDeviceId = externalPinnedId ?? localPinnedId;
   const cameras = useVcaStore(s => s.cameras);
-  // Broker-fed camera list when live (MQTT status), mock devices otherwise.
-  const deviceList = useLiveDevices() ?? devices;
-  const { linkedCams, offlineCams, availability } = dashboardStats;
-  const linkedCount  = deviceList.filter(d => d.status === "Live").length;
-  const offlineCount = deviceList.filter(d => d.status === "Off").length;
+  // Routed through the future-backend stubs instead of importing the mock array/object directly
+  // — see lib/api/dashboard.ts. `devices` defaults to [] for the brief pre-fetch window, which
+  // the existing "No devices found." empty state already covers.
+  const { data: dashboardStats } = useApiData(() => getDashboardStats(), []);
+  const { data: devicesData } = useApiData(() => getDevices(), []);
+  // Broker-fed camera list when live (MQTT status), the stub list otherwise.
+  const liveDevices = useLiveDevices();
+  const devices = liveDevices ?? devicesData ?? [];
+  const linkedCams = dashboardStats?.linkedCams ?? { count: 0, delta: 0, deltaPct: 0, down: false };
+  const offlineCams = dashboardStats?.offlineCams ?? { count: 0, delta: 0, deltaPct: 0, down: false };
+  const availability = dashboardStats?.availability ?? 0;
+  const linkedCount  = devices.filter(d => d.status === "Live").length;
+  const offlineCount = devices.filter(d => d.status === "Off").length;
 
   // The list has 1000 rows to draw from, so there's no reason a page should ever look emptier
   // than the space available for it — measure how tall the list container actually is and how
@@ -737,7 +779,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
     return () => ro.disconnect();
   }, []);
 
-  const filtered = deviceList.filter(d =>
+  const filtered = devices.filter(d =>
     (d.name.toLowerCase().includes(search.toLowerCase()) || d.ip.includes(search)) &&
     (statusFilter === "All" || d.status === statusFilter)
   );
@@ -791,12 +833,15 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
           const active = statusFilter === id;
           const dotColor = id === "Live" ? "#22c55e" : id === "Off" ? "#f43f5e" : "#94a3b8";
           return (
-            <button key={id} onClick={() => { setStatusFilter(id); setPage(1); }} style={{
-              display:"flex", alignItems:"center", gap:"5px",
-              padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
-              backgroundColor: active ? "#5a3dfb" : "#f1f5f9",
-              color: active ? "white" : "#324055", fontSize:"12px", fontWeight:500, letterSpacing:"-0.24px", transition:"all 0.15s",
-            }}>
+            <button key={id} onClick={() => { setStatusFilter(id); setPage(1); }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "#e2e8f0"; }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor = "#f1f5f9"; }}
+              style={{
+                display:"flex", alignItems:"center", gap:"5px",
+                padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
+                backgroundColor: active ? "#5a3dfb" : "#f1f5f9",
+                color: active ? "white" : "#324055", fontSize:"12px", fontWeight:500, letterSpacing:"-0.24px", transition:"all 0.15s",
+              }}>
               <span style={{ width:"6px", height:"6px", borderRadius:"50%", backgroundColor: active ? "white" : dotColor, flexShrink:0 }} />
               {id === "Off" ? "Out" : id}
             </button>
@@ -805,7 +850,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
       </div>
 
       {/* Table header */}
-      <div style={{ display:"grid", gridTemplateColumns:"48px 60px 52px 1fr 32px", padding:"6px 20px", flexShrink:0, gap:"4px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"76px 60px 40px 1fr 32px", padding:"6px 20px", flexShrink:0, gap:"4px" }}>
         {["NAME","STATUS","TYPE","INFO","PIN"].map(h => (
           <span key={h} style={{
             fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.24px",
@@ -820,6 +865,13 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
           above the pagination bar. Only the true last page (e.g. 1000 not divisible by pageSize)
           can ever be short — that's unavoidable, not a bug. */}
       <div ref={listRef} style={{ flex:1, overflowY:"auto", minHeight:0 }}>
+        {filtered.length === 0 && (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", padding:"32px 20px" }}>
+            <span style={{ fontSize:"13px", fontWeight:500, color:"#94a3b8", textAlign:"center", letterSpacing:"-0.26px" }}>
+              No devices found.
+            </span>
+          </div>
+        )}
         {paginated.map((device, i) => {
           const isPinned = device.id === pinnedDeviceId;
           const zone = nearestZoneName(device.lat, device.lng, cameras);
@@ -834,16 +886,16 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
               onMouseEnter={e => { if (!isPinned) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
               onMouseLeave={e => { if (!isPinned) e.currentTarget.style.backgroundColor = "transparent"; }}
               style={{
-                display:"grid", gridTemplateColumns:"48px 60px 52px 1fr 32px",
+                display:"grid", gridTemplateColumns:"76px 60px 40px 1fr 32px",
                 alignItems:"center", padding:"10px 20px", gap:"4px", cursor:"pointer",
                 backgroundColor: isPinned ? "#f6f6fe" : "transparent", transition:"background-color 0.1s",
               }}>
               <div style={{ display:"flex", flexDirection:"column", gap:"1px", overflow:"hidden" }}>
-                <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", letterSpacing:"-0.24px" }}>{device.name}</span>
-                <span style={{ fontSize:"9px", fontWeight:500, color:"#94a3b8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{zone}</span>
+                <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", letterSpacing:"-0.24px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.name}</span>
+                <span style={{ fontSize:"12px", fontWeight:500, color:"#94a3b8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{zone}</span>
               </div>
               <div><StatusBadge status={device.status} /></div>
-              <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", textAlign:"center" }}>{device.type}</span>
+              <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.type}</span>
               <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", textAlign:"right", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.ip}</span>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"2px" }}>
                 <TablePinIcon active={isPinned} />
@@ -864,10 +916,10 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
             onChange={e => setPage(Math.max(1, Math.min(totalPages, parseInt(e.target.value) || 1)))}
             style={{ width:"32px", textAlign:"center", fontSize:"12px", fontWeight:700, border:"1px solid #e2e8f0", borderRadius:"6px", padding:"2px 0", outline:"none", color:"#0e162a" }} />
           <span style={{ fontSize:"11px", color:"#94a3b8" }}>/ {totalPages}</span>
-          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={safePage===1} style={{ ...PAGE_BTN, opacity: safePage===1 ? 0.3 : 1 }}>
+          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={safePage===1} aria-label="Previous page" style={{ ...PAGE_BTN, opacity: safePage===1 ? 0.3 : 1 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
-          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={safePage===totalPages} style={{ ...PAGE_BTN, opacity: safePage===totalPages ? 0.3 : 1 }}>
+          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={safePage===totalPages} aria-label="Next page" style={{ ...PAGE_BTN, opacity: safePage===totalPages ? 0.3 : 1 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
         </div>
@@ -893,11 +945,13 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
   const [tab, setTab] = usePersistedSidebarTab();
   const [hovered, setHovered] = useState<{ id: string; top: number; item: LiveEvent | Device } | null>(null);
   const { vipTargets, watchlistMatch, tracking } = useEventCounts();
-  const { availability } = dashboardStats;
+  const { data: dashboardStats } = useApiData(() => getDashboardStats(), []);
+  const availability = dashboardStats?.availability ?? 0;
   const todayTotal = watchlistMatch.count + tracking.count;
   const liveEvents = vcaEventsToLiveEvents(useVcaStore(s => s.events));
   const cameras = useVcaStore(s => s.cameras);
-  const deviceList = useLiveDevices() ?? devices;
+  const { data: devicesData } = useApiData(() => getDevices(), []);
+  const devices = useLiveDevices() ?? devicesData ?? [];
 
   const handleMouseEnter = (e: React.MouseEvent, id: string, item: LiveEvent | Device) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -908,13 +962,13 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
     <div onMouseLeave={() => setHovered(null)} style={{ width:"60px", flexShrink:0, height:"100%", backgroundColor:"white", ...(position === "right" ? { borderLeft: BORDER } : { borderRight: BORDER }), display:"flex", flexDirection:"column", alignItems:"center", padding:"12px 0", overflow:"hidden", position:"relative" }}>
       {/* Tab toggle */}
       <div style={{ width:"44px", backgroundColor:"#f1f5f9", borderRadius:"12px", padding:"4px", display:"flex", flexDirection:"column", gap:"4px", flexShrink:0 }}>
-        <button onClick={() => setTab("EVENTS")} style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="EVENTS" ? "#5a3dfb" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
+        <button onClick={() => setTab("EVENTS")} aria-label="Events" style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="EVENTS" ? "#5a3dfb" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M1.75 1.75V11.0833C1.75 11.3928 1.87292 11.6895 2.09171 11.9083C2.3105 12.1271 2.60725 12.25 2.91667 12.25H12.25" stroke={tab==="EVENTS" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M11.083 5.25L8.16634 8.16667L5.83301 5.83333L4.08301 7.58333" stroke={tab==="EVENTS" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <button onClick={() => setTab("SYSTEM")} style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="SYSTEM" ? "#5a3dfb" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
+        <button onClick={() => setTab("SYSTEM")} aria-label="System" style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="SYSTEM" ? "#5a3dfb" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M9.87887 7.82031H12.0651C12.1677 7.82037 12.2685 7.84663 12.3581 7.89661C12.4477 7.94658 12.523 8.01862 12.5769 8.10587C12.6308 8.19313 12.6615 8.29271 12.6661 8.39517C12.6708 8.49764 12.6491 8.59958 12.6033 8.69133L11.3789 11.1406C11.3325 11.2334 11.2629 11.3127 11.1768 11.3706C11.0907 11.4286 10.9911 11.4633 10.8876 11.4714C10.7842 11.4796 10.6804 11.4608 10.5863 11.417C10.4923 11.3731 10.4111 11.3057 10.3508 11.2213L9.07227 9.43352" stroke={tab==="SYSTEM" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M10.0928 6.04789C10.2354 6.11931 10.3439 6.24445 10.3944 6.39581C10.4448 6.54717 10.4331 6.71236 10.3618 6.8551L8.49219 10.5938C8.45683 10.6645 8.40788 10.7276 8.34814 10.7793C8.28841 10.8311 8.21905 10.8707 8.14403 10.8957C8.06901 10.9206 7.98981 10.9306 7.91094 10.925C7.83208 10.9193 7.75509 10.8982 7.68438 10.8628L1.96893 8.0024C1.55379 7.7933 1.23838 7.42826 1.09173 6.98717C0.945073 6.54608 0.979114 6.06486 1.1864 5.6488L2.01708 3.96938C2.12062 3.76305 2.26378 3.57913 2.43841 3.42813C2.61303 3.27713 2.81568 3.16202 3.0348 3.08935C3.25392 3.01668 3.48521 2.98789 3.71545 3.00462C3.9457 3.02135 4.17039 3.08327 4.3767 3.18685L10.0928 6.04789Z" stroke={tab==="SYSTEM" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
@@ -975,7 +1029,7 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
                 </div>
               );
             })
-          : deviceList.map(device => {
+          : devices.map(device => {
               const isLive = device.status === "Live";
               return (
                 <div key={device.id}
@@ -998,7 +1052,7 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
         const clampedTop = Math.min(Math.max(8, hovered.top), (typeof window !== "undefined" ? window.innerHeight : 1080) - estimatedHeight - 8);
         if (!isDevice) {
           const event = hovered.item as LiveEvent;
-          const photoUrl = getFacePhoto(event.id);
+          const photoUrl = event.photoUrl ?? getFacePhoto(event.id);
           return (
             <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"210px", backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(0,0,0,0.12)", pointerEvents:"none" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:"8px", marginBottom:"8px", borderBottom:"1px solid #f1f5f9" }}>
@@ -1044,6 +1098,8 @@ interface SidebarProps {
   locationFilter?: string | null;
   onLocationClear?: () => void;
   onLocationSelect?: (location: string) => void;
+  districtFilter?: string | null;
+  onDistrictClear?: () => void;
   onPinDevice?: (device: Device | null) => void;
   pinnedDeviceId?: string | null;
   isCollapsed?: boolean;
@@ -1052,7 +1108,7 @@ interface SidebarProps {
   position?: "left" | "right";
 }
 
-export default function Sidebar({ onEventSelect, selectedEventId, locationFilter, onLocationClear, onLocationSelect, onPinDevice, pinnedDeviceId, isCollapsed, onToggleDetectionChart, position = "left" }: SidebarProps) {
+export default function Sidebar({ onEventSelect, selectedEventId, locationFilter, onLocationClear, onLocationSelect, districtFilter, onDistrictClear, onPinDevice, pinnedDeviceId, isCollapsed, onToggleDetectionChart, position = "left" }: SidebarProps) {
   const [activeTab, setActiveTab] = usePersistedSidebarTab();
   const [personFilter, setPersonFilter] = useState<string | null>(null);
 
@@ -1106,6 +1162,8 @@ export default function Sidebar({ onEventSelect, selectedEventId, locationFilter
             locationFilter={locationFilter}
             onLocationClear={onLocationClear}
             onLocationSelect={onLocationSelect}
+            districtFilter={districtFilter}
+            onDistrictClear={onDistrictClear}
             personFilter={personFilter}
             onPersonClear={() => setPersonFilter(null)}
           />

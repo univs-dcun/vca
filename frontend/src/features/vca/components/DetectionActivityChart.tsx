@@ -1,8 +1,8 @@
-
 import { useEffect, useMemo, useRef, useState } from "react";
-import { hourlyDetections } from "../lib/mockData";
-import { useVcaStore } from "../lib/vcaStore";
+import { useVcaStore } from "@/lib/vcaStore";
+import { useApiData } from "@/hooks/useApiData";
 import { useLiveHourlyDetections } from "../../../lib/vca-bridge/useLiveHourlyDetections";
+import { getHourlyDetections } from "@/lib/api/dashboard";
 
 const CHART_HEIGHT = 160;
 const FALLBACK_WIDTH = 900; // used only until the container's real width is measured
@@ -111,19 +111,23 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
   const cameras = useVcaStore(s => s.cameras);
   const [selectedCamera, setSelectedCamera] = useState<string>(ALL_CAMERAS);
   const [cameraPickerOpen, setCameraPickerOpen] = useState(false);
+  // Routed through the future-backend stub instead of importing the mock array directly — see
+  // lib/api/dashboard.ts. `data` is null for the brief window before the (currently mock-delayed)
+  // fetch resolves; every derived value below falls back to an empty/flat chart until then.
+  const { data: hourlyDetections } = useApiData(() => getHourlyDetections(), []);
+  // Live topology data (REST, periodic refetch) when the module API is up; the stub otherwise.
+  const liveHourly = useLiveHourlyDetections();
   // The whole point of this chart is spotting when VIPs show up, so the line/bars/dots plot
   // vipCount directly (not total detection count) — re-scaled for the selected camera. There's
   // no real per-camera dataset behind this, just a stable, reproducible variation of the
   // citywide one.
-  // Live topology data (REST, periodic refetch) when the module API is up; mock otherwise.
-  const liveHourly = useLiveHourlyDetections();
   const scaledHourly = useMemo(() => {
     const scale = selectedCamera === ALL_CAMERAS ? 1 : cameraScaleFor(selectedCamera);
-    return (liveHourly ?? hourlyDetections).map(h => ({
+    return (liveHourly ?? hourlyDetections ?? []).map(h => ({
       hour: h.hour,
       count: Math.max(0, h.vipCount * scale),
     }));
-  }, [selectedCamera, liveHourly]);
+  }, [selectedCamera, liveHourly, hourlyDetections]);
 
   const yMax = useMemo(() => {
     const peak = Math.max(...scaledHourly.map(h => h.count), 1);
@@ -146,8 +150,11 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
   const linePoints = steps.map(s => ({ x: xForStep(s.step, totalSteps, width), y: yForCount(s.count) }));
   const linePath = smoothPath(linePoints);
   // Area fill: the trend line's own path, closed along the top edge — so the wash only ever
-  // covers the region above the line, following its curve, instead of a flat rectangle.
-  const areaPath = `${linePath} L ${linePoints[linePoints.length - 1].x},0 L ${linePoints[0].x},0 Z`;
+  // covers the region above the line, following its curve, instead of a flat rectangle. Empty
+  // during the brief pre-fetch window (no points yet), not just while data is genuinely all-zero.
+  const areaPath = linePoints.length > 0
+    ? `${linePath} L ${linePoints[linePoints.length - 1].x},0 L ${linePoints[0].x},0 Z`
+    : "";
 
   return (
     <div className="vca-rise-in" style={{
@@ -228,8 +235,6 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
 
       <div style={{ display: "flex", gap: "8px" }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: `${CHART_HEIGHT}px`, paddingBottom: "1px" }}>
-          {/* Key by position, not value — rounded ticks can repeat (e.g. yMax 2 → 0,0,1,1,2) and
-              duplicate keys leave stale labels behind when the dataset switches at runtime. */}
           {[...yTicks].reverse().map((tick, i) => (
             <span key={i} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", lineHeight: 1 }}>{tick}</span>
           ))}

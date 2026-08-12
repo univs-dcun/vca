@@ -1,7 +1,10 @@
-
-import { useEffect, useRef, useState } from "react";
-import { type LiveEvent, type Device, type TrackingHop, type District, DISTRICTS, getFacePhoto, formatTimeAgo } from "../lib/mockData";
-import { useVcaStore, vcaEventsToLiveEvents } from "../lib/vcaStore";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { LiveEvent, Device, TrackingHop, nearestDistrict, getFacePhoto, formatTimeAgo,
+  DISTRICT_ALERT_THRESHOLD_KEY, DISTRICT_MODERATE_THRESHOLD_KEY,
+  DEFAULT_DISTRICT_ALERT_THRESHOLD, DEFAULT_DISTRICT_MODERATE_THRESHOLD } from "@/lib/mockData";
+import { useVcaStore, vcaEventsToLiveEvents } from "@/lib/vcaStore";
+import { useApiData } from "@/hooks/useApiData";
+import { getDistricts } from "@/lib/api/dashboard";
 
 // Leaflet popups are raw HTML strings, not React — values dropped into an inline onclick="...('...')"
 // attribute need their quotes escaped so a name/label containing one can't break the attribute.
@@ -29,27 +32,18 @@ function recentPingHtml(color: string): string {
 // idea as RedmapMap's tracking-route decluttering, just gating which layer draws at all.
 const CLUSTER_ZOOM_BREAKPOINT = 14;
 
-function nearestDistrict(lat: number, lng: number, districts: District[]): District {
-  let best = districts[0];
-  let bestDist = Infinity;
-  for (const d of districts) {
-    const dist = (d.lat - lat) ** 2 + (d.lng - lng) ** 2;
-    if (dist < bestDist) { bestDist = dist; best = d; }
-  }
-  return best;
-}
-
-// Ported from RedmapMap.tsx's statusMarkerHtml() — same colors/thresholds/dashed-camera-icon —
-// but driven by real computed { count, hasCamera } instead of RedmapMap's hardcoded STATUS_ZONES.
-function districtPillHtml(label: string, count: number, hasCamera: boolean): string {
-  const isAlert = count >= 100;
-  const isDark = !isAlert && count >= 20;
+// Ported from RedmapMap.tsx's statusMarkerHtml() — same colors/dashed-camera-icon — but driven by
+// real computed { count, hasCamera } instead of RedmapMap's hardcoded STATUS_ZONES, and by
+// user-configurable thresholds instead of hardcoded ones.
+function districtPillHtml(label: string, count: number, hasCamera: boolean, alertThreshold: number, moderateThreshold: number): string {
+  const isAlert = count >= alertThreshold;
+  const isDark = !isAlert && count >= moderateThreshold;
   const isDashed = !hasCamera;
   let bg: string, textColor: string, border: string;
   if (isAlert)      { bg = "#f43f5e"; textColor = "white";   border = ""; }
   else if (isDark)  { bg = "#0e162a"; textColor = "white";   border = ""; }
-  else if (isDashed){ bg = "white";   textColor = "#64748a"; border = "border:1.5px dashed #cbd5e1;"; }
-  else              { bg = "white";   textColor = "#334155"; border = "border:1.5px solid #e2e8f0;"; }
+  else if (isDashed){ bg = "white";   textColor = "#64748a"; border = "border:1.5px dashed #5a3dfb;"; }
+  else              { bg = "white";   textColor = "#334155"; border = "border:1.5px solid #5a3dfb;"; }
   const camSvg = isDashed
     ? `<svg width="14" height="11" viewBox="0 0 14 11" fill="none" style="flex-shrink:0">
         <path d="M1 1L13 10" stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round"/>
@@ -243,13 +237,14 @@ function routeBubbleTailHtml(centerY: number, fillColor: string, borderColor: st
 interface MapViewProps {
   selectedEvent?: LiveEvent | null;
   onCameraSelect?: (label: string | null) => void;
+  onDistrictSelect?: (districtId: string) => void;
   pinnedDevice?: Device | null;
   onGoLiveCam?: (location: string) => void;
   onGoRedmapTrace?: (personName: string) => void;
   onAnalyzeFrame?: (location: string) => void;
 }
 
-export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, onGoLiveCam, onGoRedmapTrace, onAnalyzeFrame }: MapViewProps) {
+export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelect, pinnedDevice, onGoLiveCam, onGoRedmapTrace, onAnalyzeFrame }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<unknown>(null);
   const popupRef = useRef<unknown>(null);
@@ -261,6 +256,23 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
   // Mirrors the map's own zoom level — read by the district-cluster/recent-activity effect to
   // decide whether to draw the zoomed-out cluster pills or the zoomed-in per-camera dots.
   const [zoom, setZoom] = useState(12);
+  // Routed through the future-backend stub instead of importing the mock array directly — see
+  // lib/api/dashboard.ts. No pills draw during the brief pre-fetch window (empty array default),
+  // same as before mapReady flips true.
+  const { data: districtsData } = useApiData(() => getDistricts(), []);
+  const districts = useMemo(() => districtsData ?? [], [districtsData]);
+  // User-configurable (My Page → Map Alert Thresholds). Default on the server-rendered pass so
+  // hydration never mismatches; a client-only effect then applies whatever's saved.
+  const [alertThreshold, setAlertThreshold] = useState(DEFAULT_DISTRICT_ALERT_THRESHOLD);
+  const [moderateThreshold, setModerateThreshold] = useState(DEFAULT_DISTRICT_MODERATE_THRESHOLD);
+  useEffect(() => {
+    queueMicrotask(() => {
+      const savedAlert = Number(localStorage.getItem(DISTRICT_ALERT_THRESHOLD_KEY));
+      const savedModerate = Number(localStorage.getItem(DISTRICT_MODERATE_THRESHOLD_KEY));
+      if (Number.isFinite(savedAlert) && savedAlert > 0) setAlertThreshold(savedAlert);
+      if (Number.isFinite(savedModerate) && savedModerate > 0) setModerateThreshold(savedModerate);
+    });
+  }, []);
 
   // Bridge for clicks inside Leaflet's raw-HTML popups (they aren't React, so they can't call
   // these handlers directly) — the popup markup calls window.__vcaGoLiveCam(...) / __vcaGoRedmapTrace(...).
@@ -281,6 +293,8 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
   const trackingRouteLayersRef = useRef<unknown[]>([]);
   const onCameraSelectRef = useRef(onCameraSelect);
   useEffect(() => { onCameraSelectRef.current = onCameraSelect; }, [onCameraSelect]);
+  const onDistrictSelectRef = useRef(onDistrictSelect);
+  useEffect(() => { onDistrictSelectRef.current = onDistrictSelect; }, [onDistrictSelect]);
 
   // Registered cameras' real lat/lng — the exact CCTV install point, distinct from a zone
   // marker's own (approximate, district-level) coordinate.
@@ -369,28 +383,37 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
       zoneLayerRef.current = null;
     }
 
+    // import("leaflet") is async, so by the time it resolves the map may already have been torn
+    // down (tab switch unmounting this component) or this effect may have re-fired with newer
+    // deps — either way `map` is stale and .addTo(map) on a removed Leaflet map throws
+    // ("Cannot read properties of undefined (reading 'appendChild')"). Bail out instead.
+    let cancelled = false;
+
     import("leaflet").then(({ default: L }) => {
+      if (cancelled || !mapInstanceRef.current) return;
       const group = L.layerGroup();
 
       if (zoom <= CLUSTER_ZOOM_BREAKPOINT) {
         // ── Zoomed out: one pill per district ──
         const today = new Date().toDateString();
-        DISTRICTS.forEach((district) => {
-          const camerasInDistrict = cameras.filter(c => nearestDistrict(c.lat, c.lng, DISTRICTS).id === district.id);
+        districts.forEach((district) => {
+          const camerasInDistrict = cameras.filter(c => nearestDistrict(c.lat, c.lng).id === district.id);
           const hasCamera = camerasInDistrict.length > 0;
           const count = recentEvents.filter(ev =>
             ev.type === "VIP" &&
             new Date(ev.timestamp).toDateString() === today &&
-            nearestDistrict(ev.lat, ev.lng, DISTRICTS).id === district.id
+            nearestDistrict(ev.lat, ev.lng).id === district.id
           ).length;
 
           const icon = L.divIcon({
-            html: districtPillHtml(district.label, count, hasCamera),
+            html: districtPillHtml(district.label, count, hasCamera, alertThreshold, moderateThreshold),
             iconSize: [1, 1],
             iconAnchor: [0, 0],
             className: "vca-zone-icon",
           });
-          L.marker([district.lat, district.lng], { icon }).addTo(group);
+          L.marker([district.lat, district.lng], { icon })
+            .addTo(group)
+            .on("click", () => onDistrictSelectRef.current?.(district.id));
         });
       } else {
         // ── Zoomed in: per-location recent-activity dots (same visual as before) ──
@@ -414,10 +437,13 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
             .on("click", () => onCameraSelectRef.current?.(ev.location));
         });
       }
-      group.addTo(map);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      group.addTo(mapInstanceRef.current as any);
       zoneLayerRef.current = group;
     });
-  }, [recentEvents, cameras, zoom, mapReady]);
+
+    return () => { cancelled = true; };
+  }, [recentEvents, cameras, zoom, mapReady, alertThreshold, moderateThreshold, districts]);
 
   // ── Keep the map's internal canvas in sync with its container ───
   // Leaflet only measures its container once on init, so collapsing/expanding the sidebar
@@ -618,6 +644,9 @@ export default function MapView({ selectedEvent, onCameraSelect, pinnedDevice, o
         width: "100%",
         height: "100%",
         position: "relative",
+        // Matches SkeletonDashboard's MapSkeleton background — avoids a flash of blank white
+        // during the brief window between mount and Leaflet's async init finishing.
+        backgroundColor: "#f1f5f9",
       }}
     />
   );

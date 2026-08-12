@@ -1,9 +1,9 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Search } from "lucide-react";
 import BestFrameDetailPage from "./BestFrameDetailPage";
 import { useToast } from "./Toast";
-import type { DetType, MonitorState, Camera, Detection, CamData, HUDState } from "../types/detection";
+import type { DetType, MonitorState, Camera, Detection, CamData, HUDState } from "@/types/detection";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const BORDER = "1px solid #E2E8F0";
 
@@ -69,6 +69,7 @@ function FilterIcon({ type, color, active, size = 14 }: { type: DetType; color: 
 // matches that instead of the sky-blue this page used to use on its own.
 const DET_COLOR: Record<DetType, string> = { VIP: "#5a3dfb", Vehicle: "#38bdf8", Unknown: "#976400" };
 
+// 반입 시점에 미사용(noUnusedLocals) — 원본 보존을 위해 export로 유지 (포팅 관례)
 export const PURPLE_FILTER = "invert(28%) sepia(64%) saturate(3086%) hue-rotate(237deg) brightness(0.92)";
 
 /* ── Camera data ──────────────────────────────────────────── */
@@ -306,6 +307,7 @@ function CameraCard({
   const [feedHovered, setFeedHovered] = useState(false);
   const panelRevealed = !sidePanelOnHover || hovered || pinned;
   const canAnalyze = data.detections.length > 0 && !!onHeaderArrowClick;
+  const hasVip = data.detections.some(d => d.type === "VIP");
 
   return (
     <div
@@ -347,7 +349,10 @@ function CameraCard({
           </button>
         )}
         <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(0,0,0,0) 50%,rgba(0,0,0,0.04) 50%)", backgroundSize:"100% 4px" }} />
-        <div style={{ position:"absolute", top:10, left:10, display:"flex", alignItems:"center", gap:"5px", zIndex:10, backgroundColor:"rgba(14,22,42,0.55)", padding:"4px 8px" }}>
+        <div
+          className={hasVip ? "vca-cam-label-glow" : undefined}
+          style={{ position:"absolute", top:10, left:10, display:"flex", alignItems:"center", gap:"5px", zIndex:10, backgroundColor:"rgba(14,22,42,0.55)", padding:"4px 8px", border:"1.5px solid transparent" }}
+        >
           <div style={{ width:"6px", height:"6px", borderRadius:"50%", backgroundColor:"#22c55e", flexShrink:0 }} />
           <span style={{ fontSize:"10px", fontWeight:700, color:"white", letterSpacing:"-0.2px" }}>
             {data.camLabel} • {data.location}
@@ -454,6 +459,7 @@ function CameraCard({
 
 /* ── HUD popup ─────────────────────────────────────────────────── */
 function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState; onClose: () => void; onAnalyze: () => void; onTrackOnMap?: () => void }) {
+  useEscapeKey(onClose);
   const { det } = hud;
   const isUnknown = det.type === "Unknown";
   const c = DET_COLOR[det.type];
@@ -588,7 +594,7 @@ function BulletCameraIcon({ monitor = "normal" }: { monitor?: MonitorState }) {
   );
 }
 
-function CameraItem({ cam, onToggle, type = "camera", disabled = false }: { cam: Camera; onToggle: () => void; type?: "camera" | "video" | "image"; disabled?: boolean }) {
+function CameraItem({ cam, onToggle, type = "camera", disabled = false, activityRank }: { cam: Camera; onToggle: () => void; type?: "camera" | "video" | "image"; disabled?: boolean; activityRank?: number }) {
   const isAlert = cam.monitor === "alert";
   const isChecked = !isAlert && cam.checked;
   // Both alert cameras and (unchecked items at) the 16-camera grid cap are dimmed and stay
@@ -597,6 +603,9 @@ function CameraItem({ cam, onToggle, type = "camera", disabled = false }: { cam:
   const isCapped = disabled && !cam.checked;
   const iconColor = isChecked ? "#8b5cf6" : "#64748A";
   const [hovered, setHovered] = useState(false);
+  // 0 = has a VIP detection right now, 1 = has some other detection, 2/undefined = quiet.
+  // Surfaced as a small dot so a VIP hit is spottable without reading every row's text.
+  const activityColor = activityRank === 0 ? "#5a3dfb" : activityRank === 1 ? "#16a34a" : null;
   return (
     <button
       onClick={onToggle}
@@ -605,12 +614,15 @@ function CameraItem({ cam, onToggle, type = "camera", disabled = false }: { cam:
       style={{ display:"flex", alignItems:"center", gap:"8px", padding:"10px 12px", borderRadius:"10px", width:"100%", border:"none", cursor: isAlert ? "default" : "pointer", backgroundColor: isChecked ? "#eeeafe" : hovered && !isAlert && !isCapped ? "#f8fafc" : "transparent", flexShrink:0, opacity: isAlert || isCapped ? 0.4 : 1 }}
     >
       {isAlert ? <div style={{ width:"18px", height:"18px", flexShrink:0 }} /> : <CheckboxIcon checked={cam.checked} />}
-      <div style={{ flexShrink:0 }}>
+      <div style={{ flexShrink:0, position:"relative" }}>
         {type === "camera"
           ? <BulletCameraIcon monitor={cam.monitor} />
           : type === "video"
           ? <VideoFileIcon color={iconColor} />
           : <ImageFileIcon />}
+        {activityColor && (
+          <div style={{ position:"absolute", top:-2, right:-2, width:"7px", height:"7px", borderRadius:"50%", backgroundColor: activityColor, border:"1.5px solid white" }} />
+        )}
       </div>
       <span style={{ flex:1, fontSize:"13px", fontWeight: isChecked ? 700 : 400, color: isChecked ? "#8b5cf6" : "#64748a", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
         {cam.name}
@@ -700,11 +712,12 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   const [normalCams, setNormalCams] = useState<Camera[]>(NORMAL_CAMS_INIT);
   const [videoCams,  setVideoCams]  = useState<Camera[]>(VIDEO_CAMS_INIT);
   const [imageCams,  setImageCams]  = useState<Camera[]>(IMAGE_CAMS_INIT);
+  const [camSearch, setCamSearch] = useState("");
   const [expanded, setExpanded] = useState({ normal:true, video:true, image:true });
   const [collapsed, setCollapsed] = useState(false);
   const [filterType, setFilterType] = useState<DetType | "All">("All");
   const [hud, setHud] = useState<HUDState | null>(null);
-  const [detailView, setDetailView] = useState<{ camId: string; data: CamData; det: Detection } | null>(null);
+  const [detailView, setDetailView] = useState<{ camId: string; data: CamData; det: Detection; autoOpenDetail?: boolean } | null>(null);
   const [highlightCamId, setHighlightCamId] = useState<string | null>(null);
   // Tracks the last `focusLocation` value already processed, following React's "adjusting
   // state when a prop changes" pattern (state, not a ref, so it's safe to read during render).
@@ -722,8 +735,11 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     if (focusLocation) {
       const hint = focusLocation.toLowerCase();
       const match = normalCams.find(c => {
-        const loc = CAM_DATA[c.id]?.location.toLowerCase() ?? "";
-        return loc.includes(hint) || hint.includes(loc);
+        // Cameras with no real CAM_DATA entry (the bulk-generated ~1000) fall back to "" here —
+        // "" is a substring of every string, so without this guard the very first such camera
+        // would silently "match" any unmatched hint instead of correctly falling through to no-match.
+        const loc = CAM_DATA[c.id]?.location.toLowerCase();
+        return !!loc && (loc.includes(hint) || hint.includes(loc));
       });
       if (match) {
         setNormalCams(prev => prev.map(c => ({ ...c, checked: c.id === match.id })));
@@ -748,8 +764,11 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     if (analyzeFrameLocation) {
       const hint = analyzeFrameLocation.toLowerCase();
       const match = normalCams.find(c => {
-        const loc = CAM_DATA[c.id]?.location.toLowerCase() ?? "";
-        return loc.includes(hint) || hint.includes(loc);
+        // Cameras with no real CAM_DATA entry (the bulk-generated ~1000) fall back to "" here —
+        // "" is a substring of every string, so without this guard the very first such camera
+        // would silently "match" any unmatched hint instead of correctly falling through to no-match.
+        const loc = CAM_DATA[c.id]?.location.toLowerCase();
+        return !!loc && (loc.includes(hint) || hint.includes(loc));
       });
       if (match) {
         setNormalCams(prev => prev.map(c => ({ ...c, checked: c.id === match.id })));
@@ -757,7 +776,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         setImageCams(prev => prev.map(c => ({ ...c, checked: false })));
         setHighlightCamId(match.id);
         const data = CAM_DATA[match.id] ?? DEFAULT_DATA;
-        if (data.detections[0]) setDetailView({ camId: match.id, data, det: data.detections[0] });
+        if (data.detections[0]) setDetailView({ camId: match.id, data, det: data.detections[0], autoOpenDetail: true });
       } else {
         showToast({ variant:"warning", title:"No matching camera", desc:`No Best Frame camera is set up yet for "${analyzeFrameLocation}".` });
       }
@@ -806,6 +825,23 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   const gridCams = [...activeCams, ...checkedVideoCams, ...checkedImageCams];
   const atGridCap = gridCams.length >= MAX_GRID_CAMS;
   const totalCamCount = normalCams.length + videoCams.length + imageCams.length;
+  // Sidebar "Enter Source" search — filters each list's visible rows only; the counts/badges
+  // above (activeCams.length etc.) stay based on the full unfiltered lists.
+  const camNameMatches = (c: Camera) => c.name.toLowerCase().includes(camSearch.trim().toLowerCase());
+  // With ~1,000 cameras, scrolling to find "whatever's happening right now" isn't realistic —
+  // cameras with an actual detection (VIP first) float to the top of the list instead of sitting
+  // wherever they land alphabetically/by-id among a sea of quiet ones.
+  const activityRank = (c: Camera) => {
+    const dets = (CAM_DATA[c.id] ?? DEFAULT_DATA).detections;
+    if (dets.some(d => d.type === "VIP")) return 0;
+    if (dets.length > 0) return 1;
+    return 2;
+  };
+  const visibleNormalCams = (camSearch ? normalCams.filter(camNameMatches) : normalCams)
+    .slice()
+    .sort((a, b) => activityRank(a) - activityRank(b));
+  const visibleVideoCams  = camSearch ? videoCams.filter(camNameMatches)  : videoCams;
+  const visibleImageCams  = camSearch ? imageCams.filter(camNameMatches)  : imageCams;
   const clearAllCams = () => {
     setNormalCams(prev => prev.map(c => ({ ...c, checked:false })));
     setVideoCams(prev => prev.map(c => ({ ...c, checked:false })));
@@ -837,6 +873,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         initialDet={detailView.det}
         onBack={() => setDetailView(null)}
         onGoRedmapTrace={onGoRedmapTrace}
+        autoOpenDetail={detailView.autoOpenDetail}
       />
     );
   }
@@ -869,23 +906,33 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
           </div>
           <div style={{ padding:"0 12px 10px" }}>
             <div style={{ display:"flex", alignItems:"center", backgroundColor:"#f1f5f9", borderRadius:"8px", height:"36px", padding:"0 14px", gap:"8px" }}>
-              <input placeholder="Enter Source" style={{ flex:1, border:"none", background:"none", outline:"none", fontSize:"13px", color:"#64748a" }} readOnly />
+              <input
+                value={camSearch}
+                onChange={e => setCamSearch(e.target.value)}
+                placeholder="Enter Source"
+                style={{ flex:1, border:"none", background:"none", outline:"none", fontSize:"13px", color:"#0e162a" }}
+              />
               <Search size={14} color="#475469" />
             </div>
           </div>
           <div style={{ flex:1, overflowY:"auto", minHeight:0 }}>
             <SidebarSection label="Normal network" count={activeCams.length} expanded={expanded.normal} onToggle={() => setExpanded(p => ({ ...p, normal:!p.normal }))} />
-            {expanded.normal && normalCams.map(c => (
-              <CameraItem key={c.id} cam={c} type="camera" onToggle={() => toggle(normalCams, setNormalCams, c.id)} disabled={atGridCap} />
+            {expanded.normal && visibleNormalCams.map(c => (
+              <CameraItem key={c.id} cam={c} type="camera" onToggle={() => toggle(normalCams, setNormalCams, c.id)} disabled={atGridCap} activityRank={activityRank(c)} />
             ))}
             <SidebarSection label="Video list" badge={videoCams.length} expanded={expanded.video} onToggle={() => setExpanded(p => ({ ...p, video:!p.video }))} />
-            {expanded.video && videoCams.map(c => (
+            {expanded.video && visibleVideoCams.map(c => (
               <CameraItem key={c.id} cam={c} type="video" onToggle={() => toggle(videoCams, setVideoCams, c.id)} disabled={atGridCap} />
             ))}
             <SidebarSection label="Image list" badge={imageCams.length} expanded={expanded.image} onToggle={() => setExpanded(p => ({ ...p, image:!p.image }))} />
-            {expanded.image && imageCams.map(c => (
+            {expanded.image && visibleImageCams.map(c => (
               <CameraItem key={c.id} cam={c} type="image" onToggle={() => toggle(imageCams, setImageCams, c.id)} disabled={atGridCap} />
             ))}
+            {camSearch && visibleNormalCams.length === 0 && visibleVideoCams.length === 0 && visibleImageCams.length === 0 && (
+              <div style={{ padding:"24px 16px", textAlign:"center", fontSize:"12px", fontWeight:600, color:"#94a3b8" }}>
+                No cameras match &quot;{camSearch}&quot;.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -898,6 +945,10 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
             icon's pill shape starts at x=3 within its own 34px-wide viewBox. */}
         <div
           onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}
+          role="button"
+          tabIndex={0}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setCollapsed(!collapsed); } }}
           style={{
             position:"absolute", top:"50%", left:"-3px", transform:"translateY(-50%)",
             zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
@@ -975,7 +1026,8 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
             }}>
               {gridCams.map((cam) => {
                 const camData = CAM_DATA[cam.id] ?? DEFAULT_DATA;
-                return (
+                const hasVip = camData.detections.some(d => d.type === "VIP");
+                const card = (
                   <CameraCard
                     key={cam.id}
                     cam={cam}
@@ -986,6 +1038,15 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                     sidePanelOnHover={layout.sidePanelOnHover}
                     style={cam.id === highlightCamId ? { boxShadow: "inset 0 0 0 3px #5a3dfb", transition: "box-shadow 0.3s" } : undefined}
                   />
+                );
+                // The glow is a box-shadow, which needs a wrapper WITHOUT overflow:hidden to
+                // actually bleed outward — CameraCard's own root clips it for its internal
+                // content's sake, so the glow has to live one level up instead.
+                if (!hasVip) return card;
+                return (
+                  <div key={cam.id} className="vca-cam-alert-glow" style={{ position:"relative", height:"100%", minHeight:0 }}>
+                    {card}
+                  </div>
                 );
               })}
               {/* Odd counts don't fill the grid evenly (e.g. 3 cams in a 2x2) — leave the

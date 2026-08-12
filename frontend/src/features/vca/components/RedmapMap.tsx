@@ -340,7 +340,7 @@ export default function RedmapMap({
           to { stroke-dashoffset: -18; }
         }
       `}</style>
-      <div ref={mapRef} style={{ width: "100%", height: "100%", position: "relative" }} />
+      <div ref={mapRef} style={{ width: "100%", height: "100%", position: "relative", backgroundColor: "#f1f5f9" }} />
     </>
   );
 }

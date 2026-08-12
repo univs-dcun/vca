@@ -1,3 +1,4 @@
+import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -10,6 +11,18 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    // 기획자 원본 코드(Next.js 관용구 process.env.NEXT_PUBLIC_*)를 수정 없이 반입하기 위한 치환.
+    // Vite에는 process가 없어 빌드 타임에 문자열로 대체된다 — lib/api/client.ts가 사용.
+    define: {
+      'process.env.NEXT_PUBLIC_API_BASE_URL': JSON.stringify(env.NEXT_PUBLIC_API_BASE_URL ?? ''),
+    },
+    // 기획자 원본 코드를 수정 없이 반입하기 위한 별칭 — tsconfig.app.json paths와 세트
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src/features/vca', import.meta.url)),
+        'next/navigation': fileURLToPath(new URL('./src/features/vca/compat/navigation.ts', import.meta.url)),
+      },
+    },
     server: {
       port: 5173,
       proxy: {
