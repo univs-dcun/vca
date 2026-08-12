@@ -37,6 +37,8 @@ export interface Camera {
   thumbnail: string;
   lat: number;
   lng: number;
+  /** 마지막 상태 수신 시각(ISO) — 실데이터(MQTT status) 카메라에만 존재, mock 시드에는 없음 */
+  lastSeenAt?: string;
 }
 
 export type EventSeverity = "critical" | "warning" | "info";

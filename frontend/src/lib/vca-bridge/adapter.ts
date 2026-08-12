@@ -26,6 +26,7 @@ export function statusToCamera(msg: CameraStatusMessage): Camera {
     thumbnail: '',
     lat: msg.location.lat,
     lng: msg.location.lng,
+    lastSeenAt: msg.ts,
   }
 }
 
