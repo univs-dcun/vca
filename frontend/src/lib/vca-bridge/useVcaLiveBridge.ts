@@ -15,7 +15,7 @@ import { useVcaStore } from '../../features/vca/lib/vcaStore'
 import { getConnectionStatus, onConnectionStatusChange, subscribe } from '../realtime/mqttClient'
 import { cameraIdFromTopic, topics } from '../realtime/topics'
 import type { CameraStatusMessage, DetectionEvent, MqttConnectionStatus } from '../realtime/types'
-import { detectionToVcaEvent, statusToCamera, type VipTrack } from './adapter'
+import { collapseHops, detectionToVipEvent, statusToCamera, trackToTrackingEvent, type VipTrack } from './adapter'
 import { fetchLiveAnalyticsSnapshot, rowToDetectionEvents } from './snapshot'
 
 export function useVcaLiveBridge(): boolean {
@@ -24,33 +24,37 @@ export function useVcaLiveBridge(): boolean {
   const seenEventIds = useRef<Set<string>>(new Set())
   const tracks = useRef<Map<string, VipTrack>>(new Map())
 
-  // 감지 1건을 VipTrack에 누적하고 해당 VIP의 행을 최신 상태로 교체한다.
+  // 감지 1건 반영 (행 생성 규칙은 adapter.ts 상단 주석 참고):
+  // ① VIP 행 누적 — 감지 1건 = 행 1개, 제거하지 않는다
+  // ② Tracking 행 — 카메라 전환(직전과 다른 카메라)이 1회 이상이면 VIP당 1행 유지(교체)
   // MQTT 델타와 REST 스냅샷이 같은 경로를 지나므로 도착 순서와 무관하게 결과가 같다:
   // - eventId 멱등 (스냅샷과 델타가 같은 감지를 담을 수 있음)
-  // - hops는 detectedAt 오름차순 삽입 (스냅샷=과거, 델타=현재가 섞여 도착)
-  // - 행 표시 내용은 track.latest(가장 최근 감지) 기준 — 과거 이벤트가 늦게 와도 행이 뒤로 안 간다
+  // - detections는 detectedAt 오름차순 삽입 후 경로를 재구축 (스냅샷=과거, 델타=현재가 섞여 도착)
+  // - Tracking 행 표시 내용은 track.latest(가장 최근 감지) 기준
   const applyDetection = useCallback((e: DetectionEvent) => {
     if (seenEventIds.current.has(e.eventId)) return
     seenEventIds.current.add(e.eventId)
 
     const track = tracks.current.get(e.vip.vipId) ?? {
-      hops: [],
-      cameraIds: new Set<string>(),
-      storeId: `live-${e.vip.vipId}`,
+      detections: [],
+      trackingRowId: `live-track-${e.vip.vipId}`,
       latest: e,
     }
-    const hop = { location: e.cameraName, cameraLabel: e.cameraId, timestamp: e.detectedAt }
-    let i = track.hops.length
-    while (i > 0 && track.hops[i - 1].timestamp > hop.timestamp) i--
-    track.hops.splice(i, 0, hop)
-    track.cameraIds.add(e.cameraId)
+    const d = { cameraId: e.cameraId, cameraName: e.cameraName, detectedAt: e.detectedAt }
+    let i = track.detections.length
+    while (i > 0 && track.detections[i - 1].detectedAt > d.detectedAt) i--
+    track.detections.splice(i, 0, d)
     if (e.detectedAt >= track.latest.detectedAt) track.latest = e
     tracks.current.set(e.vip.vipId, track)
 
-    // 이 VIP의 기존 행을 제거하고 최신 상태(VIP 또는 Tracking)로 교체
-    const { events } = useVcaStore.getState()
-    useVcaStore.setState({ events: events.filter((ev) => ev.personId !== track.storeId) })
-    useVcaStore.getState().addEvent(detectionToVcaEvent(track.latest, track))
+    useVcaStore.getState().addEvent(detectionToVipEvent(e))
+
+    const hops = collapseHops(track.detections)
+    if (hops.length >= 2) {
+      const { events } = useVcaStore.getState()
+      useVcaStore.setState({ events: events.filter((ev) => ev.personId !== track.trackingRowId) })
+      useVcaStore.getState().addEvent(trackToTrackingEvent(track, hops))
+    }
   }, [])
 
   // 최초 연결 시 한 번만 mock 시드를 비운다 (재연결 시 쌓인 실데이터는 유지).
