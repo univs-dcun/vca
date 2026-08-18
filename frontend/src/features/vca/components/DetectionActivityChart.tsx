@@ -147,6 +147,13 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
     return { steps: s, totalSteps: s.length };
   }, [scaledHourly]);
 
+  // Hour labels must sit on the same x scale as the data (step/(totalSteps-1)) — laying the six
+  // labels out with space-between puts 8PM at the far right edge, which squeezes the label scale
+  // to 0–20h while the data spans 0–23h, drifting up to ~3 hours apart on the right side (a 4PM
+  // spike rendered near the 1PM mark). Each tick anchors to its hour's first sub-step.
+  const hourTickX = (hour: number) =>
+    totalSteps > 1 ? (hour * SUB_STEPS_PER_HOUR) / (totalSteps - 1) : hour / 23;
+
   const linePoints = steps.map(s => ({ x: xForStep(s.step, totalSteps, width), y: yForCount(s.count) }));
   const linePath = smoothPath(linePoints);
   // Area fill: the trend line's own path, closed along the top edge — so the wash only ever
@@ -307,9 +314,19 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", paddingLeft: "24px" }}>
+      <div style={{ position: "relative", height: "11px", marginLeft: "24px" }}>
         {HOUR_TICKS.map(hour => (
-          <span key={hour} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8" }}>
+          <span
+            key={hour}
+            style={{
+              position: "absolute",
+              left: `${hourTickX(hour) * 100}%`,
+              // The 12AM label stays left-aligned at the chart's origin; centering it would push
+              // half of it out past the y-axis column.
+              transform: hour === 0 ? "none" : "translateX(-50%)",
+              fontSize: "11px", fontWeight: 600, color: "#94a3b8", lineHeight: 1, whiteSpace: "nowrap",
+            }}
+          >
             {hourLabel(hour)}
           </span>
         ))}

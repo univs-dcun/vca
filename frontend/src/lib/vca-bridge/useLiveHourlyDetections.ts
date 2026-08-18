@@ -9,7 +9,14 @@ const REFETCH_MS = 60_000
 
 export function useLiveHourlyDetections(): HourlyDetection[] | null {
   const query = useGetDetectionTopology(undefined, {
-    query: { refetchInterval: REFETCH_MS, retry: false, refetchOnWindowFocus: false },
+    query: {
+      refetchInterval: REFETCH_MS,
+      // 관제 화면은 백그라운드 탭에서도 갱신을 멈추면 안 된다 — 기본값(false)이면
+      // 탭이 숨겨진 동안 refetchInterval이 일시정지되어 복귀 시 오래된 차트가 보인다.
+      refetchIntervalInBackground: true,
+      retry: false,
+      refetchOnWindowFocus: false,
+    },
   })
   const points = query.data?.data?.points
   return useMemo(() => {
