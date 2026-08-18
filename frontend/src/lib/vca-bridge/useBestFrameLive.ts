@@ -56,6 +56,9 @@ function toScreenDetection(e: AnyDetection, frame: BestFrameMessage | undefined)
     left: obj ? pct(obj.bbox.x) : '0%',
     width: obj ? pct(obj.bbox.w) : '0%',
     height: obj ? pct(obj.bbox.h) : '0%',
+    // 패널 썸네일·팝오버 LIVE SNAPSHOT / ENROLLED DB — 없으면 화면이 mock으로 폴백
+    snapshotUrl: e.snapshotUrl,
+    enrolledPhotoUrl: e.vip ? `/api/vips/${e.vip.vipId}/photo` : undefined,
   }
 }
 

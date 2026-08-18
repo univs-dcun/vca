@@ -11,26 +11,23 @@
 // 연결 여부로 구독을 게이트하면 연결이 영영 시작되지 않는다. 대신 스토어 쓰기만 isLive로 게이트.
 // 반환값 isLive는 ClientLayout이 가짜 감지 시뮬레이션(VipAlertTicker)을 끄는 데 쓴다.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useVcaStore, type VcaEvent } from '../../features/vca/lib/vcaStore'
+import { useVcaStore } from '../../features/vca/lib/vcaStore'
 import { getConnectionStatus, onConnectionStatusChange, subscribe } from '../realtime/mqttClient'
 import { cameraIdFromTopic, topics } from '../realtime/topics'
 import { isVipDetection, type CameraStatusMessage, type DetectionEvent, type MqttConnectionStatus } from '../realtime/types'
-import { collapseHops, detectionToVipEvent, statusToCamera, trackToTrackingEvent, type VipTrack } from './adapter'
+import { detectionToVipEvent, statusToCamera } from './adapter'
 import { fetchLiveAnalyticsSnapshot, fetchVipPersons, isRestAvailable, rowToDetectionEvents } from './snapshot'
 
 export function useVcaLiveBridge(): boolean {
   const [isLive, setIsLive] = useState(false)
   const isLiveRef = useRef(false)
   const seenEventIds = useRef<Set<string>>(new Set())
-  const tracks = useRef<Map<string, VipTrack>>(new Map())
 
-  // 감지 1건 반영 (행 생성 규칙은 adapter.ts 상단 주석 참고):
-  // ① VIP 행 누적 — 감지 1건 = 행 1개, 제거하지 않는다
-  // ② Tracking 행 — 카메라 전환(직전과 다른 카메라)이 1회 이상이면 VIP당 1행 유지(교체)
-  // MQTT 델타와 REST 스냅샷이 같은 경로를 지나므로 도착 순서와 무관하게 결과가 같다:
-  // - eventId 멱등 (스냅샷과 델타가 같은 감지를 담을 수 있음)
-  // - detections는 detectedAt 오름차순 삽입 후 경로를 재구축 (스냅샷=과거, 델타=현재가 섞여 도착)
-  // - Tracking 행 표시 내용은 track.latest(가장 최근 감지) 기준
+  // 감지 1건 반영 — 계약 이벤트를 화면 행으로 변환해 addEvent에 넘긴다.
+  // 행 생성 규칙(VIP 누적 + 카메라 전환 기준 Tracking 별개 1행, SPEC §5)의 구현 소유자는
+  // vcaStore.addEvent — mock 시뮬레이션과 라이브가 같은 규칙을 단일 경로로 지난다 (UV-31 정렬 완료,
+  // 이전의 스토어 직접 삽입 우회는 제거됨). addEvent의 이력 재구축이 timestamp 정렬 기반이라
+  // REST 스냅샷(과거)과 MQTT 델타(현재)가 섞여 도착해도 결과가 같고, 중복은 eventId로 여기서 거른다.
   const applyDetection = useCallback((e: DetectionEvent) => {
     // v1.1부터 detections 스트림에 전 카테고리가 흐른다 — DASHBOARD는 vip만 반영 (SPEC §3.2).
     // v1 발행자는 category가 없으므로 vip로 간주. BEST FRAME 쪽 소비는 useBestFrameLive 담당.
@@ -38,38 +35,9 @@ export function useVcaLiveBridge(): boolean {
     if (seenEventIds.current.has(e.eventId)) return
     seenEventIds.current.add(e.eventId)
 
-    const track = tracks.current.get(e.vip.vipId) ?? {
-      detections: [],
-      trackingRowId: `live-track-${e.vip.vipId}`,
-      latest: e,
-    }
-    const d = { cameraId: e.cameraId, cameraName: e.cameraName, detectedAt: e.detectedAt }
-    let i = track.detections.length
-    while (i > 0 && track.detections[i - 1].detectedAt > d.detectedAt) i--
-    track.detections.splice(i, 0, d)
-    if (e.detectedAt >= track.latest.detectedAt) track.latest = e
-    tracks.current.set(e.vip.vipId, track)
-
     // REST가 살아있을 때만 실제 등록 사진 URL 부여 — 없으면 undefined로 두어 화면이 mock 사진 폴백
     const photoUrl = isRestAvailable() ? `/api/vips/${e.vip.vipId}/photo` : undefined
-
-    // 스토어에 직접 삽입한다 — addEvent()를 쓰지 않는 것이 의도다.
-    // 화면의 addEvent는 mock 시뮬레이션용 인물 병합(2대 이상 감지 시 VIP 행들을 Tracking
-    // 1행으로 collapse)을 수행하는데, 확정된 라이브 행 규칙은 "VIP 행 누적 + Tracking 별개
-    // 1행"이라 충돌한다. 라이브 행 규칙의 소유자는 이 브리지이며 병합은 위 collapseHops가 한다.
-    // id는 eventId 기반이라 store 내 유일성이 보장된다.
-    const insert = (row: Omit<VcaEvent, 'id'>, id: string) => {
-      const { events } = useVcaStore.getState()
-      useVcaStore.setState({ events: [{ ...row, id }, ...events].slice(0, 500) })
-    }
-    insert(detectionToVipEvent(e, photoUrl), `live-evt-${e.eventId}`)
-
-    const hops = collapseHops(track.detections)
-    if (hops.length >= 2) {
-      const { events } = useVcaStore.getState()
-      useVcaStore.setState({ events: events.filter((ev) => ev.personId !== track.trackingRowId) })
-      insert(trackToTrackingEvent(track, hops, photoUrl), track.trackingRowId)
-    }
+    useVcaStore.getState().addEvent(detectionToVipEvent(e, photoUrl))
   }, [])
 
   // 최초 연결 시 한 번만 mock 시드를 비운다 (재연결 시 쌓인 실데이터는 유지).

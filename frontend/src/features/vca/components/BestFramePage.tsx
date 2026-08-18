@@ -403,7 +403,8 @@ function CameraCard({
           {dets.length === 0 ? (
             <div style={{ padding:"20px", textAlign:"center", color:"#94a3b8", fontSize:"11px" }}>No detections</div>
           ) : dets.map((det, i) => {
-            const avatarSrc = det.type === "Vehicle" ? CAR_IMG : AVATAR[i % AVATAR.length];
+            // 라이브 감지는 실제 스냅샷 크롭(vca-bridge 공급), mock은 기존 아바타
+            const avatarSrc = det.snapshotUrl ?? (det.type === "Vehicle" ? CAR_IMG : AVATAR[i % AVATAR.length]);
             const showConfidence = det.type === "VIP";
             return (
               <div key={det.id}
@@ -500,11 +501,15 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
       {/* Photo comparison */}
       <div style={{ display:"flex", gap:"12px", backgroundColor:"#f8fafc", borderRadius:"16px", padding:"12px" }}>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", width:"96px", flexShrink:0 }}>
-          <img src={det.type === "Vehicle" ? CAR_IMG : AVATAR[0]} alt="" style={{ width:"100%", aspectRatio: det.type === "Vehicle" ? "1/1" : "77/177", objectFit:"cover", borderRadius:"8px", display:"block" }} />
+          {/* 라이브 감지는 실제 스냅샷 크롭(vca-bridge 공급), mock은 기존 아바타 */}
+          <img src={det.snapshotUrl ?? (det.type === "Vehicle" ? CAR_IMG : AVATAR[0])} alt="" style={{ width:"100%", aspectRatio: det.type === "Vehicle" ? "1/1" : "77/177", objectFit:"cover", borderRadius:"8px", display:"block" }} />
           <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a" }}>LIVE SNAPSHOT</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", flex:1, minWidth:0 }}>
-          {isUnknown ? (
+          {/* 라이브 등록 인물(VIP·Staff)은 실제 등록 사진 — 미매칭은 mock의 NO DB MATCH 분기 유지 */}
+          {det.enrolledPhotoUrl ? (
+            <img src={det.enrolledPhotoUrl} alt="" style={{ width:"100%", aspectRatio:"1/1", objectFit:"cover", borderRadius:"10px", display:"block" }} />
+          ) : isUnknown ? (
             <div style={{ width:"100%", aspectRatio:"1/1", borderRadius:"10px", border:"2px dashed #f97316", backgroundColor:"#fffbf0", display:"flex", alignItems:"center", justifyContent:"center" }}>
               <span style={{ fontSize:"10px", fontWeight:700, color:"#f97316", textAlign:"center" }}>NO DB MATCH</span>
             </div>
