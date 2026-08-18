@@ -21,7 +21,7 @@ import reactor.core.publisher.Mono;
  *   2. 2xx JSON → { success: true, code: "OK", data: ... } 로 포장
  *   3. 모듈 오류({code, message} + 상태코드) → 같은 상태코드의 envelope 오류
  *   4. 연결 실패 502 VCA-5020 / 타임아웃 504 VCA-5040 / 그 외 500 VCA-5000
- *   5. 예외: /api/vips/{vipId}/photo 는 바이너리를 envelope 없이 스트리밍
+ *   5. 예외: 이미지 리소스(VIP 사진, best frame, 감지 스냅샷)는 바이너리를 envelope 없이 스트리밍
  */
 @RestController
 public class ProxyController {
@@ -38,8 +38,23 @@ public class ProxyController {
 
 	@GetMapping("/api/vips/{vipId}/photo")
 	public Mono<ResponseEntity<byte[]>> vipPhoto(@PathVariable String vipId) {
+		return binary("/vips/{vipId}/photo", vipId);
+	}
+
+	@GetMapping("/api/cameras/{cameraId}/frames/{frameId}")
+	public Mono<ResponseEntity<byte[]>> cameraFrame(@PathVariable String cameraId, @PathVariable String frameId) {
+		return binary("/cameras/{cameraId}/frames/{frameId}", cameraId, frameId);
+	}
+
+	@GetMapping("/api/detections/{eventId}/snapshot")
+	public Mono<ResponseEntity<byte[]>> detectionSnapshot(@PathVariable String eventId) {
+		return binary("/detections/{eventId}/snapshot", eventId);
+	}
+
+	/** 이미지 리소스 패스스루 — 모듈 응답의 상태코드·Content-Type을 유지한 채 envelope 없이 전달 */
+	private Mono<ResponseEntity<byte[]>> binary(String uriTemplate, Object... uriVars) {
 		return moduleApi.get()
-				.uri("/vips/{vipId}/photo", vipId)
+				.uri(uriTemplate, uriVars)
 				.retrieve()
 				.toEntity(byte[].class)
 				.timeout(props.timeout())
@@ -66,7 +81,7 @@ public class ProxyController {
 				.retrieve()
 				.bodyToMono(JsonNode.class)
 				.timeout(props.timeout())
-				.map(body -> ResponseEntity.ok(ApiEnvelope.ok(PhotoUrlRewriter.rewrite(body))))
+				.map(body -> ResponseEntity.ok(ApiEnvelope.ok(ModuleUrlRewriter.rewrite(body))))
 				.onErrorResume(WebClientResponseException.class, e -> Mono.just(moduleError(e)))
 				.onErrorResume(this::isConnectionError, e -> Mono.just(
 						ResponseEntity.status(HttpStatus.BAD_GATEWAY)

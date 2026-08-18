@@ -45,5 +45,7 @@ src/
 
 절차: 기획자가 `import/frontend-ui-YYYYMMDD` 브랜치로 push → 태그로 동결 → 직전 태그와의 diff를
 경로 매핑(`src/components→features/vca/components`, `src/app/mypage/page.tsx→pages/MyPage.tsx` 등)해서
-3-way 적용 → 데이터 연결 주입 지점(ClientLayout·Navbar·Sidebar·DetectionActivityChart·MapView의
-`vca-bridge` import 부분) 재확인 → tsc + 시뮬레이터 E2E 검증.
+3-way 적용 → 데이터 연결 주입 지점(ClientLayout·Navbar·Sidebar·DetectionActivityChart·MapView·
+BestFramePage의 `vca-bridge` import 부분) 재확인 → tsc + 시뮬레이터 E2E 검증.
+BestFramePage의 주입: useBestFrameLive 훅 호출 + 라이브 카메라 목록 동기화 effect + camDataFor()
+헬퍼(모든 CAM_DATA 접근이 이 함수를 거침) — 3곳.

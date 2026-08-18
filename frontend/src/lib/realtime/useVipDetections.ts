@@ -6,10 +6,10 @@ import type { Detection } from '../../api/generated/model'
 import { detectionFromEvent } from './liveAnalyticsMerge'
 import { topics } from './topics'
 import { useMqttSubscription } from './useMqtt'
-import type { DetectionEvent } from './types'
+import { isVipDetection, type DetectionEvent, type VipDetectionEvent } from './types'
 
 export function useVipDetections(vipId: string | null, date?: string) {
-  const [events, setEvents] = useState<DetectionEvent[]>([])
+  const [events, setEvents] = useState<VipDetectionEvent[]>([])
 
   // 과거 날짜 조회에는 실시간 델타를 붙이지 않는다 (이벤트는 항상 "지금" 발생분이므로)
   const live = !date
@@ -22,7 +22,8 @@ export function useVipDetections(vipId: string | null, date?: string) {
     (payload: unknown | null) => {
       if (payload === null || !vipId) return
       const e = payload as DetectionEvent
-      if (e.vip.vipId !== vipId) return
+      // v1.1: detections 스트림에 전 카테고리가 흐른다 — vip 매칭 이벤트만 반영 (SPEC §3.2)
+      if (!isVipDetection(e) || e.vip.vipId !== vipId) return
       setEvents((prev) => [...prev, e])
     },
     [vipId],

@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import BestFrameDetailPage from "./BestFrameDetailPage";
 import { useToast } from "./Toast";
 import type { DetType, MonitorState, Camera, Detection, CamData, HUDState } from "@/types/detection";
+import { useBestFrameLive } from "../../../lib/vca-bridge/useBestFrameLive";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const BORDER = "1px solid #E2E8F0";
@@ -727,6 +728,19 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   const mainRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
 
+  // ── 라이브 브리지 (백엔드 데이터 연결 지점 — vca-bridge/useBestFrameLive, UV-33) ──
+  // 브로커/모듈이 연결되면 사이드바(Normal network)·타일 프레임·타깃 패널이 계약 데이터로
+  // 전환되고, 미연결이면 이 파일의 mock(NORMAL_CAMS_INIT/CAM_DATA) 흐름이 그대로 유지된다.
+  const live = useBestFrameLive(normalCams.filter(c => c.checked && c.monitor !== "alert").map(c => c.id));
+  const liveCameras = live.cameras;
+  useEffect(() => {
+    if (!liveCameras) return;
+    // 라이브 카메라 목록으로 교체하되 사용자가 선택한 checked 상태는 보존
+    setNormalCams(prev => liveCameras.map(lc => ({ ...lc, checked: prev.find(p => p.id === lc.id)?.checked ?? false })));
+  }, [liveCameras]);
+  // 카메라 데이터 조회 — 라이브 우선, 없으면 mock (이 아래 모든 CAM_DATA 접근은 이 함수를 거친다)
+  const camDataFor = (id: string): CamData | undefined => live.dataFor(id) ?? CAM_DATA[id];
+
   // Deep-link from Dashboard's device popup ("View Live in Best Frame") — find the camera
   // whose location best matches the hint and isolate it as the ONLY checked camera, so the
   // grid collapses to a single full-size tile instead of that camera just being one of several.
@@ -738,7 +752,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         // Cameras with no real CAM_DATA entry (the bulk-generated ~1000) fall back to "" here —
         // "" is a substring of every string, so without this guard the very first such camera
         // would silently "match" any unmatched hint instead of correctly falling through to no-match.
-        const loc = CAM_DATA[c.id]?.location.toLowerCase();
+        const loc = camDataFor(c.id)?.location.toLowerCase();
         return !!loc && (loc.includes(hint) || hint.includes(loc));
       });
       if (match) {
@@ -767,7 +781,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         // Cameras with no real CAM_DATA entry (the bulk-generated ~1000) fall back to "" here —
         // "" is a substring of every string, so without this guard the very first such camera
         // would silently "match" any unmatched hint instead of correctly falling through to no-match.
-        const loc = CAM_DATA[c.id]?.location.toLowerCase();
+        const loc = camDataFor(c.id)?.location.toLowerCase();
         return !!loc && (loc.includes(hint) || hint.includes(loc));
       });
       if (match) {
@@ -775,7 +789,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         setVideoCams(prev => prev.map(c => ({ ...c, checked: false })));
         setImageCams(prev => prev.map(c => ({ ...c, checked: false })));
         setHighlightCamId(match.id);
-        const data = CAM_DATA[match.id] ?? DEFAULT_DATA;
+        const data = camDataFor(match.id) ?? DEFAULT_DATA;
         if (data.detections[0]) setDetailView({ camId: match.id, data, det: data.detections[0], autoOpenDetail: true });
       } else {
         showToast({ variant:"warning", title:"No matching camera", desc:`No Best Frame camera is set up yet for "${analyzeFrameLocation}".` });
@@ -832,7 +846,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   // cameras with an actual detection (VIP first) float to the top of the list instead of sitting
   // wherever they land alphabetically/by-id among a sea of quiet ones.
   const activityRank = (c: Camera) => {
-    const dets = (CAM_DATA[c.id] ?? DEFAULT_DATA).detections;
+    const dets = (camDataFor(c.id) ?? DEFAULT_DATA).detections;
     if (dets.some(d => d.type === "VIP")) return 0;
     if (dets.length > 0) return 1;
     return 2;
@@ -861,7 +875,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
 
   function handleAnalyze() {
     if (!hud) return;
-    setDetailView({ camId: hud.camId, data: CAM_DATA[hud.camId] ?? DEFAULT_DATA, det: hud.det });
+    setDetailView({ camId: hud.camId, data: camDataFor(hud.camId) ?? DEFAULT_DATA, det: hud.det });
     setHud(null);
   }
 
@@ -1025,7 +1039,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
               gap:"1px", backgroundColor:"#e2e8f0", flex:1, minHeight:0,
             }}>
               {gridCams.map((cam) => {
-                const camData = CAM_DATA[cam.id] ?? DEFAULT_DATA;
+                const camData = camDataFor(cam.id) ?? DEFAULT_DATA;
                 const hasVip = camData.detections.some(d => d.type === "VIP");
                 const card = (
                   <CameraCard

@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVcaStore, type VcaEvent } from '../../features/vca/lib/vcaStore'
 import { getConnectionStatus, onConnectionStatusChange, subscribe } from '../realtime/mqttClient'
 import { cameraIdFromTopic, topics } from '../realtime/topics'
-import type { CameraStatusMessage, DetectionEvent, MqttConnectionStatus } from '../realtime/types'
+import { isVipDetection, type CameraStatusMessage, type DetectionEvent, type MqttConnectionStatus } from '../realtime/types'
 import { collapseHops, detectionToVipEvent, statusToCamera, trackToTrackingEvent, type VipTrack } from './adapter'
 import { fetchLiveAnalyticsSnapshot, fetchVipPersons, isRestAvailable, rowToDetectionEvents } from './snapshot'
 
@@ -32,6 +32,9 @@ export function useVcaLiveBridge(): boolean {
   // - detections는 detectedAt 오름차순 삽입 후 경로를 재구축 (스냅샷=과거, 델타=현재가 섞여 도착)
   // - Tracking 행 표시 내용은 track.latest(가장 최근 감지) 기준
   const applyDetection = useCallback((e: DetectionEvent) => {
+    // v1.1부터 detections 스트림에 전 카테고리가 흐른다 — DASHBOARD는 vip만 반영 (SPEC §3.2).
+    // v1 발행자는 category가 없으므로 vip로 간주. BEST FRAME 쪽 소비는 useBestFrameLive 담당.
+    if (!isVipDetection(e)) return
     if (seenEventIds.current.has(e.eventId)) return
     seenEventIds.current.add(e.eventId)
 

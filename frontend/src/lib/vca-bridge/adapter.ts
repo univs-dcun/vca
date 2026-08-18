@@ -7,7 +7,7 @@
 //   연속된 동일 카메라 재감지는 이동이 아니므로 hop을 만들지 않는다 — collapseHops() 참고.
 import type { TrackingHop } from '../../features/vca/lib/mockData'
 import type { Camera, VcaEvent } from '../../features/vca/lib/vcaStore'
-import type { CameraStatusMessage, DetectionEvent } from '../realtime/types'
+import type { CameraStatusMessage, VipDetectionEvent } from '../realtime/types'
 
 /** cameras/{id}/status (retained) → 스토어 Camera. 계약에 없는 필드는 빈 값으로 채운다. */
 export function statusToCamera(msg: CameraStatusMessage): Camera {
@@ -37,7 +37,7 @@ export interface VipTrack {
   /** Tracking 행을 스토어에서 식별·교체하는 고정 id (VIP 행은 누적이라 식별이 필요 없다) */
   trackingRowId: string
   /** 가장 최근 감지 — Tracking 행의 표시 내용(시각·카메라)은 이 이벤트 기준 */
-  latest: DetectionEvent
+  latest: VipDetectionEvent
 }
 
 /**
@@ -62,7 +62,7 @@ export function collapseHops(detections: VipTrack['detections']): TrackingHop[] 
 }
 
 /** 감지 1건 → 누적 VIP 행. photoUrl은 REST 가용 시에만 전달됨 (미전달 시 화면이 mock 사진 폴백) */
-export function detectionToVipEvent(e: DetectionEvent, photoUrl?: string): Omit<VcaEvent, 'id'> {
+export function detectionToVipEvent(e: VipDetectionEvent, photoUrl?: string): Omit<VcaEvent, 'id'> {
   return {
     ...(photoUrl ? { photoUrl } : {}),
     cameraId: e.cameraId,
