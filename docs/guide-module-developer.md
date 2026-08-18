@@ -26,16 +26,17 @@
 - 클라이언트 라이브러리: Java면 Eclipse Paho 또는 HiveMQ MQTT Client 권장
 - 브로커 로컬 기동: `vca/backend/vca-mqtt-broker`에서 `docker compose up -d`
 
-## 발행해야 할 토픽 4종
+## 발행해야 할 토픽 5종
 
 `{siteId}`는 현재 `sg` 고정. QoS는 모두 1.
 
 | # | 토픽 | retained | 발행 시점 |
 |---|---|---|---|
 | 1 | `vca/v1/sg/cameras/{cameraId}/status` | **O** | 상태 변화 시 + **모듈 기동 시 전체 카메라 1회씩** |
-| 2 | `vca/v1/sg/cameras/{cameraId}/detections` | X | VIP 감지 발생 시마다 |
+| 2 | `vca/v1/sg/cameras/{cameraId}/detections` | X | 감지(대상 등장) 발생 시마다 — **v1.1에서 전 카테고리로 확장** |
 | 3 | `vca/v1/sg/cameras/{cameraId}/stats` | **O** | 해당 카메라의 당일 감지 수 변화 시 |
 | 4 | `vca/v1/sg/stats/summary` | **O** | 카메라 상태·감지 카운터 등 구성 값 변화 시 |
+| 5 | `vca/v1/sg/cameras/{cameraId}/bestframe` | **O** | **초당 1회** — 해당 초의 best shot 메타 (v1.1, BEST FRAME 화면) |
 
 ### 1. 카메라 상태
 
@@ -54,28 +55,59 @@
 - `status`: `RUNNING` | `STOPPED` (두 값뿐)
 - 카메라가 시스템에서 제거되면 **빈 페이로드를 retained로 발행**해서 지운다
 
-### 2. VIP 감지 이벤트
+### 2. 감지 이벤트 (v1.1: 전 카테고리)
 
 ```json
-// vca/v1/sg/cameras/cam-novena-01/detections   (non-retained)
+// vca/v1/sg/cameras/cam-westgate-bs1/detections   (non-retained)
 {
   "eventId": "evt-01J8Z3K7Q9",
-  "cameraId": "cam-novena-01",
-  "cameraName": "Novena",
-  "locationId": "loc-novena",
-  "vip": {
-    "vipId": "vip-042",
-    "name": "Alexander Wright",
-    "similarity": 0.726
-  },
+  "cameraId": "cam-westgate-bs1",
+  "cameraName": "CAM_WestGate_BS1",
+  "locationId": "loc-main-intake",
+  "category": "vip",
+  "label": "Dr. Alex Wong",
+  "groupLabel": "VIP group",
+  "confidence": 0.984,
+  "vip": { "vipId": "vip-042", "name": "Dr. Alex Wong", "similarity": 0.984 },
+  "vehicle": null,
+  "attributes": { "top": "White top", "bottom": "Brown bottom", "item": "No backpack" },
+  "snapshotUrl": "/api/detections/evt-01J8Z3K7Q9/snapshot",
   "location": { "lat": 1.3204, "lng": 103.8439 },
   "detectedAt": "2026-08-10T01:18:23Z"
 }
 ```
 
 - `eventId`: 감지 1건마다 고유. 브라우저가 중복 제거에 사용하므로 **재발행 시에도 같은 감지는 같은 eventId**
-- `similarity`: 0~1 실수 (0.726 = 72.6%)
-- **등록 VIP 감지만 발행한다.** 미등록(unauthorized) 얼굴 감지는 이벤트로 발행하지 않고 아래 4번 집계(`faceDetections`)에만 반영
+- **감지 1건 = 대상의 "등장" 1회.** 같은 대상이 프레임에 연속으로 보이는 동안 재발행하지 않고, 사라졌다 다시 나타나면 새 이벤트 (매 프레임 발행 아님 — 프레임 단위 현황은 5번 bestframe)
+- `category`: `vip` | `staff` | `unauthorized` | `vehicle` | `unknown` | `false_positive`(모듈 자체 판정 오탐)
+- `vip` 객체는 **등록 인물 매칭 시에만** (category vip·staff) — 그 외 `null`. `vehicle`은 `{ plate, color }`, 인물 외형은 `attributes`
+- `label`은 화면 행 제목(인물 이름 / `"Vehicle SGX411"` / 외형 요약), `groupLabel`은 부제(`"Staff (Finance)"`, 차량 색상 등)
+- `similarity`/`confidence`: 0~1 실수 (0.726 = 72.6%). 미매칭 카테고리는 `confidence: null`
+- `snapshotUrl`: **MQTT 발행 시에는 `/api` 프리픽스를 모듈이 직접 붙인다** (MQTT는 프록시를 거치지 않으므로). REST 응답에서는 반대로 모듈 상대경로 — 아래 모듈 API 절 참고
+
+### 5. Best Frame (v1.1 — BEST FRAME 화면)
+
+```json
+// vca/v1/sg/cameras/cam-westgate-bs1/bestframe   (retained, 초당 1회)
+{
+  "frameId": "bf-cam-westgate-bs1-1754990655123",
+  "cameraId": "cam-westgate-bs1",
+  "cameraName": "CAM_WestGate_BS1",
+  "locationId": "loc-main-intake",
+  "capturedAt": "2026-08-18T07:04:10Z",
+  "imageUrl": "/api/cameras/cam-westgate-bs1/frames/bf-cam-westgate-bs1-1754990655123",
+  "objects": [
+    { "eventId": "evt-01J8Z3K7Q9", "category": "vip", "label": "Dr. Alex Wong",
+      "bbox": { "x": 0.42, "y": 0.31, "w": 0.08, "h": 0.22 } }
+  ]
+}
+```
+
+- **초당 프레임 중 best shot 1장을 선별**해 메타만 발행 — **이미지 본체는 MQTT에 싣지 않는다.** 브라우저가 `imageUrl`(REST)로 가져간다
+- `frameId`가 포함된 `imageUrl`은 **불변 URL** — 같은 프레임이면(변화 없으면) 재발행 생략 가능
+- `objects` = 이 프레임에 보이는 대상들. `eventId`는 2번 감지 이벤트와 **같은 값** (화면이 박스와 목록 행을 연결하는 키)
+- `bbox`: 프레임 크기 대비 **0~1 정규화** (`x`,`y` = 좌상단, `w`,`h` = 폭·높이)
+- `imageUrl`도 `/api` 프리픽스 포함해 발행 (snapshotUrl과 동일 규칙)
 
 ### 3. 카메라별 당일 감지 수
 
@@ -104,10 +136,12 @@
 
 | 필드 | 정의 |
 |---|---|
-| `vipDetections.today` | 당일 등록 VIP 감지 건수 (감지 1건 = 1) |
-| `faceDetections.today` | 당일 전체 얼굴 감지 건수 = VIP + 미등록 |
+| `vipDetections.today` | 당일 category=`vip` 감지 건수 (감지 1건 = 1) |
+| `faceDetections.today` | 당일 인물 감지 건수 = category `vip`+`staff`+`unauthorized` 합 (`vehicle`·`unknown`·`false_positive`는 어느 카운터에도 미포함) |
 | `deltaFromYesterday` | `오늘 총계 - 전일 총계`. 부호가 증감 방향 |
 | `deltaRate` | `deltaFromYesterday / 전일 총계`. **전일 총계가 0이면 `null`** |
+
+3번 `detectionsToday`도 category=`vip` 기준이다.
 
 ## 반드시 지킬 규칙
 
@@ -135,6 +169,9 @@
 | `GET /v1/locations` | 로케이션 목록 |
 | `GET /v1/cameras` | 카메라 목록 (페이징, `status` 필터) |
 | `GET /v1/stats/detection-topology` | 시간대별 감지 수 (0~23시 24버킷 + 7일 평균) |
+| `GET /v1/cameras/{cameraId}/detections` | **(v1.1)** 카메라별 최근 감지 (페이징, 전 카테고리, `category` 필터, 최신순) — BEST FRAME 타깃 패널 시딩 |
+| `GET /v1/cameras/{cameraId}/frames/{frameId}` | **(v1.1)** best frame 이미지 바이너리 — bestframe 발행의 `imageUrl` 대상 |
+| `GET /v1/detections/{eventId}/snapshot` | **(v1.1)** 감지 스냅샷 크롭 바이너리 (썸네일·LIVE SNAPSHOT). 최소 당일+전일 서빙 |
 
 지킬 규칙:
 
@@ -147,21 +184,31 @@
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 4종 토픽과 **모듈 API 8개 엔드포인트 전부**를
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 11개 엔드포인트 전부**를
 계약 그대로 구현한 Node 시뮬레이터. 발행 형식이나 응답 조립(행 = VIP별, `detections` 시간 오름차순,
-MQTT와 동일 `eventId`, photoUrl 상대경로, 시간대 버킷)이 헷갈릴 때 이 코드가 정답이다.
+MQTT와 동일 `eventId`, photoUrl 상대경로, 시간대 버킷, bestframe 메타+bbox)이 헷갈릴 때 이 코드가 정답이다.
 
 ```bash
 cd sim && npm install && npm start   # MQTT 발행 + :8081 모듈 API 서빙
+# 테스트 편의 환경변수: INTERVAL_MS(감지 주기), BESTFRAME_MS(bestframe 주기),
+#   TOGGLE_P(카메라 상태 토글 확률, 0=고정), STOPPED_EVERY(초기 정지 간격, 0=전부 RUNNING)
 ```
 
-이 참조 구현 + 실제 프록시 + 실제 대시보드 조합으로 **전체 화면 E2E가 검증 완료**된 상태다
-(2026-08-12) — 즉 모듈이 이 계약대로만 구현하면 화면 연결에 추가 작업이 없다. 검증 과정에서
-확인된 구현 포인트:
+이 참조 구현 + 실제 프록시 + 실제 대시보드 조합으로 **DASHBOARD(2026-08-12)와
+BEST FRAME(2026-08-18) 전체 화면 E2E가 검증 완료**된 상태다 — 즉 모듈이 이 계약대로만
+구현하면 화면 연결에 추가 작업이 없다. 검증 과정에서 확인된 구현 포인트:
 
-- `photoUrl`은 반드시 **모듈 기준 상대경로**(`/vips/{vipId}/photo`)로 반환 — 프록시가 `/api/...`로
-  재작성해서 브라우저에 전달한다. 절대 URL이나 `/api` 프리픽스를 모듈이 붙이면 안 된다
-- 사진 응답은 `image/png` 또는 `image/jpeg` 바이너리 + `Content-Type` 헤더 (프록시가 그대로 통과시킴)
+- **URL 경로 규칙 (혼동 주의)** — REST 응답의 리소스 URL(`photoUrl`, `snapshotUrl`)은
+  **모듈 기준 상대경로**(`/vips/{vipId}/photo`, `/detections/{eventId}/snapshot`)로 반환한다.
+  프록시가 `/api/...`로 재작성해서 브라우저에 전달하므로 모듈이 `/api`를 붙이면 안 된다.
+  반대로 **MQTT 발행 페이로드**(`snapshotUrl`, bestframe `imageUrl`)는 프록시를 거치지 않으므로
+  **모듈이 `/api` 프리픽스를 직접 붙여** 발행한다 (SPEC §3.2·§3.5)
+- 이미지 응답(사진·프레임·스냅샷)은 `image/png` 또는 `image/jpeg` 바이너리 + `Content-Type` 헤더
+  (프록시가 그대로 통과시킴). 프레임은 불변 URL이라 장기 Cache-Control 안전
+- **Staff도 등록 인물 사진을 서빙**해야 한다 — 화면 팝오버의 ENROLLED DB가 category=staff의
+  `vip.vipId`로도 `GET /vips/{vipId}/photo`를 호출한다 (`/vips` 목록 포함 여부와 무관)
+- `bbox`는 0~1 정규화 (픽셀 좌표 아님) — 화면이 어떤 크기로 렌더하든 그대로 비율 적용된다
+- bestframe은 **retained** — 화면이 카메라를 선택하는 순간 마지막 프레임을 즉시 받는 초기화 수단
 - `detection-topology`의 `average`는 7일 데이터가 없으면 `null` 허용 (계약의 nullable — 프론트는 null 안전)
 - 시간 버킷(`hour`)은 **사이트 로컬(Asia/Singapore) 기준** — UTC로 버킷하면 그래프가 8시간 밀린다
 
@@ -180,10 +227,13 @@ docker run --rm --network vca-mqtt-broker_default eclipse-mosquitto:2 \
 - EMQX 대시보드(http://localhost:18083, admin/public)에서 접속 클라이언트·토픽별 트래픽 확인 가능
 - 체크리스트:
   - [ ] 기동 직후 전체 카메라 status가 retained로 발행되는가
-  - [ ] 새 구독자가 붙었을 때 status/stats/summary를 즉시 받는가 (retained 확인)
+  - [ ] 새 구독자가 붙었을 때 status/stats/summary/bestframe을 즉시 받는가 (retained 확인)
   - [ ] 감지 이벤트의 eventId가 건마다 고유한가
   - [ ] 자정(SGT) 리셋 후 카운터가 재발행되는가
   - [ ] deltaRate가 전일 0일 때 null인가
+  - [ ] (v1.1) bestframe이 초당 1회 발행되고, objects의 eventId가 detections 발행분과 일치하는가
+  - [ ] (v1.1) MQTT의 snapshotUrl/imageUrl에 `/api` 프리픽스가 붙어 있는가
+  - [ ] (v1.1) category=vip 외 이벤트에서 vip 필드가 null인가 (vehicle/attributes도 카테고리에 맞게)
 
 ### 모듈 API
 
@@ -197,6 +247,9 @@ curl "http://localhost:8081/v1/dashboard/live-analytics?page=0&size=20&type=ALL"
   - [ ] 행의 `detections[].eventId`가 MQTT 발행분과 같은 값인가
   - [ ] `detections`가 시간 오름차순인가
   - [ ] 미지원 경로가 `{ "code": "MOD-XXXX", "message": ... }` 형태로 오류를 주는가
+  - [ ] (v1.1) `/v1/cameras/{id}/detections`가 최신순이고 REST 응답의 snapshotUrl은 모듈 상대경로인가
+  - [ ] (v1.1) bestframe `imageUrl`의 frameId로 `/v1/cameras/{id}/frames/{frameId}`가 이미지를 주는가
+  - [ ] (v1.1) staff의 `vip.vipId`로도 `/v1/vips/{vipId}/photo`가 사진을 주는가
 
 ### 대시보드 E2E
 
