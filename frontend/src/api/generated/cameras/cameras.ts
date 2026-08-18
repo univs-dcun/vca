@@ -30,8 +30,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CameraDetectionListResponse,
   CameraListResponse,
   ErrorResponse,
+  GetCameraDetectionsParams,
   GetCamerasParams
 } from '.././model';
 
@@ -124,6 +126,210 @@ export function useGetCameras<TData = Awaited<ReturnType<typeof getCameras>>, TE
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetCamerasQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * BEST FRAME 타깃 패널의 최근 감지 N건 시딩 (카메라 선택 시 1회). 최신순 정렬.
+- 이후 실시간 추가는 MQTT cameras/{cameraId}/detections 델타를 eventId로 병합 (SPEC §3.2 v1.1)
+- 카테고리 필터 칩(All/VIP/...)은 기본적으로 프론트 필터 — category 파라미터는 서버측 필터가 필요할 때 사용
+ * @summary 카메라별 최근 감지 이벤트 조회 (페이징, 전 카테고리)
+ */
+export const getCameraDetections = (
+    cameraId: string,
+    params?: GetCameraDetectionsParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<CameraDetectionListResponse>(
+      {url: `/cameras/${cameraId}/detections`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
+
+
+
+export const getGetCameraDetectionsQueryKey = (cameraId?: string,
+    params?: GetCameraDetectionsParams,) => {
+    return [
+    `/cameras/${cameraId}/detections`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getGetCameraDetectionsQueryOptions = <TData = Awaited<ReturnType<typeof getCameraDetections>>, TError = ErrorResponse>(cameraId: string,
+    params?: GetCameraDetectionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCameraDetections>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCameraDetectionsQueryKey(cameraId,params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCameraDetections>>> = ({ signal }) => getCameraDetections(cameraId,params, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(cameraId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCameraDetections>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCameraDetectionsQueryResult = NonNullable<Awaited<ReturnType<typeof getCameraDetections>>>
+export type GetCameraDetectionsQueryError = ErrorResponse
+
+
+export function useGetCameraDetections<TData = Awaited<ReturnType<typeof getCameraDetections>>, TError = ErrorResponse>(
+ cameraId: string,
+    params: undefined |  GetCameraDetectionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCameraDetections>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCameraDetections>>,
+          TError,
+          Awaited<ReturnType<typeof getCameraDetections>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCameraDetections<TData = Awaited<ReturnType<typeof getCameraDetections>>, TError = ErrorResponse>(
+ cameraId: string,
+    params?: GetCameraDetectionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCameraDetections>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCameraDetections>>,
+          TError,
+          Awaited<ReturnType<typeof getCameraDetections>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCameraDetections<TData = Awaited<ReturnType<typeof getCameraDetections>>, TError = ErrorResponse>(
+ cameraId: string,
+    params?: GetCameraDetectionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCameraDetections>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 카메라별 최근 감지 이벤트 조회 (페이징, 전 카테고리)
+ */
+
+export function useGetCameraDetections<TData = Awaited<ReturnType<typeof getCameraDetections>>, TError = ErrorResponse>(
+ cameraId: string,
+    params?: GetCameraDetectionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCameraDetections>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCameraDetectionsQueryOptions(cameraId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * MQTT bestframe 페이로드(SPEC §3.5)의 imageUrl이 가리키는 리소스. frameId가 포함된 불변 URL이므로 캐시 가능. envelope 없이 이미지 바이너리를 그대로 반환 — <img src>로 직접 사용한다.
+ * @summary best frame 이미지 (바이너리)
+ */
+export const getCameraFrame = (
+    cameraId: string,
+    frameId: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<Blob>(
+      {url: `/cameras/${cameraId}/frames/${frameId}`, method: 'GET',
+        responseType: 'blob', signal
+    },
+      );
+    }
+  
+
+
+
+export const getGetCameraFrameQueryKey = (cameraId?: string,
+    frameId?: string,) => {
+    return [
+    `/cameras/${cameraId}/frames/${frameId}`
+    ] as const;
+    }
+
+    
+export const getGetCameraFrameQueryOptions = <TData = Awaited<ReturnType<typeof getCameraFrame>>, TError = ErrorResponse>(cameraId: string,
+    frameId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCameraFrame>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCameraFrameQueryKey(cameraId,frameId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCameraFrame>>> = ({ signal }) => getCameraFrame(cameraId,frameId, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(cameraId && frameId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCameraFrame>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCameraFrameQueryResult = NonNullable<Awaited<ReturnType<typeof getCameraFrame>>>
+export type GetCameraFrameQueryError = ErrorResponse
+
+
+export function useGetCameraFrame<TData = Awaited<ReturnType<typeof getCameraFrame>>, TError = ErrorResponse>(
+ cameraId: string,
+    frameId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCameraFrame>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCameraFrame>>,
+          TError,
+          Awaited<ReturnType<typeof getCameraFrame>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCameraFrame<TData = Awaited<ReturnType<typeof getCameraFrame>>, TError = ErrorResponse>(
+ cameraId: string,
+    frameId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCameraFrame>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCameraFrame>>,
+          TError,
+          Awaited<ReturnType<typeof getCameraFrame>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCameraFrame<TData = Awaited<ReturnType<typeof getCameraFrame>>, TError = ErrorResponse>(
+ cameraId: string,
+    frameId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCameraFrame>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary best frame 이미지 (바이너리)
+ */
+
+export function useGetCameraFrame<TData = Awaited<ReturnType<typeof getCameraFrame>>, TError = ErrorResponse>(
+ cameraId: string,
+    frameId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCameraFrame>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCameraFrameQueryOptions(cameraId,frameId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

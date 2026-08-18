@@ -15,16 +15,24 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './bBox';
 export * from './camera';
+export * from './cameraDetectionListResponse';
 export * from './cameraListResponse';
 export * from './cameraStatus';
 export * from './dateParameter';
 export * from './detectedCamera';
 export * from './detection';
+export * from './detectionCategory';
+export * from './detectionEventRow';
+export * from './detectionEventRowAttributes';
+export * from './detectionEventRowVehicle';
+export * from './detectionEventRowVip';
 export * from './detectionTopology';
 export * from './detectionTopologyResponse';
 export * from './errorResponse';
 export * from './errorResponseData';
+export * from './getCameraDetectionsParams';
 export * from './getCamerasParams';
 export * from './getDetectionTopologyParams';
 export * from './getLiveAnalyticsParams';
@@ -37,14 +45,18 @@ export * from './liveAnalyticsListResponse';
 export * from './liveAnalyticsRow';
 export * from './location';
 export * from './locationListResponse';
+export * from './matchedVip';
 export * from './pageCamera';
+export * from './pageDetectionEventRow';
 export * from './pageLiveAnalyticsRow';
 export * from './pageParameter';
 export * from './pageVip';
+export * from './personAttributes';
 export * from './sizeParameter';
 export * from './topologyPoint';
 export * from './user';
 export * from './userListResponse';
+export * from './vehicleInfo';
 export * from './vip';
 export * from './vipDetectedCameras';
 export * from './vipDetectedCamerasResponse';
