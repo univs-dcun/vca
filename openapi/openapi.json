@@ -12,7 +12,8 @@
     { "name": "locations", "description": "로케이션(카메라 지역 그룹) 목록" },
     { "name": "cameras", "description": "카메라 목록 (SYSTEM 탭)" },
     { "name": "stats", "description": "집계/그래프 (Detection Topology & Average)" },
-    { "name": "users", "description": "스캐폴드 데모 — 추후 제거 예정" }
+    { "name": "users", "description": "스캐폴드 데모 — 추후 제거 예정" },
+    { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33)" }
   ],
   "paths": {
     "/dashboard/live-analytics": {
@@ -225,6 +226,78 @@
           }
         }
       }
+    },
+    "/cameras/{cameraId}/detections": {
+      "get": {
+        "operationId": "getCameraDetections",
+        "summary": "카메라별 최근 감지 이벤트 조회 (페이징, 전 카테고리)",
+        "description": "BEST FRAME 타깃 패널의 최근 감지 N건 시딩 (카메라 선택 시 1회). 최신순 정렬.\n- 이후 실시간 추가는 MQTT cameras/{cameraId}/detections 델타를 eventId로 병합 (SPEC §3.2 v1.1)\n- 카테고리 필터 칩(All/VIP/...)은 기본적으로 프론트 필터 — category 파라미터는 서버측 필터가 필요할 때 사용",
+        "tags": ["cameras"],
+        "parameters": [
+          { "$ref": "#/components/parameters/CameraId" },
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "description": "카테고리 필터. 미지정 시 전체",
+            "schema": { "$ref": "#/components/schemas/DetectionCategory" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CameraDetectionListResponse" }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/cameras/{cameraId}/frames/{frameId}": {
+      "get": {
+        "operationId": "getCameraFrame",
+        "summary": "best frame 이미지 (바이너리)",
+        "description": "MQTT bestframe 페이로드(SPEC §3.5)의 imageUrl이 가리키는 리소스. frameId가 포함된 불변 URL이므로 캐시 가능. envelope 없이 이미지 바이너리를 그대로 반환 — <img src>로 직접 사용한다.",
+        "tags": ["cameras"],
+        "parameters": [
+          { "$ref": "#/components/parameters/CameraId" },
+          { "$ref": "#/components/parameters/FrameId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/detections/{eventId}/snapshot": {
+      "get": {
+        "operationId": "getDetectionSnapshot",
+        "summary": "감지 스냅샷 크롭 이미지 (바이너리)",
+        "description": "감지 이벤트의 snapshotUrl이 가리키는 리소스 — 감지 시점의 대상 크롭. 타깃 패널 썸네일과 VIP 상세 팝오버의 LIVE SNAPSHOT에 사용. envelope 없이 이미지 바이너리를 그대로 반환한다.",
+        "tags": ["detections"],
+        "parameters": [{ "$ref": "#/components/parameters/EventId" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
     }
   },
   "components": {
@@ -255,6 +328,27 @@
         "in": "path",
         "required": true,
         "description": "VIP 식별자",
+        "schema": { "type": "string" }
+      },
+      "CameraId": {
+        "name": "cameraId",
+        "in": "path",
+        "required": true,
+        "description": "카메라 ID (MQTT 토픽 경로와 공유)",
+        "schema": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }
+      },
+      "FrameId": {
+        "name": "frameId",
+        "in": "path",
+        "required": true,
+        "description": "best frame ID — MQTT bestframe 페이로드의 frameId (SPEC §3.5)",
+        "schema": { "type": "string" }
+      },
+      "EventId": {
+        "name": "eventId",
+        "in": "path",
+        "required": true,
+        "description": "감지 이벤트 ID — MQTT detections 페이로드의 eventId",
         "schema": { "type": "string" }
       }
     },
@@ -532,6 +626,94 @@
             "type": "array",
             "items": { "$ref": "#/components/schemas/User" }
           }
+        }
+      },
+      "DetectionCategory": {
+        "type": "string",
+        "enum": ["vip", "staff", "unauthorized", "vehicle", "unknown", "false_positive"],
+        "description": "감지 카테고리 (SPEC §3.2 v1.1). false_positive는 모듈 자체 판정 오탐(A안 가정) — 운영자 판정(B안) 확정 시 쓰기 API 별도 추가"
+      },
+      "BBox": {
+        "type": "object",
+        "description": "프레임 크기 대비 0~1 정규화 좌표. x,y = 박스 좌상단, w,h = 폭·높이 (SPEC §3.5)",
+        "required": ["x", "y", "w", "h"],
+        "properties": {
+          "x": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 },
+          "y": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 },
+          "w": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 },
+          "h": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 }
+        }
+      },
+      "VehicleInfo": {
+        "type": "object",
+        "description": "차량 감지 정보 (category=vehicle일 때만)",
+        "required": ["plate"],
+        "properties": {
+          "plate": { "type": "string", "description": "차량 번호판 (예: SGX411)" },
+          "color": { "type": "string", "nullable": true, "description": "차량 색상 (예: Navy)" }
+        }
+      },
+      "PersonAttributes": {
+        "type": "object",
+        "description": "인물 외형 속성 — VIP 상세 팝오버의 TOP/BOTTOM/ITEM. 값이 없는 항목은 null",
+        "properties": {
+          "top": { "type": "string", "nullable": true, "description": "상의 (예: White top)" },
+          "bottom": { "type": "string", "nullable": true, "description": "하의 (예: Brown bottom)" },
+          "item": { "type": "string", "nullable": true, "description": "소지품 (예: No backpack)" }
+        }
+      },
+      "MatchedVip": {
+        "type": "object",
+        "description": "등록 인물 DB 매칭 정보 (category vip·staff일 때만). vipId로 등록 사진(GET /vips/{vipId}/photo = 팝오버 ENROLLED DB)을 조회한다. 키 이름은 MQTT v1 호환을 위해 vip 계열 유지",
+        "required": ["vipId", "name", "similarity"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "name": { "type": "string" },
+          "similarity": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 }
+        }
+      },
+      "DetectionEventRow": {
+        "type": "object",
+        "description": "BEST FRAME 타깃 패널의 감지 이벤트 1건. MQTT cameras/{cameraId}/detections(SPEC §3.2 v1.1)와 동일 구조 — eventId로 MQTT 델타와 중복 제거하여 병합한다",
+        "required": ["eventId", "cameraId", "cameraName", "locationId", "category", "label", "snapshotUrl", "location", "detectedAt"],
+        "properties": {
+          "eventId": { "type": "string", "description": "감지 이벤트 고유 ID (멱등 처리 기준)" },
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "cameraName": { "type": "string" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "category": { "$ref": "#/components/schemas/DetectionCategory" },
+          "label": { "type": "string", "description": "행 제목 — 인물 이름 / \"Vehicle SGX411\" / 외형 요약(\"Male · Bag · Gray shirts\")" },
+          "groupLabel": { "type": "string", "nullable": true, "description": "행 부제 — \"VIP group\", \"Staff (Finance)\", 차량 색상 등. null이면 프론트가 카테고리명 표시" },
+          "confidence": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "nullable": true, "description": "등록 인물 매칭 유사도 (vip.similarity와 동일 값). 미매칭 카테고리는 null" },
+          "vip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }] },
+          "vehicle": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/VehicleInfo" }] },
+          "attributes": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/PersonAttributes" }] },
+          "snapshotUrl": { "type": "string", "description": "감지 시점 크롭 이미지 — GET /detections/{eventId}/snapshot. 패널 썸네일·팝오버 LIVE SNAPSHOT에 <img src>로 직접 사용" },
+          "location": { "$ref": "#/components/schemas/LatLng" },
+          "detectedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PageDetectionEventRow": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DetectionEventRow" }
+          },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "CameraDetectionListResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/PageDetectionEventRow" }
         }
       }
     }
