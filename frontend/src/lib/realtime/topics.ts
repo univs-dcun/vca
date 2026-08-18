@@ -8,6 +8,8 @@ export const topics = {
   cameraStatusAll: () => `${base()}/cameras/+/status`,
   cameraDetectionsAll: () => `${base()}/cameras/+/detections`,
   cameraStatsAll: () => `${base()}/cameras/+/stats`,
+  /** BEST FRAME — 선택된 카메라만 개별 구독한다 (SPEC §3.5, 와일드카드 금지) */
+  cameraBestFrame: (cameraId: string) => `${base()}/cameras/${cameraId}/bestframe`,
 }
 
 /** 토픽 경로에서 {cameraId} 세그먼트를 꺼낸다 (vca/v1/{site}/cameras/{cameraId}/...) */

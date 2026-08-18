@@ -297,13 +297,14 @@ let eventSeq = SEED_EVENTS.length;
 // nothing unread instead of surfacing all 12 seed VIP hits as "new" on first load.
 const LATEST_SEED_TIMESTAMP = SEED_EVENTS.reduce((max, e) => (e.timestamp > max ? e.timestamp : max), "");
 
-// A real recognition engine re-fires repeatedly while the same person lingers in one camera's
-// frame — that's one continuous sighting, not N separate visits, so those re-fires should update
-// the existing history row (bump its "last seen" time) rather than spam the list with duplicates.
-// Only a gap LONGER than this counts as the person genuinely leaving and reappearing later, which
-// still logs as a brand-new row (this window is intentionally short — a few minutes apart is a
-// real second visit, not the same dwell).
-const VIP_SESSION_WINDOW_MS = 2 * 60 * 1000;
+// 행 생성 규칙 (2026-08-12 기획 확정, vca-mqtt-broker SPEC §5 / UV-31 — mock과 라이브가 같은 규칙):
+//   ① VIP 행 누적 — 감지 1건 = 행 1개. 같은 인물의 이전 행을 병합·제거하지 않는다 (세션 창 없음)
+//   ② Tracking 행 — VIP 행과 별개로 인물당 1행 유지(교체). 감지 시퀀스에서 "연속된 동일 카메라"를
+//      한 hop으로 접은 경로가 2 hop 이상일 때만 존재:
+//      A→A(같은 카메라 재감지) = hop 유지(시각만 갱신, Tracking 미생성) / A→B = 생성(2 hop) /
+//      A→B→A = 복귀도 직전과 다른 카메라이므로 새 hop(3 hop)
+// 이전 규칙(2분 세션 병합 + 2대 이상 감지 시 VIP 행들을 Tracking 1행으로 collapse)은 폐기됨.
+// 라이브(vca-bridge)도 이 addEvent를 그대로 호출한다 — 규칙 구현의 단일 소유자는 이 파일.
 
 interface LiveHit { location: string; cameraLabel?: string; timestamp: string; confidence: number; lat: number; lng: number }
 
@@ -311,11 +312,10 @@ function hitCameraKey(h: { cameraLabel?: string; location?: string }): string {
   return `${h.location ?? ""}::${h.cameraLabel ?? ""}`;
 }
 
-// Same grouping rule as mockData.ts's deriveLiveEvents (2+ distinct cameras -> one collapsed
-// Tracking row), but applied incrementally so it also covers events added live via addEvent, not
-// just the static seed data. A person's full hit history lives disassembled across their current
-// event rows — a Tracking row's `personPath` for older hits, plain VIP rows for anything not yet
-// promoted — and gets rebuilt every time a new hit comes in for them.
+// 인물의 전체 감지 이력 수집 — VIP 행(hit 1개씩) + Tracking 행의 personPath(시드 데이터 등
+// VIP 행이 없는 과거 이력 호환). 새 규칙에서는 VIP 행과 Tracking 행이 공존하므로 같은 hit이
+// 양쪽에서 중복 수집될 수 있으나, 시간순 정렬 후 collapseHops가 동일 카메라 연속을 접기 때문에
+// hop 계산 결과에는 영향이 없다.
 function personHitHistory(events: VcaEvent[], personName: string): LiveHit[] {
   const hits: LiveHit[] = [];
   events.filter(e => e.personName === personName).forEach(e => {
@@ -326,6 +326,18 @@ function personHitHistory(events: VcaEvent[], personName: string): LiveHit[] {
     }
   });
   return hits.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+// 연속된 동일 카메라 감지를 한 hop으로 접는다 — 새 hop 조건은 "직전 감지와 다른 카메라"뿐이며
+// 시간 간격은 무관하다. 같은 카메라 재감지는 기존 hop의 시각만 갱신 (규칙 ② 참고).
+function collapseHops(hits: LiveHit[]): LiveHit[] {
+  const hops: LiveHit[] = [];
+  for (const h of hits) {
+    const last = hops[hops.length - 1];
+    if (last && hitCameraKey(last) === hitCameraKey(h)) hops[hops.length - 1] = h;
+    else hops.push(h);
+  }
+  return hops;
 }
 
 export const useVcaStore = create<VcaStoreState>((set) => ({
@@ -350,52 +362,39 @@ export const useVcaStore = create<VcaStoreState>((set) => ({
       }
 
       const personName = event.personName;
-      const otherEvents = state.events.filter(e => e.personName !== personName);
-      const history = personHitHistory(state.events, personName);
+
+      // ① VIP 행 누적 — 새 감지는 무조건 새 행. 같은 인물의 기존 행은 건드리지 않는다.
+      const vipRow: VcaEvent = { ...event, id: `evt-${++eventSeq}` };
+
+      // ② Tracking 재계산 — 전체 이력(기존 행들 + 새 hit)을 시간순으로 접어 hop을 센다.
+      // 델타가 순서 없이 도착해도(라이브 스냅샷 병합) 결과가 같도록 timestamp 기준 정렬 삽입.
       const newHit: LiveHit = { location: event.location, cameraLabel: event.cameraLabel, timestamp: event.timestamp, confidence: event.confidence ?? 0, lat: event.lat ?? 0, lng: event.lng ?? 0 };
+      const history = personHitHistory(state.events, personName);
+      let i = history.length;
+      while (i > 0 && history[i - 1].timestamp > newHit.timestamp) i--;
+      history.splice(i, 0, newHit);
+      const hops = collapseHops(history);
 
-      // Session-merge against only the MOST RECENT prior hit, and only if it's the same camera —
-      // a return visit after being seen elsewhere in between must NOT merge into that older
-      // same-camera hit, since the person genuinely left and came back (that gap is exactly what
-      // makes it a trackable path rather than one long dwell).
-      const last = history[history.length - 1];
-      if (last && hitCameraKey(last) === hitCameraKey(newHit) &&
-          Math.abs(new Date(newHit.timestamp).getTime() - new Date(last.timestamp).getTime()) <= VIP_SESSION_WINDOW_MS) {
-        history[history.length - 1] = newHit;
-      } else {
-        history.push(newHit);
-      }
+      // 기존 Tracking 행 제거(교체 대상) — VIP 행들은 그대로 유지
+      const rest = state.events.filter(e => !(e.personName === personName && e.personType === "Tracking"));
+      if (hops.length < 2) return { events: [vipRow, ...rest].slice(0, 500) };
 
-      const distinctCameras = new Set(history.map(hitCameraKey));
-      let personEvents: VcaEvent[];
-      if (distinctCameras.size >= 2) {
-        // 2+ distinct cameras — collapse this person's entire history into one Tracking row
-        // (replaces whatever VIP/Tracking rows they had before), same rule as mockData.ts's
-        // deriveLiveEvents for the static seed data.
-        const latest = history[history.length - 1];
-        personEvents = [{
-          ...event,
-          id: `evt-${++eventSeq}`,
-          personType: "Tracking",
-          location: latest.location,
-          cameraLabel: latest.cameraLabel,
-          timestamp: latest.timestamp,
-          lat: latest.lat,
-          lng: latest.lng,
-          confidence: 0,
-          personPath: history.map(h => ({ location: h.location, cameraLabel: h.cameraLabel, timestamp: h.timestamp })),
-        }];
-      } else {
-        // Still only ever seen at one camera — one VIP row per (session-merged) hit.
-        personEvents = history.map(h => ({
-          ...event,
-          id: `evt-${++eventSeq}`,
-          personType: "VIP",
-          location: h.location, cameraLabel: h.cameraLabel, timestamp: h.timestamp, confidence: h.confidence, lat: h.lat, lng: h.lng,
-        }));
-      }
-
-      return { events: [...personEvents, ...otherEvents].slice(0, 500) };
+      const latest = hops[hops.length - 1];
+      const trackingRow: VcaEvent = {
+        ...event,
+        id: `evt-${++eventSeq}`,
+        // VIP 행들과 화면 목록 key(personId)가 겹치지 않도록 인물별 고유 값
+        personId: `track-${personName}`,
+        personType: "Tracking",
+        location: latest.location,
+        cameraLabel: latest.cameraLabel,
+        timestamp: latest.timestamp,
+        lat: latest.lat,
+        lng: latest.lng,
+        confidence: 0, // Tracking 행은 신뢰도 대신 경로(personPath)를 그린다
+        personPath: hops.map(h => ({ location: h.location, cameraLabel: h.cameraLabel, timestamp: h.timestamp })),
+      };
+      return { events: [trackingRow, vipRow, ...rest].slice(0, 500) };
     }),
   markNotificationsRead: () => set({ lastReadNotifAt: new Date().toISOString() }),
 }));

@@ -13,7 +13,7 @@ import type { LiveAnalyticsRow } from '../../api/generated/model'
 import { applyDetectionEvents, isTrackingRow } from './liveAnalyticsMerge'
 import { topics } from './topics'
 import { useMqttConnectionStatus, useMqttSubscription } from './useMqtt'
-import type { DetectionEvent } from './types'
+import { isVipDetection, type DetectionEvent, type VipDetectionEvent } from './types'
 
 // 세션이 아주 길어질 때의 메모리 상한. 초과분은 오래된 이벤트부터 버린다
 // (이미 rows에 반영된 뒤라 화면 영향 없음 — 이후 스냅샷 refetch와의 dedup 범위만 줄어든다).
@@ -30,7 +30,7 @@ export function useLiveAnalytics(options: UseLiveAnalyticsOptions = {}) {
   const { page = 0, size = 20, locationId, type = GetLiveAnalyticsType.ALL } = options
 
   // 구독은 마운트 시점에 바로 시작하고(스냅샷 조회와 병행), 겹침은 eventId dedup으로 해소한다.
-  const [events, setEvents] = useState<DetectionEvent[]>([])
+  const [events, setEvents] = useState<VipDetectionEvent[]>([])
   const [pendingCount, setPendingCount] = useState(0)
 
   const query = useGetLiveAnalytics({ page, size, locationId, type })
@@ -46,6 +46,8 @@ export function useLiveAnalytics(options: UseLiveAnalyticsOptions = {}) {
     (payload: unknown | null) => {
       if (payload === null) return
       const e = payload as DetectionEvent
+      // v1.1: detections 스트림에 전 카테고리가 흐른다 — Live Analytics는 vip만 반영 (SPEC §3.2)
+      if (!isVipDetection(e)) return
       if (locationId && e.locationId !== locationId) return
       if (page !== 0) {
         setPendingCount((n) => n + 1)

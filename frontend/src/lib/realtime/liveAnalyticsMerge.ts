@@ -1,10 +1,10 @@
 // Live Analytics 병합 규칙의 순수 함수 구현 — 계약 원본: SPEC.md §5
 // REST 스냅샷(LiveAnalyticsRow[]) 위에 MQTT 감지 이벤트를 vipId 기준 upsert한다.
 import type { Detection, LiveAnalyticsRow } from '../../api/generated/model'
-import type { DetectionEvent } from './types'
+import type { VipDetectionEvent } from './types'
 
 /** MQTT 감지 이벤트 → REST Detection 구조 (vip 정보는 행 컨텍스트로 이동) */
-export function detectionFromEvent(e: DetectionEvent): Detection {
+export function detectionFromEvent(e: VipDetectionEvent): Detection {
   return {
     eventId: e.eventId,
     cameraId: e.cameraId,
@@ -28,7 +28,7 @@ function insertSorted(detections: Detection[], d: Detection): Detection[] {
  * - 이미 반영된 이벤트(eventId 중복)면 원본 배열을 그대로 반환 (참조 동일 → 리렌더 없음)
  * - vipId가 없으면 새 행을 맨 앞에 추가, 있으면 해당 행의 detections에 삽입
  */
-export function upsertDetectionEvent(rows: LiveAnalyticsRow[], e: DetectionEvent): LiveAnalyticsRow[] {
+export function upsertDetectionEvent(rows: LiveAnalyticsRow[], e: VipDetectionEvent): LiveAnalyticsRow[] {
   const idx = rows.findIndex((r) => r.vipId === e.vip.vipId)
 
   if (idx === -1) {
@@ -49,7 +49,7 @@ export function upsertDetectionEvent(rows: LiveAnalyticsRow[], e: DetectionEvent
 }
 
 /** 여러 이벤트를 순서대로 반영 */
-export function applyDetectionEvents(rows: LiveAnalyticsRow[], events: DetectionEvent[]): LiveAnalyticsRow[] {
+export function applyDetectionEvents(rows: LiveAnalyticsRow[], events: VipDetectionEvent[]): LiveAnalyticsRow[] {
   return events.reduce(upsertDetectionEvent, rows)
 }
 
