@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA Module API (내부 계약)",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
     "contact": { "name": "계약 담당: 박상훈 (백엔드/브로커)" }
   },
@@ -14,7 +14,8 @@
     { "name": "vips" },
     { "name": "locations" },
     { "name": "cameras" },
-    { "name": "stats" }
+    { "name": "stats" },
+    { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33)" }
   ],
   "paths": {
     "/dashboard/live-analytics": {
@@ -197,6 +198,94 @@
           "default": { "$ref": "#/components/responses/Error" }
         }
       }
+    },
+    "/cameras/{cameraId}/detections": {
+      "get": {
+        "operationId": "getCameraDetections",
+        "summary": "카메라별 최근 감지 이벤트 (페이징, 전 카테고리) — BEST FRAME 타깃 패널",
+        "description": "해당 카메라의 최근 감지를 최신순으로 반환한다. 행 구조는 MQTT detections 페이로드(SPEC §3.2 v1.1)와 동일해야 하며, eventId도 MQTT 발행분과 같은 값이어야 한다 (브라우저가 두 채널을 병합).\n- snapshotUrl은 모듈 기준 상대경로(/detections/{eventId}/snapshot)로 반환 — 프록시가 /api로 재작성한다",
+        "tags": ["cameras"],
+        "parameters": [
+          { "$ref": "#/components/parameters/CameraId" },
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "description": "카테고리 필터. 미지정 시 전체",
+            "schema": { "$ref": "#/components/schemas/DetectionCategory" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PageDetectionEventRow" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 cameraId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/cameras/{cameraId}/frames/{frameId}": {
+      "get": {
+        "operationId": "getCameraFrame",
+        "summary": "best frame 이미지 (바이너리) — BEST FRAME 타일",
+        "description": "MQTT bestframe 페이로드(SPEC §3.5)의 imageUrl이 가리키는 리소스. frameId가 포함된 불변 URL이므로 장기 Cache-Control을 내려줘도 안전하다. 프록시가 그대로 스트리밍한다 (envelope 없음).",
+        "tags": ["cameras"],
+        "parameters": [
+          { "$ref": "#/components/parameters/CameraId" },
+          { "$ref": "#/components/parameters/FrameId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 cameraId 또는 만료된 frameId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/detections/{eventId}/snapshot": {
+      "get": {
+        "operationId": "getDetectionSnapshot",
+        "summary": "감지 스냅샷 크롭 이미지 (바이너리) — 타깃 패널 썸네일·팝오버 LIVE SNAPSHOT",
+        "description": "감지 시점의 대상(인물·차량) 크롭 이미지. 프록시가 그대로 스트리밍한다 (envelope 없음). 이벤트가 화면에 남아있는 동안 조회되므로 최소 당일+전일은 서빙 가능해야 한다.",
+        "tags": ["detections"],
+        "parameters": [{ "$ref": "#/components/parameters/EventId" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 eventId 또는 스냅샷 없음",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
     }
   },
   "components": {
@@ -226,6 +315,27 @@
         "name": "vipId",
         "in": "path",
         "required": true,
+        "schema": { "type": "string" }
+      },
+      "CameraId": {
+        "name": "cameraId",
+        "in": "path",
+        "required": true,
+        "description": "카메라 ID (MQTT 토픽 경로와 공유)",
+        "schema": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }
+      },
+      "FrameId": {
+        "name": "frameId",
+        "in": "path",
+        "required": true,
+        "description": "best frame ID — MQTT bestframe 페이로드의 frameId (SPEC §3.5)",
+        "schema": { "type": "string" }
+      },
+      "EventId": {
+        "name": "eventId",
+        "in": "path",
+        "required": true,
+        "description": "감지 이벤트 ID — MQTT detections 페이로드의 eventId",
         "schema": { "type": "string" }
       }
     },
@@ -383,6 +493,73 @@
         "required": ["content", "page", "size", "totalElements"],
         "properties": {
           "content": { "type": "array", "items": { "$ref": "#/components/schemas/Camera" } },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "DetectionCategory": {
+        "type": "string",
+        "enum": ["vip", "staff", "unauthorized", "vehicle", "unknown", "false_positive"],
+        "description": "감지 카테고리 (SPEC §3.2 v1.1). false_positive는 모듈 자체 판정 오탐 (A안 확정, 2026-08-18)"
+      },
+      "VehicleInfo": {
+        "type": "object",
+        "description": "차량 감지 정보 (category=vehicle일 때만)",
+        "required": ["plate"],
+        "properties": {
+          "plate": { "type": "string", "description": "차량 번호판 (예: SGX411)" },
+          "color": { "type": "string", "nullable": true, "description": "차량 색상 (예: Navy)" }
+        }
+      },
+      "PersonAttributes": {
+        "type": "object",
+        "description": "인물 외형 속성 — 화면 팝오버의 TOP/BOTTOM/ITEM. 값이 없는 항목은 null",
+        "properties": {
+          "top": { "type": "string", "nullable": true },
+          "bottom": { "type": "string", "nullable": true },
+          "item": { "type": "string", "nullable": true }
+        }
+      },
+      "MatchedVip": {
+        "type": "object",
+        "description": "등록 인물 DB 매칭 정보 (category vip·staff일 때만). vipId로 등록 사진(GET /vips/{vipId}/photo)을 조회한다 — Staff도 인물 DB에 있으면 사진을 서빙해야 한다",
+        "required": ["vipId", "name", "similarity"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "name": { "type": "string" },
+          "similarity": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 }
+        }
+      },
+      "DetectionEventRow": {
+        "type": "object",
+        "description": "감지 이벤트 1건 — MQTT cameras/{cameraId}/detections 페이로드(SPEC §3.2 v1.1)와 동일 구조. eventId는 MQTT 발행분과 같은 값 (브라우저 병합 키). snapshotUrl은 모듈 기준 상대경로 — 프록시가 /api로 재작성 (MQTT 발행 시에는 모듈이 /api 프리픽스를 직접 붙인다는 점이 다름, SPEC §3.2 참고)",
+        "required": ["eventId", "cameraId", "cameraName", "locationId", "category", "label", "snapshotUrl", "location", "detectedAt"],
+        "properties": {
+          "eventId": { "type": "string" },
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "cameraName": { "type": "string" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "category": { "$ref": "#/components/schemas/DetectionCategory" },
+          "label": { "type": "string", "description": "행 제목 — 인물 이름 / \"Vehicle SGX411\" / 외형 요약" },
+          "groupLabel": { "type": "string", "nullable": true, "description": "행 부제 — \"VIP group\", \"Staff (Finance)\", 차량 색상 등" },
+          "confidence": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "nullable": true, "description": "등록 인물 매칭 유사도. 미매칭 카테고리는 null" },
+          "vip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }] },
+          "vehicle": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/VehicleInfo" }] },
+          "attributes": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/PersonAttributes" }] },
+          "snapshotUrl": { "type": "string", "description": "모듈 기준 상대경로: /detections/{eventId}/snapshot" },
+          "location": { "$ref": "#/components/schemas/LatLng" },
+          "detectedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PageDetectionEventRow": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DetectionEventRow" }
+          },
           "page": { "type": "integer" },
           "size": { "type": "integer" },
           "totalElements": { "type": "integer", "format": "int64" }
