@@ -14,29 +14,26 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.2.0
  */
-import type { LatLng } from './latLng';
 
+export type SearchPersonsParams = {
 /**
- * 감지 1건 = 좌표 1개. MQTT cameras/{cameraId}/detections 이벤트와 동일 구조(vip 객체 제외 — 상위 컨텍스트가 VIP를 특정). eventId로 MQTT 델타와 중복 제거하여 병합한다.
+ * 검색 구간 시작 (미지정 시 보존 범위 처음부터)
  */
-export interface Detection {
-  /** 감지 이벤트 고유 ID (멱등 처리 기준) */
-  eventId: string;
-  /** @pattern ^[a-z0-9-]{1,64}$ */
-  cameraId: string;
-  cameraName: string;
-  /**
-   * 감지한 카메라의 소속 로케이션
-   * @pattern ^[a-z0-9-]{1,64}$
-   */
-  locationId: string;
-  location: LatLng;
-  /**
-   * 등록 사진과의 유사도 (0~1)
-   * @minimum 0
-   * @maximum 1
-   */
-  similarity: number;
-  /** 감지 시각 (ISO-8601 UTC) */
-  detectedAt: string;
-}
+from?: string;
+/**
+ * 검색 구간 끝 (미지정 시 현재까지)
+ */
+to?: string;
+/**
+ * 유사도 임계값 (0~1)
+ * @minimum 0
+ * @maximum 1
+ */
+similarity: number;
+/**
+ * 반환 hit 수 상한
+ * @minimum 1
+ * @maximum 100
+ */
+maxResults?: number;
+};

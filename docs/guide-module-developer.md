@@ -172,20 +172,33 @@
 | `GET /v1/cameras/{cameraId}/detections` | **(v1.1)** 카메라별 최근 감지 (페이징, 전 카테고리, `category` 필터, 최신순) — BEST FRAME 타깃 패널 시딩 |
 | `GET /v1/cameras/{cameraId}/frames/{frameId}` | **(v1.1)** best frame 이미지 바이너리 — bestframe 발행의 `imageUrl` 대상 |
 | `GET /v1/detections/{eventId}/snapshot` | **(v1.1)** 감지 스냅샷 크롭 바이너리 (썸네일·LIVE SNAPSHOT). 최소 당일+전일 서빙 |
+| `POST /v1/persons/search` | **(v1.2)** REDMAP 인물 검색 — multipart 얼굴/바디 이미지 + 기간 + 유사도 임계값 → hit 목록 (capturedAt 오름차순, maxResults 상한) |
+| `GET /v1/search-hits/{hitId}/face` | **(v1.2)** 검색 hit 얼굴 크롭 바이너리 — 검색 응답 후 최소 1시간 서빙 |
+| `GET /v1/search-hits/{hitId}/body` | **(v1.2)** 검색 hit 바디 크롭 바이너리 — 서빙 규칙 동일 |
 
 지킬 규칙:
 
 1. **응답은 데이터 그대로** — envelope 없음 (envelope은 프록시가 씌운다). 오류는 HTTP 상태코드 + `{ "code": "MOD-XXXX", "message": "..." }`
 2. **MQTT 발행 값과 일관성** — `eventId`는 MQTT 감지 이벤트와 동일한 값 (브라우저가 두 채널을 이 값으로 병합한다). 카메라 status·locationId·좌표도 MQTT 발행분과 같아야 함
 3. **날짜 파라미터** 기본값은 사이트 로컬(Asia/Singapore) 오늘, 응답의 시각 필드는 ISO-8601 UTC
-4. **성능 분리** — 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리(프로세스 또는 저장소). 프록시는 5초 타임아웃으로 호출하므로 통상 2초 이내 응답 목표
+4. **성능 분리** — 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리(프로세스 또는 저장소). 프록시는 5초 타임아웃으로 호출하므로 통상 2초 이내 응답 목표 (예외: v1.2 인물 검색은 60초)
 5. **보존 기간** — 최소 당일+전일 데이터는 조회 가능해야 함 (증감 계산·date 파라미터 지원 범위). 장기 보존 정책은 모듈 재량
+
+### (v1.2) REDMAP 인물 검색 — 구현 전 알아둘 것
+
+- **동기 처리 가정** — 검색은 단일 요청/응답이고 프록시가 60초 타임아웃으로 기다린다.
+  구현상 60초를 넘길 수 있다면(전체 보존 구간 영상 검색 등) **비동기 job 방식(요청→jobId→폴링)으로
+  계약을 바꿔야 하니 구현 착수 전에 계약 담당에게 알려 달라** — v1.2의 유일한 open question이다
+- `similarity` 임계값은 face·body 점수에 **공통 적용** — 제공된 이미지 종류별 점수가 임계값 이상인 hit만 반환
+- hit 간 경과시간(elapsed) 계산·표시는 프론트 몫 — 모듈은 `capturedAt`만 정확히 주면 된다
+- `faceUrl`/`bodyUrl`도 모듈 상대경로 규칙(아래 URL 경로 규칙)을 따른다 — hit 크롭은 검색 응답 후 최소 1시간 서빙
+- **차량 번호 검색(REDMAP VEHICLE 모드)은 구현 방식 미확정으로 v1.2 범위에서 제외** — 확정 시 별도 계약으로 추가된다 (UV-34 메모)
 
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 11개 엔드포인트 전부**를
-계약 그대로 구현한 Node 시뮬레이터. 발행 형식이나 응답 조립(행 = VIP별, `detections` 시간 오름차순,
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 엔드포인트 전부**를
+계약 그대로 구현한 Node 시뮬레이터 (v1.2 인물 검색 3종은 계약 초안 확정 후 추가 예정). 발행 형식이나 응답 조립(행 = VIP별, `detections` 시간 오름차순,
 MQTT와 동일 `eventId`, photoUrl 상대경로, 시간대 버킷, bestframe 메타+bbox)이 헷갈릴 때 이 코드가 정답이다.
 
 ```bash
@@ -250,6 +263,9 @@ curl "http://localhost:8081/v1/dashboard/live-analytics?page=0&size=20&type=ALL"
   - [ ] (v1.1) `/v1/cameras/{id}/detections`가 최신순이고 REST 응답의 snapshotUrl은 모듈 상대경로인가
   - [ ] (v1.1) bestframe `imageUrl`의 frameId로 `/v1/cameras/{id}/frames/{frameId}`가 이미지를 주는가
   - [ ] (v1.1) staff의 `vip.vipId`로도 `/v1/vips/{vipId}/photo`가 사진을 주는가
+  - [ ] (v1.2) `/v1/persons/search`에 face·body 둘 다 없으면 400 `MOD-XXXX`를 주는가
+  - [ ] (v1.2) hits가 capturedAt 오름차순이고 faceUrl/bodyUrl이 모듈 상대경로인가
+  - [ ] (v1.2) 검색 응답 후 1시간 내 hit 크롭 이미지가 조회되는가 (만료 시 404)
 
 ### 대시보드 E2E
 
