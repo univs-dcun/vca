@@ -197,8 +197,11 @@
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 엔드포인트 전부**를
-계약 그대로 구현한 Node 시뮬레이터 (v1.2 인물 검색 3종은 계약 초안 확정 후 추가 예정). 발행 형식이나 응답 조립(행 = VIP별, `detections` 시간 오름차순,
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 14개 엔드포인트 전부**를
+계약 그대로 구현한 Node 시뮬레이터. v1.2 인물 검색은 두 경로로 응답한다:
+등록 VIP 사진(`/vips/{id}/photo`로 서빙되는 바이트)을 그대로 face로 업로드하면 **그 VIP의
+실제 당일 감지 이력**을 반환하고(대시보드와 동일 원본 — 화면 간 교차 검증용), 그 외 이미지는
+업로드 바이트 해시 기반 결정적 합성 경로를 반환한다 (같은 이미지 → 같은 결과). 발행 형식이나 응답 조립(행 = VIP별, `detections` 시간 오름차순,
 MQTT와 동일 `eventId`, photoUrl 상대경로, 시간대 버킷, bestframe 메타+bbox)이 헷갈릴 때 이 코드가 정답이다.
 
 ```bash
