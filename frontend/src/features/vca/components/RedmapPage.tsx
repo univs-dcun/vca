@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import RedmapMap, { TRACKING_ORIGIN } from "./RedmapMap";
 import type { RedmapMode as Mode, SimilarityLimit, HitResult, DateRange } from "@/types/redmap";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
+// 데이터 연결(백엔드 소유, UV-34): 인물 실검색 — 백엔드 미기동/이미지 미업로드 시 null이 와서 mock 흐름 유지
+import { searchRedmapPersons } from "../../../lib/vca-bridge/redmapSearch";
 
 const BORDER = "1px solid #e2e8f0";
 
@@ -465,6 +467,11 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // `handleSearch` below.
   const [faceFileKey, setFaceFileKey] = useState<string | null>(null);
   const [bodyFileKey, setBodyFileKey] = useState<string | null>(null);
+  // 데이터 연결(UV-34): 실검색 업로드용 원본 File. blob URL(faceImage)은 미리보기 전용이라 별도 보관.
+  const [faceFile, setFaceFile] = useState<File | null>(null);
+  const [bodyFile, setBodyFile] = useState<File | null>(null);
+  // 현재 results가 실검색 결과인지 — 실검색 경로에는 mock 전용 시작점(TRACKING_ORIGIN)을 붙이지 않는다
+  const [liveTrace, setLiveTrace] = useState(false);
   const [results, setResults] = useState<HitResult[]>(MOCK_RESULTS);
   const [hasSearched, setHasSearched] = useState(false);
   const [activeHit, setActiveHit] = useState<number | null>(null);
@@ -489,6 +496,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   if (initialSearchName != null && initialSearchName !== consumedSearchName) {
     setConsumedSearchName(initialSearchName);
     setMode("person");
+    setLiveTrace(false); // 딥링크 결과는 mock 세트 — mock 시작점 포함 렌더로 복귀
     setResults(MOCK_RESULTS);
     setHasSearched(true);
     setActiveHit(MOCK_RESULTS.length - 1);
@@ -508,8 +516,8 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     if (!file) return;
     const url = URL.createObjectURL(file);
     const key = `${file.name}_${file.size}`;
-    if (uploadFor === "face") { setFaceImage(url); setFaceFileKey(key); }
-    else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); }
+    if (uploadFor === "face") { setFaceImage(url); setFaceFileKey(key); setFaceFile(file); }
+    else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); setBodyFile(file); }
     setUploadFor(null);
   };
 
@@ -521,12 +529,27 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     if (!file) return;
     const url = URL.createObjectURL(file);
     const key = `${file.name}_${file.size}`;
-    if (uploadFor === "face") { setFaceImage(url); setFaceFileKey(key); }
-    else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); }
+    if (uploadFor === "face") { setFaceImage(url); setFaceFileKey(key); setFaceFile(file); }
+    else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); setBodyFile(file); }
     setUploadFor(null);
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
+    // 데이터 연결(UV-34): 인물 모드는 실검색을 먼저 시도한다. 백엔드가 응답하면 그 결과가
+    // 화면 상태를 채우고, 미기동/이미지 미업로드면 null → 아래 기존 mock 해시 흐름으로 폴백.
+    if (mode === "person") {
+      const live = await searchRedmapPersons({ face: faceFile, body: bodyFile, dateRange, similarity });
+      if (live) {
+        setResults(live);
+        setHasSearched(true);
+        setActiveHit(live.length ? live.length - 1 : null);
+        setActiveNode(live.length ? live.length - 1 : null);
+        setTraceName(null);
+        setLiveTrace(true);
+        return;
+      }
+    }
+    setLiveTrace(false);
     // Which result set comes back depends on what was actually searched for — the same
     // face/body/plate always reproduces the same outcome, but a different upload will usually
     // land on a different (or empty) set instead of always showing the same 3-camera trail
@@ -557,6 +580,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     setBodyImage(null);
     setFaceFileKey(null);
     setBodyFileKey(null);
+    setFaceFile(null);
+    setBodyFile(null);
+    setLiveTrace(false);
     setResults(MOCK_RESULTS);
     setHasSearched(false);
     setActiveHit(null);
@@ -1004,6 +1030,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             showStatus={false}
             activeNode={activeNode}
             onMarkerClick={handleMarkerClick}
+            showOrigin={!liveTrace}
           />
         </div>
 
@@ -1054,8 +1081,11 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 <div style={{ position: "absolute", left: "22px", top: "22px", bottom: "22px", width: "2px", backgroundColor: "#e2e8f0" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                   {(() => {
+                    // 실검색(liveTrace) 결과는 그 자체로 완결된 경로 — mock 전용 시작점을 붙이지 않는다.
+                    // originOffset은 노드 index → 히트 index 변환량 (mock 1, 라이브 0).
+                    const originOffset = liveTrace ? 0 : 1;
                     const nodes = [
-                      { key: "origin", location: TRACKING_ORIGIN.label, date: TRACKING_ORIGIN.date, time: TRACKING_ORIGIN.time, faceUrl: TRACKING_ORIGIN.faceUrl, elapsed: undefined as string | undefined, elapsedAlert: false },
+                      ...(liveTrace ? [] : [{ key: "origin", location: TRACKING_ORIGIN.label, date: TRACKING_ORIGIN.date, time: TRACKING_ORIGIN.time, faceUrl: TRACKING_ORIGIN.faceUrl, elapsed: undefined as string | undefined, elapsedAlert: false as boolean | undefined }]),
                       ...results.map((hit) => ({ key: hit.id, location: hit.location, date: hit.date, time: hit.time, faceUrl: hit.faceUrl, elapsed: hit.elapsed, elapsedAlert: hit.elapsedAlert })),
                     ];
                     const ordered = timelineNewestFirst ? [...nodes].reverse() : nodes;
@@ -1065,14 +1095,14 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                       const index = timelineNewestFirst ? nodes.length - 1 - i : i;
                       const num = i + 1; // display rank — always 1..N top-to-bottom either way
                       const isLatest = index === nodes.length - 1;
-                      const isActive = activeNode === index - 1;
+                      const isActive = activeNode === index - originOffset;
                       return (
                         <div
                           key={node.key}
-                          onClick={() => { if (index > 0) handleNodeClick(index - 1); }}
-                          onMouseEnter={e => { if (index > 0 && !isActive) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                          onClick={() => { if (index >= originOffset) handleNodeClick(index - originOffset); }}
+                          onMouseEnter={e => { if (index >= originOffset && !isActive) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
                           onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; }}
-                          style={{ display: "flex", alignItems: "flex-start", gap: "12px", position: "relative", zIndex: 1, cursor: index > 0 ? "pointer" : "default", borderRadius: "12px", transition: "background-color 0.15s" }}
+                          style={{ display: "flex", alignItems: "flex-start", gap: "12px", position: "relative", zIndex: 1, cursor: index >= originOffset ? "pointer" : "default", borderRadius: "12px", transition: "background-color 0.15s" }}
                         >
                           <div style={{
                             width: "44px", height: "44px", borderRadius: "999px", flexShrink: 0,

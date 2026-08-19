@@ -95,6 +95,8 @@ interface RedmapMapProps {
   showStatus: boolean;
   activeNode: number | null;
   onMarkerClick: (index: number) => void;
+  // 데이터 연결(UV-34): 실검색 경로는 hits만으로 완결 — mock 전용 시작점(TRACKING_ORIGIN)을 그리지 않는다
+  showOrigin?: boolean;
 }
 
 export default function RedmapMap({
@@ -103,6 +105,7 @@ export default function RedmapMap({
   showStatus,
   activeNode,
   onMarkerClick,
+  showOrigin = true,
 }: RedmapMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<unknown>(null);
@@ -211,8 +214,9 @@ export default function RedmapMap({
 
       // ── TRACKING VIEW ─────────────────────────────────────────
       type RouteNode = { lat: number; lng: number; label: string; time: string };
+      const originOffset = showOrigin ? 1 : 0; // 노드 index → 히트 index 변환량
       const nodes: RouteNode[] = [
-        { lat: TRACKING_ORIGIN.lat, lng: TRACKING_ORIGIN.lng, label: TRACKING_ORIGIN.label, time: TRACKING_ORIGIN.time },
+        ...(showOrigin ? [{ lat: TRACKING_ORIGIN.lat, lng: TRACKING_ORIGIN.lng, label: TRACKING_ORIGIN.label, time: TRACKING_ORIGIN.time }] : []),
         ...hits.map((h) => ({ lat: h.lat, lng: h.lng, label: h.mapLabel, time: h.time })),
       ];
 
@@ -255,7 +259,7 @@ export default function RedmapMap({
       nodes.forEach((node, i) => {
         const num = String(i + 1).padStart(2, "0");
         const isLast = i === nodes.length - 1;
-        const hitIndex = i - 1;
+        const hitIndex = i - originOffset;
         const isActive = hitIndex >= 0 && activeNode === hitIndex;
         const size = isLast ? 44 : 36;
         const showCard = isLast || !isZoomedOut;
@@ -327,7 +331,7 @@ export default function RedmapMap({
       });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackingActive, showStatus, activeNode, hits, zoom, mapReady]);
+  }, [trackingActive, showStatus, activeNode, hits, zoom, mapReady, showOrigin]);
 
   return (
     <>

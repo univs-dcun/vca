@@ -50,6 +50,11 @@ BestFramePage의 `vca-bridge` import 부분) 재확인 → tsc + 시뮬레이터
 BestFramePage의 주입: useBestFrameLive 훅 호출 + 라이브 카메라 목록 동기화 effect + camDataFor()
 헬퍼(모든 CAM_DATA 접근이 이 함수를 거침) + 이미지 폴백 3곳(패널 행 아바타 `det.snapshotUrl ?? mock`,
 HUD LIVE SNAPSHOT, HUD ENROLLED DB `det.enrolledPhotoUrl` 분기).
+RedmapPage의 주입(UV-34): searchRedmapPersons import + faceFile/bodyFile/liveTrace state 3개 +
+업로드 핸들러 2곳의 setXxxFile + handleSearch 앞부분의 실검색 시도 블록(null이면 mock 폴백) +
+handleReset·딥링크 블록의 liveTrace 리셋 + 타임라인 originOffset 게이트 + RedmapMap showOrigin prop.
+RedmapMap의 주입: showOrigin?: boolean prop(기본 true) — 실검색 경로에서 mock 시작점 미표시,
+originOffset 기반 hitIndex 변환, effect deps에 showOrigin.
 
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)
