@@ -3,13 +3,16 @@ package ai.univs.vca.proxy;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import java.util.concurrent.TimeoutException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -21,7 +24,9 @@ import reactor.core.publisher.Mono;
  *   2. 2xx JSON → { success: true, code: "OK", data: ... } 로 포장
  *   3. 모듈 오류({code, message} + 상태코드) → 같은 상태코드의 envelope 오류
  *   4. 연결 실패 502 VCA-5020 / 타임아웃 504 VCA-5040 / 그 외 500 VCA-5000
- *   5. 예외: 이미지 리소스(VIP 사진, best frame, 감지 스냅샷)는 바이너리를 envelope 없이 스트리밍
+ *   5. 예외: 이미지 리소스(VIP 사진, best frame, 감지 스냅샷, 검색 hit 크롭)는 바이너리를 envelope 없이 스트리밍
+ *   6. 예외: 인물 검색(POST /persons/search)은 multipart 본문을 파싱 없이 그대로 중계하고
+ *      전용 타임아웃(search-timeout)을 쓴다 — 영상 검색은 통상 조회보다 오래 걸린다 (계약 v1.2, UV-34)
  */
 @RestController
 public class ProxyController {
@@ -49,6 +54,51 @@ public class ProxyController {
 	@GetMapping("/api/detections/{eventId}/snapshot")
 	public Mono<ResponseEntity<byte[]>> detectionSnapshot(@PathVariable String eventId) {
 		return binary("/detections/{eventId}/snapshot", eventId);
+	}
+
+	@GetMapping("/api/search-hits/{hitId}/face")
+	public Mono<ResponseEntity<byte[]>> searchHitFace(@PathVariable String hitId) {
+		return binary("/search-hits/{hitId}/face", hitId);
+	}
+
+	@GetMapping("/api/search-hits/{hitId}/body")
+	public Mono<ResponseEntity<byte[]>> searchHitBody(@PathVariable String hitId) {
+		return binary("/search-hits/{hitId}/body", hitId);
+	}
+
+	/**
+	 * 인물 검색 중계 (계약 v1.2). multipart 본문(얼굴/바디 이미지)을 파싱하지 않고 Content-Type
+	 * 헤더(boundary 포함)와 함께 그대로 스트리밍한다 — 프록시가 이미지를 메모리에 모으지 않는다.
+	 * 응답은 일반 조회와 동일하게 envelope 포장 + URL 재작성(faceUrl/bodyUrl → /api).
+	 */
+	@PostMapping("/api/persons/search")
+	public Mono<ResponseEntity<ApiEnvelope>> searchPersons(ServerHttpRequest request) {
+		String query = request.getURI().getRawQuery();
+		String uri = query == null ? "/persons/search" : "/persons/search?" + query;
+		MediaType contentType = request.getHeaders().getContentType();
+
+		return moduleApi.post()
+				.uri(uri)
+				.headers(h -> {
+					if (contentType != null) h.setContentType(contentType);
+					long len = request.getHeaders().getContentLength();
+					if (len >= 0) h.set(HttpHeaders.CONTENT_LENGTH, Long.toString(len));
+				})
+				.body(BodyInserters.fromDataBuffers(request.getBody()))
+				.retrieve()
+				.bodyToMono(JsonNode.class)
+				.timeout(props.searchTimeout())
+				.map(body -> ResponseEntity.ok(ApiEnvelope.ok(ModuleUrlRewriter.rewrite(body))))
+				.onErrorResume(WebClientResponseException.class, e -> Mono.just(moduleError(e)))
+				.onErrorResume(this::isConnectionError, e -> Mono.just(
+						ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+								.body(ApiEnvelope.error("VCA-5020", "모듈 API에 연결할 수 없습니다"))))
+				.onErrorResume(TimeoutException.class, e -> Mono.just(
+						ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+								.body(ApiEnvelope.error("VCA-5040", "인물 검색 응답 시간 초과 — 기간을 줄여 다시 시도하세요"))))
+				.onErrorResume(e -> Mono.just(
+						ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+								.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류"))));
 	}
 
 	/** 이미지 리소스 패스스루 — 모듈 응답의 상태코드·Content-Type을 유지한 채 envelope 없이 전달 */

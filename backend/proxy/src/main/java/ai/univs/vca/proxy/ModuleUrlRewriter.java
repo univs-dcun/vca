@@ -10,10 +10,12 @@ import tools.jackson.databind.node.ObjectNode;
  *   - snapshotUrl /detections/{eventId}/snapshot — openapi DetectionEventRow 계약 (BEST FRAME, UV-33)
  *   - imageUrl    /cameras/{id}/frames/{frameId} — REST 응답에 실릴 경우 대비 (bestframe 메타는 MQTT라
  *                                                   모듈이 /api/ 경로로 직접 발행한다, SPEC §3.5)
+ *   - faceUrl     /search-hits/{hitId}/face      — 인물 검색 hit 크롭 (계약 v1.2, UV-34)
+ *   - bodyUrl     /search-hits/{hitId}/body      — 〃
  */
 final class ModuleUrlRewriter {
 
-	private static final Set<String> FIELDS = Set.of("photoUrl", "snapshotUrl", "imageUrl");
+	private static final Set<String> FIELDS = Set.of("photoUrl", "snapshotUrl", "imageUrl", "faceUrl", "bodyUrl");
 
 	private ModuleUrlRewriter() {}
 

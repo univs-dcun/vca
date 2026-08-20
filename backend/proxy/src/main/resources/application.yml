@@ -9,6 +9,8 @@ vca:
     base-url: ${VCA_MODULE_API_BASE_URL:http://localhost:8081/v1}
     # 모듈 호출 타임아웃 — 초과 시 브라우저에 504 / VCA-5040
     timeout: 5s
+    # 인물 검색(POST /persons/search) 전용 타임아웃 — 영상 검색은 통상 조회보다 오래 걸린다 (계약 v1.2)
+    search-timeout: 60s
 
 management:
   endpoints:
