@@ -14,12 +14,13 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.4.0
  */
-import type { PageUploadedImage } from './pageUploadedImage';
+import type { TrackSource } from './trackSource';
 
-export interface ImageListResponse {
-  success: boolean;
-  code: string;
-  /** @nullable */
-  message?: string | null;
-  data: PageUploadedImage;
+/**
+ * Track on Map 요청 — 대상 참조만 전달한다. 시간 창(당일 00:00→tracked 시각)·유사도(0.9)는 백엔드가 결정
+ */
+export interface TrackOnMapRequest {
+  source: TrackSource;
+  /** 백엔드가 발급한 대상 ID — camera는 live-analytics 감지 id, video/image는 v1.3 타깃 targetId */
+  targetId: string;
 }

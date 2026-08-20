@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 import {
   useMutation,
@@ -37,7 +37,9 @@ import type {
   ErrorResponse,
   PersonSearchResponse,
   SearchPersonsBody,
-  SearchPersonsParams
+  SearchPersonsParams,
+  TrackOnMapRequest,
+  TrackOnMapResponse
 } from '.././model';
 
 import { customInstance } from '../../axios-instance';
@@ -311,3 +313,72 @@ export function useGetSearchHitBody<TData = Awaited<ReturnType<typeof getSearchH
 
 
 
+/**
+ * BEST FRAME tracked detail의 Track on Map (계약 v1.4). 선택한 대상(카메라 감지·비디오 타깃·이미지 타깃)의 참조만 보내면, 대상이 track된 사이트 로컬 당일 00:00부터 tracked 시각까지 유사도 90%로 백엔드가 추적 경로를 검색해 반환한다.
+- 요청에 시간·유사도 파라미터 없음 — 실제 적용값은 data.applied로 에코 (화면의 유사도·날짜 표시용)
+- data.hits는 인물 검색(POST /persons/search)과 동일 형태 — REDMAP 경로·타임라인·elapsed 렌더링을 그대로 재사용. 마지막 항목은 기준 대상 자신의 감지(경로 종점)
+- 동기 요청 — 프록시 타임아웃 60초 (인물 검색과 동일, 프론트도 이 요청만 타임아웃 연장 필요)
+ * @summary Track on Map — 기존 감지 대상의 당일 추적 검색
+ */
+export const trackTargetOnMap = (
+    trackOnMapRequest: TrackOnMapRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<TrackOnMapResponse>(
+      {url: `/targets/track-on-map`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: trackOnMapRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getTrackTargetOnMapMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trackTargetOnMap>>, TError,{data: TrackOnMapRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof trackTargetOnMap>>, TError,{data: TrackOnMapRequest}, TContext> => {
+
+const mutationKey = ['trackTargetOnMap'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof trackTargetOnMap>>, {data: TrackOnMapRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  trackTargetOnMap(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TrackTargetOnMapMutationResult = NonNullable<Awaited<ReturnType<typeof trackTargetOnMap>>>
+    export type TrackTargetOnMapMutationBody = TrackOnMapRequest
+    export type TrackTargetOnMapMutationError = ErrorResponse
+
+    /**
+ * @summary Track on Map — 기존 감지 대상의 당일 추적 검색
+ */
+export const useTrackTargetOnMap = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trackTargetOnMap>>, TError,{data: TrackOnMapRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof trackTargetOnMap>>,
+        TError,
+        {data: TrackOnMapRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getTrackTargetOnMapMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    

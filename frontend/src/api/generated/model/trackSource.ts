@@ -14,12 +14,14 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.4.0
  */
-import type { PageUploadedImage } from './pageUploadedImage';
+import type { TrackSourceType } from './trackSourceType';
 
-export interface ImageListResponse {
-  success: boolean;
-  code: string;
-  /** @nullable */
-  message?: string | null;
-  data: PageUploadedImage;
+/**
+ * Track on Map 기준 대상이 감지된 원본 매체 참조 (계약 v1.4, UV-36)
+ */
+export interface TrackSource {
+  /** 대상이 나온 매체 종류 */
+  type: TrackSourceType;
+  /** type별 매체 식별자 — camera는 cameraId, video는 videoId, image는 imageId */
+  id: string;
 }

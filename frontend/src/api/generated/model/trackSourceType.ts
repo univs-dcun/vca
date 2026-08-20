@@ -14,12 +14,16 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.4.0
  */
-import type { PageUploadedImage } from './pageUploadedImage';
 
-export interface ImageListResponse {
-  success: boolean;
-  code: string;
-  /** @nullable */
-  message?: string | null;
-  data: PageUploadedImage;
-}
+/**
+ * 대상이 나온 매체 종류
+ */
+export type TrackSourceType = typeof TrackSourceType[keyof typeof TrackSourceType];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const TrackSourceType = {
+  camera: 'camera',
+  video: 'video',
+  image: 'image',
+} as const;

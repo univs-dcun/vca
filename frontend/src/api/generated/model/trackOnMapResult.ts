@@ -14,12 +14,20 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.4.0
  */
-import type { PageUploadedImage } from './pageUploadedImage';
+import type { PersonSearchHit } from './personSearchHit';
+import type { TrackOnMapApplied } from './trackOnMapApplied';
+import type { TrackedTargetSummary } from './trackedTargetSummary';
 
-export interface ImageListResponse {
-  success: boolean;
-  code: string;
-  /** @nullable */
-  message?: string | null;
-  data: PageUploadedImage;
+/**
+ * Track on Map 결과. hits 규칙은 PersonSearchResult와 동일 (capturedAt 오름차순, elapsed·1시간 초과 경고는 프론트 계산)
+ */
+export interface TrackOnMapResult {
+  /** 검색 실행 ID — 로그 추적·향후 비동기 전환 대비 */
+  searchId: string;
+  /** 당일 추적 목격 전체 — 마지막 항목은 기준 대상 자신의 감지(시간 창의 끝) */
+  hits: PersonSearchHit[];
+  /** 상한(기본 50)에 걸려 잘렸으면 true */
+  truncated?: boolean;
+  applied: TrackOnMapApplied;
+  target: TrackedTargetSummary;
 }
