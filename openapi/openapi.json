@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -14,7 +14,7 @@
     { "name": "stats", "description": "집계/그래프 (Detection Topology & Average)" },
     { "name": "users", "description": "스캐폴드 데모 — 추후 제거 예정" },
     { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33)" },
-    { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34). 차량 번호 검색은 구현 방식 미확정으로 v1.2 범위 제외" },
+    { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34) + Track on Map 대상 추적 검색 (계약 v1.4, UV-36). 차량 번호 검색은 구현 방식 미확정으로 범위 제외" },
     { "name": "images", "description": "BEST FRAME Image list (계약 v1.3, UV-35) — 업로드 이미지 조회 (업로드는 타 서비스)" },
     { "name": "videos", "description": "BEST FRAME Video list (계약 v1.3, UV-35) — 업로드 영상 목록·MP4 재생·프레임별 대상" }
   ],
@@ -371,6 +371,29 @@
             "content": {
               "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
               "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/targets/track-on-map": {
+      "post": {
+        "operationId": "trackTargetOnMap",
+        "summary": "Track on Map — 기존 감지 대상의 당일 추적 검색",
+        "description": "BEST FRAME tracked detail의 Track on Map (계약 v1.4). 선택한 대상(카메라 감지·비디오 타깃·이미지 타깃)의 참조만 보내면, 대상이 track된 사이트 로컬 당일 00:00부터 tracked 시각까지 유사도 90%로 백엔드가 추적 경로를 검색해 반환한다.\n- 요청에 시간·유사도 파라미터 없음 — 실제 적용값은 data.applied로 에코 (화면의 유사도·날짜 표시용)\n- data.hits는 인물 검색(POST /persons/search)과 동일 형태 — REDMAP 경로·타임라인·elapsed 렌더링을 그대로 재사용. 마지막 항목은 기준 대상 자신의 감지(경로 종점)\n- 동기 요청 — 프록시 타임아웃 60초 (인물 검색과 동일, 프론트도 이 요청만 타임아웃 연장 필요)",
+        "tags": ["search"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TrackOnMapRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK — 당일 추가 목격이 없으면 기준 감지 1건만 담긴 data.hits",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TrackOnMapResponse" } }
             }
           },
           "default": { "$ref": "#/components/responses/Error" }
@@ -1071,6 +1094,66 @@
           "code": { "type": "string" },
           "message": { "type": "string", "nullable": true },
           "data": { "$ref": "#/components/schemas/PersonSearchResult" }
+        }
+      },
+      "TrackSource": {
+        "type": "object",
+        "description": "Track on Map 기준 대상이 감지된 원본 매체 참조 (계약 v1.4, UV-36)",
+        "required": ["type", "id"],
+        "properties": {
+          "type": { "type": "string", "enum": ["camera", "video", "image"], "description": "대상이 나온 매체 종류" },
+          "id": { "type": "string", "description": "type별 매체 식별자 — camera는 cameraId, video는 videoId, image는 imageId" }
+        }
+      },
+      "TrackOnMapRequest": {
+        "type": "object",
+        "description": "Track on Map 요청 — 대상 참조만 전달한다. 시간 창(당일 00:00→tracked 시각)·유사도(0.9)는 백엔드가 결정",
+        "required": ["source", "targetId"],
+        "properties": {
+          "source": { "$ref": "#/components/schemas/TrackSource" },
+          "targetId": { "type": "string", "description": "백엔드가 발급한 대상 ID — camera는 live-analytics 감지 id, video/image는 v1.3 타깃 targetId" }
+        }
+      },
+      "TrackOnMapApplied": {
+        "type": "object",
+        "description": "실제 적용된 검색 조건 에코 — 화면이 유사도(90%)·검색 날짜 표시에 사용",
+        "required": ["from", "to", "similarity"],
+        "properties": {
+          "from": { "type": "string", "format": "date-time", "description": "대상이 track된 사이트 로컬 당일 00:00" },
+          "to": { "type": "string", "format": "date-time", "description": "대상의 tracked 시각" },
+          "similarity": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "description": "적용 유사도 임계값 — v1.4는 0.9 고정" }
+        }
+      },
+      "TrackedTargetSummary": {
+        "type": "object",
+        "description": "추적 기준 대상 요약 — REDMAP 화면의 'Tracing: …' 라벨·썸네일용",
+        "required": ["label", "category"],
+        "properties": {
+          "label": { "type": "string", "description": "대상 표시명 (등록 인물이면 이름, 아니면 라벨)" },
+          "category": { "$ref": "#/components/schemas/DetectionCategory" },
+          "cropUrl": { "type": "string", "nullable": true, "description": "기준 대상 크롭의 /api 상대경로 — <img src>로 직접 사용. 크롭 없으면 null" }
+        }
+      },
+      "TrackOnMapResult": {
+        "type": "object",
+        "description": "Track on Map 결과. hits 규칙은 PersonSearchResult와 동일 (capturedAt 오름차순, elapsed·1시간 초과 경고는 프론트 계산)",
+        "required": ["searchId", "hits", "applied", "target"],
+        "properties": {
+          "searchId": { "type": "string", "description": "검색 실행 ID — 로그 추적·향후 비동기 전환 대비" },
+          "hits": { "type": "array", "items": { "$ref": "#/components/schemas/PersonSearchHit" }, "description": "당일 추적 목격 전체 — 마지막 항목은 기준 대상 자신의 감지(시간 창의 끝)" },
+          "truncated": { "type": "boolean", "default": false, "description": "상한(기본 50)에 걸려 잘렸으면 true" },
+          "applied": { "$ref": "#/components/schemas/TrackOnMapApplied" },
+          "target": { "$ref": "#/components/schemas/TrackedTargetSummary" }
+        }
+      },
+      "TrackOnMapResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/TrackOnMapResult" }
         }
       },
       "UploadedImage": {

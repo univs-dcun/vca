@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 
 export * from './bBox';
@@ -72,6 +72,13 @@ export * from './searchPersonsBody';
 export * from './searchPersonsParams';
 export * from './sizeParameter';
 export * from './topologyPoint';
+export * from './trackOnMapApplied';
+export * from './trackOnMapRequest';
+export * from './trackOnMapResponse';
+export * from './trackOnMapResult';
+export * from './trackSource';
+export * from './trackSourceType';
+export * from './trackedTargetSummary';
 export * from './uploadedImage';
 export * from './user';
 export * from './userListResponse';

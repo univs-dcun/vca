@@ -14,12 +14,18 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.4.0
  */
-import type { PageUploadedImage } from './pageUploadedImage';
+import type { DetectionCategory } from './detectionCategory';
 
-export interface ImageListResponse {
-  success: boolean;
-  code: string;
-  /** @nullable */
-  message?: string | null;
-  data: PageUploadedImage;
+/**
+ * 추적 기준 대상 요약 — REDMAP 화면의 'Tracing: …' 라벨·썸네일용
+ */
+export interface TrackedTargetSummary {
+  /** 대상 표시명 (등록 인물이면 이름, 아니면 라벨) */
+  label: string;
+  category: DetectionCategory;
+  /**
+   * 기준 대상 크롭의 /api 상대경로 — <img src>로 직접 사용. 크롭 없으면 null
+   * @nullable
+   */
+  cropUrl?: string | null;
 }

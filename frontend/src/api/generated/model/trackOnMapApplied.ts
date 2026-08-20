@@ -14,12 +14,19 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.4.0
  */
-import type { PageUploadedImage } from './pageUploadedImage';
 
-export interface ImageListResponse {
-  success: boolean;
-  code: string;
-  /** @nullable */
-  message?: string | null;
-  data: PageUploadedImage;
+/**
+ * 실제 적용된 검색 조건 에코 — 화면이 유사도(90%)·검색 날짜 표시에 사용
+ */
+export interface TrackOnMapApplied {
+  /** 대상이 track된 사이트 로컬 당일 00:00 */
+  from: string;
+  /** 대상의 tracked 시각 */
+  to: string;
+  /**
+   * 적용 유사도 임계값 — v1.4는 0.9 고정
+   * @minimum 0
+   * @maximum 1
+   */
+  similarity: number;
 }

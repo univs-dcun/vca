@@ -14,12 +14,12 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.4.0
  */
-import type { PageUploadedImage } from './pageUploadedImage';
+import type { TrackOnMapResult } from './trackOnMapResult';
 
-export interface ImageListResponse {
+export interface TrackOnMapResponse {
   success: boolean;
   code: string;
   /** @nullable */
   message?: string | null;
-  data: PageUploadedImage;
+  data: TrackOnMapResult;
 }
