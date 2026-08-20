@@ -50,6 +50,11 @@ BestFramePage의 `vca-bridge` import 부분) 재확인 → tsc + 시뮬레이터
 BestFramePage의 주입: useBestFrameLive 훅 호출 + 라이브 카메라 목록 동기화 effect + camDataFor()
 헬퍼(모든 CAM_DATA 접근이 이 함수를 거침) + 이미지 폴백 3곳(패널 행 아바타 `det.snapshotUrl ?? mock`,
 HUD LIVE SNAPSHOT, HUD ENROLLED DB `det.enrolledPhotoUrl` 분기).
+BestFramePage v1.3 주입(UV-35): useMediaLive·LiveVideoFeed import + media 훅 호출 +
+videoCams/imageCams 동기화 effect 2개 + camDataFor 체인에 media.dataFor 추가 +
+CameraCard 피드의 `data.videoUrl ? <LiveVideoFeed> : <img>` 분기. CamData에 optional
+videoUrl 필드(types/detection.ts). 비디오 타일 컴포넌트(LiveVideoFeed — 재생+bbox 오버레이)는
+vca-bridge 소유의 임시 구현 — 기획자가 정식 타일을 디자인하면 대체.
 RedmapPage의 주입(UV-34): searchRedmapPersons import + faceFile/bodyFile/liveTrace state 3개 +
 업로드 핸들러 2곳의 setXxxFile + handleSearch 앞부분의 실검색 시도 블록(null이면 mock 폴백) +
 handleReset·딥링크 블록의 liveTrace 리셋 + 타임라인 originOffset 게이트 + RedmapMap showOrigin prop.

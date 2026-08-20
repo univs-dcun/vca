@@ -4,6 +4,9 @@ import BestFrameDetailPage from "./BestFrameDetailPage";
 import { useToast } from "./Toast";
 import type { DetType, MonitorState, Camera, Detection, CamData, HUDState } from "@/types/detection";
 import { useBestFrameLive } from "../../../lib/vca-bridge/useBestFrameLive";
+// 데이터 연결(백엔드 소유, UV-35): 업로드 Video/Image list 라이브 + 비디오 재생 타일
+import { useMediaLive } from "../../../lib/vca-bridge/useMediaLive";
+import { LiveVideoFeed } from "../../../lib/vca-bridge/LiveVideoFeed";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const BORDER = "1px solid #E2E8F0";
@@ -323,7 +326,10 @@ function CameraCard({
         onMouseLeave={() => setFeedHovered(false)}
         style={{ flex:1, position:"relative", overflow:"hidden", backgroundColor:"#0e162a", minWidth:0, minHeight:0 }}
       >
-        <img src={data.bgUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:0.9 }} />
+        {/* 업로드 비디오(라이브, UV-35)는 재생 + bbox 오버레이, 그 외에는 기존 프레임 이미지 */}
+        {data.videoUrl
+          ? <LiveVideoFeed videoId={cam.id} src={data.videoUrl} poster={data.bgUrl} />
+          : <img src={data.bgUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:0.9 }} />}
         {feedHovered && canAnalyze && (
           <button
             onClick={onHeaderArrowClick}
@@ -743,8 +749,20 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     // 라이브 카메라 목록으로 교체하되 사용자가 선택한 checked 상태는 보존
     setNormalCams(prev => liveCameras.map(lc => ({ ...lc, checked: prev.find(p => p.id === lc.id)?.checked ?? false })));
   }, [liveCameras]);
-  // 카메라 데이터 조회 — 라이브 우선, 없으면 mock (이 아래 모든 CAM_DATA 접근은 이 함수를 거친다)
-  const camDataFor = (id: string): CamData | undefined => live.dataFor(id) ?? CAM_DATA[id];
+  // 업로드 Video/Image list 라이브 (UV-35) — 카메라와 같은 규칙: REST 미응답이면 mock 목록 유지
+  const media = useMediaLive();
+  const liveVideos = media.videos;
+  const liveImages = media.images;
+  useEffect(() => {
+    if (!liveVideos) return;
+    setVideoCams(prev => liveVideos.map(lv => ({ ...lv, checked: prev.find(p => p.id === lv.id)?.checked ?? false })));
+  }, [liveVideos]);
+  useEffect(() => {
+    if (!liveImages) return;
+    setImageCams(prev => liveImages.map(li => ({ ...li, checked: prev.find(p => p.id === li.id)?.checked ?? false })));
+  }, [liveImages]);
+  // 카메라 데이터 조회 — 라이브(카메라→미디어) 우선, 없으면 mock (이 아래 모든 CAM_DATA 접근은 이 함수를 거친다)
+  const camDataFor = (id: string): CamData | undefined => live.dataFor(id) ?? media.dataFor(id) ?? CAM_DATA[id];
 
   // Deep-link from Dashboard's device popup ("View Live in Best Frame") — find the camera
   // whose location best matches the hint and isolate it as the ONLY checked camera, so the
