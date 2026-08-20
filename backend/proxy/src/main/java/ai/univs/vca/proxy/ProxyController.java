@@ -5,6 +5,8 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -18,6 +20,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
@@ -29,6 +32,9 @@ import reactor.core.publisher.Mono;
  *   5. 예외: 이미지 리소스(VIP 사진, best frame, 감지 스냅샷, 검색 hit 크롭)는 바이너리를 envelope 없이 스트리밍
  *   6. 예외: 인물 검색(POST /persons/search)은 multipart 본문을 파싱 없이 그대로 중계하고
  *      전용 타임아웃(search-timeout)을 쓴다 — 영상 검색은 통상 조회보다 오래 걸린다 (계약 v1.2, UV-34)
+ *   7. 예외: 비디오 콘텐츠(/videos/{id}/content)는 Range 헤더를 전달하고 상태(200/206)·관련 헤더와
+ *      함께 본문을 버퍼링 없이 스트리밍한다 — 수백 MB MP4가 메모리 한도(max-response-size)를
+ *      지나지 않아야 하고, 시킹은 Range 패스스루가 전제다 (계약 v1.3, UV-35)
  */
 @RestController
 public class ProxyController {
@@ -68,6 +74,64 @@ public class ProxyController {
 	@GetMapping("/api/search-hits/{hitId}/body")
 	public Mono<ResponseEntity<byte[]>> searchHitBody(@PathVariable String hitId) {
 		return binary("/search-hits/{hitId}/body", hitId);
+	}
+
+	@GetMapping("/api/images/{imageId}/content")
+	public Mono<ResponseEntity<byte[]>> imageContent(@PathVariable String imageId) {
+		return binary("/images/{imageId}/content", imageId);
+	}
+
+	@GetMapping("/api/images/{imageId}/targets/{targetId}/crop")
+	public Mono<ResponseEntity<byte[]>> imageTargetCrop(@PathVariable String imageId, @PathVariable String targetId) {
+		return binary("/images/{imageId}/targets/{targetId}/crop", imageId, targetId);
+	}
+
+	@GetMapping("/api/videos/{videoId}/thumbnail")
+	public Mono<ResponseEntity<byte[]>> videoThumbnail(@PathVariable String videoId) {
+		return binary("/videos/{videoId}/thumbnail", videoId);
+	}
+
+	@GetMapping("/api/videos/{videoId}/targets/{targetId}/crop")
+	public Mono<ResponseEntity<byte[]>> videoTargetCrop(@PathVariable String videoId, @PathVariable String targetId) {
+		return binary("/videos/{videoId}/targets/{targetId}/crop", videoId, targetId);
+	}
+
+	/**
+	 * 비디오 콘텐츠 스트리밍 중계 (계약 v1.3). binary()와 달리 본문을 메모리에 모으지 않는다 —
+	 * MP4는 max-response-size를 넘는 것이 정상이다. Range 요청 헤더를 모듈에 그대로 전달하고,
+	 * 응답 상태(200/206)와 재생·시킹에 필요한 헤더(Content-Type/Length/Range, Accept-Ranges)를
+	 * 유지한 채 DataBuffer 흐름으로 통과시킨다. 타임아웃은 헤더 수신까지만 적용 — 본문 전송은
+	 * 재생 시간만큼 이어지는 것이 정상이라 스트림에는 걸지 않는다.
+	 */
+	@GetMapping("/api/videos/{videoId}/content")
+	public Mono<ResponseEntity<Flux<DataBuffer>>> videoContent(@PathVariable String videoId, ServerHttpRequest request) {
+		String range = request.getHeaders().getFirst(HttpHeaders.RANGE);
+		return moduleApi.get()
+				.uri("/videos/{videoId}/content", videoId)
+				.headers(h -> { if (range != null) h.set(HttpHeaders.RANGE, range); })
+				.retrieve()
+				// exchangeToMono는 Mono 완료 시점에 커넥션을 해제해 밖으로 넘긴 body Flux가
+				// 빈 스트림이 된다 — 헤더만 먼저 완료되고 본문은 이후에 흐르는 toEntityFlux를 써야 한다
+				.toEntityFlux(DataBuffer.class)
+				.timeout(props.timeout()) // 헤더 수신까지만 — 본문 전송은 재생 시간만큼 이어지는 것이 정상
+				.map(res -> {
+					HttpHeaders headers = new HttpHeaders();
+					for (String name : new String[] {
+							HttpHeaders.CONTENT_TYPE, HttpHeaders.CONTENT_LENGTH,
+							HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES, HttpHeaders.CACHE_CONTROL }) {
+						String v = res.getHeaders().getFirst(name);
+						if (v != null) headers.set(name, v);
+					}
+					return ResponseEntity.status(res.getStatusCode()).headers(headers).body(res.getBody());
+				})
+				.onErrorResume(WebClientResponseException.class, e -> Mono.just(
+						ResponseEntity.status(e.getStatusCode())
+								.headers(h -> h.setContentType(MediaType.APPLICATION_JSON))
+								.body(Flux.just(DefaultDataBufferFactory.sharedInstance.wrap(e.getResponseBodyAsByteArray())))))
+				.onErrorResume(this::isConnectionError,
+						e -> Mono.just(ResponseEntity.status(HttpStatus.BAD_GATEWAY).build()))
+				.onErrorResume(TimeoutException.class,
+						e -> Mono.just(ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).build()));
 	}
 
 	/**

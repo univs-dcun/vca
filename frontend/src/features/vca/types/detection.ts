@@ -31,6 +31,8 @@ export interface CamData {
   camLabel: string;
   location: string;
   bgUrl?: string;
+  /** 업로드 비디오 타일 (라이브, 계약 v1.3 — vca-bridge가 공급). 있으면 bgUrl 대신 video로 재생 */
+  videoUrl?: string;
   detections: Detection[];
 }
 

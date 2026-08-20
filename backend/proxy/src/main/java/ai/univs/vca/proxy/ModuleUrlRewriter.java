@@ -12,10 +12,14 @@ import tools.jackson.databind.node.ObjectNode;
  *                                                   모듈이 /api/ 경로로 직접 발행한다, SPEC §3.5)
  *   - faceUrl     /search-hits/{hitId}/face      — 인물 검색 hit 크롭 (계약 v1.2, UV-34)
  *   - bodyUrl     /search-hits/{hitId}/body      — 〃
+ *   - contentUrl  /videos/{id}/content           — 업로드 비디오 MP4 (계약 v1.3, UV-35)
+ *   - thumbnailUrl /videos/{id}/thumbnail        — 〃 (imageUrl은 v1.3의 /images/{id}/content도 겸한다)
+ *   - cropUrl     /images|videos/.../crop        — 미디어 대상 크롭 (계약 v1.3)
  */
 final class ModuleUrlRewriter {
 
-	private static final Set<String> FIELDS = Set.of("photoUrl", "snapshotUrl", "imageUrl", "faceUrl", "bodyUrl");
+	private static final Set<String> FIELDS =
+			Set.of("photoUrl", "snapshotUrl", "imageUrl", "faceUrl", "bodyUrl", "contentUrl", "thumbnailUrl", "cropUrl");
 
 	private ModuleUrlRewriter() {}
 
