@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 
 export * from './bBox';
@@ -35,11 +35,20 @@ export * from './errorResponseData';
 export * from './getCameraDetectionsParams';
 export * from './getCamerasParams';
 export * from './getDetectionTopologyParams';
+export * from './getImagesParams';
 export * from './getLiveAnalyticsParams';
 export * from './getLiveAnalyticsType';
+export * from './getVideoFramesParams';
+export * from './getVideoTargetsParams';
+export * from './getVideosParams';
 export * from './getVipDetectedCamerasParams';
 export * from './getVipDetectionsParams';
 export * from './getVipsParams';
+export * from './imageListResponse';
+export * from './imageTarget';
+export * from './imageTargetMatchedVip';
+export * from './imageTargets';
+export * from './imageTargetsResponse';
 export * from './latLng';
 export * from './liveAnalyticsListResponse';
 export * from './liveAnalyticsRow';
@@ -50,6 +59,9 @@ export * from './pageCamera';
 export * from './pageDetectionEventRow';
 export * from './pageLiveAnalyticsRow';
 export * from './pageParameter';
+export * from './pageUploadedImage';
+export * from './pageVideoItem';
+export * from './pageVideoTarget';
 export * from './pageVip';
 export * from './personAttributes';
 export * from './personSearchHit';
@@ -60,9 +72,20 @@ export * from './searchPersonsBody';
 export * from './searchPersonsParams';
 export * from './sizeParameter';
 export * from './topologyPoint';
+export * from './uploadedImage';
 export * from './user';
 export * from './userListResponse';
 export * from './vehicleInfo';
+export * from './videoAnalysisStatus';
+export * from './videoFrameEntry';
+export * from './videoFrameObject';
+export * from './videoFrames';
+export * from './videoFramesResponse';
+export * from './videoItem';
+export * from './videoListResponse';
+export * from './videoTarget';
+export * from './videoTargetListResponse';
+export * from './videoTargetMatchedVip';
 export * from './vip';
 export * from './vipDetectedCameras';
 export * from './vipDetectedCamerasResponse';

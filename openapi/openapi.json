@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -14,7 +14,9 @@
     { "name": "stats", "description": "집계/그래프 (Detection Topology & Average)" },
     { "name": "users", "description": "스캐폴드 데모 — 추후 제거 예정" },
     { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33)" },
-    { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34). 차량 번호 검색은 구현 방식 미확정으로 v1.2 범위 제외" }
+    { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34). 차량 번호 검색은 구현 방식 미확정으로 v1.2 범위 제외" },
+    { "name": "images", "description": "BEST FRAME Image list (계약 v1.3, UV-35) — 업로드 이미지 조회 (업로드는 타 서비스)" },
+    { "name": "videos", "description": "BEST FRAME Video list (계약 v1.3, UV-35) — 업로드 영상 목록·MP4 재생·프레임별 대상" }
   ],
   "paths": {
     "/dashboard/live-analytics": {
@@ -374,6 +376,219 @@
           "default": { "$ref": "#/components/responses/Error" }
         }
       }
+    },
+    "/images": {
+      "get": {
+        "operationId": "getImages",
+        "summary": "업로드 이미지 목록 (페이징) — BEST FRAME Image list",
+        "description": "Image list 사이드바 항목. 업로드는 타 서비스가 하고 모듈이 저장·분석한다 — 이 API는 조회 전용. 최신 업로드 순. imageUrl은 /api 상대경로 — 타일 배경 <img src>로 직접 사용.",
+        "tags": ["images"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ImageListResponse" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/images/{imageId}/targets": {
+      "get": {
+        "operationId": "getImageTargets",
+        "summary": "이미지에서 검출된 대상 목록 — 타깃 패널",
+        "description": "이미지 타일 선택 시 우측 타깃 패널 채우기. 카메라의 '최근 감지 누적'과 달리 정적 전체 목록 (페이징 없음). bbox는 0~1 정규화 — 타일 오버레이 좌표.",
+        "tags": ["images"],
+        "parameters": [{ "$ref": "#/components/parameters/ImageId" }],
+        "responses": {
+          "200": {
+            "description": "OK — 검출 대상이 없으면 빈 targets 배열",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ImageTargetsResponse" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/images/{imageId}/content": {
+      "get": {
+        "operationId": "getImageContent",
+        "summary": "업로드 이미지 원본 (바이너리)",
+        "description": "목록 행의 imageUrl이 가리키는 리소스. envelope 없이 이미지 바이너리를 그대로 반환한다.",
+        "tags": ["images"],
+        "parameters": [{ "$ref": "#/components/parameters/ImageId" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/images/{imageId}/targets/{targetId}/crop": {
+      "get": {
+        "operationId": "getImageTargetCrop",
+        "summary": "이미지 대상 크롭 (바이너리)",
+        "description": "타깃 패널 행 썸네일 — targets 응답의 cropUrl이 가리키는 리소스.",
+        "tags": ["images"],
+        "parameters": [
+          { "$ref": "#/components/parameters/ImageId" },
+          { "$ref": "#/components/parameters/TargetId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos": {
+      "get": {
+        "operationId": "getVideos",
+        "summary": "업로드 비디오 목록 (페이징) — BEST FRAME Video list",
+        "description": "Video list 사이드바 항목. analysisStatus가 ready인 항목만 선택 가능(processing은 카메라 STOPPED과 같은 비활성 문법). 최신 업로드 순.",
+        "tags": ["videos"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/VideoListResponse" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/content": {
+      "get": {
+        "operationId": "getVideoContent",
+        "summary": "비디오 콘텐츠 (MP4 바이너리, Range 지원)",
+        "description": "video 태그 src로 직접 사용 (목록 행의 contentUrl). HTTP Range 요청 시 206 Partial Content — 시킹·배속의 전제. 프록시는 Range 헤더와 응답(Content-Range·Accept-Ranges)을 그대로 스트리밍한다 (envelope 없음).",
+        "tags": ["videos"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "name": "Range", "in": "header", "required": false, "description": "표준 HTTP Range (예: bytes=0-1048575)", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "전체 콘텐츠 (Range 미지정)",
+            "content": {
+              "video/mp4": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "206": {
+            "description": "부분 콘텐츠 — Content-Range·Accept-Ranges 헤더 포함",
+            "content": {
+              "video/mp4": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/thumbnail": {
+      "get": {
+        "operationId": "getVideoThumbnail",
+        "summary": "비디오 썸네일 (바이너리)",
+        "description": "목록 행·타일의 대표 이미지 — 목록 행의 thumbnailUrl이 가리키는 리소스 (processing 중이면 null이라 조회하지 않음).",
+        "tags": ["videos"],
+        "parameters": [{ "$ref": "#/components/parameters/VideoId" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/frames": {
+      "get": {
+        "operationId": "getVideoFrames",
+        "summary": "비디오 프레임별 대상 (시간 구간) — 재생 오버레이 동기화",
+        "description": "재생 중 bbox 오버레이의 원천. 화면은 video.currentTime 기준 '가장 최근 t' 항목의 objects를 그린다 (retained bestframe과 같은 해석). 재생 진행에 따라 구간 단위(기본 60초)로 나눠 조회 — 전체 영상을 한 번에 요청하지 않는다.",
+        "tags": ["videos"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "name": "from", "in": "query", "required": false, "description": "구간 시작 (초, 기본 0)", "schema": { "type": "number", "format": "double", "minimum": 0, "default": 0 } },
+          { "name": "to", "in": "query", "required": false, "description": "구간 끝 (초, 기본 from+60, 최대 from+300)", "schema": { "type": "number", "format": "double", "minimum": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — 구간에 대상이 없으면 빈 frames 배열",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/VideoFramesResponse" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/targets": {
+      "get": {
+        "operationId": "getVideoTargets",
+        "summary": "비디오 내 고유 대상 목록 (페이징) — 타깃 패널",
+        "description": "비디오 타일 선택 시 우측 타깃 패널 채우기. 영상 전체에서 추적된 고유 대상, lastSeenSec 내림차순. 행 클릭 시 firstSeenSec으로 시크하는 UX 전제. frames 응답의 objects[].targetId와 같은 값으로 연결된다.",
+        "tags": ["videos"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/VideoTargetListResponse" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/targets/{targetId}/crop": {
+      "get": {
+        "operationId": "getVideoTargetCrop",
+        "summary": "비디오 대상 크롭 (바이너리)",
+        "description": "타깃 패널 행 썸네일 — targets 응답의 cropUrl이 가리키는 리소스.",
+        "tags": ["videos"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "$ref": "#/components/parameters/TargetId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
     }
   },
   "components": {
@@ -432,6 +647,27 @@
         "in": "path",
         "required": true,
         "description": "인물 검색 hit ID — POST /persons/search 응답의 hitId",
+        "schema": { "type": "string" }
+      },
+      "ImageId": {
+        "name": "imageId",
+        "in": "path",
+        "required": true,
+        "description": "업로드 이미지 ID — GET /images 응답의 imageId",
+        "schema": { "type": "string" }
+      },
+      "VideoId": {
+        "name": "videoId",
+        "in": "path",
+        "required": true,
+        "description": "업로드 비디오 ID — GET /videos 응답의 videoId",
+        "schema": { "type": "string" }
+      },
+      "TargetId": {
+        "name": "targetId",
+        "in": "path",
+        "required": true,
+        "description": "미디어 내 대상 ID — targets 응답의 targetId",
         "schema": { "type": "string" }
       }
     },
@@ -835,6 +1071,198 @@
           "code": { "type": "string" },
           "message": { "type": "string", "nullable": true },
           "data": { "$ref": "#/components/schemas/PersonSearchResult" }
+        }
+      },
+      "UploadedImage": {
+        "type": "object",
+        "description": "업로드 이미지 목록 행 (계약 v1.3, UV-35). imageUrl은 /api 상대경로 — <img src>로 직접 사용",
+        "required": ["imageId", "name", "uploadedAt", "imageUrl", "targetCount"],
+        "properties": {
+          "imageId": { "type": "string" },
+          "name": { "type": "string", "description": "업로드 파일명" },
+          "uploadedAt": { "type": "string", "format": "date-time" },
+          "imageUrl": { "type": "string", "description": "원본 이미지 — GET /images/{imageId}/content" },
+          "width": { "type": "integer", "nullable": true, "description": "픽셀 폭 (미상이면 null)" },
+          "height": { "type": "integer", "nullable": true },
+          "targetCount": { "type": "integer", "description": "검출 대상 수" }
+        }
+      },
+      "PageUploadedImage": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/UploadedImage" }
+          },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "ImageListResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/PageUploadedImage" }
+        }
+      },
+      "ImageTarget": {
+        "type": "object",
+        "description": "이미지에서 검출된 대상 1건. cropUrl은 /api 상대경로 — <img src>로 직접 사용",
+        "required": ["targetId", "category", "label", "bbox", "confidence", "matchedVip", "cropUrl"],
+        "properties": {
+          "targetId": { "type": "string" },
+          "category": { "$ref": "#/components/schemas/DetectionCategory" },
+          "label": { "type": "string", "description": "대상 표시명 — 인물 이름 / 차량 번호 / 외형 요약" },
+          "groupLabel": { "type": "string", "nullable": true },
+          "confidence": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "nullable": true, "description": "등록 인물 매칭 유사도. 미매칭이면 null" },
+          "matchedVip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }] },
+          "bbox": { "$ref": "#/components/schemas/BBox" },
+          "cropUrl": { "type": "string", "description": "대상 크롭 — GET /images/{imageId}/targets/{targetId}/crop" }
+        }
+      },
+      "ImageTargets": {
+        "type": "object",
+        "required": ["imageId", "targets"],
+        "properties": {
+          "imageId": { "type": "string" },
+          "targets": { "type": "array", "items": { "$ref": "#/components/schemas/ImageTarget" } }
+        }
+      },
+      "ImageTargetsResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/ImageTargets" }
+        }
+      },
+      "VideoAnalysisStatus": {
+        "type": "string",
+        "description": "processing = 분석 중(화면에서 선택 불가), ready = 재생·조회 가능, failed = 분석 실패",
+        "enum": ["processing", "ready", "failed"]
+      },
+      "VideoItem": {
+        "type": "object",
+        "description": "업로드 비디오 목록 행 (계약 v1.3, UV-35). contentUrl은 video 태그 src로, thumbnailUrl은 <img src>로 직접 사용",
+        "required": ["videoId", "name", "uploadedAt", "analysisStatus", "durationSec", "contentUrl", "thumbnailUrl"],
+        "properties": {
+          "videoId": { "type": "string" },
+          "name": { "type": "string", "description": "업로드 파일명" },
+          "uploadedAt": { "type": "string", "format": "date-time" },
+          "analysisStatus": { "$ref": "#/components/schemas/VideoAnalysisStatus" },
+          "durationSec": { "type": "number", "format": "double", "nullable": true, "description": "재생 길이 (초). processing 중 미상이면 null" },
+          "contentUrl": { "type": "string", "description": "MP4 — GET /videos/{videoId}/content (Range 지원)" },
+          "thumbnailUrl": { "type": "string", "nullable": true, "description": "썸네일 — processing 중 미생성이면 null" }
+        }
+      },
+      "PageVideoItem": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/VideoItem" }
+          },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "VideoListResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/PageVideoItem" }
+        }
+      },
+      "VideoFrameObject": {
+        "type": "object",
+        "description": "프레임에 보이는 대상 1개 — targetId는 /videos/{videoId}/targets의 대상과 동일 값 (오버레이 ↔ 타깃 패널 연결 키)",
+        "required": ["targetId", "category", "label", "bbox"],
+        "properties": {
+          "targetId": { "type": "string" },
+          "category": { "$ref": "#/components/schemas/DetectionCategory" },
+          "label": { "type": "string" },
+          "bbox": { "$ref": "#/components/schemas/BBox" },
+          "confidence": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "nullable": true }
+        }
+      },
+      "VideoFrameEntry": {
+        "type": "object",
+        "required": ["t", "objects"],
+        "properties": {
+          "t": { "type": "number", "format": "double", "minimum": 0, "description": "영상 시작 기준 초 (소수 허용)" },
+          "objects": { "type": "array", "items": { "$ref": "#/components/schemas/VideoFrameObject" } }
+        }
+      },
+      "VideoFrames": {
+        "type": "object",
+        "description": "구간 내 프레임별 대상 — 대상이 검출된 분석 프레임만, t 오름차순",
+        "required": ["videoId", "from", "to", "frames"],
+        "properties": {
+          "videoId": { "type": "string" },
+          "from": { "type": "number", "format": "double" },
+          "to": { "type": "number", "format": "double" },
+          "frames": { "type": "array", "items": { "$ref": "#/components/schemas/VideoFrameEntry" } }
+        }
+      },
+      "VideoFramesResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/VideoFrames" }
+        }
+      },
+      "VideoTarget": {
+        "type": "object",
+        "description": "비디오 내 고유(추적된) 대상 1건. cropUrl은 /api 상대경로 — <img src>로 직접 사용",
+        "required": ["targetId", "category", "label", "confidence", "matchedVip", "firstSeenSec", "lastSeenSec", "cropUrl"],
+        "properties": {
+          "targetId": { "type": "string" },
+          "category": { "$ref": "#/components/schemas/DetectionCategory" },
+          "label": { "type": "string" },
+          "groupLabel": { "type": "string", "nullable": true },
+          "confidence": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "nullable": true },
+          "matchedVip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }] },
+          "firstSeenSec": { "type": "number", "format": "double", "description": "최초 등장 시점 (초) — 행 클릭 시 이 시점으로 시크" },
+          "lastSeenSec": { "type": "number", "format": "double" },
+          "cropUrl": { "type": "string", "description": "대표 크롭 — GET /videos/{videoId}/targets/{targetId}/crop" }
+        }
+      },
+      "PageVideoTarget": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/VideoTarget" }
+          },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "VideoTargetListResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/PageVideoTarget" }
         }
       }
     }
