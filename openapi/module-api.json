@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA Module API (내부 계약)",
-    "version": "0.3.0",
-    "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표 (예외: POST /persons/search는 60초, v1.2)\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
+    "version": "0.4.0",
+    "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표 (예외: POST /persons/search는 60초(v1.2), GET /videos/{id}/content는 스트리밍이라 최초 응답까지만 적용(v1.3))\n- (v1.3) GET /videos/{videoId}/content는 HTTP Range 요청(206 Partial Content)을 반드시 지원 — 브라우저 video 시킹의 전제. 브라우저 재생 가능한 H.264 MP4 서빙은 모듈 책임(원본 코덱 상이 시 트랜스코딩 포함)\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
     "contact": { "name": "계약 담당: 박상훈 (백엔드/브로커)" }
   },
   "servers": [
@@ -16,7 +16,9 @@
     { "name": "cameras" },
     { "name": "stats" },
     { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33)" },
-    { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34). 차량 번호 검색은 구현 방식 미확정으로 v1.2 범위 제외 — 확정 시 별도 계약 추가" }
+    { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34). 차량 번호 검색은 구현 방식 미확정으로 v1.2 범위 제외 — 확정 시 별도 계약 추가" },
+    { "name": "images", "description": "BEST FRAME Image list (계약 v1.3, UV-35) — 타 서비스가 업로드하고 모듈이 저장·분석하는 이미지의 조회" },
+    { "name": "videos", "description": "BEST FRAME Video list (계약 v1.3, UV-35) — 업로드 영상의 목록·MP4 재생·프레임별 대상 조회" }
   ],
   "paths": {
     "/dashboard/live-analytics": {
@@ -380,6 +382,267 @@
           "default": { "$ref": "#/components/responses/Error" }
         }
       }
+    },
+    "/images": {
+      "get": {
+        "operationId": "getImages",
+        "summary": "업로드 이미지 목록 (페이징) — BEST FRAME Image list",
+        "description": "타 서비스가 업로드하고 모듈이 저장·분석한 이미지 목록. 최신 업로드 순.\n- imageUrl은 모듈 기준 상대경로(/images/{imageId}/content) — 프록시가 /api로 재작성",
+        "tags": ["images"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PageUploadedImage" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/images/{imageId}/targets": {
+      "get": {
+        "operationId": "getImageTargets",
+        "summary": "이미지에서 검출된 대상 목록 — 타깃 패널",
+        "description": "해당 이미지 분석 결과의 전체 대상. 카메라의 '최근 감지 누적'과 달리 정적 목록이며 수가 적어 페이징 없음.\n- bbox는 0~1 정규화, cropUrl은 모듈 상대경로 — 프록시가 /api로 재작성",
+        "tags": ["images"],
+        "parameters": [{ "$ref": "#/components/parameters/ImageId" }],
+        "responses": {
+          "200": {
+            "description": "OK — 검출 대상이 없으면 빈 배열",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ImageTargets" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 imageId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/images/{imageId}/content": {
+      "get": {
+        "operationId": "getImageContent",
+        "summary": "업로드 이미지 원본 (바이너리)",
+        "description": "그리드 타일 배경으로 사용. 프록시가 그대로 스트리밍한다 (envelope 없음).",
+        "tags": ["images"],
+        "parameters": [{ "$ref": "#/components/parameters/ImageId" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 imageId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/images/{imageId}/targets/{targetId}/crop": {
+      "get": {
+        "operationId": "getImageTargetCrop",
+        "summary": "이미지 대상 크롭 (바이너리)",
+        "description": "타깃 패널 썸네일용 대상 크롭. 이미지가 보존되는 동안 서빙 가능해야 한다.",
+        "tags": ["images"],
+        "parameters": [
+          { "$ref": "#/components/parameters/ImageId" },
+          { "$ref": "#/components/parameters/TargetId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 imageId 또는 targetId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos": {
+      "get": {
+        "operationId": "getVideos",
+        "summary": "업로드 비디오 목록 (페이징) — BEST FRAME Video list",
+        "description": "타 서비스가 업로드하고 모듈이 저장·분석한 비디오 목록. 최신 업로드 순.\n- analysisStatus가 ready인 항목만 화면에서 선택 가능 (processing은 카메라 STOPPED과 같은 선택 불가 문법)\n- contentUrl/thumbnailUrl은 모듈 상대경로 — 프록시가 /api로 재작성",
+        "tags": ["videos"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PageVideoItem" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/content": {
+      "get": {
+        "operationId": "getVideoContent",
+        "summary": "비디오 콘텐츠 (MP4 바이너리, Range 필수)",
+        "description": "브라우저 video 태그가 직접 재생하는 원본. **HTTP Range 요청(206 Partial Content)을 반드시 지원**해야 시킹·배속이 동작한다. 브라우저 재생 가능한 코덱(H.264 MP4) 서빙은 모듈 책임 — 원본 코덱이 다르면 분석 시 트랜스코딩해 보관할 것. 프록시는 Range 헤더를 그대로 전달하고 응답을 스트리밍한다 (envelope 없음).",
+        "tags": ["videos"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "name": "Range", "in": "header", "required": false, "description": "표준 HTTP Range (예: bytes=0-1048575)", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "전체 콘텐츠 (Range 미지정)",
+            "content": {
+              "video/mp4": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "206": {
+            "description": "부분 콘텐츠 — Content-Range·Accept-Ranges 헤더 포함",
+            "content": {
+              "video/mp4": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 videoId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/thumbnail": {
+      "get": {
+        "operationId": "getVideoThumbnail",
+        "summary": "비디오 썸네일 (바이너리)",
+        "description": "목록·타일의 대표 이미지 (예: 첫 분석 프레임). processing 상태에서는 404 허용.",
+        "tags": ["videos"],
+        "parameters": [{ "$ref": "#/components/parameters/VideoId" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 videoId 또는 썸네일 미생성",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/frames": {
+      "get": {
+        "operationId": "getVideoFrames",
+        "summary": "비디오 프레임별 대상 (시간 구간) — 재생 오버레이 동기화",
+        "description": "구간 내 분석 프레임의 대상 목록. 화면이 video.currentTime 기준 '가장 최근 t' 항목의 bbox를 오버레이한다 (retained bestframe과 같은 해석 규칙).\n- 대상이 검출된 프레임만 포함(빈 프레임 없음), t 오름차순\n- 화면은 재생 진행에 따라 구간 단위(기본 60초)로 나눠 조회한다 — 전체 영상을 한 번에 요청하지 않음",
+        "tags": ["videos"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "name": "from", "in": "query", "required": false, "description": "구간 시작 (초, 기본 0)", "schema": { "type": "number", "format": "double", "minimum": 0, "default": 0 } },
+          { "name": "to", "in": "query", "required": false, "description": "구간 끝 (초, 기본 from+60, 최대 from+300)", "schema": { "type": "number", "format": "double", "minimum": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — 구간에 대상이 없으면 빈 frames 배열",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/VideoFrames" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 videoId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/targets": {
+      "get": {
+        "operationId": "getVideoTargets",
+        "summary": "비디오 내 고유 대상 목록 (페이징) — 타깃 패널",
+        "description": "영상 전체에서 추적된 고유 대상. 화면 타깃 패널에 표시되고, 클릭 시 firstSeenSec으로 시크한다. lastSeenSec 내림차순(최근 등장이 위).",
+        "tags": ["videos"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PageVideoTarget" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 videoId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/targets/{targetId}/crop": {
+      "get": {
+        "operationId": "getVideoTargetCrop",
+        "summary": "비디오 대상 크롭 (바이너리)",
+        "description": "타깃 패널 썸네일용 대상 크롭 (대표 프레임에서 잘라낸 것). 비디오가 보존되는 동안 서빙 가능해야 한다.",
+        "tags": ["videos"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "$ref": "#/components/parameters/TargetId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 videoId 또는 targetId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
     }
   },
   "components": {
@@ -437,6 +700,27 @@
         "in": "path",
         "required": true,
         "description": "인물 검색 hit ID — POST /persons/search 응답의 hitId",
+        "schema": { "type": "string" }
+      },
+      "ImageId": {
+        "name": "imageId",
+        "in": "path",
+        "required": true,
+        "description": "업로드 이미지 ID — GET /images 응답의 imageId",
+        "schema": { "type": "string" }
+      },
+      "VideoId": {
+        "name": "videoId",
+        "in": "path",
+        "required": true,
+        "description": "업로드 비디오 ID — GET /videos 응답의 videoId",
+        "schema": { "type": "string" }
+      },
+      "TargetId": {
+        "name": "targetId",
+        "in": "path",
+        "required": true,
+        "description": "미디어 내 대상 ID — targets 응답의 targetId",
         "schema": { "type": "string" }
       }
     },
@@ -692,6 +976,159 @@
           "searchId": { "type": "string", "description": "검색 실행 ID — 로그 추적·향후 비동기 전환 대비" },
           "hits": { "type": "array", "items": { "$ref": "#/components/schemas/PersonSearchHit" }, "description": "maxResults 상한 내 전체 결과" },
           "truncated": { "type": "boolean", "default": false, "description": "maxResults 상한에 걸려 잘렸으면 true — 화면이 기간 축소를 안내할 수 있다" }
+        }
+      },
+      "BBox": {
+        "type": "object",
+        "description": "0~1 정규화 좌표 (원본 크기 무관 비율) — MQTT bestframe의 bbox와 동일 규칙 (SPEC §3.5)",
+        "required": ["x", "y", "w", "h"],
+        "properties": {
+          "x": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 },
+          "y": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 },
+          "w": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 },
+          "h": { "type": "number", "format": "double", "minimum": 0, "maximum": 1 }
+        }
+      },
+      "UploadedImage": {
+        "type": "object",
+        "description": "업로드 이미지 목록 행 (계약 v1.3, UV-35). imageUrl은 모듈 기준 상대경로 — 프록시가 /api로 재작성",
+        "required": ["imageId", "name", "uploadedAt", "imageUrl", "targetCount"],
+        "properties": {
+          "imageId": { "type": "string" },
+          "name": { "type": "string", "description": "업로드 파일명" },
+          "uploadedAt": { "type": "string", "format": "date-time" },
+          "imageUrl": { "type": "string", "description": "원본 이미지 상대경로: /images/{imageId}/content" },
+          "width": { "type": "integer", "nullable": true, "description": "픽셀 폭 (미상이면 null)" },
+          "height": { "type": "integer", "nullable": true },
+          "targetCount": { "type": "integer", "description": "검출 대상 수 — 목록에서 분석 결과 유무를 보여주는 용도" }
+        }
+      },
+      "PageUploadedImage": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/UploadedImage" }
+          },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "ImageTarget": {
+        "type": "object",
+        "description": "이미지에서 검출된 대상 1건. cropUrl은 모듈 상대경로 — 프록시가 /api로 재작성",
+        "required": ["targetId", "category", "label", "bbox", "confidence", "matchedVip", "cropUrl"],
+        "properties": {
+          "targetId": { "type": "string", "description": "이미지 내 고유 — 크롭 조회 키" },
+          "category": { "$ref": "#/components/schemas/DetectionCategory" },
+          "label": { "type": "string", "description": "대상 표시명 — 인물 이름 / 차량 번호 / 외형 요약" },
+          "groupLabel": { "type": "string", "nullable": true },
+          "confidence": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "nullable": true, "description": "등록 인물 매칭 유사도. 미매칭이면 null" },
+          "matchedVip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }] },
+          "bbox": { "$ref": "#/components/schemas/BBox" },
+          "cropUrl": { "type": "string", "description": "대상 크롭 상대경로: /images/{imageId}/targets/{targetId}/crop" }
+        }
+      },
+      "ImageTargets": {
+        "type": "object",
+        "required": ["imageId", "targets"],
+        "properties": {
+          "imageId": { "type": "string" },
+          "targets": { "type": "array", "items": { "$ref": "#/components/schemas/ImageTarget" } }
+        }
+      },
+      "VideoAnalysisStatus": {
+        "type": "string",
+        "description": "processing = 분석 중(화면에서 선택 불가), ready = 재생·조회 가능, failed = 분석 실패",
+        "enum": ["processing", "ready", "failed"]
+      },
+      "VideoItem": {
+        "type": "object",
+        "description": "업로드 비디오 목록 행 (계약 v1.3, UV-35). contentUrl/thumbnailUrl은 모듈 기준 상대경로 — 프록시가 /api로 재작성",
+        "required": ["videoId", "name", "uploadedAt", "analysisStatus", "durationSec", "contentUrl", "thumbnailUrl"],
+        "properties": {
+          "videoId": { "type": "string" },
+          "name": { "type": "string", "description": "업로드 파일명" },
+          "uploadedAt": { "type": "string", "format": "date-time" },
+          "analysisStatus": { "$ref": "#/components/schemas/VideoAnalysisStatus" },
+          "durationSec": { "type": "number", "format": "double", "nullable": true, "description": "재생 길이 (초). processing 중 미상이면 null" },
+          "contentUrl": { "type": "string", "description": "MP4 상대경로: /videos/{videoId}/content" },
+          "thumbnailUrl": { "type": "string", "nullable": true, "description": "썸네일 상대경로. processing 중 미생성이면 null" }
+        }
+      },
+      "PageVideoItem": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/VideoItem" }
+          },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
+        }
+      },
+      "VideoFrameObject": {
+        "type": "object",
+        "description": "프레임에 보이는 대상 1개 — targetId는 /videos/{videoId}/targets의 대상과 동일 값 (화면이 오버레이와 타깃 패널을 이 값으로 연결)",
+        "required": ["targetId", "category", "label", "bbox"],
+        "properties": {
+          "targetId": { "type": "string" },
+          "category": { "$ref": "#/components/schemas/DetectionCategory" },
+          "label": { "type": "string" },
+          "bbox": { "$ref": "#/components/schemas/BBox" },
+          "confidence": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "nullable": true }
+        }
+      },
+      "VideoFrameEntry": {
+        "type": "object",
+        "required": ["t", "objects"],
+        "properties": {
+          "t": { "type": "number", "format": "double", "minimum": 0, "description": "영상 시작 기준 초 (소수 허용)" },
+          "objects": { "type": "array", "items": { "$ref": "#/components/schemas/VideoFrameObject" } }
+        }
+      },
+      "VideoFrames": {
+        "type": "object",
+        "description": "구간 내 프레임별 대상 — 대상이 검출된 분석 프레임만, t 오름차순",
+        "required": ["videoId", "from", "to", "frames"],
+        "properties": {
+          "videoId": { "type": "string" },
+          "from": { "type": "number", "format": "double" },
+          "to": { "type": "number", "format": "double" },
+          "frames": { "type": "array", "items": { "$ref": "#/components/schemas/VideoFrameEntry" } }
+        }
+      },
+      "VideoTarget": {
+        "type": "object",
+        "description": "비디오 내 고유(추적된) 대상 1건. cropUrl은 모듈 상대경로 — 프록시가 /api로 재작성",
+        "required": ["targetId", "category", "label", "confidence", "matchedVip", "firstSeenSec", "lastSeenSec", "cropUrl"],
+        "properties": {
+          "targetId": { "type": "string" },
+          "category": { "$ref": "#/components/schemas/DetectionCategory" },
+          "label": { "type": "string" },
+          "groupLabel": { "type": "string", "nullable": true },
+          "confidence": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "nullable": true },
+          "matchedVip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }] },
+          "firstSeenSec": { "type": "number", "format": "double", "description": "최초 등장 시점 (초) — 타깃 클릭 시 이 시점으로 시크" },
+          "lastSeenSec": { "type": "number", "format": "double" },
+          "cropUrl": { "type": "string", "description": "대표 크롭 상대경로: /videos/{videoId}/targets/{targetId}/crop" }
+        }
+      },
+      "PageVideoTarget": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/VideoTarget" }
+          },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer", "format": "int64" }
         }
       }
     }

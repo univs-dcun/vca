@@ -175,6 +175,14 @@
 | `POST /v1/persons/search` | **(v1.2)** REDMAP 인물 검색 — multipart 얼굴/바디 이미지 + 기간 + 유사도 임계값 → hit 목록 (capturedAt 오름차순, maxResults 상한) |
 | `GET /v1/search-hits/{hitId}/face` | **(v1.2)** 검색 hit 얼굴 크롭 바이너리 — 검색 응답 후 최소 1시간 서빙 |
 | `GET /v1/search-hits/{hitId}/body` | **(v1.2)** 검색 hit 바디 크롭 바이너리 — 서빙 규칙 동일 |
+| `GET /v1/images` | **(v1.3)** 업로드 이미지 목록 (페이징, 최신순) — BEST FRAME Image list |
+| `GET /v1/images/{imageId}/targets` | **(v1.3)** 이미지 검출 대상 전체 (정적, 페이징 없음, bbox 0~1) |
+| `GET /v1/images/{imageId}/content` · `.../targets/{targetId}/crop` | **(v1.3)** 이미지 원본·대상 크롭 바이너리 |
+| `GET /v1/videos` | **(v1.3)** 업로드 비디오 목록 (페이징, analysisStatus: processing/ready/failed) |
+| `GET /v1/videos/{videoId}/content` | **(v1.3)** MP4 바이너리 — **HTTP Range(206) 필수**, 브라우저 재생 가능 코덱(H.264) 책임 |
+| `GET /v1/videos/{videoId}/thumbnail` | **(v1.3)** 비디오 썸네일 바이너리 |
+| `GET /v1/videos/{videoId}/frames?from&to` | **(v1.3)** 시간 구간의 프레임별 대상 (t 오름차순, 대상 있는 프레임만) — 재생 오버레이 동기화 |
+| `GET /v1/videos/{videoId}/targets` · `.../targets/{targetId}/crop` | **(v1.3)** 비디오 내 고유 대상 목록(페이징) + 대표 크롭 |
 
 지킬 규칙:
 
@@ -194,11 +202,28 @@
 - `faceUrl`/`bodyUrl`도 모듈 상대경로 규칙(아래 URL 경로 규칙)을 따른다 — hit 크롭은 검색 응답 후 최소 1시간 서빙
 - **차량 번호 검색(REDMAP VEHICLE 모드)은 구현 방식 미확정으로 v1.2 범위에서 제외** — 확정 시 별도 계약으로 추가된다 (UV-34 메모)
 
+### (v1.3) BEST FRAME Video/Image list — 구현 전 알아둘 것
+
+- **업로드는 타 서비스 책임** — 모듈은 업로드된 미디어를 저장·분석하고 이 조회 API로 서빙만 한다.
+  업로드 경로/프로토콜은 이 계약 범위 밖 (별도 협의)
+- **비디오 재생 방식 = MP4 + 오버레이** — 브라우저 video 태그가 `/videos/{id}/content`를 직접
+  재생하고, `/videos/{id}/frames`의 시간 인덱스 대상(bbox)을 currentTime에 동기화해 화면이
+  오버레이한다. 따라서:
+  - **HTTP Range(206 Partial Content) 지원 필수** — 없으면 시킹·배속이 동작하지 않는다
+  - **브라우저 재생 가능한 H.264 MP4 서빙은 모듈 책임** — 원본 코덱이 다르면 분석 시
+    트랜스코딩해 보관할 것 (협의 필요 시 계약 담당에게)
+- `frames`는 화면이 재생 진행에 따라 구간 단위(기본 60초, 최대 300초)로 나눠 조회한다 —
+  전체 영상 인덱스를 한 번에 반환할 필요 없음. 대상이 검출된 분석 프레임만 포함
+- `frames.objects[].targetId` = `/videos/{id}/targets`의 targetId — 화면이 오버레이와
+  타깃 패널을 이 값으로 연결하므로 반드시 같은 추적 ID를 써야 한다
+- analysisStatus가 `ready`가 되기 전에는 content/frames/targets가 조회되지 않아도 된다
+  (화면이 processing 항목을 선택 불가로 막는다)
+
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 14개 엔드포인트 전부**를
-계약 그대로 구현한 Node 시뮬레이터. v1.2 인물 검색은 두 경로로 응답한다:
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 엔드포인트 전부**를
+계약 그대로 구현한 Node 시뮬레이터 (v1.3 Video/Image 10종은 계약 초안 확정 후 추가 예정). v1.2 인물 검색은 두 경로로 응답한다:
 등록 VIP 사진(`/vips/{id}/photo`로 서빙되는 바이트)을 그대로 face로 업로드하면 **그 VIP의
 실제 당일 감지 이력**을 반환하고(대시보드와 동일 원본 — 화면 간 교차 검증용), 그 외 이미지는
 업로드 바이트 해시 기반 결정적 합성 경로를 반환한다 (같은 이미지 → 같은 결과). 발행 형식이나 응답 조립(행 = VIP별, `detections` 시간 오름차순,
@@ -269,6 +294,10 @@ curl "http://localhost:8081/v1/dashboard/live-analytics?page=0&size=20&type=ALL"
   - [ ] (v1.2) `/v1/persons/search`에 face·body 둘 다 없으면 400 `MOD-XXXX`를 주는가
   - [ ] (v1.2) hits가 capturedAt 오름차순이고 faceUrl/bodyUrl이 모듈 상대경로인가
   - [ ] (v1.2) 검색 응답 후 1시간 내 hit 크롭 이미지가 조회되는가 (만료 시 404)
+  - [ ] (v1.3) `/v1/videos/{id}/content`가 Range 요청에 206 + Content-Range·Accept-Ranges를 주는가
+  - [ ] (v1.3) frames가 t 오름차순·대상 있는 프레임만이고, objects[].targetId가 targets와 일치하는가
+  - [ ] (v1.3) 목록 URL 필드(imageUrl/contentUrl/thumbnailUrl/cropUrl)가 전부 모듈 상대경로인가
+  - [ ] (v1.3) processing 상태 비디오가 목록에 나오되 durationSec/thumbnailUrl이 null인가
 
 ### 대시보드 E2E
 
