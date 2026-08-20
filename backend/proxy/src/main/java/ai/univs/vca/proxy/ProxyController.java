@@ -3,6 +3,8 @@ package ai.univs.vca.proxy;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import java.util.concurrent.TimeoutException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,6 +32,8 @@ import reactor.core.publisher.Mono;
  */
 @RestController
 public class ProxyController {
+
+	private static final Logger log = LoggerFactory.getLogger(ProxyController.class);
 
 	private final WebClient moduleApi;
 	private final ModuleApiProperties props;
@@ -96,9 +100,11 @@ public class ProxyController {
 				.onErrorResume(TimeoutException.class, e -> Mono.just(
 						ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
 								.body(ApiEnvelope.error("VCA-5040", "인물 검색 응답 시간 초과 — 기간을 줄여 다시 시도하세요"))))
-				.onErrorResume(e -> Mono.just(
-						ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-								.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류"))));
+				.onErrorResume(e -> {
+					log.error("프록시 내부 오류: POST /persons/search", e);
+					return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+							.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류")));
+				});
 	}
 
 	/** 이미지 리소스 패스스루 — 모듈 응답의 상태코드·Content-Type을 유지한 채 envelope 없이 전달 */
@@ -139,9 +145,12 @@ public class ProxyController {
 				.onErrorResume(TimeoutException.class, e -> Mono.just(
 						ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
 								.body(ApiEnvelope.error("VCA-5040", "모듈 API 응답 시간 초과"))))
-				.onErrorResume(e -> Mono.just(
-						ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-								.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류"))));
+				.onErrorResume(e -> {
+					// 분류 밖 예외가 원인 기록 없이 VCA-5000으로만 나가면 장애 원인을 찾을 수 없다
+					log.error("프록시 내부 오류: GET /{}", path, e);
+					return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+							.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류")));
+				});
 	}
 
 	/** 모듈 오류 본문 { code, message } 를 같은 상태코드의 envelope 오류로 변환 */

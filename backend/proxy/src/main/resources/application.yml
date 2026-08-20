@@ -11,6 +11,9 @@ vca:
     timeout: 5s
     # 인물 검색(POST /persons/search) 전용 타임아웃 — 영상 검색은 통상 조회보다 오래 걸린다 (계약 v1.2)
     search-timeout: 60s
+    # 모듈 응답 본문 허용 상한 — WebClient 기본값 256KB로는 감지 이력이 많은 날의
+    # live-analytics 페이지가 잘려 500이 난다 (프레임 이미지 등 바이너리도 이 한도를 지난다)
+    max-response-size: 16MB
 
 management:
   endpoints:
