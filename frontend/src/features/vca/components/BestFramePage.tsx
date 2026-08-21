@@ -7,6 +7,7 @@ import { useBestFrameLive } from "../../../lib/vca-bridge/useBestFrameLive";
 // 데이터 연결(백엔드 소유, UV-35): 업로드 Video/Image list 라이브 + 비디오 재생 타일
 import { useMediaLive } from "../../../lib/vca-bridge/useMediaLive";
 import { LiveVideoFeed } from "../../../lib/vca-bridge/LiveVideoFeed";
+import type { TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const BORDER = "1px solid #E2E8F0";
@@ -720,7 +721,7 @@ function getGridLayout(n: number): { cols: number; rows: number; sidePanelOnHove
 }
 
 /* ── Main component ──────────────────────────────────────────── */
-export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedmapTrace, analyzeFrameLocation, onAnalyzeFrameConsumed }: { focusLocation?: string | null; onFocusConsumed?: () => void; onGoRedmapTrace?: (name: string) => void; analyzeFrameLocation?: string | null; onAnalyzeFrameConsumed?: () => void } = {}) {
+export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedmapTrace, analyzeFrameLocation, onAnalyzeFrameConsumed }: { focusLocation?: string | null; onFocusConsumed?: () => void; onGoRedmapTrace?: (name: string, ref?: TrackTargetRef) => void; analyzeFrameLocation?: string | null; onAnalyzeFrameConsumed?: () => void } = {}) {
   const [normalCams, setNormalCams] = useState<Camera[]>(NORMAL_CAMS_INIT);
   const [videoCams,  setVideoCams]  = useState<Camera[]>(VIDEO_CAMS_INIT);
   const [imageCams,  setImageCams]  = useState<Camera[]>(IMAGE_CAMS_INIT);
@@ -1099,7 +1100,13 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         })()}
 
         {/* HUD */}
-        {hud && <DetectionHUD hud={hud} onClose={() => setHud(null)} onAnalyze={handleAnalyze} onTrackOnMap={() => onGoRedmapTrace?.(hud.det.name)} />}
+        {/* 데이터 연결(UV-36): Track on Map은 이름과 함께 대상 참조를 실어 보낸다 — REDMAP이
+            실추적 검색(계약 v1.4)을 시도하고, 백엔드 미응답이면 기존 mock 딥링크 흐름 유지 */}
+        {hud && <DetectionHUD hud={hud} onClose={() => setHud(null)} onAnalyze={handleAnalyze} onTrackOnMap={() => onGoRedmapTrace?.(hud.det.name, {
+          sourceType: videoCams.some(c => c.id === hud.camId) ? "video" : imageCams.some(c => c.id === hud.camId) ? "image" : "camera",
+          sourceId: hud.camId,
+          targetId: hud.det.id,
+        })} />}
       </div>
     </div>
   );

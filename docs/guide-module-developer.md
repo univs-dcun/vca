@@ -183,6 +183,7 @@
 | `GET /v1/videos/{videoId}/thumbnail` | **(v1.3)** 비디오 썸네일 바이너리 |
 | `GET /v1/videos/{videoId}/frames?from&to` | **(v1.3)** 시간 구간의 프레임별 대상 (t 오름차순, 대상 있는 프레임만) — 재생 오버레이 동기화 |
 | `GET /v1/videos/{videoId}/targets` · `.../targets/{targetId}/crop` | **(v1.3)** 비디오 내 고유 대상 목록(페이징) + 대표 크롭 |
+| `POST /v1/targets/track-on-map` | **(v1.4)** Track on Map — 기존 감지 대상 참조(source + targetId)로 당일 추적 검색. 시간 창·유사도는 모듈이 결정해 `applied`로 에코 |
 
 지킬 규칙:
 
@@ -219,10 +220,24 @@
 - analysisStatus가 `ready`가 되기 전에는 content/frames/targets가 조회되지 않아도 된다
   (화면이 processing 항목을 선택 불가로 막는다)
 
+### (v1.4) Track on Map — 구현 전 알아둘 것
+
+- **요청은 대상 참조만** — `{ source: { type: camera|video|image, id }, targetId }`. 이미지 업로드
+  없음: targetId는 모듈이 발급한 값(camera는 감지 eventId, video/image는 v1.3 targetId)이므로
+  모듈이 보관 중인 대상 임베딩으로 직접 검색한다
+- **시간 창·유사도는 모듈 소유 정책** — 대상이 track된 사이트 로컬(Asia/Singapore) **당일 00:00 →
+  그 대상의 tracked 시각**, 유사도 **0.9 고정**. 요청에 override 파라미터가 없고, 실제 적용값을
+  응답 `applied`(from/to/similarity)로 에코한다 — 화면이 유사도 90%·검색 날짜 표시에 그대로 쓴다
+- **기준 대상 자신의 감지를 hits 마지막 항목으로 반드시 포함** — 화면 경로의 종점(LAST SEEN)이
+  된다. 당일 추가 목격이 없어도 빈 배열이 아니라 기준 감지 1건을 반환
+- hits 형태·규칙은 v1.2 `PersonSearchHit`와 동일 (capturedAt 오름차순, faceUrl/bodyUrl 상대경로,
+  크롭 응답 후 최소 1시간 서빙). `target`(label/category/cropUrl)은 화면 "Tracing: …" 라벨용
+- 동기 처리·60초 타임아웃은 v1.2 인물 검색과 동일 — 초과 예상 시 비동기 전환을 계약 담당과 협의
+
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 24개 엔드포인트 전부**를
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 25개 엔드포인트 전부**를
 계약 그대로 구현한 Node 시뮬레이터. v1.3 비디오는 `sim/assets/`의 실제 H.264 MP4를 Range로
 서빙하며, **frames의 bbox 수식이 MP4 속 박스 움직임과 동일**해 재생 오버레이가 영상 속 박스를
 따라가는지 눈으로 검증할 수 있다 (수식·재생성 ffmpeg 명령은 sim.mjs 주석 참조). v1.2 인물 검색은 두 경로로 응답한다:
