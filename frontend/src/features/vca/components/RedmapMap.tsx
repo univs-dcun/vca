@@ -176,7 +176,13 @@ export default function RedmapMap({
     });
     overlayLayersRef.current = [];
 
+    // 마커 추가는 import("leaflet") 완료 뒤라, 결과가 빠르게 연달아 바뀌면(mock 딥링크 직후
+    // 라이브 결과 도착 — UV-36) 이전 실행의 마커가 위 클리어 이후에 추가돼 잔상으로 남는다.
+    // cleanup으로 이전 실행의 추가를 무효화한다.
+    let stale = false;
+
     import("leaflet").then(({ default: L }) => {
+      if (stale) return;
 
       if (!trackingActive && showStatus) {
         // ── STATUS VIEW: per-zone activity circles + labels ───────
@@ -330,6 +336,8 @@ export default function RedmapMap({
         overlayLayersRef.current.push(marker);
       });
     });
+
+    return () => { stale = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackingActive, showStatus, activeNode, hits, zoom, mapReady, showOrigin]);
 

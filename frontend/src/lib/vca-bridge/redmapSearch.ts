@@ -50,6 +50,11 @@ function toHitResult(h: PersonSearchHit, prev: PersonSearchHit | undefined): Hit
   }
 }
 
+/** 계약 hits(시간 오름차순) → 화면 HitResult 배열 — 인물 검색과 Track on Map(UV-36)이 공유 */
+export function hitsToResults(hits: PersonSearchHit[]): HitResult[] {
+  return hits.map((h, i) => toHitResult(h, hits[i - 1]))
+}
+
 /**
  * 인물 검색 실행. 성공 시 화면 HitResult 배열(시간 오름차순, 빈 배열 = 결과 없음),
  * 라이브 검색 불가(이미지 없음/백엔드 미응답) 시 null — 호출측이 mock 흐름으로 폴백한다.
@@ -76,8 +81,7 @@ export async function searchRedmapPersons(args: {
     const result = res.data
     if (!result) return null
     if (result.truncated) console.info(`[redmap] 검색 결과가 maxResults 상한에서 잘렸습니다 (searchId=${result.searchId})`)
-    const hits = result.hits ?? []
-    return hits.map((h, i) => toHitResult(h, hits[i - 1]))
+    return hitsToResults(result.hits ?? [])
   } catch {
     console.info('[redmap] 인물 검색 API 미응답 — mock 결과로 폴백')
     return null
