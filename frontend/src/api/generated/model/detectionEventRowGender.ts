@@ -14,11 +14,16 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.6.0
  */
-import type { VideoTarget } from './videoTarget';
 
-export interface PageVideoTarget {
-  content: VideoTarget[];
-  page: number;
-  size: number;
-  totalElements: number;
-}
+/**
+ * (v1.6) 모듈 추정 성별. 미추정·차량이면 null
+ * @nullable
+ */
+export type DetectionEventRowGender = typeof DetectionEventRowGender[keyof typeof DetectionEventRowGender] | null;
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const DetectionEventRowGender = {
+  male: 'male',
+  female: 'female',
+} as const;

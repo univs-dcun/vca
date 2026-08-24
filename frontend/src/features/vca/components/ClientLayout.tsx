@@ -303,7 +303,9 @@ export default function ClientLayout() {
             />
           </div>
         )}
-        {!isLoading && activePage === "DATA"   && <DataPage onGoRedmap={() => setActivePage("REDMAP")} onGoAnalyzeFrame={handleGoAnalyzeFrame} />}
+        {/* 데이터 연결(UV-38): 카드 RedMap 버튼이 대상 참조를 실어 보내면 Track on Map 딥링크(UV-36과
+            동일 흐름 — mock 선행 렌더 후 실추적 결과로 교체), 없으면(mock 카드) 기존 플레인 이동 */}
+        {!isLoading && activePage === "DATA"   && <DataPage onGoRedmap={(name, ref) => { if (ref) handleGoRedmapTrace(name ?? "", ref); else setActivePage("REDMAP"); }} onGoAnalyzeFrame={handleGoAnalyzeFrame} />}
         {!isLoading && activePage === "REDMAP" && (
           <RedmapPage
             initialSearchName={redmapAutoSearchName}

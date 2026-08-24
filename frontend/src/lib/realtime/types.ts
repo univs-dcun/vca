@@ -45,6 +45,12 @@ export type DetectionEvent = {
   attributes?: { top?: string | null; bottom?: string | null; item?: string | null } | null
   /** 감지 시점 크롭 이미지 (브라우저 기준 /api 경로로 발행됨 — SPEC §3.2) */
   snapshotUrl?: string
+  /** (v1.6) 얼굴 크롭 — 인물+얼굴 검출 시만. null·미포함이면 얼굴 인셋 없이 렌더 (SPEC §3.2) */
+  faceUrl?: string | null
+  /** (v1.6) 모듈 추정 성별 — 미추정·차량이면 null */
+  gender?: 'male' | 'female' | null
+  /** (v1.6) 모듈 추정 나이(단일 정수) — 표시 포맷("28yo")은 화면 책임 */
+  age?: number | null
   location: LatLng
   detectedAt: string
 }

@@ -76,6 +76,13 @@ AIInspectionDetail(det.analysis ?? mock ATTRS, snapshotUrl/enrolledPhotoUrl 폴�
 onGoRedmapTrace에 det 전달→Track on Map 대상 참조) + ReelCard·AlsoCapturedCard 이미지·태그 폴백.
 types/detection.ts — Detection에 optional analysis/gender, CamData에 optional recordedAt.
 main.tsx — MSW 시작 실패를 비치명으로(catch 후 렌더 — SW 등록이 막히는 임베디드 브라우저 대응).
+DATA Live Monitoring 주입(UV-38, 계약 v1.6): DataPage — useLiveMonitoring·TrackTargetRef import +
+LiveCardExtras/MonitorItem 타입·trackRefOf() 헬퍼 + MonitorCard p 타입·얼굴 인셋 분기(faceCrop
+null=인셋 숨김, string=실크롭, undefined=mock 줌 크롭) + LiveMonitoringTab의 lm 훅 호출·mock
+인터벌 lm.live 게이트·feedSrc 분기 + CameraDetailView items 타입·RedMap 버튼 대상 참조 동봉 +
+reidToMatchItem face 폴백(faceCrop ?? url) + DetailModal RedMap Trace 래핑 + DataPage onGoRedmap
+시그니처 (name?, ref?). ClientLayout — DataPage onGoRedmap: ref 있으면 handleGoRedmapTrace(UV-36
+딥링크 재사용), 없으면 기존 플레인 이동. lib/realtime/types.ts — DetectionEvent에 faceUrl/gender/age.
 
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)

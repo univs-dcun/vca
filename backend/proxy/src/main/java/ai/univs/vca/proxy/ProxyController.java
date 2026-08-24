@@ -66,6 +66,12 @@ public class ProxyController {
 		return binary("/detections/{eventId}/snapshot", eventId);
 	}
 
+	// 감지 얼굴 크롭 (계약 v1.6, UV-38) — DATA Live Monitoring 카드의 얼굴 인셋
+	@GetMapping("/api/detections/{eventId}/face")
+	public Mono<ResponseEntity<byte[]>> detectionFace(@PathVariable String eventId) {
+		return binary("/detections/{eventId}/face", eventId);
+	}
+
 	@GetMapping("/api/search-hits/{hitId}/face")
 	public Mono<ResponseEntity<byte[]>> searchHitFace(@PathVariable String hitId) {
 		return binary("/search-hits/{hitId}/face", hitId);

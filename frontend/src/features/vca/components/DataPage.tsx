@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import type { MatchItem, ReIDStatus } from "@/types/reid";
 import { useVcaStore, type Camera } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
+// 데이터 연결(UV-38): Live Monitoring 라이브 피드(REST 시딩 + MQTT 델타) — lib/vca-bridge 소유
+import { useLiveMonitoring } from "../../../lib/vca-bridge/useLiveMonitoring";
+import type { TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
 
 const BORDER = "1px solid #E2E8F0";
 type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
@@ -219,7 +222,15 @@ function HoverActionBtn({ label, icon, color, onClick }:
   );
 }
 
-function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab, onGoRedmap }: { p: (typeof REID_DATA)[number]; onClick: () => void; showCam?: boolean; fill?: boolean; onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void }) {
+// 데이터 연결(UV-38): 라이브 카드의 추가 필드 — mock 항목에는 없어 전부 옵셔널.
+// faceCrop은 실제 얼굴 크롭(null = 얼굴 미검출 → 인셋 숨김), eventId/cameraId는 RedMap
+// 대상 참조(v1.4 규칙: 카메라 targetId = 감지 eventId), label은 딥링크 Tracing 라벨.
+type LiveCardExtras = { faceCrop?: string | null; eventId?: string; cameraId?: string; label?: string };
+type MonitorItem = (typeof REID_DATA)[number] & LiveCardExtras;
+const trackRefOf = (p: MonitorItem): TrackTargetRef | undefined =>
+  p.eventId && p.cameraId ? { sourceType: "camera", sourceId: p.cameraId, targetId: p.eventId } : undefined;
+
+function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab, onGoRedmap }: { p: MonitorItem; onClick: () => void; showCam?: boolean; fill?: boolean; onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void }) {
   const status = REID_STATUS_STYLE[p.status];
   const [hovered, setHovered] = useState(false);
   return (
@@ -271,18 +282,27 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
         </div>
         <span style={{ fontSize:"10px", fontWeight:600, color:"#475469", letterSpacing:"-0.2px", marginBottom:"6px" }}>{p.time}</span>
       </div>
+      {/* 데이터 연결(UV-38): 라이브 카드가 얼굴 미검출(faceCrop === null)이면 인셋 자체를 숨긴다 —
+          mock 카드(faceCrop === undefined)는 기존 줌 크롭 그대로 */}
+      {p.faceCrop !== null && (
       <div style={{ position:"absolute", right:"6px", bottom:"40px", width:"60px", height:"60px",
         borderRadius:"8px", overflow:"hidden", transform:"translateZ(0)",
         // Same white ring SearchResultCard's face crop always has, for the same separation from
         // the photo behind it. RedFace already gets its own dedicated "REDFACE" badge on this card
         // (below), so it doesn't need a second, redundant signal here too.
         boxShadow:"0 0 0 2px white" }}>
-        {/* Zoomed-in crop of the same big photo's face area, not a separate unrelated image —
-            anchored a bit below the very top edge (most head-and-shoulders stock photos frame
-            the face around 15-25% down, not flush at 0%) and zoomed less aggressively than a
-            tight face-only crop so a slightly-off guess still leaves the face in frame. */}
+        {p.faceCrop ? (
+          // 라이브 얼굴 크롭 (계약 v1.6 faceUrl) — 실제 크롭 이미지라 줌 보정 불필요
+          <img src={p.faceCrop} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+        ) : (
+        // Zoomed-in crop of the same big photo's face area, not a separate unrelated image —
+        // anchored a bit below the very top edge (most head-and-shoulders stock photos frame
+        // the face around 15-25% down, not flush at 0%) and zoomed less aggressively than a
+        // tight face-only crop so a slightly-off guess still leaves the face in frame.
         <img src={p.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"50% 20%", display:"block", transform:"scale(1.8)", transformOrigin:"50% 20%" }} />
+        )}
       </div>
+      )}
     </div>
   );
 }
@@ -339,7 +359,7 @@ const ALL_CAMERAS_ID = "__ALL__";
 // screen; the camera-select dropdown's "All Cameras" option covers what the old separate
 // landing page (horizontal per-camera carousels) used to show. ───────────
 function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTab, onGoRedmap }:
-  { camId:string; items:(typeof REID_DATA); onSwitchCam:(camId:string)=>void; onCardClick:(id:number)=>void; onNavigateTab?:(tab:DataTab, card:(typeof REID_DATA)[number])=>void; onGoRedmap?:()=>void }) {
+  { camId:string; items:MonitorItem[]; onSwitchCam:(camId:string)=>void; onCardClick:(id:number)=>void; onNavigateTab?:(tab:DataTab, card:(typeof REID_DATA)[number])=>void; onGoRedmap?:(name?:string, ref?:TrackTargetRef)=>void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const cameras = useVcaStore(s => s.cameras);
   const camera = cameras.find(c => c.code === camId);
@@ -411,17 +431,19 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
 
       {/* flex-wrap + flex-grow (not CSS grid) — see the "All Cameras" grid above for why. */}
       <div style={{ display:"flex", flexWrap:"wrap", gap:"12px" }}>
-        {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} showCam={isAll} fill onNavigateTab={onNavigateTab} onGoRedmap={onGoRedmap} />)}
+        {/* 데이터 연결(UV-38): RedMap 버튼에 카드의 대상 참조를 실어 보낸다 — mock 카드는 참조 없이(플레인 이동) */}
+        {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} showCam={isAll} fill onNavigateTab={onNavigateTab} onGoRedmap={() => onGoRedmap?.(p.label, trackRefOf(p))} />)}
       </div>
     </div>
   );
 }
 
-function reidToMatchItem(p: (typeof REID_DATA)[number]): MatchItem {
+function reidToMatchItem(p: MonitorItem): MatchItem {
   // face:p.url (not p.face) — p.face cycles through an unrelated stock-photo pool independent of
   // the person's own photo, so DetailModal's "Face Detection Crop" would show a different
   // person's face than the "Full-Body Object Crop" (body:p.url) right next to it.
-  return { id:p.id, face:p.url, body:p.url, cam:p.cam, time:p.time, similarity:p.score ?? 0, gender:p.gender as "M"|"F", age:p.age, plate:p.plate };
+  // 데이터 연결(UV-38): 라이브 카드는 실제 얼굴 크롭(faceCrop)이 있으면 그걸 쓴다.
+  return { id:p.id, face:p.faceCrop ?? p.url, body:p.url, cam:p.cam, time:p.time, similarity:p.score ?? 0, gender:p.gender as "M"|"F", age:p.age, plate:p.plate };
 }
 
 const LIVE_FEED_STATUS_CYCLE: ReIDStatus[] = ["VIP","Unknown","Unknown"];
@@ -469,13 +491,16 @@ function seedLiveFeed(): Record<string, (typeof REID_DATA)> {
 }
 
 // ── Live Monitoring Tab (wrapper: landing ↔ per-camera detail) ──
-function LiveMonitoringTab({ onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
+function LiveMonitoringTab({ onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: (name?: string, ref?: TrackTargetRef) => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
   const [openCam, setOpenCam]   = useState<string>(ALL_CAMERAS_ID);
   const [detailId, setDetailId] = useState<number|null>(null);
   const [feed, setFeed]         = useState(seedLiveFeed);
   const seedRef = useRef(1);
+  // 데이터 연결(UV-38): 라이브 피드 — MQTT 연결 시 아래 mock 시뮬레이션 대신 이 피드를 쓴다
+  const lm = useLiveMonitoring();
 
   useEffect(() => {
+    if (lm.live) return; // 라이브 모드 — mock 유입 정지 (실 감지 유입·addEvent는 vca-bridge가 담당)
     const interval = setInterval(() => {
       // Compute the new items first (pure), then hand setFeed a pure updater — React may
       // invoke a state updater more than once (e.g. Strict Mode), so calling addEvent (a side
@@ -503,19 +528,21 @@ function LiveMonitoringTab({ onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { on
       });
     }, 4000);
     return () => clearInterval(interval);
-  }, []);
+  }, [lm.live]);
 
-  const allItems = Object.values(feed).flat();
+  // 데이터 연결(UV-38): 라이브면 브리지 피드(키 = 스토어 Camera.code — 라이브에서는 cameraId와 동일)
+  const feedSrc: Record<string, MonitorItem[]> = lm.live ? lm.feed : feed;
+  const allItems = Object.values(feedSrc).flat();
   const detailItem = detailId !== null ? allItems.find(p => p.id===detailId) ?? null : null;
   const onlineCameraCodes = useVcaStore(s => s.cameras).filter(c => c.status === "online").map(c => c.code);
   const camDetailItems = openCam === ALL_CAMERAS_ID
-    ? onlineCameraCodes.flatMap(code => feed[code] ?? [])
-    : feed[openCam] ?? [];
+    ? onlineCameraCodes.flatMap(code => feedSrc[code] ?? [])
+    : feedSrc[openCam] ?? [];
 
   return (
     <>
       <CameraDetailView camId={openCam} items={camDetailItems} onSwitchCam={setOpenCam} onCardClick={setDetailId} onNavigateTab={onNavigateTab} onGoRedmap={onGoRedmap} />
-      {detailItem && <DetailModal item={reidToMatchItem(detailItem)} onClose={() => setDetailId(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
+      {detailItem && <DetailModal item={reidToMatchItem(detailItem)} onClose={() => setDetailId(null)} onGoRedmap={() => onGoRedmap?.(detailItem.label, trackRefOf(detailItem))} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
     </>
   );
 }
@@ -2999,7 +3026,8 @@ const TAB_ICONS: Record<DataTab, React.ReactNode> = {
 // ── Main DataPage ──────────────────────────────────────────────
 const DATA_TABS: DataTab[] = ["Live Monitoring","Re-ID Analysis","Smart Search","RedFace"];
 
-export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
+// 데이터 연결(UV-38): onGoRedmap이 카드의 대상 참조(name+ref)를 함께 전달 — ref 없으면 플레인 이동
+export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?: (name?: string, ref?: TrackTargetRef) => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
   // Always lands on Live Monitoring — deliberately not persisted, unlike Best Frame's
   // camera selection. Switching sub-tabs while on this screen is normal component state;
   // leaving Data and coming back should start fresh at Live Monitoring.
