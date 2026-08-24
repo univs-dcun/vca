@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA Module API (내부 계약)",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표 (예외: POST /persons/search·POST /targets/track-on-map은 60초(v1.2/v1.4), GET /videos/{id}/content는 스트리밍이라 최초 응답까지만 적용(v1.3))\n- (v1.3) GET /videos/{videoId}/content는 HTTP Range 요청(206 Partial Content)을 반드시 지원 — 브라우저 video 시킹의 전제. 브라우저 재생 가능한 H.264 MP4 서빙은 모듈 책임(원본 코덱 상이 시 트랜스코딩 포함)\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
     "contact": { "name": "계약 담당: 박상훈 (백엔드/브로커)" }
   },
@@ -15,7 +15,7 @@
     { "name": "locations" },
     { "name": "cameras" },
     { "name": "stats" },
-    { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33)" },
+    { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33). v1.6(UV-38)에서 DATA Live Monitoring용으로 확장 — 감지 이벤트에 faceUrl(얼굴 크롭)·gender·age(모듈 추정) 추가, 얼굴 크롭 바이너리 1종 신설. 전신 크롭은 기존 snapshotUrl 재사용" },
     { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34) + Track on Map 대상 추적 검색 (계약 v1.4, UV-36). 차량 번호 검색은 구현 방식 미확정으로 범위 제외 — 확정 시 별도 계약 추가" },
     { "name": "analyze", "description": "Analyze Frame 베스트 프레임 이력 (계약 v1.5, UV-37) — 사이트 로컬 분(minute) 단위 베스트 프레임 목록(초당 1장·최대 60장)과 프레임 내 tracked 대상 조회. 카메라·업로드 비디오 공통(비디오는 recordedAt 절대 시각 축), 이미지는 대상 아님" },
     { "name": "images", "description": "BEST FRAME Image list (계약 v1.3, UV-35) — 타 서비스가 업로드하고 모듈이 저장·분석하는 이미지의 조회" },
@@ -283,6 +283,31 @@
           },
           "404": {
             "description": "존재하지 않는 eventId 또는 스냅샷 없음",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/detections/{eventId}/face": {
+      "get": {
+        "operationId": "getDetectionFace",
+        "summary": "감지 얼굴 크롭 이미지 (바이너리) — DATA Live Monitoring 얼굴 인셋 (v1.6, UV-38)",
+        "description": "감지 시점의 얼굴 크롭 이미지. 감지 이벤트의 faceUrl이 가리키는 리소스 — faceUrl이 null인 이벤트(차량·얼굴 미검출)에는 이 리소스가 없다(404). 프록시가 그대로 스트리밍한다 (envelope 없음). 보존 기간은 snapshot과 동일 — 최소 당일+전일.",
+        "tags": ["detections"],
+        "parameters": [{ "$ref": "#/components/parameters/EventId" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 eventId 또는 얼굴 크롭 없음 (faceUrl null인 이벤트)",
             "content": {
               "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
             }
@@ -1088,7 +1113,7 @@
       },
       "DetectionEventRow": {
         "type": "object",
-        "description": "감지 이벤트 1건 — MQTT cameras/{cameraId}/detections 페이로드(SPEC §3.2 v1.1)와 동일 구조. eventId는 MQTT 발행분과 같은 값 (브라우저 병합 키). snapshotUrl은 모듈 기준 상대경로 — 프록시가 /api로 재작성 (MQTT 발행 시에는 모듈이 /api 프리픽스를 직접 붙인다는 점이 다름, SPEC §3.2 참고)",
+        "description": "감지 이벤트 1건 — MQTT cameras/{cameraId}/detections 페이로드(SPEC §3.2, v1.1 확장 + v1.6 faceUrl·gender·age)와 동일 구조. eventId는 MQTT 발행분과 같은 값 (브라우저 병합 키). snapshotUrl/faceUrl은 모듈 기준 상대경로 — 프록시가 /api로 재작성 (MQTT 발행 시에는 모듈이 /api 프리픽스를 직접 붙인다는 점이 다름, SPEC §3.2 참고)",
         "required": ["eventId", "cameraId", "cameraName", "locationId", "category", "label", "snapshotUrl", "location", "detectedAt"],
         "properties": {
           "eventId": { "type": "string" },
@@ -1102,7 +1127,10 @@
           "vip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }] },
           "vehicle": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/VehicleInfo" }] },
           "attributes": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/PersonAttributes" }] },
-          "snapshotUrl": { "type": "string", "description": "모듈 기준 상대경로: /detections/{eventId}/snapshot" },
+          "snapshotUrl": { "type": "string", "description": "모듈 기준 상대경로: /detections/{eventId}/snapshot — 대상 전신(인물)·객체(차량) 크롭. DATA Live Monitoring 카드의 큰 이미지가 이 리소스다 (v1.6에서 용도 확장, 별도 필드 아님)" },
+          "faceUrl": { "type": "string", "nullable": true, "description": "(v1.6) 얼굴 크롭 상대경로: /detections/{eventId}/face — 인물 카테고리에서 얼굴이 검출된 경우만. 차량·얼굴 미검출이면 null (화면은 얼굴 인셋 없이 렌더)" },
+          "gender": { "type": "string", "enum": ["male", "female"], "nullable": true, "description": "(v1.6) 모듈 추정 성별 — v1.5 BestFrameTarget.gender와 동일 규약. 미추정·차량이면 null" },
+          "age": { "type": "integer", "minimum": 0, "maximum": 130, "nullable": true, "description": "(v1.6) 모듈 추정 나이(단일 정수, 예: 28) — 표시 포맷(\"28yo\")은 프론트 책임. 미추정·차량이면 null" },
           "location": { "$ref": "#/components/schemas/LatLng" },
           "detectedAt": { "type": "string", "format": "date-time" }
         }
