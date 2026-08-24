@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -13,7 +13,7 @@
     { "name": "cameras", "description": "카메라 목록 (SYSTEM 탭)" },
     { "name": "stats", "description": "집계/그래프 (Detection Topology & Average)" },
     { "name": "users", "description": "스캐폴드 데모 — 추후 제거 예정" },
-    { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33)" },
+    { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33). v1.6(UV-38)에서 DATA Live Monitoring용으로 확장 — 감지 이벤트에 faceUrl(얼굴 크롭)·gender·age(모듈 추정) 추가, 얼굴 크롭 바이너리 1종 신설. Live Monitoring 카드 = REST GET /cameras/{id}/detections 시딩 + MQTT detections 델타 (인물 카테고리만)" },
     { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34) + Track on Map 대상 추적 검색 (계약 v1.4, UV-36). 차량 번호 검색은 구현 방식 미확정으로 범위 제외" },
     { "name": "analyze", "description": "Analyze Frame 베스트 프레임 이력 (계약 v1.5, UV-37) — 사이트 로컬 분(minute) 단위 베스트 프레임 목록(초당 1장·최대 60장)과 프레임 내 tracked 대상 조회. 카메라·업로드 비디오 공통(비디오는 recordedAt 절대 시각 축), 이미지는 대상 아님" },
     { "name": "images", "description": "BEST FRAME Image list (계약 v1.3, UV-35) — 업로드 이미지 조회 (업로드는 타 서비스)" },
@@ -289,6 +289,25 @@
         "operationId": "getDetectionSnapshot",
         "summary": "감지 스냅샷 크롭 이미지 (바이너리)",
         "description": "감지 이벤트의 snapshotUrl이 가리키는 리소스 — 감지 시점의 대상 크롭. 타깃 패널 썸네일과 VIP 상세 팝오버의 LIVE SNAPSHOT에 사용. envelope 없이 이미지 바이너리를 그대로 반환한다.",
+        "tags": ["detections"],
+        "parameters": [{ "$ref": "#/components/parameters/EventId" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/detections/{eventId}/face": {
+      "get": {
+        "operationId": "getDetectionFace",
+        "summary": "감지 얼굴 크롭 이미지 (바이너리) — v1.6, UV-38",
+        "description": "감지 이벤트의 faceUrl이 가리키는 리소스 — 감지 시점의 얼굴 크롭. DATA Live Monitoring 카드의 얼굴 인셋에 사용. faceUrl이 null인 이벤트(차량·얼굴 미검출)에는 없다(404). envelope 없이 이미지 바이너리를 그대로 반환한다.",
         "tags": ["detections"],
         "parameters": [{ "$ref": "#/components/parameters/EventId" }],
         "responses": {
@@ -1127,7 +1146,7 @@
       },
       "DetectionEventRow": {
         "type": "object",
-        "description": "BEST FRAME 타깃 패널의 감지 이벤트 1건. MQTT cameras/{cameraId}/detections(SPEC §3.2 v1.1)와 동일 구조 — eventId로 MQTT 델타와 중복 제거하여 병합한다",
+        "description": "감지 이벤트 1건 — BEST FRAME 타깃 패널 + DATA Live Monitoring 카드(v1.6) 공용. MQTT cameras/{cameraId}/detections(SPEC §3.2, v1.1 확장 + v1.6 faceUrl·gender·age)와 동일 구조 — eventId로 MQTT 델타와 중복 제거하여 병합한다",
         "required": ["eventId", "cameraId", "cameraName", "locationId", "category", "label", "snapshotUrl", "location", "detectedAt"],
         "properties": {
           "eventId": { "type": "string", "description": "감지 이벤트 고유 ID (멱등 처리 기준)" },
@@ -1141,7 +1160,10 @@
           "vip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }] },
           "vehicle": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/VehicleInfo" }] },
           "attributes": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/PersonAttributes" }] },
-          "snapshotUrl": { "type": "string", "description": "감지 시점 크롭 이미지 — GET /detections/{eventId}/snapshot. 패널 썸네일·팝오버 LIVE SNAPSHOT에 <img src>로 직접 사용" },
+          "snapshotUrl": { "type": "string", "description": "감지 시점 크롭 이미지 — GET /detections/{eventId}/snapshot. 패널 썸네일·팝오버 LIVE SNAPSHOT·Live Monitoring 카드 큰 이미지(전신)에 <img src>로 직접 사용" },
+          "faceUrl": { "type": "string", "nullable": true, "description": "(v1.6) 얼굴 크롭 이미지 — GET /detections/{eventId}/face. Live Monitoring 카드의 얼굴 인셋. 차량·얼굴 미검출이면 null (인셋 없이 렌더)" },
+          "gender": { "type": "string", "enum": ["male", "female"], "nullable": true, "description": "(v1.6) 모듈 추정 성별. 미추정·차량이면 null" },
+          "age": { "type": "integer", "minimum": 0, "maximum": 130, "nullable": true, "description": "(v1.6) 모듈 추정 나이(단일 정수) — \"28yo\" 포맷은 프론트 책임. 미추정·차량이면 null" },
           "location": { "$ref": "#/components/schemas/LatLng" },
           "detectedAt": { "type": "string", "format": "date-time" }
         }
