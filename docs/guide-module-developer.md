@@ -184,6 +184,11 @@
 | `GET /v1/videos/{videoId}/frames?from&to` | **(v1.3)** 시간 구간의 프레임별 대상 (t 오름차순, 대상 있는 프레임만) — 재생 오버레이 동기화 |
 | `GET /v1/videos/{videoId}/targets` · `.../targets/{targetId}/crop` | **(v1.3)** 비디오 내 고유 대상 목록(페이징) + 대표 크롭 |
 | `POST /v1/targets/track-on-map` | **(v1.4)** Track on Map — 기존 감지 대상 참조(source + targetId)로 당일 추적 검색. 시간 창·유사도는 모듈이 결정해 `applied`로 에코 |
+| `GET /v1/cameras/{cameraId}/bestframes?date&hour&minute` | **(v1.5)** 분 단위 베스트 프레임 이력 — 초당 1장·최대 60장, capturedAt 오름차순, categories 포함 |
+| `GET /v1/cameras/{cameraId}/bestframes/{frameId}/targets` | **(v1.5)** 프레임 1장의 tracked 대상 (targetId = 감지 eventId, analysis 태그 포함) |
+| `GET /v1/videos/{videoId}/bestframes?date&hour&minute` | **(v1.5)** 비디오 베스트 프레임 이력 — recordedAt(촬영 메타) 기준 절대 시각 축 |
+| `GET /v1/videos/{videoId}/bestframes/{frameId}/targets` | **(v1.5)** 비디오 프레임 대상 (targetId = v1.3 비디오 대상 targetId) |
+| `GET /v1/videos/{videoId}/bestframes/{frameId}/image` | **(v1.5)** 비디오 베스트 프레임 이미지 바이너리 (카메라는 v1.1 frames 라우트 재사용) |
 
 지킬 규칙:
 
@@ -234,10 +239,27 @@
   크롭 응답 후 최소 1시간 서빙). `target`(label/category/cropUrl)은 화면 "Tracing: …" 라벨용
 - 동기 처리·60초 타임아웃은 v1.2 인물 검색과 동일 — 초과 예상 시 비동기 전환을 계약 담당과 협의
 
+### (v1.5) Analyze Frame 베스트 프레임 이력 — 구현 전 알아둘 것
+
+- **분(minute) 단위 창** — date(사이트 로컬, 기본 오늘)·hour(0~23)·minute(0~59)이 지정하는 1분의
+  베스트 프레임을 반환한다. **모듈이 내부적으로 초당 몇 장을 보관하든(예: 2~3장) 초당 1장을
+  대표로 선정**해 최대 60장, capturedAt 오름차순. 프레임이 없는 초는 항목을 만들지 않는다
+- **targetId는 기존 ID 체계 재사용이 핵심 상호운용 규칙** — 카메라 프레임 대상은 **감지
+  eventId**(크롭 = `/detections/{eventId}/snapshot`), 비디오 프레임 대상은 **v1.3 비디오 대상
+  targetId**(크롭 = 기존 crop 라우트). 화면이 이 값을 Track on Map(v1.4)에 그대로 전달하므로
+  반드시 track-on-map이 역참조할 수 있는 값이어야 한다
+- **업로드 비디오는 recordedAt(촬영 시작 메타, VideoItem v1.5 필드) 기준 절대 시각 축** —
+  요청한 분 창이 클립 구간과 겹치는 초만 반환, recordedAt이 null이면 빈 frames 배열
+- `categories`는 프레임에 존재하는 대상 카테고리의 중복 제거 목록 — 화면 타임라인의
+  카테고리 레인(왕관/차량) 표시용
+- `analysis`(basic/top/bottom/addons)는 표시용 태그 문자열 그룹 — 아는 항목만 채우면 된다
+  (분석 전이면 null). 화면 AI Inspection Detail이 그대로 그린다
+- 보존: 최소 당일+전일 (공통 규칙) — 화면 날짜 선택지가 이 범위다
+
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 25개 엔드포인트 전부**를
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 30개 엔드포인트 전부**를
 계약 그대로 구현한 Node 시뮬레이터. v1.3 비디오는 `sim/assets/`의 실제 H.264 MP4를 Range로
 서빙하며, **frames의 bbox 수식이 MP4 속 박스 움직임과 동일**해 재생 오버레이가 영상 속 박스를
 따라가는지 눈으로 검증할 수 있다 (수식·재생성 ffmpeg 명령은 sim.mjs 주석 참조). v1.2 인물 검색은 두 경로로 응답한다:

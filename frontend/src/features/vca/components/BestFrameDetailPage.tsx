@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { DetType, Detection, CamData } from "@/types/detection";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { analyzeDates, useAnalyzeTimeline } from "../../../lib/vca-bridge/analyzeTimeline";
+import type { AnalyzeSource } from "../../../lib/vca-bridge/analyzeTimeline";
+import type { TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
 
 const BORDER = "1px solid #E2E8F0";
 
@@ -9,11 +12,14 @@ export interface DetailProps {
   data: CamData;
   initialDet: Detection;
   onBack: () => void;
-  onGoRedmapTrace?: (name: string) => void;
+  onGoRedmapTrace?: (name: string, ref?: TrackTargetRef) => void;
   /** Opens the AI Inspection Detail panel immediately instead of requiring a bounding-box click
    *  first — for deep links (e.g. Dashboard's "Analyze Frame") whose whole point is landing on
    *  the analysis itself, not the plain camera view. */
   autoOpenDetail?: boolean;
+  /** 데이터 연결(UV-37): Analyze Frame 진입 컨텍스트 — 있으면 분 단위 이력 라이브 조회,
+   *  없거나 백엔드 미응답이면 이 파일의 mock(FRAMES/CAM_DATA) 흐름 유지 */
+  analyzeSource?: AnalyzeSource | null;
 }
 
 const DET_COLOR: Record<DetType, string> = { VIP: "#5a3dfb", Vehicle: "#38bdf8", Unknown: "#976400" };
@@ -153,7 +159,7 @@ function Tag({ label }: { label: string }) {
 /* ── Also-captured card — body crop + overlapping face-crop bubble, per
    Figma node 573:37303 ─────────────────────────────────────────── */
 function AlsoCapturedCard({ det, index, onClick }: { det: Detection; index: number; onClick: () => void }) {
-  const photo = AVATAR[index % AVATAR.length];
+  const photo = det.snapshotUrl ?? AVATAR[index % AVATAR.length];
   const [hovered, setHovered] = useState(false);
   return (
     <button
@@ -212,7 +218,7 @@ function ReelCard({ det, index, isFocused, onClick }: { det: Detection; index: n
       <div style={{
         position:"relative", width:"100%", aspectRatio:"140/154", borderRadius:"10px", overflow:"hidden", backgroundColor:"#0e162a",
       }}>
-        <img src={AVATAR[index % AVATAR.length]} alt=""
+        <img src={det.snapshotUrl ?? AVATAR[index % AVATAR.length]} alt=""
           style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"top", display:"block" }} />
         <div style={{ position:"absolute", top:6, left:6, backgroundColor:"rgba(14,22,42,0.75)", borderRadius:"4px", padding:"2px 6px", fontSize:"9px", fontWeight:700, color:"white" }}>
           P-0{index + 1}
@@ -236,7 +242,8 @@ function ReelCard({ det, index, isFocused, onClick }: { det: Detection; index: n
         <span style={{ backgroundColor:"#f1f5f9", borderRadius:"999px", padding:"2px 6px", display:"flex", alignItems:"center" }}>
           <MaleIcon />
         </span>
-        {PERSON_TAGS[det.type].map(t => <Tag key={t} label={t} />)}
+        {/* 데이터 연결(UV-37): 라이브 대상은 분석 태그(top+addons)를, 없으면 mock 태그 */}
+        {(det.analysis ? [...det.analysis.top, ...det.analysis.addons] : PERSON_TAGS[det.type]).map(t => <Tag key={t} label={t} />)}
       </div>
     </div>
   );
@@ -289,8 +296,9 @@ function BestFrameReel({ data, focusedId, onFocus, onSelect, filter, onFilterCha
 }
 
 /* ── AI Inspection Detail panel ───────────────────────────────── */
-function AIInspectionDetail({ det, data, onClose, onSelectOther, onGoRedmapTrace }: { det: Detection; data: CamData; onClose: () => void; onSelectOther: (det: Detection) => void; onGoRedmapTrace?: (name: string) => void }) {
-  const attrs = ATTRS[det.type];
+function AIInspectionDetail({ det, data, eventDate, onClose, onSelectOther, onGoRedmapTrace }: { det: Detection; data: CamData; eventDate?: string; onClose: () => void; onSelectOther: (det: Detection) => void; onGoRedmapTrace?: (name: string, det?: Detection) => void }) {
+  // 데이터 연결(UV-37): 라이브 대상은 계약 v1.5의 분석 태그를, 없으면 mock ATTRS를 쓴다
+  const attrs = det.analysis ?? ATTRS[det.type];
   const c = DET_COLOR[det.type];
 
   return (
@@ -304,7 +312,7 @@ function AIInspectionDetail({ det, data, onClose, onSelectOther, onGoRedmapTrace
         {/* Photo comparison */}
         <div style={{ display:"flex", alignItems:"flex-end", gap:"8px", marginBottom:"14px" }}>
           <div style={{ flex:"0 0 77px", display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
-            <img src={LIVE_CAPTURE_PHOTO} alt="" style={{ width:"77px", height:"177px", objectFit:"cover", objectPosition:"top", borderRadius:"8px", display:"block" }} />
+            <img src={det.snapshotUrl ?? LIVE_CAPTURE_PHOTO} alt="" style={{ width:"77px", height:"177px", objectFit:"cover", objectPosition:"top", borderRadius:"8px", display:"block" }} />
             <p style={{ fontSize:"11px", fontWeight:800, color:"#5a3dfb", letterSpacing:"-0.2px" }}>LIVE Capture</p>
           </div>
           <div style={{ flex:1, alignSelf:"flex-end", height:"177px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px" }}>
@@ -317,7 +325,7 @@ function AIInspectionDetail({ det, data, onClose, onSelectOther, onGoRedmapTrace
             <span style={{ fontSize:"13px", fontWeight:800, color:"#0e162a" }}>{det.confidence || 0}%</span>
           </div>
           <div style={{ flex:"0 0 176px", display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
-            <img src={DB_PHOTO} alt="" style={{ width:"176px", height:"177px", objectFit:"cover", objectPosition:"top", borderRadius:"10px", display:"block" }} />
+            <img src={det.enrolledPhotoUrl ?? DB_PHOTO} alt="" style={{ width:"176px", height:"177px", objectFit:"cover", objectPosition:"top", borderRadius:"10px", display:"block" }} />
             <p style={{ fontSize:"11px", fontWeight:600, color:"#64748a", letterSpacing:"-0.2px" }}>ENROLLED DB</p>
           </div>
         </div>
@@ -334,7 +342,7 @@ function AIInspectionDetail({ det, data, onClose, onSelectOther, onGoRedmapTrace
 
         {/* Meta */}
         <div style={{ marginBottom:"14px" }}>
-          {[["Camera Name", data.location], ["Event Time", `2026-07-13 ${det.time}`]].map(([k, v]) => (
+          {[["Camera Name", data.location], ["Event Time", `${eventDate ?? "2026-07-13"} ${det.time}`]].map(([k, v]) => (
             <div key={k} style={{ display:"flex", alignItems:"center", padding:"3px 0" }}>
               <span style={{ fontSize:"12px", color:"#64748a", fontWeight:600, width:"88px", flexShrink:0 }}>{k}</span>
               <span style={{ fontSize:"13px", color:"#0e162a", fontWeight:700 }}>{v}</span>
@@ -381,7 +389,7 @@ function AIInspectionDetail({ det, data, onClose, onSelectOther, onGoRedmapTrace
         <button onClick={onClose} style={{ padding:"9px 0", borderRadius:"8px", border:BORDER, backgroundColor:"white", color:"#334155", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>
           Back
         </button>
-        <button onClick={() => onGoRedmapTrace?.(det.name)} style={{ padding:"9px 0", borderRadius:"8px", border:"none", backgroundColor:"#0e162a", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+        <button onClick={() => onGoRedmapTrace?.(det.name, det)} style={{ padding:"9px 0", borderRadius:"8px", border:"none", backgroundColor:"#0e162a", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
             <path d="M16.6667 8.33333C16.6667 13.3333 10 18.3333 10 18.3333C10 18.3333 3.33333 13.3333 3.33333 8.33333C3.33333 6.56522 4.03571 4.86953 5.28596 3.61929C6.5362 2.36905 8.23189 1.66667 10 1.66667C11.7681 1.66667 13.4638 2.36905 14.714 3.61929C15.9643 4.86953 16.6667 6.56522 16.6667 8.33333Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M10 10.8333C11.3807 10.8333 12.5 9.71404 12.5 8.33333C12.5 6.95262 11.3807 5.83333 10 5.83333C8.61929 5.83333 7.5 6.95262 7.5 8.33333C7.5 9.71404 8.61929 10.8333 10 10.8333Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -396,7 +404,7 @@ function AIInspectionDetail({ det, data, onClose, onSelectOther, onGoRedmapTrace
 /* ── Main component ──────────────────────────────────────────── */
 const TRACK_DATES = ["2026-06-25", "2026-06-24", "2026-06-23", "2026-06-22", "2026-06-21"];
 
-export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedmapTrace, autoOpenDetail }: DetailProps) {
+export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedmapTrace, autoOpenDetail, analyzeSource }: DetailProps) {
   const [selectedPerson, setSelectedPerson] = useState<Detection | null>(autoOpenDetail ? initialDet : null);
   const [focusedDet, setFocusedDet] = useState<Detection>(initialDet);
   const [trackDate, setTrackDate] = useState(TRACK_DATES[0]);
@@ -417,15 +425,49 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dateOpen]);
 
+  // ── 라이브 브리지 (데이터 연결 지점 — vca-bridge/analyzeTimeline, 계약 v1.5 / UV-37) ──
+  // 백엔드가 응답하면 프레임 스트립·메인 프레임·Best Frame Reel이 분 단위 이력 데이터로
+  // 전환되고, 미응답이면 이 파일의 mock(FRAMES/data.detections) 흐름이 그대로 유지된다.
+  const tl = useAnalyzeTimeline(analyzeSource ?? null);
+  const liveDets = tl.live ? (tl.detections ?? []) : null;
+  const dets = liveDets ?? data.detections;
+  const reelData = liveDets ? { ...data, detections: liveDets } : data;
+  const strip = tl.live
+    ? tl.frames.map(f => ({ key: f.id, time: f.time, imageUrl: f.imageUrl, count: f.count }))
+    : FRAMES.map((ts, i) => ({ key: `${ts}-${i}`, time: ts, imageUrl: data.bgUrl ?? "", count: 2 }));
+  const stripIdx = tl.live ? tl.selectedIdx : selectedFrameIdx;
+  const stripSelect = (i: number) => (tl.live ? tl.select(i) : setSelectedFrameIdx(i));
+  const mainImage = tl.live ? (tl.frames[tl.selectedIdx]?.imageUrl ?? "") : (data.bgUrl ?? "");
+  const dateLabel = tl.live ? (tl.window?.date ?? trackDate) : trackDate;
+  const dateOptions = tl.live ? analyzeDates() : TRACK_DATES;
+  // 카테고리 레인 — 프레임별 categories에서 구간(pill)·아이콘 수를 계산 (mock은 Figma 고정값)
+  const lane = (has: (f: { hasVip: boolean; hasVehicle: boolean }) => boolean) => {
+    if (!tl.live || !tl.frames.length) return null;
+    const idxs = tl.frames.map((f, i) => (has(f) ? i : -1)).filter(i => i >= 0);
+    if (!idxs.length) return null;
+    const first = idxs[0], last = idxs[idxs.length - 1];
+    return {
+      left: `${(first / tl.frames.length) * 100}%`,
+      width: `${((last - first + 1) / tl.frames.length) * 100}%`,
+      icons: Math.min(8, idxs.length),
+    };
+  };
+  const vipLane = lane(f => f.hasVip);
+  const vehicleLane = lane(f => f.hasVehicle);
+
   // "Play" advances through the frame strip on a timer — without this, pressing Play only
   // flipped its own icon with nothing else visibly happening.
+  // 라이브: 초당 1프레임 규칙(UV-37) — step(1)이 분 경계에서 다음 분을 이어서 조회한다.
+  // tl 객체는 렌더마다 새 identity라 effect deps에는 안정적인 필드만 꺼내 쓴다.
+  const { live: tlLive, step: tlStep } = tl;
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => {
-      setSelectedFrameIdx(i => (i + 1) % FRAMES.length);
-    }, 700);
+      if (tlLive) tlStep(1);
+      else setSelectedFrameIdx(i => (i + 1) % FRAMES.length);
+    }, tlLive ? 1000 : 700);
     return () => clearInterval(interval);
-  }, [isPlaying]);
+  }, [isPlaying, tlLive, tlStep]);
 
   return (
     <div style={{ flex:1, display:"flex", overflow:"hidden", backgroundColor:"white" }}>
@@ -457,7 +499,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                 <circle cx="8" cy="8" r="6" stroke="#64748a" strokeWidth="1.3"/>
                 <path d="M8 5v3l2 2" stroke="#64748a" strokeWidth="1.3" strokeLinecap="round"/>
               </svg>
-              2026-07-10
+              {tl.live ? dateLabel : "2026-07-10"}
             </div>
           </div>
           <div style={{ padding:"4px 10px", fontSize:"11px", fontWeight:700, color:"#64748a" }}>
@@ -471,13 +513,13 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
           onMouseLeave={() => setCameraHovered(false)}
           style={{ flex:1, position:"relative", overflow:"hidden", backgroundColor:"#0e162a", minHeight:0 }}
         >
-          <img src={data.bgUrl ?? ""} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:0.9 }} />
+          <img src={mainImage} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:0.9 }} />
           <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(0,0,0,0) 50%,rgba(0,0,0,0.04) 50%)", backgroundSize:"100% 4px" }} />
           <div style={{ position:"absolute", top:12, right:14, backgroundColor:"rgba(14,22,42,0.65)", padding:"3px 8px", fontSize:"10px", fontWeight:600, color:"rgba(255,255,255,0.8)", letterSpacing:"0.5px" }}>
-            19-05-2026 14 21.0
+            {tl.live ? `${dateLabel} ${tl.frames[tl.selectedIdx]?.time ?? ""}` : "19-05-2026 14 21.0"}
           </div>
 
-          {data.detections.map((det, i) => {
+          {dets.map((det, i) => {
             const isFocused = det.id === focusedDet.id;
             if (selectedPerson && !isFocused) return null;
             const isDash = det.type === "Unknown";
@@ -521,16 +563,16 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
               display:"flex", alignItems:"center", justifyContent:"space-between",
               padding:"0 14px", boxSizing:"border-box",
             }}>
-              {/* Skip back — jumps to the first frame in the strip */}
-              <button onClick={() => setSelectedFrameIdx(0)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
+              {/* Skip back — 라이브: 10초 되감기(UV-37 스펙), mock: 첫 프레임으로 */}
+              <button onClick={() => (tl.live ? tl.step(-10) : setSelectedFrameIdx(0))} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
                   <rect width="32" height="32" rx="16" fill="white" fillOpacity="0.0784314"/>
                   <path d="M16 11.4997C15.9999 11.2031 15.9119 10.9131 15.7471 10.6665C15.5823 10.4199 15.348 10.2277 15.074 10.1142C14.7999 10.0007 14.4984 9.97095 14.2075 10.0288C13.9165 10.0867 13.6493 10.2295 13.4395 10.4392L8.9395 14.9392C8.65829 15.2205 8.50032 15.6019 8.50032 15.9997C8.50032 16.3974 8.65829 16.7789 8.9395 17.0602L13.4395 21.5602C13.6493 21.7699 13.9165 21.9127 14.2075 21.9706C14.4984 22.0284 14.7999 21.9987 15.074 21.8852C15.348 21.7717 15.5823 21.5795 15.7471 21.3329C15.9119 21.0863 15.9999 20.7963 16 20.4997V11.4997Z" fill="white" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
                   <path d="M23.5 11.4997C23.4999 11.2031 23.4119 10.9131 23.2471 10.6665C23.0823 10.4199 22.848 10.2277 22.574 10.1142C22.2999 10.0007 21.9984 9.97095 21.7075 10.0288C21.4165 10.0867 21.1493 10.2295 20.9395 10.4392L16.4395 14.9392C16.1583 15.2205 16.0003 15.6019 16.0003 15.9997C16.0003 16.3974 16.1583 16.7789 16.4395 17.0602L20.9395 21.5602C21.1493 21.7699 21.4165 21.9127 21.7075 21.9706C21.9984 22.0284 22.2999 21.9987 22.574 21.8852C22.848 21.7717 23.0823 21.5795 23.2471 21.3329C23.4119 21.0863 23.4999 20.7963 23.5 20.4997V11.4997Z" fill="white" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
-              {/* Prev frame */}
-              <button onClick={() => setSelectedFrameIdx(i => Math.max(0, i - 1))} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
+              {/* Prev frame — 1초 되감기 */}
+              <button onClick={() => (tl.live ? tl.step(-1) : setSelectedFrameIdx(i => Math.max(0, i - 1)))} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
                   <rect width="32" height="32" rx="16" fill="white" fillOpacity="0.0784314"/>
                   <path d="M21.2311 10.0001C20.9657 10.0035 20.7059 10.0772 20.4783 10.2137L12.9784 14.7133C12.756 14.8466 12.572 15.0354 12.4444 15.261C12.3167 15.4867 12.2497 15.7415 12.25 16.0008C12.2502 16.26 12.3176 16.5148 12.4457 16.7402C12.5737 16.9657 12.758 17.154 12.9806 17.287L20.4783 21.7851C20.7059 21.9216 20.9657 21.9953 21.2311 21.9987C21.4965 22.002 21.7581 21.9349 21.9891 21.8041C22.22 21.6733 22.4122 21.4836 22.5459 21.2543C22.6796 21.025 22.75 20.7644 22.75 20.4989V11.4999C22.75 11.2344 22.6796 10.9738 22.5459 10.7445C22.4122 10.5152 22.22 10.3255 21.9891 10.1947C21.7581 10.0639 21.4965 9.99677 21.2311 10.0001Z" fill="white"/>
@@ -552,16 +594,16 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                   </svg>
                 )}
               </button>
-              {/* Next frame */}
-              <button onClick={() => setSelectedFrameIdx(i => Math.min(FRAMES.length - 1, i + 1))} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
+              {/* Next frame — 1초 앞으로 */}
+              <button onClick={() => (tl.live ? tl.step(1) : setSelectedFrameIdx(i => Math.min(FRAMES.length - 1, i + 1)))} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
                   <rect width="32" height="32" rx="16" fill="white" fillOpacity="0.0784314"/>
                   <path d="M10.7689 10.0001C11.0344 10.0035 11.2941 10.0772 11.5217 10.2137L19.0217 14.7133C19.2441 14.8466 19.4281 15.0354 19.5557 15.261C19.6834 15.4867 19.7504 15.7415 19.7502 16.0008C19.7499 16.26 19.6825 16.5148 19.5544 16.7402C19.4264 16.9657 19.2421 17.154 19.0195 17.287L11.5217 21.7851C11.2941 21.9216 11.0344 21.9953 10.7689 21.9987C10.5035 22.002 10.2419 21.9349 10.0109 21.8041C9.77996 21.6733 9.58781 21.4836 9.45412 21.2543C9.32044 21.025 9.25 20.7644 9.25 20.4989V11.4999C9.25 11.2344 9.32044 10.9738 9.45412 10.7445C9.58781 10.5152 9.77996 10.3255 10.0109 10.1947C10.2419 10.0639 10.5035 9.99677 10.7689 10.0001Z" fill="white"/>
                   <path d="M22.75 10V21.9988M11.5217 10.2137C11.2941 10.0772 11.0344 10.0035 10.7689 10.0001C10.5035 9.99677 10.2419 10.0639 10.0109 10.1947C9.77996 10.3255 9.58781 10.5152 9.45412 10.7445C9.32044 10.9738 9.25 11.2344 9.25 11.4999V20.4989C9.25 20.7644 9.32044 21.025 9.45412 21.2543C9.58781 21.4836 9.77996 21.6733 10.0109 21.8041C10.2419 21.9349 10.5035 22.002 10.7689 21.9987C11.0344 21.9953 11.2941 21.9216 11.5217 21.7851L19.0195 17.287C19.2421 17.154 19.4264 16.9657 19.5544 16.7402C19.6825 16.5148 19.7499 16.26 19.7502 16.0008C19.7504 15.7415 19.6834 15.4867 19.5557 15.261C19.4281 15.0354 19.2441 14.8466 19.0217 14.7133L11.5217 10.2137Z" stroke="white" strokeLinecap="round"/>
                 </svg>
               </button>
-              {/* Skip forward — jumps to the last frame in the strip */}
-              <button onClick={() => setSelectedFrameIdx(FRAMES.length - 1)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
+              {/* Skip forward — 라이브: 10초 앞으로(UV-37 스펙), mock: 마지막 프레임으로 */}
+              <button onClick={() => (tl.live ? tl.step(10) : setSelectedFrameIdx(FRAMES.length - 1))} style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}>
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
                   <rect width="32" height="32" rx="16" fill="white" fillOpacity="0.0784314"/>
                   <path d="M16 11.4997C16.0001 11.2031 16.0881 10.9131 16.2529 10.6665C16.4177 10.4199 16.652 10.2277 16.926 10.1142C17.2001 10.0007 17.5016 9.97095 17.7925 10.0288C18.0835 10.0867 18.3507 10.2295 18.5605 10.4392L23.0605 14.9392C23.3417 15.2205 23.4997 15.6019 23.4997 15.9997C23.4997 16.3974 23.3417 16.7789 23.0605 17.0602L18.5605 21.5602C18.3507 21.7699 18.0835 21.9127 17.7925 21.9706C17.5016 22.0284 17.2001 21.9987 16.926 21.8852C16.652 21.7717 16.4177 21.5795 16.2529 21.3329C16.0881 21.0863 16.0001 20.7963 16 20.4997V11.4997Z" fill="white" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
@@ -582,15 +624,20 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                   <circle cx="8" cy="8" r="6" stroke="#0e162a" strokeWidth="1.4"/>
                   <path d="M8 5v3l2 2" stroke="#0e162a" strokeWidth="1.4" strokeLinecap="round"/>
                 </svg>
-                <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{trackDate}</span>
+                <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{dateLabel}</span>
                 <svg width="9" height="9" viewBox="0 0 8 8" fill="none">
                   <path d="M2 3L4 5L6 3" stroke="#0e162a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
               {dateOpen && (
                 <div style={{ position:"absolute", right:0, top:"calc(100% + 4px)", backgroundColor:"white", borderRadius:"8px", boxShadow:"0 4px 16px rgba(0,0,0,0.12)", border:"1px solid #e2e8f0", overflow:"hidden", zIndex:50, minWidth:"120px" }}>
-                  {TRACK_DATES.map(d => (
-                    <button key={d} onClick={() => { setTrackDate(d); setDateOpen(false); }} style={{ display:"block", width:"100%", padding:"7px 12px", border:"none", background: d === trackDate ? "#f0f0ff" : "white", cursor:"pointer", fontSize:"11px", fontWeight: d === trackDate ? 700 : 500, color: d === trackDate ? "#5a3dfb" : "#334155", textAlign:"left" }}>
+                  {dateOptions.map(d => (
+                    <button key={d} onClick={() => {
+                      // 라이브: 같은 시/분을 유지한 채 날짜만 바꿔 재조회 (보존 규칙상 오늘/어제)
+                      if (tl.live && tl.window) tl.setMinute(d, tl.window.hour, tl.window.minute);
+                      else setTrackDate(d);
+                      setDateOpen(false);
+                    }} style={{ display:"block", width:"100%", padding:"7px 12px", border:"none", background: d === dateLabel ? "#f0f0ff" : "white", cursor:"pointer", fontSize:"11px", fontWeight: d === dateLabel ? 700 : 500, color: d === dateLabel ? "#5a3dfb" : "#334155", textAlign:"left" }}>
                       {d}
                     </button>
                   ))}
@@ -602,39 +649,45 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
           {/* Track rows + cursor line — Unknown's own row was dropped, not something anyone
               checks via this timeline bar. */}
           <div style={{ padding:"0 16px", display:"flex", flexDirection:"column", gap:"10px", position:"relative" }}>
-            {/* Cursor vertical line */}
-            <div style={{ position:"absolute", top:0, bottom:0, left:`calc(16px + 36%)`, width:"1.5px", backgroundColor:"#38bdf8", zIndex:10, pointerEvents:"none" }} />
+            {/* Cursor vertical line — 라이브: 선택 프레임 위치 반영 */}
+            <div style={{ position:"absolute", top:0, bottom:0, left:`calc(16px + ${tl.live && tl.frames.length ? ((stripIdx + 0.5) / tl.frames.length) * 100 : 36}%)`, width:"1.5px", backgroundColor:"#38bdf8", zIndex:10, pointerEvents:"none" }} />
 
             {/* VIP — per Figma node 161:23734: pill starts at 13.5% of the track, spans 32% of
                 it, with 8 icons evenly spaced by the pill's own flex layout (not hand-placed
                 percentages). */}
             <div style={{ position:"relative", height:"32px", backgroundColor:"#F1F5F9", borderRadius:"999px" }}>
-              <div style={{
-                position:"absolute", top:"4px", bottom:"4px", left:"13.5%", width:"32%",
-                backgroundColor:"#f0f0ff", borderRadius:"999px", outline:`1px solid ${DET_COLOR.VIP}`,
-                display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 12px",
-              }}>
-                {Array.from({ length:8 }).map((_, i) => <TypeIcon key={i} type="VIP" color={DET_COLOR.VIP} size={16} />)}
-              </div>
+              {(!tl.live || vipLane) && (
+                <div style={{
+                  position:"absolute", top:"4px", bottom:"4px",
+                  left: vipLane?.left ?? "13.5%", width: vipLane?.width ?? "32%",
+                  backgroundColor:"#f0f0ff", borderRadius:"999px", outline:`1px solid ${DET_COLOR.VIP}`,
+                  display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 12px", overflow:"hidden",
+                }}>
+                  {Array.from({ length: vipLane?.icons ?? 8 }).map((_, i) => <TypeIcon key={i} type="VIP" color={DET_COLOR.VIP} size={16} />)}
+                </div>
+              )}
             </div>
             {/* Vehicle — per Figma node 161:23760: pill starts at 2.5%, spans 39.5%, 7 icons. */}
             <div style={{ position:"relative", height:"32px", backgroundColor:"#F1F5F9", borderRadius:"999px" }}>
-              <div style={{
-                position:"absolute", top:"4px", bottom:"4px", left:"2.5%", width:"39.5%",
-                backgroundColor:"#e0f2fe", borderRadius:"999px", outline:`1px solid ${DET_COLOR.Vehicle}`,
-                display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 12px",
-              }}>
-                {Array.from({ length:7 }).map((_, i) => <TypeIcon key={i} type="Vehicle" color={DET_COLOR.Vehicle} size={16} />)}
-              </div>
+              {(!tl.live || vehicleLane) && (
+                <div style={{
+                  position:"absolute", top:"4px", bottom:"4px",
+                  left: vehicleLane?.left ?? "2.5%", width: vehicleLane?.width ?? "39.5%",
+                  backgroundColor:"#e0f2fe", borderRadius:"999px", outline:`1px solid ${DET_COLOR.Vehicle}`,
+                  display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 12px", overflow:"hidden",
+                }}>
+                  {Array.from({ length: vehicleLane?.icons ?? 7 }).map((_, i) => <TypeIcon key={i} type="Vehicle" color={DET_COLOR.Vehicle} size={16} />)}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Frame strip */}
           <div style={{ display:"flex", gap:"6px", padding:"10px 16px 18px", overflowX:"auto" }}>
-            {FRAMES.map((ts, i) => {
-              const isSelected = i === selectedFrameIdx;
+            {strip.map((frame, i) => {
+              const isSelected = i === stripIdx;
               return (
-                <div key={i} onClick={() => setSelectedFrameIdx(i)} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:"5px", cursor:"pointer" }}>
+                <div key={frame.key} onClick={() => stripSelect(i)} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:"5px", cursor:"pointer" }}>
                   <div style={{
                     width:"128px", height:"82px", boxSizing:"border-box",
                     padding: isSelected ? "2px" : "1.5px",
@@ -642,15 +695,15 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                     borderRadius:"9px",
                   }}>
                     <div style={{ width:"100%", height:"100%", overflow:"hidden", borderRadius:"7px", position:"relative", backgroundColor:"#1e293b" }}>
-                      <img src={data.bgUrl ?? ""} alt=""
+                      <img src={frame.imageUrl} alt=""
                         style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", filter: isSelected ? "none" : "grayscale(100%)", opacity: isSelected ? 1 : 0.75 }} />
                       {/* Detection count badge */}
                       <div style={{ position:"absolute", top:5, right:5, width:"19px", height:"19px", borderRadius:"50%", backgroundColor:"rgba(255,255,255,0.9)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                        <span style={{ fontSize:"9px", fontWeight:700, color:"#334155" }}>2</span>
+                        <span style={{ fontSize:"9px", fontWeight:700, color:"#334155" }}>{frame.count}</span>
                       </div>
                     </div>
                   </div>
-                  <span style={{ fontSize:"12px", fontWeight: isSelected ? 800 : 500, color: isSelected ? "#38bdf8" : "#94a3b8" }}>{ts}</span>
+                  <span style={{ fontSize:"12px", fontWeight: isSelected ? 800 : 500, color: isSelected ? "#38bdf8" : "#94a3b8" }}>{frame.time}</span>
                 </div>
               );
             })}
@@ -660,9 +713,19 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
 
       {/* ── Right panel ──────────────────────────────────── */}
       {selectedPerson ? (
-        <AIInspectionDetail det={selectedPerson} data={data} onClose={() => setSelectedPerson(null)} onSelectOther={(d) => { setFocusedDet(d); setSelectedPerson(d); }} onGoRedmapTrace={onGoRedmapTrace} />
+        <AIInspectionDetail
+          det={selectedPerson}
+          data={reelData}
+          eventDate={tl.live ? tl.window?.date : undefined}
+          onClose={() => setSelectedPerson(null)}
+          onSelectOther={(d) => { setFocusedDet(d); setSelectedPerson(d); }}
+          // 데이터 연결(UV-36/37): Track on Map에 대상 참조 동봉 — 진입 컨텍스트가 있을 때만
+          onGoRedmapTrace={(name, d) => onGoRedmapTrace?.(name, d && analyzeSource
+            ? { sourceType: analyzeSource.type, sourceId: analyzeSource.id, targetId: d.id }
+            : undefined)}
+        />
       ) : (
-        <BestFrameReel data={data} focusedId={focusedDet.id} onFocus={setFocusedDet} onSelect={setSelectedPerson} filter={reelFilter} onFilterChange={setReelFilter} />
+        <BestFrameReel data={reelData} focusedId={focusedDet.id} onFocus={setFocusedDet} onSelect={setSelectedPerson} filter={reelFilter} onFilterChange={setReelFilter} />
       )}
     </div>
   );

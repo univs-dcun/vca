@@ -25,6 +25,10 @@ export interface Detection {
   snapshotUrl?: string;
   /** 등록 인물 DB 사진 (라이브, VIP·Staff 매칭 시). 없으면 mock 사진/NO DB MATCH 폴백 */
   enrolledPhotoUrl?: string;
+  /** AI 분석 태그 (라이브, 계약 v1.5 — Analyze Frame). 없으면 화면이 mock ATTRS로 폴백 */
+  analysis?: { basic: string[]; top: string[]; bottom: string[]; addons: string[] };
+  /** 인물 성별 (라이브, 계약 v1.5). 미상·차량이면 undefined */
+  gender?: "male" | "female";
 }
 
 export interface CamData {
@@ -33,6 +37,8 @@ export interface CamData {
   bgUrl?: string;
   /** 업로드 비디오 타일 (라이브, 계약 v1.3 — vca-bridge가 공급). 있으면 bgUrl 대신 video로 재생 */
   videoUrl?: string;
+  /** 업로드 비디오 촬영 시작 시각 (라이브, 계약 v1.5) — Analyze Frame의 절대 시각 축 */
+  recordedAt?: string;
   detections: Detection[];
 }
 

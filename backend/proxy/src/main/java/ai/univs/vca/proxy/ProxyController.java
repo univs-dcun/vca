@@ -96,6 +96,13 @@ public class ProxyController {
 		return binary("/videos/{videoId}/targets/{targetId}/crop", videoId, targetId);
 	}
 
+	// 비디오 베스트 프레임 이미지 (계약 v1.5, UV-37). 카메라 프레임은 v1.1 라우트를 재사용하므로
+	// Analyze Frame에서 신규 바이너리 중계는 이것 하나다 — JSON 2종(bestframes, targets)은 범용 라우트가 처리
+	@GetMapping("/api/videos/{videoId}/bestframes/{frameId}/image")
+	public Mono<ResponseEntity<byte[]>> videoBestframeImage(@PathVariable String videoId, @PathVariable String frameId) {
+		return binary("/videos/{videoId}/bestframes/{frameId}/image", videoId, frameId);
+	}
+
 	/**
 	 * 비디오 콘텐츠 스트리밍 중계 (계약 v1.3). binary()와 달리 본문을 메모리에 모으지 않는다 —
 	 * MP4는 max-response-size를 넘는 것이 정상이다. Range 요청 헤더를 모듈에 그대로 전달하고,

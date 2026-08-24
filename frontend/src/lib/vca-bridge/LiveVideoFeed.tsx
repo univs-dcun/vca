@@ -15,6 +15,11 @@ const WINDOW_SEC = 60
 /** 마지막 프레임 항목이 이보다 오래되면 대상이 사라진 것 — 박스 미표시 */
 const STALE_SEC = 1.5
 
+// 비디오별 마지막 재생 위치(초) — Analyze Frame 진입 시각(recordedAt + 재생 위치) 계산용 (UV-37).
+// 컴포넌트 밖 모듈 상태인 이유: 진입 버튼은 이 컴포넌트 밖(타일 오버레이·HUD)에 있다
+const playbackTimes = new Map<string, number>()
+export const getVideoPlaybackTime = (videoId: string): number => playbackTimes.get(videoId) ?? 0
+
 const BOX_COLOR: Record<string, string> = {
   vip: '#5A3DFB',
   staff: '#3B82F6',
@@ -65,6 +70,7 @@ export function LiveVideoFeed({ videoId, src, poster }: { videoId: string; src: 
   // timeupdate(브라우저 기본 ~4Hz)로 충분 — 분석 프레임 간격(0.5초)보다 촘촘하다
   const onTimeUpdate = useCallback(() => {
     const t = videoRef.current?.currentTime ?? 0
+    playbackTimes.set(videoId, t)
     const w = Math.floor(t / WINDOW_SEC)
     ensureWindow(w)
     ensureWindow(w + 1) // 창 경계에서 끊기지 않게 다음 창 선조회
@@ -75,7 +81,7 @@ export function LiveVideoFeed({ videoId, src, poster }: { videoId: string; src: 
       else break
     }
     setObjects(cur && t - cur.t <= STALE_SEC ? cur.objects : [])
-  }, [ensureWindow])
+  }, [videoId, ensureWindow])
 
   // 비디오 교체 시 캐시 초기화
   useEffect(() => {

@@ -108,6 +108,7 @@ export function useMediaLive(): {
                 location: v.name,
                 bgUrl: v.thumbnailUrl ?? undefined,
                 videoUrl: v.contentUrl,
+                recordedAt: v.recordedAt ?? undefined, // (v1.5) Analyze Frame 절대 시각 축
                 detections: (tres.data?.content ?? []).map(videoTargetToDetection),
               })
               bump((n) => n + 1)
