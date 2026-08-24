@@ -11,6 +11,7 @@ import tools.jackson.databind.node.ObjectNode;
  *   - imageUrl    /cameras/{id}/frames/{frameId} — REST 응답에 실릴 경우 대비 (bestframe 메타는 MQTT라
  *                                                   모듈이 /api/ 경로로 직접 발행한다, SPEC §3.5)
  *   - faceUrl     /search-hits/{hitId}/face      — 인물 검색 hit 크롭 (계약 v1.2, UV-34)
+ *                 /detections/{eventId}/face     — 감지 얼굴 크롭 (계약 v1.6, UV-38 — 같은 필드명, 재작성 규칙 동일)
  *   - bodyUrl     /search-hits/{hitId}/body      — 〃
  *   - contentUrl  /videos/{id}/content           — 업로드 비디오 MP4 (계약 v1.3, UV-35)
  *   - thumbnailUrl /videos/{id}/thumbnail        — 〃 (imageUrl은 v1.3의 /images/{id}/content도 겸한다)

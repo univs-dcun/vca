@@ -12,16 +12,17 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.5.0
+ * OpenAPI spec version: 0.6.0
  */
 import type { DetectionCategory } from './detectionCategory';
 import type { DetectionEventRowVip } from './detectionEventRowVip';
 import type { DetectionEventRowVehicle } from './detectionEventRowVehicle';
 import type { DetectionEventRowAttributes } from './detectionEventRowAttributes';
+import type { DetectionEventRowGender } from './detectionEventRowGender';
 import type { LatLng } from './latLng';
 
 /**
- * BEST FRAME 타깃 패널의 감지 이벤트 1건. MQTT cameras/{cameraId}/detections(SPEC §3.2 v1.1)와 동일 구조 — eventId로 MQTT 델타와 중복 제거하여 병합한다
+ * 감지 이벤트 1건 — BEST FRAME 타깃 패널 + DATA Live Monitoring 카드(v1.6) 공용. MQTT cameras/{cameraId}/detections(SPEC §3.2, v1.1 확장 + v1.6 faceUrl·gender·age)와 동일 구조 — eventId로 MQTT 델타와 중복 제거하여 병합한다
  */
 export interface DetectionEventRow {
   /** 감지 이벤트 고유 ID (멱등 처리 기준) */
@@ -52,8 +53,25 @@ export interface DetectionEventRow {
   vehicle?: DetectionEventRowVehicle;
   /** @nullable */
   attributes?: DetectionEventRowAttributes;
-  /** 감지 시점 크롭 이미지 — GET /detections/{eventId}/snapshot. 패널 썸네일·팝오버 LIVE SNAPSHOT에 <img src>로 직접 사용 */
+  /** 감지 시점 크롭 이미지 — GET /detections/{eventId}/snapshot. 패널 썸네일·팝오버 LIVE SNAPSHOT·Live Monitoring 카드 큰 이미지(전신)에 <img src>로 직접 사용 */
   snapshotUrl: string;
+  /**
+   * (v1.6) 얼굴 크롭 이미지 — GET /detections/{eventId}/face. Live Monitoring 카드의 얼굴 인셋. 차량·얼굴 미검출이면 null (인셋 없이 렌더)
+   * @nullable
+   */
+  faceUrl?: string | null;
+  /**
+   * (v1.6) 모듈 추정 성별. 미추정·차량이면 null
+   * @nullable
+   */
+  gender?: DetectionEventRowGender;
+  /**
+   * (v1.6) 모듈 추정 나이(단일 정수) — "28yo" 포맷은 프론트 책임. 미추정·차량이면 null
+   * @minimum 0
+   * @maximum 130
+   * @nullable
+   */
+  age?: number | null;
   location: LatLng;
   detectedAt: string;
 }

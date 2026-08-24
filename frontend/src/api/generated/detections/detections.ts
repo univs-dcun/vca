@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.5.0
+ * OpenAPI spec version: 0.6.0
  */
 import {
   useQuery
@@ -121,6 +121,100 @@ export function useGetDetectionSnapshot<TData = Awaited<ReturnType<typeof getDet
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetDetectionSnapshotQueryOptions(eventId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * 감지 이벤트의 faceUrl이 가리키는 리소스 — 감지 시점의 얼굴 크롭. DATA Live Monitoring 카드의 얼굴 인셋에 사용. faceUrl이 null인 이벤트(차량·얼굴 미검출)에는 없다(404). envelope 없이 이미지 바이너리를 그대로 반환한다.
+ * @summary 감지 얼굴 크롭 이미지 (바이너리) — v1.6, UV-38
+ */
+export const getDetectionFace = (
+    eventId: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<Blob>(
+      {url: `/detections/${eventId}/face`, method: 'GET',
+        responseType: 'blob', signal
+    },
+      );
+    }
+  
+
+
+
+export const getGetDetectionFaceQueryKey = (eventId?: string,) => {
+    return [
+    `/detections/${eventId}/face`
+    ] as const;
+    }
+
+    
+export const getGetDetectionFaceQueryOptions = <TData = Awaited<ReturnType<typeof getDetectionFace>>, TError = ErrorResponse>(eventId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDetectionFace>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDetectionFaceQueryKey(eventId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDetectionFace>>> = ({ signal }) => getDetectionFace(eventId, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(eventId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDetectionFace>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDetectionFaceQueryResult = NonNullable<Awaited<ReturnType<typeof getDetectionFace>>>
+export type GetDetectionFaceQueryError = ErrorResponse
+
+
+export function useGetDetectionFace<TData = Awaited<ReturnType<typeof getDetectionFace>>, TError = ErrorResponse>(
+ eventId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDetectionFace>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDetectionFace>>,
+          TError,
+          Awaited<ReturnType<typeof getDetectionFace>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDetectionFace<TData = Awaited<ReturnType<typeof getDetectionFace>>, TError = ErrorResponse>(
+ eventId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDetectionFace>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDetectionFace>>,
+          TError,
+          Awaited<ReturnType<typeof getDetectionFace>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDetectionFace<TData = Awaited<ReturnType<typeof getDetectionFace>>, TError = ErrorResponse>(
+ eventId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDetectionFace>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 감지 얼굴 크롭 이미지 (바이너리) — v1.6, UV-38
+ */
+
+export function useGetDetectionFace<TData = Awaited<ReturnType<typeof getDetectionFace>>, TError = ErrorResponse>(
+ eventId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDetectionFace>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDetectionFaceQueryOptions(eventId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
