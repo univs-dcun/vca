@@ -15,6 +15,7 @@ import { ToastProvider, useToast } from "./Toast";
 import { LiveEvent, Device, getFacePhoto } from "@/lib/mockData";
 import { useVcaStore, VIP_SIMULATION_CAMERAS } from "@/lib/vcaStore";
 import { useVcaLiveBridge } from "../../../lib/vca-bridge/useVcaLiveBridge";
+import type { TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
 
 export type NavTab = "DASHBOARD" | "BEST FRAME" | "DATA" | "REDMAP";
 const VALID_TABS: NavTab[] = ["DASHBOARD", "BEST FRAME", "DATA", "REDMAP"];
@@ -156,6 +157,8 @@ export default function ClientLayout() {
   const [isLoading, setIsLoading] = useState(true);
   const [bestFrameFocusLocation, setBestFrameFocusLocation] = useState<string | null>(null);
   const [redmapAutoSearchName, setRedmapAutoSearchName] = useState<string | null>(null);
+  // 데이터 연결(UV-36): Track on Map 딥링크의 대상 참조 — 이름과 함께 REDMAP으로 전달
+  const [redmapTrackTarget, setRedmapTrackTarget] = useState<TrackTargetRef | null>(null);
   const [bestFrameAnalyzeLocation, setBestFrameAnalyzeLocation] = useState<string | null>(null);
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 700);
@@ -165,8 +168,9 @@ export default function ClientLayout() {
     setBestFrameFocusLocation(location);
     setActivePage("BEST FRAME");
   };
-  const handleGoRedmapTrace = (personName: string) => {
+  const handleGoRedmapTrace = (personName: string, ref?: TrackTargetRef) => {
     setRedmapAutoSearchName(personName);
+    setRedmapTrackTarget(ref ?? null); // 대상 참조가 없으면(대시보드 팝업 경로) mock 딥링크 그대로
     setActivePage("REDMAP");
   };
   const handleNotificationNavigate = (event: LiveEvent) => {
@@ -303,7 +307,8 @@ export default function ClientLayout() {
         {!isLoading && activePage === "REDMAP" && (
           <RedmapPage
             initialSearchName={redmapAutoSearchName}
-            onInitialSearchConsumed={() => setRedmapAutoSearchName(null)}
+            initialTrackTarget={redmapTrackTarget}
+            onInitialSearchConsumed={() => { setRedmapAutoSearchName(null); setRedmapTrackTarget(null); }}
           />
         )}
       </div>

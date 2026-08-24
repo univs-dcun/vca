@@ -4,6 +4,7 @@ import type { RedmapMode as Mode, SimilarityLimit, HitResult, DateRange } from "
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 // 데이터 연결(백엔드 소유, UV-34): 인물 실검색 — 백엔드 미기동/이미지 미업로드 시 null이 와서 mock 흐름 유지
 import { searchRedmapPersons } from "../../../lib/vca-bridge/redmapSearch";
+import { trackTargetOnMap, type TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
 
 const BORDER = "1px solid #e2e8f0";
 
@@ -455,7 +456,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
 }
 
 /* ── Component ─────────────────────────────────────────────── */
-export default function RedmapPage({ initialSearchName, onInitialSearchConsumed }: { initialSearchName?: string | null; onInitialSearchConsumed?: () => void } = {}) {
+export default function RedmapPage({ initialSearchName, initialTrackTarget, onInitialSearchConsumed }: { initialSearchName?: string | null; initialTrackTarget?: TrackTargetRef | null; onInitialSearchConsumed?: () => void } = {}) {
   const [mode, setMode] = useState<Mode>("person");
   const [similarity, setSimilarity] = useState<SimilarityLimit>(30);
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
@@ -503,6 +504,29 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     setActiveNode(MOCK_RESULTS.length - 1);
     setTraceName(initialSearchName);
   }
+
+  // 데이터 연결(UV-36): Track on Map 딥링크 — 이름과 함께 대상 참조가 오면 실추적 검색(계약 v1.4)을
+  // 시도한다. 위 딥링크 블록의 mock 결과가 먼저 그려지고, 응답이 도착하면 라이브 결과로 교체된다.
+  // 시간 창(track된 당일)·유사도(90%)는 백엔드가 결정해 에코한 값을 폼에 반영한다.
+  // 미응답(null)이면 아무것도 하지 않는다 — mock 딥링크 흐름 그대로 (폴백 규칙).
+  const consumedTrackRef = useRef<TrackTargetRef | null>(null);
+  useEffect(() => {
+    const ref = initialTrackTarget;
+    if (!ref || consumedTrackRef.current === ref) return;
+    consumedTrackRef.current = ref;
+    void trackTargetOnMap(ref).then((live) => {
+      if (!live || consumedTrackRef.current !== ref) return; // 그 사이 다른 딥링크가 오면 무시
+      setMode("person");
+      setSimilarity(live.similarity);
+      setDateRange(live.dateRange);
+      setResults(live.results);
+      setHasSearched(true);
+      setActiveHit(live.results.length ? live.results.length - 1 : null);
+      setActiveNode(live.results.length ? live.results.length - 1 : null);
+      setTraceName(live.traceName);
+      setLiveTrace(true);
+    });
+  }, [initialTrackTarget]);
 
   // Tell the parent its deep-link hint has been consumed — a real side effect (notifying an
   // external callback), so it belongs in an effect rather than the render-phase block above.

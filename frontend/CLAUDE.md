@@ -59,7 +59,14 @@ RedmapPage의 주입(UV-34): searchRedmapPersons import + faceFile/bodyFile/live
 업로드 핸들러 2곳의 setXxxFile + handleSearch 앞부분의 실검색 시도 블록(null이면 mock 폴백) +
 handleReset·딥링크 블록의 liveTrace 리셋 + 타임라인 originOffset 게이트 + RedmapMap showOrigin prop.
 RedmapMap의 주입: showOrigin?: boolean prop(기본 true) — 실검색 경로에서 mock 시작점 미표시,
-originOffset 기반 hitIndex 변환, effect deps에 showOrigin.
+originOffset 기반 hitIndex 변환, effect deps에 showOrigin. 마커 effect의 stale 가드(UV-36) —
+import("leaflet") 완료 전 결과가 바뀌면 이전 실행 마커가 잔상으로 남는 race 수정(cleanup으로 무효화).
+Track on Map 주입(UV-36): BestFramePage — onGoRedmapTrace 시그니처에 optional TrackTargetRef 추가 +
+HUD Track on Map 버튼이 대상 참조(sourceType은 videoCams/imageCams 소속으로 판별, sourceId=camId,
+targetId=det.id)를 실어 보냄. ClientLayout — redmapTrackTarget state + handleGoRedmapTrace 2번째
+인자 + RedmapPage initialTrackTarget prop 전달(consumed 시 함께 클리어). RedmapPage —
+trackTargetOnMap import + initialTrackTarget prop + consumedTrackRef 기반 실추적 검색 effect
+(mock 딥링크가 먼저 그려지고 응답 도착 시 라이브 결과·유사도 90·당일 날짜로 교체, null이면 mock 유지).
 
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)
