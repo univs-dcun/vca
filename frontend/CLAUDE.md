@@ -81,8 +81,10 @@ LiveCardExtras/MonitorItem 타입·trackRefOf() 헬퍼 + MonitorCard p 타입·�
 null=인셋 숨김, string=실크롭, undefined=mock 줌 크롭) + LiveMonitoringTab의 lm 훅 호출·mock
 인터벌 lm.live 게이트·feedSrc 분기 + CameraDetailView items 타입·RedMap 버튼 대상 참조 동봉 +
 reidToMatchItem face 폴백(faceCrop ?? url) + DetailModal RedMap Trace 래핑 + DataPage onGoRedmap
-시그니처 (name?, ref?). ClientLayout — DataPage onGoRedmap: ref 있으면 handleGoRedmapTrace(UV-36
-딥링크 재사용), 없으면 기존 플레인 이동. lib/realtime/types.ts — DetectionEvent에 faceUrl/gender/age.
+시그니처 (name?, ref?) + All Cameras 병합 정렬(ms 내림차순 — 카메라별 블록이 아닌 단일 최신순
+스트림, mock은 ms 없어 안정 정렬로 기존 순서 유지). ClientLayout — DataPage onGoRedmap: ref
+있으면 handleGoRedmapTrace(UV-36 딥링크 재사용), 없으면 기존 플레인 이동.
+lib/realtime/types.ts — DetectionEvent에 faceUrl/gender/age.
 
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)
