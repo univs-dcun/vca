@@ -225,7 +225,7 @@ function HoverActionBtn({ label, icon, color, onClick }:
 // 데이터 연결(UV-38): 라이브 카드의 추가 필드 — mock 항목에는 없어 전부 옵셔널.
 // faceCrop은 실제 얼굴 크롭(null = 얼굴 미검출 → 인셋 숨김), eventId/cameraId는 RedMap
 // 대상 참조(v1.4 규칙: 카메라 targetId = 감지 eventId), label은 딥링크 Tracing 라벨.
-type LiveCardExtras = { faceCrop?: string | null; eventId?: string; cameraId?: string; label?: string };
+type LiveCardExtras = { faceCrop?: string | null; eventId?: string; cameraId?: string; label?: string; ms?: number };
 type MonitorItem = (typeof REID_DATA)[number] & LiveCardExtras;
 const trackRefOf = (p: MonitorItem): TrackTargetRef | undefined =>
   p.eventId && p.cameraId ? { sourceType: "camera", sourceId: p.cameraId, targetId: p.eventId } : undefined;
@@ -537,6 +537,10 @@ function LiveMonitoringTab({ onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { on
   const onlineCameraCodes = useVcaStore(s => s.cameras).filter(c => c.status === "online").map(c => c.code);
   const camDetailItems = openCam === ALL_CAMERAS_ID
     ? onlineCameraCodes.flatMap(code => feedSrc[code] ?? [])
+        // 데이터 연결(UV-38): All Cameras는 카메라별 블록이 아니라 전체 Running 카메라의 감지를
+        // 시각 역순으로 병합한 단일 스트림 — 새 감지가 어느 카메라에서 오든 항상 최상단.
+        // mock 항목은 ms가 없어(0 취급) 안정 정렬로 기존 순서가 그대로 유지된다.
+        .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0))
     : feedSrc[openCam] ?? [];
 
   return (
