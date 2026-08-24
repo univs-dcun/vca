@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
 import type { VideoAnalysisStatus } from './videoAnalysisStatus';
 
@@ -24,6 +24,11 @@ export interface VideoItem {
   /** 업로드 파일명 */
   name: string;
   uploadedAt: string;
+  /**
+   * (v1.5) 촬영 시작 시각 메타데이터 — Analyze Frame의 절대 시각 축(클립 구간 = recordedAt ~ +durationSec). 메타가 없으면 null (베스트 프레임 이력 조회 불가)
+   * @nullable
+   */
+  recordedAt?: string | null;
   analysisStatus: VideoAnalysisStatus;
   /**
    * 재생 길이 (초). processing 중 미상이면 null

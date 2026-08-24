@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA Module API (내부 계약)",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표 (예외: POST /persons/search·POST /targets/track-on-map은 60초(v1.2/v1.4), GET /videos/{id}/content는 스트리밍이라 최초 응답까지만 적용(v1.3))\n- (v1.3) GET /videos/{videoId}/content는 HTTP Range 요청(206 Partial Content)을 반드시 지원 — 브라우저 video 시킹의 전제. 브라우저 재생 가능한 H.264 MP4 서빙은 모듈 책임(원본 코덱 상이 시 트랜스코딩 포함)\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
     "contact": { "name": "계약 담당: 박상훈 (백엔드/브로커)" }
   },
@@ -17,6 +17,7 @@
     { "name": "stats" },
     { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33)" },
     { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34) + Track on Map 대상 추적 검색 (계약 v1.4, UV-36). 차량 번호 검색은 구현 방식 미확정으로 범위 제외 — 확정 시 별도 계약 추가" },
+    { "name": "analyze", "description": "Analyze Frame 베스트 프레임 이력 (계약 v1.5, UV-37) — 사이트 로컬 분(minute) 단위 베스트 프레임 목록(초당 1장·최대 60장)과 프레임 내 tracked 대상 조회. 카메라·업로드 비디오 공통(비디오는 recordedAt 절대 시각 축), 이미지는 대상 아님" },
     { "name": "images", "description": "BEST FRAME Image list (계약 v1.3, UV-35) — 타 서비스가 업로드하고 모듈이 저장·분석하는 이미지의 조회" },
     { "name": "videos", "description": "BEST FRAME Video list (계약 v1.3, UV-35) — 업로드 영상의 목록·MP4 재생·프레임별 대상 조회" }
   ],
@@ -404,6 +405,146 @@
           },
           "404": {
             "description": "source 매체 또는 targetId를 찾을 수 없음 (만료·삭제 포함)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/cameras/{cameraId}/bestframes": {
+      "get": {
+        "operationId": "getCameraBestframes",
+        "summary": "카메라 베스트 프레임 이력 — 분 단위 최대 60장 (Analyze Frame)",
+        "description": "사이트 로컬(Asia/Singapore) 날짜·시·분이 지정하는 1분 창(00~59초)의 베스트 프레임 목록 (계약 v1.5).\n- 모듈이 내부 보관 주기(초당 2~3장)와 무관하게 **초당 1장을 대표로 선정**해 최대 60장을 capturedAt 오름차순으로 반환한다. 프레임이 없는 초는 항목을 만들지 않는다\n- imageUrl은 기존 프레임 이미지 라우트(/cameras/{cameraId}/frames/{frameId}, v1.1)의 상대경로 — 프록시가 /api로 재작성\n- categories는 프레임에 존재하는 대상 카테고리의 중복 제거 목록 — 화면 타임라인의 카테고리 레인용\n- 보존: 최소 당일+전일 (공통 규칙)",
+        "tags": ["analyze"],
+        "parameters": [
+          { "$ref": "#/components/parameters/CameraId" },
+          { "name": "date", "in": "query", "required": false, "description": "사이트 로컬 날짜 (기본 오늘)", "schema": { "type": "string", "format": "date" } },
+          { "name": "hour", "in": "query", "required": true, "description": "사이트 로컬 시 (0~23)", "schema": { "type": "integer", "minimum": 0, "maximum": 23 } },
+          { "name": "minute", "in": "query", "required": true, "description": "분 (0~59)", "schema": { "type": "integer", "minimum": 0, "maximum": 59 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — 해당 분에 프레임이 없으면 빈 frames 배열 (오류 아님)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/BestFrameHistory" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 cameraId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/cameras/{cameraId}/bestframes/{frameId}/targets": {
+      "get": {
+        "operationId": "getCameraBestframeTargets",
+        "summary": "베스트 프레임 1장의 tracked 대상 목록 (Best Frame Reel)",
+        "description": "프레임에서 감지·추적된 대상 전체 (계약 v1.5). 페이징 없음 — 한 프레임의 대상 수는 화면이 한 번에 그릴 수준.\n- **targetId = 감지 eventId** — cropUrl(/detections/{eventId}/snapshot, v1.1)과 Track on Map(v1.4, source type=camera)이 이 값을 그대로 쓴다\n- analysis는 표시용 태그 그룹(Basic/Top/Bottom/Add-ons) — 모듈이 아는 항목만 채운다 (분석 전이면 null)",
+        "tags": ["analyze"],
+        "parameters": [
+          { "$ref": "#/components/parameters/CameraId" },
+          { "$ref": "#/components/parameters/FrameId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/BestFrameTargets" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 cameraId 또는 frameId (보존 만료 포함)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/bestframes": {
+      "get": {
+        "operationId": "getVideoBestframes",
+        "summary": "업로드 비디오 베스트 프레임 이력 — 분 단위 (Analyze Frame)",
+        "description": "카메라 베스트 프레임 이력과 동일 규칙에, 시각 축만 촬영 시각 메타데이터(recordedAt — VideoItem v1.5 필드) 기준의 절대 시각이다 (계약 v1.5).\n- 요청한 분 창과 클립 구간(recordedAt ~ +durationSec)이 겹치는 초만 반환 — 겹치지 않으면 빈 frames 배열\n- imageUrl은 /videos/{videoId}/bestframes/{frameId}/image 상대경로\n- recordedAt이 null인 비디오(촬영 메타 없음)는 404가 아닌 빈 frames 배열",
+        "tags": ["analyze"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "name": "date", "in": "query", "required": false, "description": "사이트 로컬 날짜 (기본 오늘)", "schema": { "type": "string", "format": "date" } },
+          { "name": "hour", "in": "query", "required": true, "description": "사이트 로컬 시 (0~23)", "schema": { "type": "integer", "minimum": 0, "maximum": 23 } },
+          { "name": "minute", "in": "query", "required": true, "description": "분 (0~59)", "schema": { "type": "integer", "minimum": 0, "maximum": 59 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — 창이 클립 구간과 겹치지 않으면 빈 frames 배열 (오류 아님)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/BestFrameHistory" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 videoId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/bestframes/{frameId}/targets": {
+      "get": {
+        "operationId": "getVideoBestframeTargets",
+        "summary": "비디오 베스트 프레임 1장의 tracked 대상 목록",
+        "description": "카메라 프레임 대상 목록과 동일 규칙 (계약 v1.5).\n- **targetId = 비디오 대상 목록(/videos/{videoId}/targets, v1.3)의 targetId** — cropUrl(.../targets/{targetId}/crop)과 Track on Map(v1.4, source type=video)이 이 값을 그대로 쓴다",
+        "tags": ["analyze"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "$ref": "#/components/parameters/FrameId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/BestFrameTargets" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 videoId 또는 frameId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/videos/{videoId}/bestframes/{frameId}/image": {
+      "get": {
+        "operationId": "getVideoBestframeImage",
+        "summary": "비디오 베스트 프레임 이미지 (바이너리)",
+        "description": "비디오 베스트 프레임 목록의 imageUrl이 가리키는 리소스 (계약 v1.5). 카메라 프레임 이미지(/cameras/{cameraId}/frames/{frameId}, v1.1)와 같은 서빙 규칙.",
+        "tags": ["analyze"],
+        "parameters": [
+          { "$ref": "#/components/parameters/VideoId" },
+          { "$ref": "#/components/parameters/FrameId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/png": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": {
+            "description": "존재하지 않는 videoId 또는 frameId",
             "content": {
               "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
             }
@@ -1057,6 +1198,65 @@
           "target": { "$ref": "#/components/schemas/TrackedTargetSummary" }
         }
       },
+      "AnalysisTags": {
+        "type": "object",
+        "description": "AI 분석 결과 표시용 태그 그룹 (계약 v1.5, UV-37) — AI Inspection Detail의 Basic/Top/Bottom/Add-ons 행. 각 그룹은 표시 문자열 배열이고 모듈이 아는 항목만 채운다 (빈 배열 허용). 차량은 basic에 차종/색/연식, top에 번호판 등 화면 표시 순서 그대로",
+        "properties": {
+          "basic": { "type": "array", "items": { "type": "string" }, "default": [], "description": "예: [\"ASIAN\", \"MALE\", \"34YR\"]" },
+          "top": { "type": "array", "items": { "type": "string" }, "default": [], "description": "예: [\"WHITE TOP\", \"LONG SLEEVE\"]" },
+          "bottom": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "addons": { "type": "array", "items": { "type": "string" }, "default": [] }
+        }
+      },
+      "BestFrameHistoryItem": {
+        "type": "object",
+        "description": "베스트 프레임 이력 1장 (계약 v1.5). imageUrl은 모듈 기준 상대경로 — 프록시가 /api로 재작성",
+        "required": ["frameId", "capturedAt", "imageUrl", "targetCount"],
+        "properties": {
+          "frameId": { "type": "string", "description": "프레임 대상 조회 키 (…/bestframes/{frameId}/targets)" },
+          "capturedAt": { "type": "string", "format": "date-time" },
+          "imageUrl": { "type": "string", "description": "프레임 이미지 상대경로 — 카메라는 /cameras/{cameraId}/frames/{frameId}(v1.1 재사용), 비디오는 /videos/{videoId}/bestframes/{frameId}/image" },
+          "targetCount": { "type": "integer", "minimum": 0, "description": "프레임 내 tracked 대상 수 — 썸네일 배지 표시용" },
+          "categories": { "type": "array", "items": { "$ref": "#/components/schemas/DetectionCategory" }, "default": [], "description": "프레임에 존재하는 카테고리 (중복 제거) — 타임라인 카테고리 레인 표시용" }
+        }
+      },
+      "BestFrameHistory": {
+        "type": "object",
+        "description": "분 단위 베스트 프레임 이력 (계약 v1.5). frames는 capturedAt 오름차순, 초당 1장·최대 60장 — 프레임 없는 초는 항목 없음",
+        "required": ["from", "to", "frames"],
+        "properties": {
+          "from": { "type": "string", "format": "date-time", "description": "요청한 분 창의 시작 (UTC)" },
+          "to": { "type": "string", "format": "date-time", "description": "분 창의 끝 (UTC, exclusive)" },
+          "frames": { "type": "array", "items": { "$ref": "#/components/schemas/BestFrameHistoryItem" } }
+        }
+      },
+      "BestFrameTarget": {
+        "type": "object",
+        "description": "베스트 프레임 내 tracked 대상 1건 (계약 v1.5). targetId는 매체별 기존 ID 체계 재사용 — 카메라는 감지 eventId, 비디오는 v1.3 비디오 대상 targetId. Track on Map(v1.4) 요청에 이 값을 그대로 전달한다",
+        "required": ["targetId", "category", "label", "bbox", "cropUrl"],
+        "properties": {
+          "targetId": { "type": "string" },
+          "category": { "$ref": "#/components/schemas/DetectionCategory" },
+          "label": { "type": "string", "description": "표시명 — 등록 인물 이름 / 외형 요약 / Vehicle {plate}" },
+          "groupLabel": { "type": "string", "nullable": true, "description": "VIP group / Staff (부서) 등 — 없으면 null" },
+          "gender": { "type": "string", "enum": ["male", "female"], "nullable": true, "description": "인물 성별 — 미상·차량이면 null" },
+          "confidence": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "nullable": true, "description": "등록 인물 매칭 유사도 — 미등록·차량이면 null" },
+          "bbox": { "$ref": "#/components/schemas/BBox" },
+          "matchedVip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }], "description": "등록 인물 매칭 — AI Inspection Detail의 ENROLLED DB. 미등록이면 null" },
+          "cropUrl": { "type": "string", "description": "대상 크롭 상대경로 — 카메라는 /detections/{eventId}/snapshot(v1.1), 비디오는 /videos/{videoId}/targets/{targetId}/crop(v1.3)" },
+          "analysis": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/AnalysisTags" }], "description": "AI 분석 태그 — 분석 전이면 null" }
+        }
+      },
+      "BestFrameTargets": {
+        "type": "object",
+        "description": "베스트 프레임 1장의 대상 목록 (계약 v1.5) — Best Frame Reel과 프레임 bbox 오버레이의 원본",
+        "required": ["frameId", "capturedAt", "targets"],
+        "properties": {
+          "frameId": { "type": "string" },
+          "capturedAt": { "type": "string", "format": "date-time" },
+          "targets": { "type": "array", "items": { "$ref": "#/components/schemas/BestFrameTarget" } }
+        }
+      },
       "BBox": {
         "type": "object",
         "description": "0~1 정규화 좌표 (원본 크기 무관 비율) — MQTT bestframe의 bbox와 동일 규칙 (SPEC §3.5)",
@@ -1131,6 +1331,7 @@
           "videoId": { "type": "string" },
           "name": { "type": "string", "description": "업로드 파일명" },
           "uploadedAt": { "type": "string", "format": "date-time" },
+          "recordedAt": { "type": "string", "format": "date-time", "nullable": true, "description": "(v1.5) 촬영 시작 시각 메타데이터 — Analyze Frame의 절대 시각 축(클립 구간 = recordedAt ~ +durationSec). 원본에 메타가 없으면 null (해당 비디오는 베스트 프레임 이력 조회 불가)" },
           "analysisStatus": { "$ref": "#/components/schemas/VideoAnalysisStatus" },
           "durationSec": { "type": "number", "format": "double", "nullable": true, "description": "재생 길이 (초). processing 중 미상이면 null" },
           "contentUrl": { "type": "string", "description": "MP4 상대경로: /videos/{videoId}/content" },
