@@ -67,6 +67,15 @@ targetId=det.id)를 실어 보냄. ClientLayout — redmapTrackTarget state + ha
 인자 + RedmapPage initialTrackTarget prop 전달(consumed 시 함께 클리어). RedmapPage —
 trackTargetOnMap import + initialTrackTarget prop + consumedTrackRef 기반 실추적 검색 effect
 (mock 딥링크가 먼저 그려지고 응답 도착 시 라이브 결과·유사도 90·당일 날짜로 교체, null이면 mock 유지).
+Analyze Frame 주입(UV-37, 계약 v1.5): BestFramePage — analyzeSourceFor() 헬퍼(카메라=지금,
+비디오=recordedAt+LiveVideoFeed의 getVideoPlaybackTime, 이미지·메타없음=null) + detailView에
+analyzeSource 포함(진입 3곳) + BestFrameDetailPage에 prop 전달. BestFrameDetailPage —
+useAnalyzeTimeline 훅 호출 + live 분기(프레임 스트립/메인 이미지·타임스탬프/dets/reelData/
+카테고리 레인 lane()/커서 위치/날짜 드롭다운 analyzeDates()/재생 1초·감기 ±1s·±10s tl.step) +
+AIInspectionDetail(det.analysis ?? mock ATTRS, snapshotUrl/enrolledPhotoUrl 폴백, eventDate prop,
+onGoRedmapTrace에 det 전달→Track on Map 대상 참조) + ReelCard·AlsoCapturedCard 이미지·태그 폴백.
+types/detection.ts — Detection에 optional analysis/gender, CamData에 optional recordedAt.
+main.tsx — MSW 시작 실패를 비치명으로(catch 후 렌더 — SW 등록이 막히는 임베디드 브라우저 대응).
 
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)

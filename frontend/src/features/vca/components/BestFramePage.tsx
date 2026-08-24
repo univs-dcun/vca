@@ -6,8 +6,9 @@ import type { DetType, MonitorState, Camera, Detection, CamData, HUDState } from
 import { useBestFrameLive } from "../../../lib/vca-bridge/useBestFrameLive";
 // 데이터 연결(백엔드 소유, UV-35): 업로드 Video/Image list 라이브 + 비디오 재생 타일
 import { useMediaLive } from "../../../lib/vca-bridge/useMediaLive";
-import { LiveVideoFeed } from "../../../lib/vca-bridge/LiveVideoFeed";
+import { LiveVideoFeed, getVideoPlaybackTime } from "../../../lib/vca-bridge/LiveVideoFeed";
 import type { TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
+import type { AnalyzeSource } from "../../../lib/vca-bridge/analyzeTimeline";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const BORDER = "1px solid #E2E8F0";
@@ -730,7 +731,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   const [collapsed, setCollapsed] = useState(false);
   const [filterType, setFilterType] = useState<DetType | "All">("All");
   const [hud, setHud] = useState<HUDState | null>(null);
-  const [detailView, setDetailView] = useState<{ camId: string; data: CamData; det: Detection; autoOpenDetail?: boolean } | null>(null);
+  const [detailView, setDetailView] = useState<{ camId: string; data: CamData; det: Detection; autoOpenDetail?: boolean; analyzeSource?: AnalyzeSource | null } | null>(null);
   const [highlightCamId, setHighlightCamId] = useState<string | null>(null);
   // Tracks the last `focusLocation` value already processed, following React's "adjusting
   // state when a prop changes" pattern (state, not a ref, so it's safe to read during render).
@@ -764,6 +765,19 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   }, [liveImages]);
   // 카메라 데이터 조회 — 라이브(카메라→미디어) 우선, 없으면 mock (이 아래 모든 CAM_DATA 접근은 이 함수를 거친다)
   const camDataFor = (id: string): CamData | undefined => live.dataFor(id) ?? media.dataFor(id) ?? CAM_DATA[id];
+
+  // 데이터 연결(UV-37): Analyze Frame 진입 컨텍스트 — 클릭 시점의 기준 시각과 소스 참조.
+  // 카메라는 지금(그 분의 이력을 연다), 비디오는 촬영 시각(recordedAt) + 현재 재생 위치.
+  // 이미지·촬영 메타 없는 비디오·mock 카메라는 null → detail 화면이 mock 흐름 유지.
+  const analyzeSourceFor = (camId: string): AnalyzeSource | null => {
+    if (videoCams.some(c => c.id === camId)) {
+      const rec = camDataFor(camId)?.recordedAt;
+      if (!rec) return null;
+      return { type: "video", id: camId, entryMs: Date.parse(rec) + getVideoPlaybackTime(camId) * 1000 };
+    }
+    if (imageCams.some(c => c.id === camId)) return null;
+    return { type: "camera", id: camId, entryMs: Date.now() };
+  };
 
   // Deep-link from Dashboard's device popup ("View Live in Best Frame") — find the camera
   // whose location best matches the hint and isolate it as the ONLY checked camera, so the
@@ -814,7 +828,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         setImageCams(prev => prev.map(c => ({ ...c, checked: false })));
         setHighlightCamId(match.id);
         const data = camDataFor(match.id) ?? DEFAULT_DATA;
-        if (data.detections[0]) setDetailView({ camId: match.id, data, det: data.detections[0], autoOpenDetail: true });
+        if (data.detections[0]) setDetailView({ camId: match.id, data, det: data.detections[0], autoOpenDetail: true, analyzeSource: analyzeSourceFor(match.id) });
       } else {
         showToast({ variant:"warning", title:"No matching camera", desc:`No Best Frame camera is set up yet for "${analyzeFrameLocation}".` });
       }
@@ -899,7 +913,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
 
   function handleAnalyze() {
     if (!hud) return;
-    setDetailView({ camId: hud.camId, data: camDataFor(hud.camId) ?? DEFAULT_DATA, det: hud.det });
+    setDetailView({ camId: hud.camId, data: camDataFor(hud.camId) ?? DEFAULT_DATA, det: hud.det, analyzeSource: analyzeSourceFor(hud.camId) });
     setHud(null);
   }
 
@@ -912,6 +926,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         onBack={() => setDetailView(null)}
         onGoRedmapTrace={onGoRedmapTrace}
         autoOpenDetail={detailView.autoOpenDetail}
+        analyzeSource={detailView.analyzeSource}
       />
     );
   }
@@ -1072,7 +1087,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                     data={camData}
                     filterType={filterType}
                     onDetClick={handleDetClick}
-                    onHeaderArrowClick={() => setDetailView({ camId: cam.id, data: camData, det: camData.detections[0] })}
+                    onHeaderArrowClick={() => setDetailView({ camId: cam.id, data: camData, det: camData.detections[0], analyzeSource: analyzeSourceFor(cam.id) })}
                     sidePanelOnHover={layout.sidePanelOnHover}
                     style={cam.id === highlightCamId ? { boxShadow: "inset 0 0 0 3px #5a3dfb", transition: "box-shadow 0.3s" } : undefined}
                   />
