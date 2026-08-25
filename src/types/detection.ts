@@ -28,6 +28,10 @@ export interface CamData {
   location: string;
   bgUrl?: string;
   detections: Detection[];
+  /** A single uploaded snapshot has no surrounding footage — no playback, no other frames to
+   *  scrub through. Omitted (or "video") means a live camera or a recording, both of which have
+   *  real duration and get the full Analyze Frame timeline; "image" hides it. */
+  sourceType?: "video" | "image";
 }
 
 export interface HUDState {

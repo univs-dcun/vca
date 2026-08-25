@@ -11,7 +11,7 @@ import { getDashboardStats } from "@/lib/api/dashboard";
 const BORDER = "1px solid #E2E8F0";
 export type NavTab = "DASHBOARD" | "BEST FRAME" | "DATA" | "REDMAP";
 
-const TABS: { id: NavTab; label: string; icon: string }[] = [
+export const TABS: { id: NavTab; label: string; icon: string }[] = [
   { id: "DASHBOARD",  label: "DASHBOARD",  icon: "/icons/nav-dashboard.svg" },
   { id: "BEST FRAME", label: "BEST FRAME", icon: "/icons/nav-bestframe.svg" },
   { id: "DATA",       label: "DATA",       icon: "/icons/nav-data.svg" },
@@ -25,9 +25,11 @@ interface NavbarProps {
   onNotificationSelect?: (event: LiveEvent) => void;
   sidebarPosition?: "left" | "right";
   onSidebarPositionChange?: (position: "left" | "right") => void;
+  /** Opens the global command palette (also reachable via Cmd/Ctrl+K from anywhere). */
+  onOpenSearch?: () => void;
 }
 
-export default function Navbar({ activeTab: externalTab, onTabChange, onNotificationSelect, sidebarPosition, onSidebarPositionChange }: NavbarProps) {
+export default function Navbar({ activeTab: externalTab, onTabChange, onNotificationSelect, sidebarPosition, onSidebarPositionChange, onOpenSearch }: NavbarProps) {
   const router = useRouter();
   const [internalTab, setInternalTab] = useState<NavTab>("DASHBOARD");
   const activeTab = externalTab === undefined ? internalTab : externalTab;
@@ -38,9 +40,13 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
   // Routed through the future-backend stub (`lib/api/dashboard.ts`) instead of importing the mock
   // constant directly, so wiring in the real endpoint later is a one-file change. Falls back to 0/
   // blank for the brief window before the (currently mock-delayed) fetch resolves.
-  const { data: dashboardStats } = useApiData(() => getDashboardStats(), []);
-  const aiRunning = dashboardStats?.aiRunning ?? 0;
-  const aiStopped = dashboardStats?.aiStopped ?? 0;
+  // `error` matters here even though the mock fetch never actually fails today: without checking
+  // it, a real failed request would render "0 Running" / "0 Stopped" indistinguishable from a
+  // genuinely-empty fleet — showing "—" instead makes a load failure visibly different from a
+  // real zero.
+  const { data: dashboardStats, error: dashboardStatsError } = useApiData(() => getDashboardStats(), []);
+  const aiRunning = dashboardStatsError ? "—" : dashboardStats?.aiRunning ?? 0;
+  const aiStopped = dashboardStatsError ? "—" : dashboardStats?.aiStopped ?? 0;
   const timezone = dashboardStats?.timezone ?? "SGT";
   const location = dashboardStats?.location ?? "Singapore";
 
@@ -248,6 +254,22 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
 
         {/* Bell + Settings */}
         <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+          {onOpenSearch && (
+            // Bar-shaped (not a plain square icon button) so it still reads as "there's a search
+            // here", just without placeholder copy competing with the rest of the header.
+            <button
+              aria-label="Search (Cmd+K)"
+              onClick={onOpenSearch}
+              style={{ display: "flex", alignItems: "center", gap: "8px", border: "1px solid #E2E8F0", borderRadius: "8px",
+                cursor: "pointer", padding: "7px 8px 7px 10px", backgroundColor: "#f8fafc" }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                <path d="M13.9998 13.9998L11.1064 11.1064" stroke="#94a3b8" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z" stroke="#94a3b8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8", backgroundColor: "white", border: "1px solid #E2E8F0", borderRadius: "5px", padding: "2px 5px", flexShrink: 0 }}>⌘K</span>
+            </button>
+          )}
           <div ref={notifRef} style={{ position: "relative" }}>
             <button
               className="navbar-icon-btn"
@@ -269,7 +291,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                   minWidth: "15px", height: "15px", padding: unreadCount > 9 ? "0 3px" : 0,
                   borderRadius: "999px", backgroundColor: "#f43f5e", border: "1.5px solid white",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "9px", fontWeight: 800, color: "white", lineHeight: 1,
+                  fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1,
                 }}>
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
@@ -287,7 +309,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 overflow: "hidden",
               }}>
                 <div style={{ padding: "14px 16px", borderBottom: "1px solid #E2E8F0" }}>
-                  <span style={{ fontSize: "13px", fontWeight: 800, color: "#0e162a" }}>Notifications</span>
+                  <span style={{ fontSize: "13px", fontWeight: 700, color: "#0e162a" }}>Notifications</span>
                 </div>
                 {notifications.length === 0 ? (
                   <div style={{
@@ -315,10 +337,10 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                         }}
                       >
                         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "8px" }}>
-                          <span style={{ fontSize: "13px", fontWeight: 800, color: "#0e162a" }}>{ev.name}</span>
-                          <span style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", flexShrink: 0 }}>{formatTimeAgo(ev.timestamp)}</span>
+                          <span style={{ fontSize: "13px", fontWeight: 700, color: "#0e162a" }}>{ev.name}</span>
+                          <span style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8", flexShrink: 0 }}>{formatTimeAgo(ev.timestamp)}</span>
                         </div>
-                        <span style={{ fontSize: "12px", fontWeight: 500, color: "#64748a" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: "#64748a" }}>
                           {ev.location}{ev.cameraLabel ? ` · ${ev.cameraLabel}` : ""}
                         </span>
                       </button>
@@ -350,28 +372,26 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 overflow: "hidden", padding: "8px",
               }}>
                 <div style={{ padding: "8px 8px 12px" }}>
-                  <div style={{ fontSize: "13px", fontWeight: 800, color: "#0e162a" }}>John Doe</div>
-                  <div style={{ fontSize: "12px", fontWeight: 500, color: "#94a3b8", marginTop: "2px" }}>johndoe@email.com</div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#0e162a" }}>John Doe</div>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8", marginTop: "2px" }}>johndoe@email.com</div>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "#E2E8F0", margin: "0 4px 6px" }} />
-                <div
-                  title="Portal access isn't available for this account yet"
+                <button
+                  className="navbar-dropdown-item"
+                  onClick={() => { setSettingsOpen(false); router.push("/portal"); }}
                   style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", width: "100%",
+                    display: "flex", alignItems: "center", gap: "10px", width: "100%",
                     padding: "9px 8px", borderRadius: "10px", border: "none",
-                    cursor: "default", textAlign: "left", color: "#94a3b8", boxSizing: "border-box",
+                    cursor: "pointer", textAlign: "left",
                   }}
                 >
-                  <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M7 12.8333C10.2217 12.8333 12.8333 10.2217 12.8333 7C12.8333 3.77834 10.2217 1.16667 7 1.16667C3.77834 1.16667 1.16667 3.77834 1.16667 7C1.16667 10.2217 3.77834 12.8333 7 12.8333Z" stroke="currentColor" strokeWidth="1.2"/>
-                      <path d="M1.16667 7H12.8333" stroke="currentColor" strokeWidth="1.2"/>
-                      <path d="M7 1.16667C8.45964 2.76353 9.28481 4.83629 9.33333 7C9.28481 9.16371 8.45964 11.2365 7 12.8333C5.54036 11.2365 4.71519 9.16371 4.66667 7C4.71519 4.83629 5.54036 2.76353 7 1.16667Z" stroke="currentColor" strokeWidth="1.2"/>
-                    </svg>
-                    <span style={{ fontSize: "13px", fontWeight: 600 }}>Portal</span>
-                  </span>
-                  <span style={{ fontSize: "10px", fontWeight: 700, color: "#cbd5e1" }}>Unavailable</span>
-                </div>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M7 12.8333C10.2217 12.8333 12.8333 10.2217 12.8333 7C12.8333 3.77834 10.2217 1.16667 7 1.16667C3.77834 1.16667 1.16667 3.77834 1.16667 7C1.16667 10.2217 3.77834 12.8333 7 12.8333Z" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M1.16667 7H12.8333" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M7 1.16667C8.45964 2.76353 9.28481 4.83629 9.33333 7C9.28481 9.16371 8.45964 11.2365 7 12.8333C5.54036 11.2365 4.71519 9.16371 4.66667 7C4.71519 4.83629 5.54036 2.76353 7 1.16667Z" stroke="currentColor" strokeWidth="1.2"/>
+                  </svg>
+                  <span style={{ fontSize: "13px", fontWeight: 600 }}>Portal</span>
+                </button>
                 <button
                   className="navbar-dropdown-item"
                   onClick={() => { setSettingsOpen(false); router.push("/mypage"); }}
@@ -390,7 +410,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                   <>
                     <div style={{ height: "1px", backgroundColor: "#E2E8F0", margin: "6px 4px" }} />
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px" }}>
-                      <span style={{ fontSize: "12px", fontWeight: 500, color: "#94a3b8" }}>Sidebar</span>
+                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8" }}>Sidebar</span>
                       <div style={{ display: "flex", backgroundColor: "#f1f5f9", borderRadius: "7px", padding: "2px", gap: "2px" }}>
                         {(["left", "right"] as const).map((pos) => {
                           const active = sidebarPosition === pos;
@@ -403,7 +423,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                                 backgroundColor: active ? "white" : "transparent",
                                 boxShadow: active ? "0 1px 2px rgba(14,22,42,0.1)" : "none",
                                 color: active ? "#475469" : "#94a3b8",
-                                fontSize: "11px", fontWeight: 600, letterSpacing: "-0.1px",
+                                fontSize: "10px", fontWeight: 600, letterSpacing: "-0.1px",
                                 textTransform: "capitalize", transition: "background-color 0.15s",
                               }}
                             >

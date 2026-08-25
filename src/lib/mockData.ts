@@ -1,3 +1,5 @@
+import { sgtClockTime } from "@/lib/time";
+
 export const FACE_PHOTOS = [
   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80",
   "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&q=80",
@@ -83,6 +85,10 @@ export interface TrackingHop {
   location: string;
   cameraLabel?: string;
   timestamp: string;
+  /** The VIP confidence this specific hit was originally detected at — kept so a hop that later
+   * reverts from a Tracking trail back into a plain VIP row (see vcaStore.ts's addEvent/
+   * personHitHistory) can show its real confidence instead of a fabricated 0%. */
+  confidence?: number;
 }
 
 export interface LiveEvent {
@@ -104,15 +110,15 @@ export interface LiveEvent {
   lng: number;
 }
 
-/** Renders an ISO timestamp as a relative "Xm ago" / "Xh ago" string, computed at render time. */
+/** Renders an ISO timestamp as a relative "Xm ago" string for anything under an hour old,
+ * computed at render time. Past an hour, a coarse "1h ago"/"2h ago" label stops being useful for
+ * "when exactly did this happen" — so it switches to the actual captured clock time instead. */
 export function formatTimeAgo(timestamp: string): string {
   const diffMs = Date.now() - new Date(timestamp).getTime();
   const mins = Math.max(0, Math.round(diffMs / 60000));
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  return sgtClockTime(new Date(timestamp));
 }
 
 function minutesAgo(mins: number): string {
@@ -151,6 +157,75 @@ interface RawVipHit {
   lng: number;
 }
 
+function todayAt(hour: number, minute: number): string {
+  const d = new Date();
+  d.setHours(hour, minute, 0, 0);
+  return d.toISOString();
+}
+
+// A brand-new, non-overlapping identity pool (not one of the names above) — each tied to exactly
+// one fixed location, so none of these can ever accumulate a 2nd distinct camera and get
+// deriveLiveEvents()-merged into a "Tracking" trail. That would silently drop them from the VIP
+// count the detection chart plots, undoing the point of generating them.
+// Locations deliberately reuse the 8 hand-authored cameras above (Novena/Geylang NC1/Orchard MRT/
+// Bugis MRT/Tampines Hub/Bedok MRT/Queenstown/Jurong East) with their exact lat/lng — those are
+// the only camera `name`s in CAMERAS with no numeric suffix, so they're the only location strings
+// cameraIdForLocation() in vcaStore.ts can actually resolve to their real camera instead of
+// silently falling back to CAMERAS[0]. A made-up "Serangoon"/"Bishan" etc. would look fine here
+// but attribute every one of these hits to the wrong camera app-wide.
+const DAY_VIP_IDENTITIES: { name: string; location: string; lat: number; lng: number }[] = [
+  { name: "Wei Ling Koh",   location: "Queenstown",   lat: 1.2942, lng: 103.8060 },
+  { name: "Daniel Ho",      location: "Geylang NC1",  lat: 1.3148, lng: 103.8778 },
+  { name: "Aisha Rahman",   location: "Orchard MRT",  lat: 1.3044, lng: 103.8321 },
+  { name: "Marcus Lee",     location: "Bugis MRT",    lat: 1.3006, lng: 103.8561 },
+  { name: "Nadia Yusof",    location: "Tampines Hub", lat: 1.3528, lng: 103.9440 },
+  { name: "Wei Chen Goh",   location: "Bedok MRT",    lat: 1.3240, lng: 103.9302 },
+  { name: "Farah Ibrahim",  location: "Queenstown",   lat: 1.2942, lng: 103.8060 },
+  { name: "Kevin Tan",      location: "Jurong East",  lat: 1.3329, lng: 103.7436 },
+  { name: "Siti Aminah",    location: "Novena",       lat: 1.3202, lng: 103.8440 },
+  { name: "Ryan Ng",        location: "Geylang NC1",  lat: 1.3148, lng: 103.8778 },
+  { name: "Ling Zhi Wei",   location: "Orchard MRT",  lat: 1.3044, lng: 103.8321 },
+  { name: "Arjun Kumar",    location: "Bugis MRT",    lat: 1.3006, lng: 103.8561 },
+];
+
+// Same overall day-shape as hourlyDetections' vipCount column below (quiet overnight, busy
+// 7am-9pm, peaks near 8am/6pm) but scaled up — 0-2 hits/hour was fine as a decorative curve, but
+// once each hit became one real, individually-plotted dot instead of client-side jitter, that was
+// too sparse to read as "a day's worth of activity."
+const HOURLY_VIP_HIT_TARGETS = [
+  2, 1, 1, 1, 1, 2,
+  5, 8, 10, 7, 6, 7,
+  8, 7, 6, 7, 9, 11,
+  12, 9, 6, 4, 3, 2,
+];
+
+// Only up to the current hour — later hours today genuinely haven't happened yet, so leaving
+// them at zero is correct (not a gap to fill); a real deployment fills them in as the day
+// actually progresses, exactly like this will on its own tomorrow.
+function generateDayVipHits(): RawVipHit[] {
+  const nowHour = new Date().getHours();
+  const hits: RawVipHit[] = [];
+  for (let hour = 0; hour <= nowHour; hour++) {
+    const target = HOURLY_VIP_HIT_TARGETS[hour];
+    for (let i = 0; i < target; i++) {
+      const seed = hour * 41 + i * 13 + 3;
+      const identity = DAY_VIP_IDENTITIES[Math.floor(seededRandom(seed) * DAY_VIP_IDENTITIES.length)];
+      const confidence = Math.round((65 + seededRandom(seed * 2.3) * 30) * 10) / 10;
+      const minute = Math.floor(seededRandom(seed * 3.7) * 60);
+      hits.push({
+        id: `dayhit-${hour}-${i}`,
+        name: identity.name,
+        confidence,
+        location: identity.location,
+        timestamp: todayAt(hour, minute),
+        lat: identity.lat,
+        lng: identity.lng,
+      });
+    }
+  }
+  return hits;
+}
+
 const RAW_VIP_HITS: RawVipHit[] = [
   { id: "1",  name: "Alexander Wright", confidence: 72.6, location: "Novena",         timestamp: minutesAgo(10), lat: 1.3202, lng: 103.8440 },
   { id: "2",  name: "Dr. Sarah Chen",   confidence: 71.5, location: "Bedok MRT",      timestamp: minutesAgo(26), lat: 1.3240, lng: 103.9302 },
@@ -167,6 +242,10 @@ const RAW_VIP_HITS: RawVipHit[] = [
   // since deriveLiveEvents() only switches to Tracking once 2+ DISTINCT cameras are involved).
   { id: "11", name: "Rachel Ong",       confidence: 74.2, location: "Yishun MRT",     timestamp: minutesAgo(18), lat: 1.4295, lng: 103.8353 },
   { id: "12", name: "Rachel Ong",       confidence: 85.7, location: "Yishun MRT",     timestamp: minutesAgo(3),  lat: 1.4295, lng: 103.8353 },
+  // The rest of today, hour by hour — see generateDayVipHits() above for why this is what makes
+  // the detection chart's dots (one per real hit) look like a full day instead of a dozen recent
+  // ones clustered in the last hour.
+  ...generateDayVipHits(),
 ];
 
 function cameraKey(hit: RawVipHit): string {
@@ -197,7 +276,7 @@ function deriveLiveEvents(hits: RawVipHit[]): LiveEvent[] {
         cameraLabel: latest.cameraLabel,
         timestamp: latest.timestamp,
         type: "Tracking",
-        path: sorted.map(h => ({ location: h.location, cameraLabel: h.cameraLabel, timestamp: h.timestamp })),
+        path: sorted.map(h => ({ location: h.location, cameraLabel: h.cameraLabel, timestamp: h.timestamp, confidence: h.confidence })),
         lat: latest.lat,
         lng: latest.lng,
       });
@@ -213,30 +292,6 @@ function deriveLiveEvents(hits: RawVipHit[]): LiveEvent[] {
 }
 
 export const liveEvents: LiveEvent[] = deriveLiveEvents(RAW_VIP_HITS);
-
-// Counts below are DERIVED from liveEvents (the one raw event source), not separately hardcoded —
-// this is what keeps "Events today" here, the Data tab's list length, and RedFace associate counts
-// all reporting the same number for the same underlying data.
-const eventsTodayCount = liveEvents.length;
-const watchlistMatchCount = liveEvents.filter((e) => e.type === "VIP").length;
-const trackingCount = liveEvents.filter((e) => e.type === "Tracking").length;
-
-// delta/deltaPct/down are all compared against the same time yesterday.
-export const dashboardStats = {
-  vipTargets: 12,
-  aiRunning: 42,
-  aiStopped: 34,
-  watchlistMatch:  { count: watchlistMatchCount, delta: 4,  deltaPct: 1.5, down: true },
-  tracking:        { count: trackingCount,       delta: 4,  deltaPct: 1.5, down: true },
-  eventsToday:     { count: eventsTodayCount,    delta: 3,  deltaPct: 2.1, down: false },
-  linkedCams:      { count: 48,  delta: 2,  deltaPct: 0.8, down: false },
-  offlineCams:     { count: 48,  delta: 4,  deltaPct: 1.5, down: true },
-  availability: 19,
-  currentDate: "2026-07-02",
-  currentTime: "16:32:15",
-  timezone: "SGT",
-  location: "Singapore",
-};
 
 export const devices: Device[] = [
   { id:"1",  status:"Live", name:"MB1", type:"Normal", ip:"192.168.0.101", lat:1.3517, lng:103.8490, lastSeen:"2m ago"  },
@@ -282,6 +337,34 @@ export const devices: Device[] = [
     };
   }),
 ];
+
+// Counts below are DERIVED from liveEvents/devices (the one raw source each), not separately
+// hardcoded — this is what keeps "Events today" here, the Data tab's list length, and RedFace
+// associate counts all reporting the same number for the same underlying data. `availability` used
+// to be a hardcoded 19 sitting right next to linkedCams/offlineCams counts that implied ~92% —
+// three contradictory numbers in one glance. Deriving it from the same `devices` array those counts
+// come from keeps all three consistent.
+const eventsTodayCount = liveEvents.length;
+const watchlistMatchCount = liveEvents.filter((e) => e.type === "VIP").length;
+const trackingCount = liveEvents.filter((e) => e.type === "Tracking").length;
+const liveDeviceCount = devices.filter((d) => d.status === "Live").length;
+
+// delta/deltaPct/down are all compared against the same time yesterday.
+export const dashboardStats = {
+  vipTargets: 12,
+  aiRunning: 42,
+  aiStopped: 34,
+  watchlistMatch:  { count: watchlistMatchCount, delta: 4,  deltaPct: 1.5, down: true },
+  tracking:        { count: trackingCount,       delta: 4,  deltaPct: 1.5, down: true },
+  eventsToday:     { count: eventsTodayCount,    delta: 3,  deltaPct: 2.1, down: false },
+  linkedCams:      { count: 48,  delta: 2,  deltaPct: 0.8, down: false },
+  offlineCams:     { count: 48,  delta: 4,  deltaPct: 1.5, down: true },
+  availability: Math.round((liveDeviceCount / devices.length) * 1000) / 10,
+  currentDate: "2026-07-02",
+  currentTime: "16:32:15",
+  timezone: "SGT",
+  location: "Singapore",
+};
 
 export const mapMarkers: MapMarker[] = [
   { lat: 1.352, lng: 103.820, type: "VIP" },

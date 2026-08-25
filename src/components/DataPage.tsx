@@ -1,33 +1,28 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { MatchItem, ReIDStatus } from "@/types/reid";
-import { useVcaStore, type Camera } from "@/lib/vcaStore";
+import { useVcaStore } from "@/lib/vcaStore";
+import { sgtDateKey } from "@/lib/time";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const BORDER = "1px solid #E2E8F0";
-type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
+export type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
 
 export const MATCH_DATA: MatchItem[] = [
-  { id:1, face:"https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=200&q=80", cam:"NC-1", time:"13:40:43", similarity:96, gender:"F", age:"28" },
-  { id:2, face:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80", cam:"NC-1", time:"13:40:45", similarity:94, gender:"M", age:"35" },
-  { id:3, face:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80", cam:"NC-2", time:"13:41:02", similarity:89, gender:"F", age:"24" },
-  { id:4, face:"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=200&q=80", cam:"NC-1", time:"13:41:15", similarity:88, gender:"M", age:"42" },
-  { id:5, face:"https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=200&q=80", cam:"NC-3", time:"13:41:30", similarity:85, gender:"F", age:"31" },
-  { id:6, face:"https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=200&q=80", cam:"NC-2", time:"13:42:01", similarity:83, gender:"M", age:"29" },
-  { id:7, face:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=200&q=80", cam:"NC-4", time:"13:42:19", similarity:81, gender:"F", age:"37" },
-  { id:8, face:"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=200&q=80", cam:"NC-1", time:"13:42:45", similarity:80, gender:"M", age:"33" },
+  { id:1, face:"https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=200&q=80", cam:"NC-1", date:"2026-07-23", time:"13:40:43", similarity:96, gender:"F", age:"28", status:"Unknown" },
+  { id:2, face:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80", cam:"NC-1", date:"2026-07-23", time:"13:40:45", similarity:94, gender:"M", age:"35", status:"Unknown" },
+  { id:3, face:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80", cam:"NC-2", date:"2026-07-23", time:"13:41:02", similarity:89, gender:"F", age:"24", status:"Unknown" },
+  { id:4, face:"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=200&q=80", cam:"NC-1", date:"2026-07-23", time:"13:41:15", similarity:88, gender:"M", age:"42", status:"Unknown" },
+  { id:5, face:"https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=200&q=80", cam:"NC-3", date:"2026-07-23", time:"13:41:30", similarity:85, gender:"F", age:"31", status:"Unknown" },
+  { id:6, face:"https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=200&q=80", cam:"NC-2", date:"2026-07-23", time:"13:42:01", similarity:83, gender:"M", age:"29", status:"Unknown" },
+  { id:7, face:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=200&q=80", cam:"NC-4", date:"2026-07-23", time:"13:42:19", similarity:81, gender:"F", age:"37", status:"Unknown" },
+  { id:8, face:"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=200&q=80", cam:"NC-1", date:"2026-07-23", time:"13:42:45", similarity:80, gender:"M", age:"33", status:"Unknown" },
 ];
 
 const RECENT_TARGETS = [
   { face:"https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=200&q=80", label:"Suspect A (Female/20s)", time:"Today 13:40" },
   { face:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80", label:"Target #4012 (Male)",    time:"Today 11:15" },
   { face:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80", label:"Unidentified Trace #092",    time:"Yesterday 18:30" },
-];
-
-const TRAJECTORY = [
-  { cam:"NC-1 Main Entrance",     time:"2026-07-23 13:40:43", score:96 },
-  { cam:"NC-3 Central Corridor B", time:"2026-07-23 13:42:10", score:92 },
-  { cam:"NC-5 South Exit",        time:"2026-07-23 13:45:01", score:84 },
 ];
 
 // ── Re-ID grid data ────────────────────────────────────────────
@@ -39,7 +34,9 @@ const PHOTO_POOL = [
   "1487222477894-8943e31ef7b2","1578632767115-351597cf2477","1500648767791-00dcc994a43e",
   "1517841905240-472988babdf9","1506794778202-cad84cf45f1d","1438761681033-6461ffad8d80",
 ];
-const TIMES_P = ["9:38 AM","9:38 AM","9:38 AM","12:35","12:35","8:22 AM","10:14 AM","11:03 AM"];
+// "HH:MM:SS" 24h, matching REID_DATA's own time format everywhere else — this mixed 12h ("9:38
+// AM") and bare 24h ("12:35") in the same array, which stood out once shown next to a date.
+const TIMES_P = ["09:38:00","09:38:00","09:38:00","12:35:00","12:35:00","08:22:00","10:14:00","11:03:00"];
 const BADGES_P: (number|null)[] = [null,null,7,null,null,4,null,11,null,null,null,3,null,null,8,null,null,5];
 const PERSONS = Array.from({length:72},(_,i) => ({
   id: i,
@@ -52,7 +49,7 @@ const PERSONS = Array.from({length:72},(_,i) => ({
 function ScoreBadge({ score }: { score: number }) {
   const high = score >= 90, mid = score >= 85;
   return (
-    <span style={{ fontSize:"9px", fontWeight:800, fontFamily:"monospace",
+    <span style={{ fontSize:"10px", fontWeight:800, fontFamily:"monospace",
       color: high?"#16a34a":mid?"#475469":"#64748a",
       backgroundColor: high?"#dcfce7":"#f1f5f9",
       padding:"2px 6px", borderRadius:"999px" }}>
@@ -77,10 +74,12 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
             <div style={{ width:"10px", height:"10px", borderRadius:"50%", backgroundColor:"#34d399", flexShrink:0 }} />
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                <p style={{ fontSize:"13px", fontWeight:800, color:"#0e162a" }}>Re-ID Object #REC-{String(item.id).padStart(4,"0")}</p>
+                <p style={{ fontSize:"13px", fontWeight:700, color:"#0e162a" }}>Re-ID Object #REC-{String(item.id).padStart(4,"0")}</p>
                 <ScoreBadge score={item.similarity} />
+                <span style={{ fontSize:"10px", fontWeight:700, color:"#475469", backgroundColor:"#f1f5f9", padding:"2px 7px", borderRadius:"999px" }}>{item.cam}</span>
+                <span style={{ fontSize:"10px", fontWeight:800, color:REID_STATUS_STYLE[item.status].text, backgroundColor:`${REID_STATUS_STYLE[item.status].text}1a`, padding:"2px 7px", borderRadius:"999px" }}>{item.status}</span>
               </div>
-              <p style={{ fontSize:"10px", color:"#94a3b8", marginTop:"1px" }}>Movement Trace & Camera Match Timeline</p>
+              <p style={{ fontSize:"10px", color:"#94a3b8", marginTop:"1px" }}>{item.time}</p>
             </div>
           </div>
           <button onClick={onClose} style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
@@ -94,55 +93,33 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
           {/* Face/Body */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
             <div style={{ border:BORDER, borderRadius:"12px", padding:"10px", backgroundColor:"#f8fafc", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
-              <p style={{ fontSize:"9px", fontWeight:800, color:"#94a3b8", letterSpacing:"0.5px" }}>Face Detection Crop</p>
-              <img src={item.face} alt="" style={{ width:"80px", height:"80px", objectFit:"cover", borderRadius:"12px", border:"2px solid #5a3dfb" }} />
+              <img src={item.face} alt="" style={{ width:"156px", height:"156px", objectFit:"cover", borderRadius:"12px", border:"2px solid #5a3dfb" }} />
+              <p style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8", letterSpacing:"0.5px" }}>Face</p>
             </div>
             <div style={{ border:BORDER, borderRadius:"12px", padding:"10px", backgroundColor:"#f8fafc", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
-              <p style={{ fontSize:"9px", fontWeight:800, color:"#94a3b8", letterSpacing:"0.5px" }}>Full-Body Object Crop</p>
-              <img src={item.body} alt="" style={{ width:"64px", height:"96px", objectFit:"cover", borderRadius:"12px", border:"2px solid #22d3ee" }} />
+              <img src={item.body} alt="" style={{ width:"124px", height:"186px", objectFit:"cover", borderRadius:"12px", border:"2px solid #5a3dfb" }} />
+              <p style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8", letterSpacing:"0.5px" }}>Full-body</p>
             </div>
           </div>
 
           {/* AI attrs */}
           <div>
-            <p style={{ fontSize:"11px", fontWeight:800, color:"#0e162a", marginBottom:"8px" }}>AI Attribute Classification</p>
+            <p style={{ fontSize:"12px", fontWeight:800, color:"#0e162a", marginBottom:"8px" }}>AI attribute classification</p>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"8px" }}>
               {([
-                ["Gender/Age", item.gender==="F"?`Female | ${item.age}`:`Male | ${item.age}`, item.gender==="F"?"#ec4899":"#5a3dfb"],
-                ["Top Color", "White Jacket", "#334155"],
-                ["Bottom Color", "Dark Accent", "#334155"],
+                ["Gender/age", item.gender==="F"?`Female | ${item.age}`:`Male | ${item.age}`, item.gender==="F"?"#ec4899":"#5a3dfb"],
+                ["Top color", "White Jacket", "#334155"],
+                ["Bottom color", "Dark Accent", "#334155"],
                 ["Belongings", "Black Handbag", "#334155"],
               ] as [string,string,string][]).map(([label,val,color]) => (
                 <div key={label} style={{ padding:"8px 10px", borderRadius:"10px", backgroundColor:"#f8fafc", border:BORDER }}>
-                  <p style={{ fontSize:"9px", color:"#94a3b8", fontWeight:500, marginBottom:"2px" }}>{label}</p>
-                  <p style={{ fontSize:"10px", fontWeight:700, color }}>{val}</p>
+                  <p style={{ fontSize:"10px", color:"#94a3b8", fontWeight:600, marginBottom:"2px" }}>{label}</p>
+                  <p style={{ fontSize:"10px", fontWeight:600, color }}>{val}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Trajectory */}
-          <div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
-              <p style={{ fontSize:"11px", fontWeight:800, color:"#0e162a" }}>Camera Detection Movement Timeline</p>
-              <span style={{ fontSize:"9px", fontWeight:700, color:"#5a3dfb", backgroundColor:"#ece9ff", padding:"2px 7px", borderRadius:"999px" }}>{TRAJECTORY.length} Detections Total</span>
-            </div>
-            <div style={{ position:"relative", paddingLeft:"20px" }}>
-              <div style={{ position:"absolute", left:"6px", top:"8px", bottom:"8px", width:"2px", backgroundColor:"#c4b5fd" }} />
-              <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-                {TRAJECTORY.map((t,i) => (
-                  <div key={i} style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", backgroundColor:"white", padding:"8px 12px", borderRadius:"10px", border:BORDER }}>
-                    <div style={{ position:"absolute", left:"-17px", width:"10px", height:"10px", borderRadius:"50%", backgroundColor:"#5a3dfb", border:"3px solid #ece9ff" }} />
-                    <div>
-                      <p style={{ fontSize:"11px", fontWeight:700, color:"#0e162a" }}>{t.cam}</p>
-                      <p style={{ fontSize:"9px", color:"#94a3b8", fontFamily:"monospace" }}>{t.time}</p>
-                    </div>
-                    <ScoreBadge score={t.score} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Footer — Watchlist registration is a Portal(admin) function, not a VCA operator
@@ -151,12 +128,12 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
         <div style={{ padding:"12px 16px", borderTop:BORDER, backgroundColor:"#f8fafc", display:"flex", justifyContent:"flex-end", gap:"8px", flexShrink:0 }}>
           <button
             onClick={() => onGoAnalyzeFrame?.(item.cam)}
-            style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", border:BORDER, backgroundColor:"white", fontSize:"11px", fontWeight:600, color:"#64748a", cursor:"pointer" }}
+            style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", border:BORDER, backgroundColor:"white", fontSize:"12px", fontWeight:600, color:"#64748a", cursor:"pointer" }}
           >
             Analyze Frame
           </button>
-          <button onClick={onGoRedmap} style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", backgroundColor:"#0e162a", border:"none", color:"white", fontSize:"11px", fontWeight:700, cursor:"pointer" }}>
-            RedMap Trace
+          <button onClick={onGoRedmap} style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", backgroundColor:"#0e162a", border:"none", color:"white", fontSize:"12px", fontWeight:700, cursor:"pointer" }}>
+            Track on Map
           </button>
         </div>
       </div>
@@ -186,9 +163,9 @@ function RedMapIconSm() {
     </svg>
   );
 }
-function SearchIconSm() {
+function SearchIconSm({ size = 12 }: { size?: number } = {}) {
   return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
       <path d="M13.9998 13.9998L11.1064 11.1064" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
@@ -207,13 +184,19 @@ function ReidIconSm() {
 }
 function HoverActionBtn({ label, icon, color, onClick }:
   { label:string; icon:React.ReactNode; color:string; onClick:(e:React.MouseEvent)=>void }) {
+  // These sit inside a card that's already showing its OWN hover state (the action row only
+  // appears on card-hover in the first place) — without their own distinct feedback, mousing over
+  // one specific button among the four felt identical to just hovering the card underneath it.
+  const [hovered, setHovered] = useState(false);
   return (
-    <button onClick={onClick} style={{
+    <button onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{
       display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
       width:"108px", height:"28px", borderRadius:"999px", cursor:"pointer",
-      backgroundColor:"white", border:`1.5px solid ${color}`, color,
-      fontSize:"11px", fontWeight:700, letterSpacing:"-0.22px",
-      boxShadow:"0 2px 6px rgba(14,22,42,0.18)",
+      backgroundColor: hovered ? color : "white", border:`1.5px solid ${color}`, color: hovered ? "white" : color,
+      fontSize:"12px", fontWeight:700, letterSpacing:"-0.22px",
+      boxShadow: hovered ? "0 2px 8px rgba(14,22,42,0.28)" : "0 2px 6px rgba(14,22,42,0.18)",
+      transform: hovered ? "scale(1.04)" : "scale(1)",
+      transition:"background-color 0.12s, color 0.12s, transform 0.12s, box-shadow 0.12s",
     }}>
       {icon}{label}
     </button>
@@ -246,7 +229,7 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
         </div>
       )}
       {p.status === "RedFace" && (
-        <div style={{ position:"absolute", bottom:"52px", left:8, fontSize:"8px", fontWeight:800, color:"white",
+        <div style={{ position:"absolute", bottom:"52px", left:8, fontSize:"10px", fontWeight:800, color:"white",
           backgroundColor:"#ef4444", padding:"1px 5px", borderRadius:"2px", letterSpacing:"0.3px" }}>
           REDFACE
         </div>
@@ -256,28 +239,26 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
           display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", zIndex:20 }}>
           <HoverActionBtn label="Re-ID" icon={<ReidIconSm />} color="#5a3dfb" onClick={e => { e.stopPropagation(); onNavigateTab?.("Re-ID Analysis", p); }} />
           <HoverActionBtn label="RedFace" icon={<RedFaceIconSm />} color="#f97316" onClick={e => { e.stopPropagation(); onNavigateTab?.("RedFace", p); }} />
-          <HoverActionBtn label="RedMap" icon={<RedMapIconSm />} color="#16a34a" onClick={e => { e.stopPropagation(); onGoRedmap?.(); }} />
-          <HoverActionBtn label="Search" icon={<SearchIconSm />} color="#0e162a" onClick={e => { e.stopPropagation(); onNavigateTab?.("Smart Search", p); }} />
+          <HoverActionBtn label="Redmap" icon={<RedMapIconSm />} color="#16a34a" onClick={e => { e.stopPropagation(); onGoRedmap?.(); }} />
         </div>
       )}
       <div style={{ position:"absolute", left:"-1px", right:"-1px", bottom:"-2px", height:"72px", backgroundColor:"white",
         border:"none", borderTop:"none", boxShadow:"none", margin:0, marginBottom:0,
         padding:"7px 11px 24px", boxSizing:"border-box", display:"flex", flexDirection:"column", gap:"2px" }}>
-        <div style={{ display:"flex", alignItems:"baseline", gap:"6px" }}>
-          <span style={{ fontSize:"11px", fontWeight:800, color:status.text, letterSpacing:"-0.2px" }}>{p.status}</span>
+        <div style={{ display:"flex", alignItems:"baseline", gap:"3px" }}>
+          <span style={{ fontSize:"12px", fontWeight:800, color:status.text, letterSpacing:"-0.2px" }}>{p.status}</span>
           {p.status === "VIP" && p.score !== null && <span style={{ fontSize:"10px", fontWeight:600, color:"#475469" }}>{p.score}%</span>}
         </div>
         <div style={{ display:"flex", gap:"4px", fontSize:"12px", fontWeight:600, color:"#0e162a" }}>
           <span>{p.gender}</span><span>{p.age}</span>
         </div>
-        <span style={{ fontSize:"10px", fontWeight:600, color:"#475469", letterSpacing:"-0.2px", marginBottom:"6px" }}>{p.time}</span>
+        <span style={{ fontSize:"10px", fontWeight:600, color:"#475469", letterSpacing:"-0.2px", marginBottom:"6px" }}>{cardTimestamp(p.date, p.time)}</span>
       </div>
       <div style={{ position:"absolute", right:"6px", bottom:"40px", width:"60px", height:"60px",
         borderRadius:"8px", overflow:"hidden", transform:"translateZ(0)",
-        // Same white ring SearchResultCard's face crop always has, for the same separation from
-        // the photo behind it. RedFace already gets its own dedicated "REDFACE" badge on this card
-        // (below), so it doesn't need a second, redundant signal here too.
-        boxShadow:"0 0 0 2px white" }}>
+        // Only VIP gets a ring (brand purple) — Unknown has nothing to call out, and RedFace
+        // already gets its own dedicated "REDFACE" badge on this card (below).
+        boxShadow: p.status === "VIP" ? "0 0 0 2px #5a3dfb" : "none" }}>
         {/* Zoomed-in crop of the same big photo's face area, not a separate unrelated image —
             anchored a bit below the very top edge (most head-and-shoulders stock photos frame
             the face around 15-25% down, not flush at 0%) and zoomed less aggressively than a
@@ -299,33 +280,6 @@ function CameraGlyph({ size = 20 }: { size?: number }) {
     </svg>
   );
 }
-// ── Live Monitoring Landing (Figma: "Live monitoring landing") ──
-function CameraStatusHoverTag({ label, color, cameras }: { label:string; color:string; cameras:Camera[] }) {
-  const [hover, setHover] = useState(false);
-  return (
-    <div style={{ position:"relative", display:"inline-flex" }}
-      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <span style={{ color, cursor:"default" }}>{label} {cameras.length}</span>
-      {hover && cameras.length > 0 && (
-        <div style={{ position:"absolute", top:"calc(100% + 10px)", left:0, minWidth:"180px", zIndex:50 }}>
-          {/* Pure CSS triangle (not a rotated square) — a rotated-square diamond has four
-              points, and its downward-facing point showed through as a stray second arrow
-              overlapping the box below it. A triangle has only the one point we want. */}
-          <div style={{ position:"absolute", top:"-6px", left:"16px", width:0, height:0,
-            borderLeft:"6px solid transparent", borderRight:"6px solid transparent",
-            borderBottom:"6px solid rgba(0,0,0,0.75)" }} />
-          <div style={{ position:"relative", backgroundColor:"rgba(0,0,0,0.75)", borderRadius:"8px", padding:"10px 12px",
-            boxShadow:"0 4px 6px rgba(0,0,0,0.1)", display:"flex", flexDirection:"column", gap:"6px" }}>
-            {cameras.map(cam => (
-              <span key={cam.id} style={{ fontSize:"11px", fontWeight:600, color:"white", whiteSpace:"nowrap" }}>{cam.code} {cam.name}</span>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // Landing always shows the by-camera carousel stack — the old By Camera/All Cameras toggle was
 // redundant with the camera-select dropdown inside CameraDetailView, which now offers
 // "All Cameras" as one of its own options (see ALL_CAMERAS_ID) instead of a separate top-level
@@ -335,6 +289,41 @@ function CameraStatusHoverTag({ label, color, cameras }: { label:string; color:s
 // a separate top-level By Camera/All Cameras toggle (the two were redundant) and a separate
 // horizontal-scrolling per-camera carousel landing (removed — replaced by this one screen).
 const ALL_CAMERAS_ID = "__ALL__";
+
+function ScrollUpIconSm() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 13V3M4 7l4-4 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+// A floating "back to top" button for long, independently-scrolling result lists (Live
+// Monitoring's camera grid, Re-ID Analysis' cluster list) — appears once scrolled a page or so
+// down, so getting back to the top after scanning through results doesn't mean scrolling back up
+// by hand. `containerRef` must point at the actual scrolling element, not a non-scrolling wrapper.
+function ScrollToTopButton({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onScroll = () => setVisible(el.scrollTop > 400);
+    el.addEventListener("scroll", onScroll);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [containerRef]);
+  if (!visible) return null;
+  return (
+    <button
+      onClick={() => containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+      title="Scroll to top"
+      style={{ position:"absolute", right:"20px", bottom:"20px", width:"40px", height:"40px", borderRadius:"50%",
+        backgroundColor:"#0e162a", color:"white", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+        boxShadow:"0 4px 14px rgba(14,22,42,0.3)", zIndex:20 }}
+    >
+      <ScrollUpIconSm />
+    </button>
+  );
+}
 
 // ── Camera Detail View (Figma: "Live monitoring detail") — now the ONLY Live Monitoring
 // screen; the camera-select dropdown's "All Cameras" option covers what the old separate
@@ -346,17 +335,11 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
   const camera = cameras.find(c => c.code === camId);
   const isAll = camId === ALL_CAMERAS_ID;
   const pickerLabel = isAll ? "All Cameras" : camId;
-  const onlineCameras = cameras.filter(c => c.status === "online");
-  const offlineCameras = cameras.filter(c => c.status !== "online");
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto", padding:"20px 24px", backgroundColor:"#f8fafc" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:"16px", fontSize:"12px", fontWeight:700, color:"#475469", marginBottom:"20px" }}>
-        <span>Total Cameras {cameras.length}</span>
-        <CameraStatusHoverTag label="Online" color="#16a34a" cameras={onlineCameras} />
-        <CameraStatusHoverTag label="Offline" color="#94a3b8" cameras={offlineCameras} />
-      </div>
-
+    <div style={{ position:"relative", flex:1, overflow:"hidden" }}>
+    <div ref={scrollRef} className="vca-hide-scrollbar" style={{ position:"absolute", inset:0, overflowY:"auto", padding:"20px 24px", backgroundColor:"white", borderRadius:"12px", boxSizing:"border-box" }}>
       <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"12px" }}>
         <div style={{ position:"relative", width:"152px" }}>
           <button onClick={() => setPickerOpen(o => !o)} style={{
@@ -375,33 +358,38 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
           </button>
           {pickerOpen && (
             <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, width:"100%", backgroundColor:"white",
-              border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden" }}>
+              border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden",
+              maxHeight:"320px", display:"flex", flexDirection:"column" }}>
               <button onClick={() => { onSwitchCam(ALL_CAMERAS_ID); setPickerOpen(false); }} style={{
-                display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
+                display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer", flexShrink:0,
                 backgroundColor: isAll ? "#f0f0ff" : "white",
                 fontSize:"13px", fontWeight: isAll ? 700:500, color: isAll ? "#5a3dfb":"#334155",
               }}>
                 All Cameras
               </button>
-              <div style={{ height:"1px", backgroundColor:"#e2e8f0" }} />
-              {cameras.map(cam => (
-                <button key={cam.id} onClick={() => { onSwitchCam(cam.code); setPickerOpen(false); }} style={{
-                  display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
-                  backgroundColor: cam.code===camId ? "#f0f0ff" : "white",
-                  fontSize:"13px", fontWeight: cam.code===camId ? 700:500, color: cam.code===camId ? "#5a3dfb":"#334155",
-                }}>
-                  {cam.code}
-                  <span style={{ fontSize:"9px", fontWeight:800, color: cam.status==="online" ? "#16a34a" : "#94a3b8" }}>
-                    {cam.status==="online" ? "ON" : "OFF"}
-                  </span>
-                </button>
-              ))}
+              <div style={{ height:"1px", backgroundColor:"#e2e8f0", flexShrink:0 }} />
+              {/* The camera roster can run to dozens of entries — without its own scroll region
+                  this list just kept growing past the bottom of the screen instead of scrolling. */}
+              <div className="vca-thin-scrollbar" style={{ overflowY:"auto" }}>
+                {cameras.map(cam => (
+                  <button key={cam.id} onClick={() => { onSwitchCam(cam.code); setPickerOpen(false); }} style={{
+                    display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
+                    backgroundColor: cam.code===camId ? "#f0f0ff" : "white",
+                    fontSize:"13px", fontWeight: cam.code===camId ? 700:500, color: cam.code===camId ? "#5a3dfb":"#334155",
+                  }}>
+                    {cam.code}
+                    <span style={{ fontSize:"10px", fontWeight:800, color: cam.status==="online" ? "#16a34a" : "#94a3b8" }}>
+                      {cam.status==="online" ? "ON" : "OFF"}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
         {camera && (
           <>
-            <span style={{ fontSize:"11px", fontWeight:800, color: camera.status==="online" ? "#16a34a" : "#94a3b8",
+            <span style={{ fontSize:"10px", fontWeight:800, color: camera.status==="online" ? "#16a34a" : "#94a3b8",
               backgroundColor: camera.status==="online" ? "#f0fdf4" : "#f1f5f9", padding:"4px 10px", borderRadius:"999px" }}>
               {camera.status==="online" ? "ONLINE" : "OFFLINE"}
             </span>
@@ -415,6 +403,8 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
         {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} showCam={isAll} fill onNavigateTab={onNavigateTab} onGoRedmap={onGoRedmap} />)}
       </div>
     </div>
+    <ScrollToTopButton containerRef={scrollRef} />
+    </div>
   );
 }
 
@@ -422,31 +412,62 @@ function reidToMatchItem(p: (typeof REID_DATA)[number]): MatchItem {
   // face:p.url (not p.face) — p.face cycles through an unrelated stock-photo pool independent of
   // the person's own photo, so DetailModal's "Face Detection Crop" would show a different
   // person's face than the "Full-Body Object Crop" (body:p.url) right next to it.
-  return { id:p.id, face:p.url, body:p.url, cam:p.cam, time:p.time, similarity:p.score ?? 0, gender:p.gender as "M"|"F", age:p.age, plate:p.plate };
+  // similarity:p.similarity (not p.score) — `.score` is the VIP-confidence field (only meaningful
+  // when status==="VIP"; buildTargetResultRows always sets it null), `.similarity` is the actual
+  // Re-ID match confidence every row carries. Reading `.score` used to silently produce 0% for
+  // any caller that didn't separately re-patch `.similarity` back in afterward.
+  return { id:p.id, face:p.url, body:p.url, cam:p.cam, date:p.date, time:p.time, similarity:p.similarity, gender:p.gender as "M"|"F", age:p.age, plate:p.plate, status:p.status };
 }
 
 const LIVE_FEED_STATUS_CYCLE: ReIDStatus[] = ["VIP","Unknown","Unknown"];
 
-const CAPTURE_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-function formatCapturedTime(d: Date): string {
-  const mm = CAPTURE_MONTHS[d.getMonth()];
+// Same "YYYY-MM-DD" / "HH:MM:SS" split every other date+time pair in this file uses (REID_DATE_CYCLE,
+// RedFace's cooccurrence dates, Smart Search) — this used to bundle both into one "Aug 06,14:16:29"
+// `time` string while a separate, unrelated `date` field cycled through REID_DATE_CYCLE independently,
+// so showing both together (to match everywhere else) produced a nonsense double date.
+function formatCapturedDate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function formatCapturedTime(d: Date): string {
   const hh = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${mm} ${dd},${hh}:${mi}:${ss}`;
+  return `${hh}:${mi}:${ss}`;
+}
+
+const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+// Narrow photo-tile cards (MonitorCard, ClusterMatchCard, SearchResultCard) don't have room for a
+// full "2026-08-06 14:16:29" — the underlying `date` field stays "YYYY-MM-DD" everywhere (RedFace's
+// table views sort on it as a plain string, e.g. `a.date + a.time`), this only reformats it for
+// display in those tight spots, to the "Aug 6" style the wider views don't need.
+function shortDate(isoDate: string): string {
+  const [, m, d] = isoDate.split("-").map(Number);
+  return `${SHORT_MONTHS[m - 1]} ${d}`;
+}
+// Time alone is unambiguous for something that happened today — the date only earns its keep
+// when the record is from a DIFFERENT day, which is most of what these mock cards show (only
+// Live Monitoring's feed is genuinely "just now"; the rest cycle through REID_DATE_CYCLE's spread
+// of past dates). Comparing against today's real Singapore-time date, same as every other
+// "today" check in this app (isTodaySgt).
+function cardTimestamp(isoDate: string, time: string): string {
+  return isoDate === sgtDateKey(new Date()) ? time : `${shortDate(isoDate)} ${time}`;
 }
 const LIVE_FEED_CAPTURE_INTERVAL_MS = 45_000;
 
 function makeLiveItem(seed: number, camId: string, index: number): (typeof REID_DATA)[number] {
   const person = PERSONS[seed % PERSONS.length];
   const status = LIVE_FEED_STATUS_CYCLE[seed % LIVE_FEED_STATUS_CYCLE.length];
+  // Leftmost card in the feed is the most recent capture — later positions step further back in
+  // time. date/time both come from this SAME instant now, instead of date cycling independently.
+  const capturedAt = new Date(Date.now() - index * LIVE_FEED_CAPTURE_INTERVAL_MS);
   return {
     ...person,
     id: 100000 + seed,
-    // Leftmost card in the feed is the most recent capture — later positions step
-    // further back in time.
-    time: formatCapturedTime(new Date(Date.now() - index * LIVE_FEED_CAPTURE_INTERVAL_MS)),
+    date: formatCapturedDate(capturedAt),
+    time: formatCapturedTime(capturedAt),
     status,
     gender: REID_GENDER_CYCLE[seed % REID_GENDER_CYCLE.length],
     age: REID_AGE_CYCLE[seed % REID_AGE_CYCLE.length],
@@ -455,8 +476,12 @@ function makeLiveItem(seed: number, camId: string, index: number): (typeof REID_
     face: REID_FACE_POOL[seed % REID_FACE_POOL.length],
     apparel: REID_APPAREL_CYCLE[seed % REID_APPAREL_CYCLE.length],
     prop: REID_PROP_CYCLE[seed % REID_PROP_CYCLE.length],
-    date: REID_DATE_CYCLE[seed % REID_DATE_CYCLE.length],
     similarity: REID_SIMILARITY_CYCLE[seed % REID_SIMILARITY_CYCLE.length],
+    topColor: REID_TOP_COLOR_CYCLE[seed % REID_TOP_COLOR_CYCLE.length],
+    bottomColor: REID_BOTTOM_COLOR_CYCLE[seed % REID_BOTTOM_COLOR_CYCLE.length],
+    shoesColor: REID_SHOES_COLOR_CYCLE[seed % REID_SHOES_COLOR_CYCLE.length],
+    emotion: REID_EMOTION_CYCLE[seed % REID_EMOTION_CYCLE.length],
+    ethnicGroup: REID_ETHNIC_GROUP_CYCLE[seed % REID_ETHNIC_GROUP_CYCLE.length],
     plate: null as string | null,
   };
 }
@@ -469,22 +494,504 @@ function seedLiveFeed(): Record<string, (typeof REID_DATA)> {
   return feed;
 }
 
+// A labeled "All | option | option…" segmented row — Gender/Hat/Sleeve length/Bottoms/Backpack
+// all share this exact shape (one active choice, "All" meaning "don't filter on this").
+function AllOptionRow({ label, options, value, onChange }: { label:string; options:string[]; value:string; onChange:(v:string)=>void }) {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+      <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>{label}</span>
+      <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
+        <AttrChip label="All" active={value === ""} onClick={() => onChange("")} size="sm" />
+        {options.map(o => <AttrChip key={o} label={o} active={value === o} onClick={() => onChange(o)} size="sm" />)}
+      </div>
+    </div>
+  );
+}
+
+// Fixed option list reads as a real selector rather than a free-text field, even though (like
+// Emotion/Ethnic group below) nothing in the mock detection data actually carries these
+// attributes to filter on.
+const EMOTION_OPTIONS = ["Anger","Disgust","Neutral","Fear","Happiness","Sadness","Surprised"];
+const ETHNIC_GROUP_OPTIONS = ["African American","Indian","Asian","Caucasian"];
+// Same trigger+panel shape as the "Sort associates by" dropdown in RedFace's Associate filter —
+// a custom-built open panel (checkmark + light-purple highlight on the selected row) instead of
+// a native <select>'s browser/OS-drawn list, so it looks identical everywhere rather than however
+// the current OS happens to render native selects.
+function SimpleSelect({ value, options, onChange }: { value:string; options:string[]; onChange:(v:string)=>void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position:"relative", width:"100%" }}>
+      <style>{`
+        .vca-simple-select-trigger:hover { border-color:#8c85ff !important; }
+        .vca-simple-select-option:hover { background-color:#f8fafc; }
+      `}</style>
+      <button onClick={() => setOpen(o => !o)} className="vca-simple-select-trigger" style={{
+        display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
+        height:"32px", padding:"0 10px", borderRadius:"8px", border:BORDER, backgroundColor:"white", cursor:"pointer",
+      }}>
+        <span style={{ fontSize:"12px", fontWeight:600, color: value ? "#0e162a" : "#94a3b8" }}>{value || "All"}</span>
+        <span style={{ display:"flex", color:"#475469", transform: open ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </span>
+      </button>
+      {open && (
+        <div className="vca-hide-scrollbar" style={{ position:"absolute", top:"100%", left:0, marginTop:"4px", width:"100%", maxHeight:"220px", overflowY:"auto",
+          backgroundColor:"white", border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10 }}>
+          {["", ...options].map(o => {
+            const active = value === o;
+            return (
+              <button key={o || "__all__"} onClick={() => { onChange(o); setOpen(false); }} className="vca-simple-select-option" style={{
+                display:"flex", alignItems:"center", gap:"6px", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
+                backgroundColor: active ? "#f0f0ff" : "white",
+                fontSize:"12px", fontWeight: active ? 700 : 500, color: active ? "#5a3dfb" : "#334155",
+              }}>
+                <span style={{ display:"flex", width:"12px", flexShrink:0 }}>
+                  {active && <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </span>
+                {o || "All"}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type LiveSearchTab = "Photo" | "Filter" | "VIP" | "Car";
+
+// Collapsed search icon <-> full sidebar used to be a hard swap (button unmounted, sidebar
+// mounted, in the same render) — every filter/tab/upload the operator had set was gone the moment
+// they collapsed it, and the cut was instant enough to read as a glitch rather than a UI choice.
+// This keeps the sidebar permanently mounted (so its state survives collapsing) and animates the
+// wrapper's width instead, revealing/hiding it like a drawer — the sidebar's own width never
+// changes, only how much of it the wrapper's overflow:hidden currently exposes.
+function SlidingSearchPanel({ expanded, onExpand, sidebar }: { expanded: boolean; onExpand: () => void; sidebar: React.ReactNode }) {
+  return (
+    <div style={{
+      position:"relative", width: expanded ? "320px" : "48px", height:"100%", flexShrink:0,
+      transition:"width 0.28s cubic-bezier(0.32, 0.72, 0, 1)", overflow:"hidden", borderRadius:"12px",
+    }}>
+      <div style={{ position:"absolute", inset:0, width:"320px" }}>
+        {sidebar}
+      </div>
+      {/* Covers the full column height, not just the button's own 48x48 square — the sidebar
+          underneath is only clipped to 48px wide when collapsed, not hidden, so anything below
+          the button's height (its header text, tab icons, etc.) would otherwise still show through
+          as a sliver instead of a clean collapsed rail. */}
+      <div style={{
+        position:"absolute", top:0, left:0, bottom:0, width:"48px", backgroundColor:"#f1f5f9",
+        display:"flex", flexDirection:"column", alignItems:"center",
+        opacity: expanded ? 0 : 1, pointerEvents: expanded ? "none" : "auto",
+        transition:"opacity 0.15s ease",
+      }}>
+        <button
+          onClick={onExpand}
+          title="Smart search"
+          style={{
+            width:"48px", height:"48px", borderRadius:"16px",
+            backgroundColor:"white", border:"none", display:"flex", alignItems:"center", justifyContent:"center",
+            cursor:"pointer", color:"#475469", flexShrink:0,
+          }}
+        >
+          <SearchIconSm size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// The Smart Search sidebar embedded in Live Monitoring, specifically — Re-ID Analysis/RedFace
+// keep their own existing single-scroll SearchPanel/attribute-filter layouts unchanged. This one
+// splits into Photo/Filter/VIP/Car tabs instead of one long list, since Live Monitoring's version
+// grew enough fields (Hat/Sleeve length/Bottoms/Backpack/Emotion/Ethnic group on top of the usual
+// set) that a single scrolling column stopped being the clearest shape for it.
+function LiveSearchSidebar({
+  state, tab, onTabChange,
+  hatFilter, onHatChange, sleeveFilter, onSleeveChange, bottomsFilter, onBottomsChange, backpackFilter, onBackpackChange,
+  emotion, onEmotionChange, ethnicGroup, onEthnicGroupChange,
+  cardFace, cardBody,
+  onSearch, onCollapse,
+}: {
+  state: SearchFilterState;
+  tab: LiveSearchTab; onTabChange: (t: LiveSearchTab) => void;
+  hatFilter: ""|"Hat"|"None"; onHatChange: (v: ""|"Hat"|"None") => void;
+  sleeveFilter: ""|"Short"|"Long"; onSleeveChange: (v: ""|"Short"|"Long") => void;
+  bottomsFilter: ""|"Trousers"|"Shorts"|"Skirts"; onBottomsChange: (v: ""|"Trousers"|"Shorts"|"Skirts") => void;
+  backpackFilter: ""|"Exists"|"None"; onBackpackChange: (v: ""|"Exists"|"None") => void;
+  emotion: string; onEmotionChange: (v: string) => void;
+  ethnicGroup: string; onEthnicGroupChange: (v: string) => void;
+  // Seeds the Photo tab's preview from a camera card's own photo (via the "Search" hover
+  // button) — optional since the other tab that reuses this sidebar has no such card to seed from.
+  cardFace?: string; cardBody?: string;
+  onSearch: () => void; onCollapse: () => void;
+}) {
+  const {
+    setSearchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP,
+    threshold, setThreshold, gender, setGender,
+    topColors, toggleTopColor, bottomColors, toggleBottomColor, shoesColors, toggleShoesColor,
+    dateRange, setDateRange, licensePlate, setLicensePlate, reset,
+  } = state;
+  const target = selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : null;
+  const vipName = activeVIP >= 0 ? VIP_QUICK[activeVIP].name : null;
+
+  // A real, user-supplied reference photo — not a recent-target/VIP pick — takes over the
+  // preview the same way `target` does, and clears itself if the operator picks a target after
+  // uploading (so the two "who am I searching for" sources never fight over the same box).
+  const [uploadedFace, setUploadedFace] = useState<string | null>(null);
+  const [uploadedBody, setUploadedBody] = useState<string | null>(null);
+  const faceInputRef = useRef<HTMLInputElement>(null);
+  const bodyInputRef = useRef<HTMLInputElement>(null);
+  const handleFaceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setUploadedFace(URL.createObjectURL(file));
+  };
+  const handleBodyUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setUploadedBody(URL.createObjectURL(file));
+  };
+  const faceSrc = uploadedFace ?? target?.face ?? cardFace;
+  const bodySrc = uploadedBody ?? target?.body ?? cardBody;
+  // Picking a Recent target/VIP after uploading a photo should switch the preview to THAT
+  // person, not keep showing the stale upload underneath it.
+  useEffect(() => { setUploadedFace(null); setUploadedBody(null); }, [selectedTarget, activeVIP]);
+
+  const TABS: { id: LiveSearchTab; label:string; icon:React.ReactNode }[] = [
+    { id:"Photo",  label:"Photo",  icon:<ImageIconSm size={16} /> },
+    { id:"Filter", label:"Filter", icon:<SlidersIconSm size={16} /> },
+    { id:"VIP",    label:"VIP",    icon:<StarIconSm size={16} /> },
+    { id:"Car",    label:"Vehicle", icon:<VehicleIconSm size={19} /> },
+  ];
+  const changeTab = (t: LiveSearchTab) => { onTabChange(t); setSearchType(t === "Car" ? "VEHICLE" : "PERSON"); };
+  // Same size/weight/color as the "Date range" section label above — was smaller, muted-gray,
+  // and all-caps, which read as a visually distinct (and unintentionally lower-priority) label
+  // style from the rest of the sidebar's section titles.
+  const filterLabelStyle: React.CSSProperties = { fontSize:"12px", fontWeight:700, color:"#324055" };
+
+  return (
+    <div style={{ width:"320px", flexShrink:0, backgroundColor:"white", borderRadius:"12px",
+      display:"flex", flexDirection:"column", height:"100%", overflow:"hidden", boxSizing:"border-box" }}>
+      <div style={{ padding:"20px 16px 12px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"8px", color:"#0e162a" }}>
+          <SearchIconSm size={16} />
+          <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px" }}>Smart search</span>
+        </div>
+        <button onClick={onCollapse} aria-label="Collapse" style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+      </div>
+
+      <div style={{ display:"flex", padding:"0 12px", gap:"4px", flexShrink:0, borderBottom:BORDER }}>
+        {TABS.map(t => {
+          const active = tab === t.id;
+          return (
+            <button key={t.id} onClick={() => changeTab(t.id)} style={{
+              flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"4px", padding:"8px 0 10px",
+              background:"none", border:"none", cursor:"pointer",
+              borderBottom: active ? "2px solid #5a3dfb" : "2px solid transparent",
+              color: active ? "#5a3dfb" : "#94a3b8", marginBottom:"-1px",
+            }}>
+              {/* Fixed-height slot regardless of each icon's own rendered size — the Vehicle
+                  icon renders a couple px taller than the others (see VehicleIconSm) since it's
+                  a naturally wide/short silhouette that needs the extra size to not look small,
+                  and without this wrapper that taller box pushed just its own label down out of
+                  line with the other three. */}
+              <div style={{ height:"18px", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                {t.icon}
+              </div>
+              <span style={{ fontSize:"10px", fontWeight:700 }}>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto", padding:"16px", display:"flex", flexDirection:"column", gap:"18px" }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"#324055" }}>
+            <CalendarIconSm size={12} color="#324055" />
+            <span style={{ fontSize:"12px", fontWeight:700 }}>Date range</span>
+          </div>
+          <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="split" size="sm" emptyText="Last 7 days" showIcon={false} />
+        </div>
+
+        {tab === "Photo" && (
+          <>
+            <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"#324055" }}>
+                <HistoryIconSm />
+                <span style={{ fontSize:"12px", fontWeight:700 }}>Recent targets</span>
+              </div>
+              <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"8px", overflowX:"auto" }}>
+                {RECENT_TARGETS_EN.map((t, i) => (
+                  <button key={i} onClick={() => selectRecentTarget(i)} style={{
+                    display:"flex", alignItems:"center", gap:"6px", padding:"6px 10px", borderRadius:"8px",
+                    backgroundColor:"white",
+                    border: selectedTarget === i ? "1px solid #5a3dfb" : "1px solid #e2e8f0",
+                    cursor:"pointer", flexShrink:0,
+                  }}>
+                    <img src={t.face} alt="" style={{ width:"32px", height:"26px", borderRadius:"6px", objectFit:"cover" }} />
+                    <span style={{ fontSize:"11px", fontWeight:600, color:"#0e162a", whiteSpace:"nowrap" }}>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>Target face</span>
+              <ImageDropzoneBox icon={<DefaultFaceIconSm />} label="Face" previewSrc={faceSrc} aspect="square"
+                onClick={() => faceInputRef.current?.click()} />
+              <input ref={faceInputRef} type="file" accept="image/*" onChange={handleFaceUpload} style={{ display:"none" }} />
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>Target body</span>
+              <ImageDropzoneBox icon={<FullBodyIconSm />} label="Full body" previewSrc={bodySrc} aspect="portrait"
+                onClick={() => bodyInputRef.current?.click()} />
+              <input ref={bodyInputRef} type="file" accept="image/*" onChange={handleBodyUpload} style={{ display:"none" }} />
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>Similarity</span>
+              <SimilarityControl value={threshold} onChange={setThreshold} height={32} />
+            </div>
+          </>
+        )}
+
+        {tab === "Filter" && (
+          <>
+            <AllOptionRow label="Gender" options={["Male","Female"]} value={gender} onChange={setGender} />
+            <AllOptionRow label="Hat" options={["Hat","None"]} value={hatFilter} onChange={(v) => onHatChange(v as ""|"Hat"|"None")} />
+            <AllOptionRow label="Sleeve length" options={["Short","Long"]} value={sleeveFilter} onChange={(v) => onSleeveChange(v as ""|"Short"|"Long")} />
+            <AllOptionRow label="Bottoms" options={["Trousers","Shorts","Skirts"]} value={bottomsFilter} onChange={(v) => onBottomsChange(v as ""|"Trousers"|"Shorts"|"Skirts")} />
+            <AllOptionRow label="Backpack" options={["Exists","None"]} value={backpackFilter} onChange={(v) => onBackpackChange(v as ""|"Exists"|"None")} />
+            <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+              <span style={filterLabelStyle}>Emotion</span>
+              <SimpleSelect value={emotion} options={EMOTION_OPTIONS} onChange={onEmotionChange} />
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+              <span style={filterLabelStyle}>Ethnic group</span>
+              <SimpleSelect value={ethnicGroup} options={ETHNIC_GROUP_OPTIONS} onChange={onEthnicGroupChange} />
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+              <span style={filterLabelStyle}>Top colors</span>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                {APPAREL_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={topColors.includes(c.id)} onClick={() => toggleTopColor(c.id)} size={18} />)}
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+              <span style={filterLabelStyle}>Bottom colors</span>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                {APPAREL_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={bottomColors.includes(c.id)} onClick={() => toggleBottomColor(c.id)} size={18} />)}
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+              <span style={filterLabelStyle}>Shoes colors</span>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                {SHOE_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={shoesColors.includes(c.id)} onClick={() => toggleShoesColor(c.id)} size={18} />)}
+              </div>
+            </div>
+          </>
+        )}
+
+        {tab === "VIP" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+            <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>
+              {vipName ? `Selected: ${vipName}` : "Choose a VIP"}
+            </span>
+            <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} />
+          </div>
+        )}
+
+        {tab === "Car" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+            <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>License plate</span>
+            <div style={{ display:"flex", alignItems:"center", gap:"6px", height:"34px", padding:"0 10px",
+              borderRadius:"8px", border:BORDER, backgroundColor:"white" }}>
+              <LicensePlateIconSm />
+              <input
+                value={licensePlate}
+                onChange={e => setLicensePlate(e.target.value)}
+                placeholder="SGA 1234 X"
+                style={{ flex:1, border:"none", outline:"none", background:"none", fontFamily:"monospace", fontSize:"12px",
+                  fontWeight:500, color:"#0e162a", letterSpacing:"-0.22px" }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding:"12px 16px 16px", display:"flex", gap:"8px", flexShrink:0 }}>
+        <button onClick={() => { reset(); setUploadedFace(null); setUploadedBody(null); }} aria-label="Reset" style={{ padding:"0 14px", height:"38px", borderRadius:"8px", border:"1px solid #ccd5e1", backgroundColor:"white", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <ResetIconSm />
+        </button>
+        <button onClick={onSearch} style={{ flex:1, height:"38px", borderRadius:"8px", border:"none", backgroundColor:"#0e162a", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>
+          Search
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Live Monitoring Tab (wrapper: landing ↔ per-camera detail) ──
-function LiveMonitoringTab({ onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
-  const [openCam, setOpenCam]   = useState<string>(ALL_CAMERAS_ID);
+function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: {
+  openCam: string; onOpenCamChange: (v: string) => void;
+  onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void;
+}) {
   const [detailId, setDetailId] = useState<number|null>(null);
   const [feed, setFeed]         = useState(seedLiveFeed);
   const seedRef = useRef(1);
 
+  // Smart Search used to be its own top-level Data tab, disconnected from the camera view it was
+  // actually meant to search from. Every other Data tab keeps its search filters in a collapsible
+  // sidebar right next to whatever it's already showing (e.g. Re-ID Analysis's live clusters)
+  // instead of swapping the whole screen out — this reuses that exact SearchPanel/collapse
+  // pattern so the live camera grid stays visible (and collapsible-around) instead of disappearing
+  // behind a full-page search form.
+  const [searchExpanded, setSearchExpanded]     = useState(false);
+  const [searchTab, setSearchTab]               = useState<"Photo"|"Filter"|"VIP"|"Car">("Photo");
+  const [searched, setSearched]                 = useState(false);
+  const [searchDetailId, setSearchDetailId]     = useState<number|null>(null);
+  const [searchType, setSearchType]             = useState<"PERSON"|"VEHICLE">("PERSON");
+  const [selectedTarget, setSelectedTarget]     = useState(-1);
+  const [activeVIP, setActiveVIP]               = useState(-1);
+  // The specific REID_DATA row a camera card's "Search" button was clicked on — its own face/
+  // body photos become the search target, same as picking a Recent target or VIP, rather than
+  // landing on a blank Photo tab that only filters by camera/gender/date.
+  const [cardSearchTarget, setCardSearchTarget] = useState<(typeof REID_DATA)[number] | null>(null);
+  const [threshold, setThreshold]               = useState(70);
+  const [gender, setGender]                     = useState("");
+  // These four are broken out into their own ALL/one-of-N segmented controls (matching the
+  // reference layout) instead of the multi-select Apparel/Props chip lists used elsewhere in
+  // Data — they still resolve down into the same apparel/props shape filterReidData expects,
+  // just derived rather than stored directly (see derivedApparel/derivedProps below).
+  const [hatFilter, setHatFilter]               = useState<""|"Hat"|"None">("");
+  const [sleeveFilter, setSleeveFilter]         = useState<""|"Short"|"Long">("");
+  const [bottomsFilter, setBottomsFilter]       = useState<""|"Trousers"|"Shorts"|"Skirts">("");
+  const [backpackFilter, setBackpackFilter]     = useState<""|"Exists"|"None">("");
+  const [emotion, setEmotion]                   = useState("");
+  const [ethnicGroup, setEthnicGroup]           = useState("");
+  const [topColors, setTopColors]               = useState<string[]>([]);
+  const [bottomColors, setBottomColors]         = useState<string[]>([]);
+  const [shoesColors, setShoesColors]           = useState<string[]>([]);
+  const [searchDateRange, setSearchDateRange]   = useState<DateRangeValue>({ start:null, end:null });
+  const [licensePlate, setLicensePlate]         = useState("");
+  const [searchCamera, setSearchCamera]         = useState("");
+
+  const toggleTopColor    = (c: string) => setTopColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+  const toggleBottomColor = (c: string) => setBottomColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+  const toggleShoesColor  = (c: string) => setShoesColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+  const clearAttrFilters = () => {
+    setHatFilter(""); setSleeveFilter(""); setBottomsFilter(""); setBackpackFilter("");
+    setEmotion(""); setEthnicGroup("");
+  };
+  const searchReset = () => {
+    setSearchType("PERSON"); setThreshold(70); setGender(""); clearAttrFilters();
+    setTopColors([]); setBottomColors([]); setShoesColors([]);
+    setSelectedTarget(-1); setActiveVIP(-1); setCardSearchTarget(null); setSearchDateRange({ start:null, end:null });
+    setLicensePlate(""); setSearchCamera(""); setSearched(false); setSearchTab("Photo");
+  };
+  const selectRecentTarget = (i: number) => {
+    if (selectedTarget === i) { setSelectedTarget(-1); setGender(""); clearAttrFilters(); return; }
+    setSelectedTarget(i); setActiveVIP(-1); setCardSearchTarget(null);
+    const t = RECENT_TARGETS_EN[i];
+    setGender(t.gender);
+    if (t.apparel === "Short Sleeve" || t.apparel === "Long Sleeve") {
+      setSleeveFilter(t.apparel === "Short Sleeve" ? "Short" : "Long");
+      setBottomsFilter("");
+    } else {
+      setBottomsFilter(t.apparel as "Trousers"|"Shorts"|"Skirts");
+      setSleeveFilter("");
+    }
+    setHatFilter(t.props.includes("Hat") ? "Hat" : "");
+    setBackpackFilter(t.props.includes("Backpack/Bag") ? "Exists" : "");
+  };
+  const selectVIP = (i: number) => {
+    if (activeVIP === i) { setActiveVIP(-1); return; }
+    setActiveVIP(i); setSelectedTarget(-1); setCardSearchTarget(null);
+  };
+  const handleNavigate = (tab: DataTab, card: (typeof REID_DATA)[number]) => {
+    if (tab === "Smart Search") {
+      // Deep-link from a camera card's "Search" hover button — seed the filters that actually
+      // narrow results (camera/gender/date) and land straight on that person's real results,
+      // matching what the old standalone Smart Search tab did with an incoming seedCard.
+      setSearchExpanded(true); setSearchTab("Photo");
+      setSelectedTarget(-1); setActiveVIP(-1); clearAttrFilters(); setLicensePlate("");
+      setTopColors([]); setBottomColors([]); setShoesColors([]);
+      setSearchCamera(card.cam);
+      setGender(card.gender === "M" ? "Male" : "Female");
+      const day = new Date(card.date);
+      setSearchDateRange({ start: day, end: day });
+      // This card's own face/body become the search target — same as picking a Recent target or
+      // VIP — so results are actually seeded from the detection that was clicked, not just
+      // filtered by its camera/gender/date with no real photo behind the search.
+      setCardSearchTarget(card);
+      setSearched(true);
+      return;
+    }
+    onNavigateTab?.(tab, card);
+  };
+
+  // Resolved down into the same apparel/props shape filterReidData and SmartSearchResults expect
+  // — the segmented Hat/Sleeve/Bottoms/Backpack controls are a different UI over the same data,
+  // not a parallel filtering concept.
+  const derivedApparel = [
+    sleeveFilter === "Short" ? "Short Sleeve" : sleeveFilter === "Long" ? "Long Sleeve" : null,
+    bottomsFilter || null,
+  ].filter((v): v is string => !!v);
+  const derivedProps = [
+    hatFilter === "Hat" ? "Hat" : null,
+    backpackFilter === "Exists" ? "Backpack/Bag" : null,
+  ].filter((v): v is string => !!v);
+
+  const searchState: SearchFilterState = {
+    searchType, setSearchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP,
+    threshold, setThreshold, gender, setGender,
+    apparel: derivedApparel, toggleApparel: () => {}, props: derivedProps, toggleProps: () => {},
+    topColors, toggleTopColor, bottomColors, toggleBottomColor, shoesColors, toggleShoesColor,
+    dateRange: searchDateRange, setDateRange: setSearchDateRange, licensePlate, setLicensePlate,
+    camera: searchCamera, setCamera: setSearchCamera, reset: searchReset,
+  };
+  const searchTarget = activeVIP >= 0 ? VIP_QUICK[activeVIP]
+    : selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget]
+    // REID_DATA's own gender is "M"/"F"; buildTargetResultRows and the rest of this shape expect
+    // "Male"/"Female", the same format VIP_QUICK/RECENT_TARGETS_EN already use.
+    : cardSearchTarget ? { face: cardSearchTarget.face, body: cardSearchTarget.url, gender: cardSearchTarget.gender === "M" ? "Male" : "Female" }
+    : null;
+  const searchResults = searchType === "PERSON" && searchTarget
+    ? buildTargetResultRows(searchTarget.face, searchTarget.body, searchTarget.gender === "Male" ? "M" : "F", 20)
+        .filter(r => r.similarity >= threshold)
+    : filterReidData({ searchType, gender, apparel: derivedApparel, props: derivedProps, dateRange: searchDateRange, threshold, licensePlate, camera: searchCamera, topColors, bottomColors, shoesColors, emotion, ethnicGroup });
+  const searchResultDetailItem = searchDetailId !== null ? searchResults.find(p => p.id===searchDetailId) ?? null : null;
+
+  // Command palette deep-link: "jump to camera X" lands here with cameraCode set.
+  const dataNavRequest = useVcaStore(s => s.dataNavRequest);
+  const [prevCamNavId, setPrevCamNavId] = useState<number | null>(null);
+  if (dataNavRequest?.cameraCode && dataNavRequest.requestId !== prevCamNavId) {
+    setPrevCamNavId(dataNavRequest.requestId);
+    onOpenCamChange(dataNavRequest.cameraCode);
+  }
+
   useEffect(() => {
     const interval = setInterval(() => {
-      // Compute the new items first (pure), then hand setFeed a pure updater — React may
-      // invoke a state updater more than once (e.g. Strict Mode), so calling addEvent (a side
-      // effect on a different store) from inside one risked firing it twice per tick and
-      // triggering a "setState during render" warning. addEvent runs once, after, instead.
-      const newItems = useVcaStore.getState().cameras
-        .filter(cam => cam.status === "online")
-        .map(cam => ({ cam, item: makeLiveItem(seedRef.current++, cam.code, 0) }));
+      // This tile-churn simulation is LOCAL to this tab (`feed` state below) on purpose — it's a
+      // decorative "camera wall keeps scrolling" effect, not real VIP/Tracking activity, so it
+      // must never touch the shared vcaStore. It used to also call addEvent({cameraId, type,
+      // severity, timestamp}) with no personName/location — vcaStore.addEvent's early-return path
+      // for exactly that shape prepends it as a bare, unclassified entry and caps `events` at 500
+      // total. With every online camera (~50-60) re-firing every 4s, that flooded and evicted the
+      // shared 500-slot history in under a minute — silently wiping out the Sidebar/Dashboard's
+      // real VIP/Tracking rows any time this tab happened to be mounted. The ONE real event
+      // producer is VipAlertTicker in ClientLayout.tsx, which calls addEvent with full person
+      // fields — a future live video/detection feed for this specific tab should replace `feed`
+      // wholesale, not feed into that same classification pipeline.
+      //
+      // Only a random subset of online cameras refreshes each tick (instead of all of them every
+      // 4s) — every camera's "newest" card changing in the same instant read as the whole wall
+      // updating in lockstep rather than a live feed where different cameras detect faces at
+      // different times. A ~1s tick over ~1/4 of cameras keeps each one's own average refresh
+      // cadence close to the old 4s, just staggered instead of synchronized.
+      const onlineCams = useVcaStore.getState().cameras.filter(cam => cam.status === "online");
+      if (onlineCams.length === 0) return;
+      const batchSize = Math.max(1, Math.round(onlineCams.length / 4));
+      const batch = [...onlineCams].sort(() => Math.random() - 0.5).slice(0, batchSize);
+      const newItems = batch.map(cam => ({ cam, item: makeLiveItem(seedRef.current++, cam.code, 0) }));
 
       setFeed(prev => {
         const next = { ...prev };
@@ -493,16 +1000,7 @@ function LiveMonitoringTab({ onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { on
         });
         return next;
       });
-
-      newItems.forEach(({ cam, item }) => {
-        useVcaStore.getState().addEvent({
-          cameraId: cam.id,
-          type: item.status === "VIP" ? "VIP Match" : item.status === "RedFace" ? "RedFace Match" : "Re-ID Detection",
-          severity: item.status === "RedFace" ? "critical" : item.status === "VIP" ? "warning" : "info",
-          timestamp: new Date().toISOString(),
-        });
-      });
-    }, 4000);
+    }, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -514,10 +1012,39 @@ function LiveMonitoringTab({ onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { on
     : feed[openCam] ?? [];
 
   return (
-    <>
-      <CameraDetailView camId={openCam} items={camDetailItems} onSwitchCam={setOpenCam} onCardClick={setDetailId} onNavigateTab={onNavigateTab} onGoRedmap={onGoRedmap} />
+    <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"20px 24px 12px", backgroundColor:"#f1f5f9", boxSizing:"border-box" }}>
+      <SlidingSearchPanel
+        expanded={searchExpanded}
+        onExpand={() => setSearchExpanded(true)}
+        sidebar={
+          <LiveSearchSidebar
+            state={searchState}
+            tab={searchTab} onTabChange={setSearchTab}
+            hatFilter={hatFilter} onHatChange={setHatFilter}
+            sleeveFilter={sleeveFilter} onSleeveChange={setSleeveFilter}
+            bottomsFilter={bottomsFilter} onBottomsChange={setBottomsFilter}
+            backpackFilter={backpackFilter} onBackpackChange={setBackpackFilter}
+            emotion={emotion} onEmotionChange={setEmotion}
+            ethnicGroup={ethnicGroup} onEthnicGroupChange={setEthnicGroup}
+            cardFace={cardSearchTarget?.face} cardBody={cardSearchTarget?.url}
+            onSearch={() => setSearched(true)} onCollapse={() => setSearchExpanded(false)}
+          />
+        }
+      />
+      {/* Matches the search sidebar's own rounding — this wide section had none at all before,
+          so it sat as a sharp-cornered block next to the sidebar's 12px-rounded card. */}
+      <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column", backgroundColor:"white", borderRadius:"12px" }}>
+        {searched
+          ? <SmartSearchResults state={searchState} results={searchResults} onCardClick={setSearchDetailId}
+              onRefine={() => setSearched(false)} onReset={searchReset}
+              topColors={topColors} bottomColors={bottomColors} shoesColors={shoesColors}
+              emotion={emotion} ethnicGroup={ethnicGroup} />
+          : <CameraDetailView camId={openCam} items={camDetailItems} onSwitchCam={onOpenCamChange} onCardClick={setDetailId} onNavigateTab={handleNavigate} onGoRedmap={onGoRedmap} />
+        }
+      </div>
       {detailItem && <DetailModal item={reidToMatchItem(detailItem)} onClose={() => setDetailId(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
-    </>
+      {searchResultDetailItem && <DetailModal item={reidToMatchItem(searchResultDetailItem)} onClose={() => setSearchDetailId(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
+    </div>
   );
 }
 
@@ -555,6 +1082,15 @@ function buildMonthGrid(year: number, month: number) {
   return cells;
 }
 
+// "All time" used to resolve to {start:null, end:null} — identical to a date range nobody has
+// touched yet. filterReidData() treats THAT untouched shape as "default to last 7 days" (so a
+// Search click before the operator picks anything doesn't scan all-time by accident), which
+// meant clicking "All time" silently got downgraded to last-7-days too — same silent-no-results
+// bug for every REID_DATA date (they're fixed at 2026-07-27~08-10 and drift further outside any
+// real "last 7 days" window every day this demo runs). A real, non-null sentinel range lets "All
+// time" mean what it says while leaving the untouched/default-fallback case alone.
+const ALL_TIME_START = new Date(2000, 0, 1);
+const ALL_TIME_END = new Date(2100, 0, 1);
 const QUICK_RANGES: { label: string; range: () => DateRangeValue }[] = [
   { label: "Today", range: () => { const t = new Date(); t.setHours(0,0,0,0); return { start: t, end: t }; } },
   { label: "Last 7 days", range: () => { const t = new Date(); t.setHours(0,0,0,0); const s = new Date(t); s.setDate(s.getDate() - 6); return { start: s, end: t }; } },
@@ -562,7 +1098,7 @@ const QUICK_RANGES: { label: string; range: () => DateRangeValue }[] = [
   { label: "Last 3 months", range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), t.getMonth() - 3, 1), end: new Date(t.getFullYear(), t.getMonth() + 1, 0) }; } },
   { label: "Last 6 months", range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), t.getMonth() - 6, 1), end: new Date(t.getFullYear(), t.getMonth() + 1, 0) }; } },
   { label: "This year", range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), 0, 1), end: new Date(t.getFullYear(), 11, 31) }; } },
-  { label: "All time", range: () => ({ start: null, end: null }) },
+  { label: "All time", range: () => ({ start: ALL_TIME_START, end: ALL_TIME_END }) },
 ];
 
 const WEEKDAY_LABELS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
@@ -580,15 +1116,19 @@ function DateMonthCalendar({ year, month, tempStart, tempEnd, onPick, onPrev, on
           background:"none", border:"none", cursor: showPrev ? "pointer" : "default", visibility: showPrev ? "visible" : "hidden", color:"#324055" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
-        <span style={{ fontSize:"13px", fontWeight:800, color:"#0e162a" }}>{monthLabel}</span>
+        <span style={{ fontSize:"13px", fontWeight:700, color:"#0e162a" }}>{monthLabel}</span>
         <button onClick={onNext} disabled={!showNext} style={{ width:"24px", height:"24px", display:"flex", alignItems:"center", justifyContent:"center",
           background:"none", border:"none", cursor: showNext ? "pointer" : "default", visibility: showNext ? "visible" : "hidden", color:"#324055" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", justifyItems:"center" }}>
-        {WEEKDAY_LABELS.map(w => <span key={w} style={{ fontSize:"11px", color:"#94a3b8", height:"24px", display:"flex", alignItems:"center" }}>{w}</span>)}
+        {WEEKDAY_LABELS.map(w => <span key={w} style={{ fontSize:"10px", color:"#94a3b8", height:"24px", display:"flex", alignItems:"center" }}>{w}</span>)}
       </div>
+      {/* Ring instead of a background swap for hover — a background would have to fight (and look
+          different depending on) whichever state color is already showing (selected/in-range/
+          plain), where an inset ring reads the same "you're pointing at this one" way regardless. */}
+      <style>{`.vca-daterange-day:hover { box-shadow: inset 0 0 0 1.5px #94a3b8; }`}</style>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", justifyItems:"center", rowGap:"2px" }}>
         {cells.map((d, i) => {
           if (!d) return <div key={i} style={{ width:"28px", height:"28px" }} />;
@@ -597,11 +1137,12 @@ function DateMonthCalendar({ year, month, tempStart, tempEnd, onPick, onPrev, on
           const inRange = !!tempStart && !!tempEnd && d > tempStart && d < tempEnd;
           const today = isSameDay(d, new Date());
           return (
-            <button key={i} onClick={() => onPick(d)} style={{
+            <button key={i} onClick={() => onPick(d)} className="vca-daterange-day" style={{
               width:"28px", height:"28px", borderRadius:"50%", border: today && !isStart && !isEnd ? "1px solid #5a3dfb" : "none",
               backgroundColor: isStart || isEnd ? "#5a3dfb" : inRange ? "#f0f0ff" : "transparent",
               color: isStart || isEnd ? "white" : "#0e162a",
               fontSize:"12px", fontWeight: isStart || isEnd ? 700 : 500, cursor:"pointer",
+              boxSizing:"border-box",
             }}>{d.getDate()}</button>
           );
         })}
@@ -648,13 +1189,17 @@ function DateRangePopover({ anchorRef, value, onApply, onClose }: {
         border:BORDER, borderRadius:"12px", boxShadow:"0 8px 24px rgba(14,22,42,0.16)",
         padding:"12px", display:"flex", gap:"16px" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:"4px", width:"140px", borderRight:BORDER, paddingRight:"12px" }}>
+          {/* Shared by every date filter in the app (Live Monitoring, Re-ID Analysis, RedFace) —
+              this popover is the one place they all render QUICK_RANGES from, so a hover state
+              added here shows up everywhere at once instead of needing to be repeated per screen. */}
+          <style>{`.vca-daterange-preset:hover { background-color:#f1f5f9 !important; }`}</style>
           {QUICK_RANGES.map(q => (
-            <button key={q.label} onClick={() => {
+            <button key={q.label} className="vca-daterange-preset" onClick={() => {
               const r = q.range();
               setTempStart(r.start); setTempEnd(r.end);
               if (r.start) { setViewYear(r.start.getFullYear()); setViewMonth(r.start.getMonth()); }
             }} style={{ textAlign:"left", padding:"8px", borderRadius:"8px", border:"none", backgroundColor:"transparent", cursor:"pointer",
-              fontSize:"13px", color:"#0e162a", fontWeight:500 }}>
+              fontSize:"13px", color:"#0e162a", fontWeight:600, transition:"background-color 0.15s" }}>
               {q.label}
             </button>
           ))}
@@ -678,20 +1223,32 @@ function DateRangePopover({ anchorRef, value, onApply, onClose }: {
   );
 }
 
-function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyText }: {
-  value: DateRangeValue; onApply: (v: DateRangeValue) => void; mode?: "split"|"merged"; size?: "md"|"sm"; emptyText?: string;
+function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyText, showIcon = true }: {
+  value: DateRangeValue; onApply: (v: DateRangeValue) => void; mode?: "split"|"merged"; size?: "md"|"sm"; emptyText?: string; showIcon?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const compact = size === "sm";
   const isEmpty = !value.start && !value.end;
+  // The "All time" preset resolves to a real (non-null) sentinel range now, not {null,null} — see
+  // the comment on QUICK_RANGES — so it needs its own check here to still collapse to a plain
+  // "All time" label instead of falling through to the raw "2000.01.01 – 2100.01.01" dates.
+  const isAllTime = !!value.start && !!value.end
+    && value.start.getTime() === ALL_TIME_START.getTime() && value.end.getTime() === ALL_TIME_END.getTime();
 
+  // Same shape as CameraSelect (white fill, always-visible border, fixed height) so the two
+  // sit as one consistent "filter control" language instead of two different-looking pickers
+  // side by side in the same form.
   const boxStyle: React.CSSProperties = compact
-    ? { flex:1, display:"flex", alignItems:"center", gap:"6px", padding:"8px", border: open ? "1px solid #8c85ff" : BORDER, borderRadius:"6px", backgroundColor:"white", cursor:"pointer" }
-    : { flex:1, display:"flex", alignItems:"center", gap:"8px", padding:"12px 20px", border: open ? "1px solid #8c85ff" : "1px solid transparent", borderRadius:"8px", backgroundColor:"#f8fafc", cursor:"pointer" };
+    ? { flex:1, display:"flex", alignItems:"center", gap:"6px", height:"34px", padding:"0 8px", border: open ? "1px solid #8c85ff" : BORDER, borderRadius:"6px", backgroundColor:"white", cursor:"pointer" }
+    : { flex:1, display:"flex", alignItems:"center", gap:"8px", height:"36px", padding:"0 12px", border: open ? "1px solid #8c85ff" : BORDER, borderRadius:"8px", backgroundColor:"white", cursor:"pointer" };
   const textStyle = (has: boolean): React.CSSProperties => ({
-    fontSize: compact ? "10px" : "13px", fontWeight:600, color: has ? "#5a3dfb" : "#94a3b8",
+    fontSize: compact ? "12px" : "13px", fontWeight:600, color: has ? "#5a3dfb" : "#94a3b8",
   });
+  // The collapsed emptyText state ("Last 7 days") is a REAL default already in effect on the
+  // search, not an unfilled placeholder like "Start date" — so it shouldn't read in the same
+  // muted placeholder gray as an actually-empty field. Dark, same as any other active value.
+  const emptyTextStyle: React.CSSProperties = { fontSize: compact ? "12px" : "13px", fontWeight:600, color:"#0e162a" };
 
   const startLabel = value.start ? fmtDate(value.start) : "Start date";
   const endLabel = value.end ? fmtDate(value.end) : "End date";
@@ -699,23 +1256,25 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
 
   return (
     <div ref={ref} style={{ position:"relative", display:"flex", gap:"8px", width:"100%" }}>
-      {isEmpty && emptyText ? (
-        <div onClick={toggle} style={{ ...boxStyle, justifyContent: mode === "merged" ? "space-between" : "flex-start" }}>
+      {(isEmpty && emptyText) || isAllTime ? (
+        // Collapses to one box regardless of split/merged — always show the chevron here, since
+        // without it this reads as a plain label instead of something clickable.
+        <div onClick={toggle} style={{ ...boxStyle, justifyContent:"space-between" }}>
           <span style={{ display:"flex", alignItems:"center", gap: compact ? "6px" : "8px" }}>
-            <CalendarIconSm />
-            <span style={textStyle(false)}>{emptyText}</span>
+            {showIcon && <CalendarIconSm size={compact ? 12 : 14} />}
+            <span style={emptyTextStyle}>{isAllTime ? "All time" : emptyText}</span>
           </span>
-          {mode === "merged" && <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#475469" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#475469" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
       ) : mode === "split" ? (
         <>
-          <div onClick={toggle} style={boxStyle}><CalendarIconSm /><span style={textStyle(!!value.start)}>{startLabel}</span></div>
-          <div onClick={toggle} style={boxStyle}><CalendarIconSm /><span style={textStyle(!!value.end)}>{endLabel}</span></div>
+          <div onClick={toggle} style={boxStyle}>{showIcon && <CalendarIconSm size={compact ? 12 : 14} />}<span style={textStyle(!!value.start)}>{startLabel}</span></div>
+          <div onClick={toggle} style={boxStyle}>{showIcon && <CalendarIconSm size={compact ? 12 : 14} />}<span style={textStyle(!!value.end)}>{endLabel}</span></div>
         </>
       ) : (
         <div onClick={toggle} style={{ ...boxStyle, justifyContent:"space-between" }}>
           <span style={{ display:"flex", alignItems:"center", gap: compact ? "6px" : "8px" }}>
-            <CalendarIconSm />
+            {showIcon && <CalendarIconSm size={compact ? 12 : 14} />}
             <span style={textStyle(!!value.start)}>{startLabel}</span>
             <span style={{ color:"#94a3b8", fontSize: compact ? "10px" : "13px" }}>–</span>
             <span style={textStyle(!!value.end)}>{endLabel}</span>
@@ -729,27 +1288,189 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
 }
 
 function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP:number; onSelect:(i:number)=>void; compact?:boolean }) {
-  const avatarSize = compact ? 28 : 32;
+  const avatarSize = compact ? 28 : 24;
   const fontSize = compact ? "11px" : "12px";
+  // Search + sort so this stays usable once VIP_QUICK grows well past what fits on screen at
+  // once — "registration" order is just VIP_QUICK's own original array order (the order each VIP
+  // was added), so no extra data field is needed to support it.
+  const [query, setQuery] = useState("");
+  const [sortMode, setSortMode] = useState<"reg" | "abc">("reg");
 
-  // A horizontal scroll (same pattern as the Recent Targets row above/beside it) instead of
-  // clipping to whatever fits and stashing the rest behind a "+N" chip — every VIP stays one
-  // scroll away instead of an extra click into a flyout.
+  // Two different shapes on purpose: in the Live Monitoring/Re-ID sidebar (not compact) this list
+  // IS the whole tab's content, so it's a fixed 3-column grid — chips stretch to fill the row
+  // (natural-width flex-wrap chips left a ragged, mostly-empty-looking 2-per-row layout with the
+  // sidebar's spare width unused) and the sidebar's own vertical scroll carries the rest. In
+  // RedFace's target picker (compact) it's one of many stacked fields in a fixed-height modal, so
+  // it keeps its original single-row horizontal scroll instead.
+  if (compact) {
+    return (
+      <div className="vca-thin-scrollbar" style={{ display:"flex", flexWrap:"nowrap", gap:"8px", width:"100%", overflowX:"auto", paddingBottom:"6px" }}>
+        {VIP_QUICK.map((v, i) => {
+          const active = activeVIP === i;
+          return (
+            <button key={v.name} onClick={() => onSelect(i)} title={v.name} style={{
+              display:"flex", alignItems:"center", gap:"6px", padding:"4px 12px 4px 4px", borderRadius:"999px",
+              backgroundColor: active ? "#f0f0ff" : "white",
+              border: active ? "1px solid #5a3dfb" : "1px solid #e2e8f0", cursor:"pointer", flexShrink:0,
+            }}>
+              <img src={v.face} alt="" style={{ width:avatarSize, height:avatarSize, borderRadius:"50%", objectFit:"cover" }} />
+              <span style={{ fontSize, fontWeight:600, color:"#0e162a", whiteSpace:"nowrap" }}>{v.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const indexed = VIP_QUICK.map((v, i) => ({ v, i }))
+    .filter(({ v }) => v.name.toLowerCase().includes(query.toLowerCase()));
+  if (sortMode === "abc") indexed.sort((a, b) => a.v.name.localeCompare(b.v.name));
+
   return (
-    <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"8px", overflowX:"auto", width:"100%" }}>
-      {VIP_QUICK.map((v, i) => {
-        const active = activeVIP === i;
-        return (
-          <button key={v.name} onClick={() => onSelect(i)} style={{
-            display:"flex", alignItems:"center", gap:"6px", padding:"4px 12px 4px 4px", borderRadius:"999px",
-            backgroundColor: active ? "#f0f0ff" : "white",
-            border: active ? "1px solid #5a3dfb" : "1px solid #e2e8f0", cursor:"pointer", flexShrink:0,
-          }}>
-            <img src={v.face} alt="" style={{ width:avatarSize, height:avatarSize, borderRadius:"50%", objectFit:"cover" }} />
-            <span style={{ fontSize, fontWeight:600, color:"#0e162a", whiteSpace:"nowrap" }}>{v.name}</span>
-          </button>
-        );
-      })}
+    <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+        <div style={{ flex:1, display:"flex", alignItems:"center", gap:"6px", height:"30px", padding:"0 8px", borderRadius:"6px", border:BORDER, backgroundColor:"white" }}>
+          <SearchIconSm />
+          <input
+            value={query} onChange={e => setQuery(e.target.value)} placeholder="Search VIPs"
+            style={{ flex:1, border:"none", outline:"none", background:"none", fontSize:"12px", fontWeight:500, color:"#0e162a", minWidth:0 }}
+          />
+          {/* Picking a VIP doesn't clear this on its own — without a quick way to blank it out,
+              searching for someone else means selecting the old query and retyping over it. */}
+          {query && (
+            <button onClick={() => setQuery("")} aria-label="Clear search" style={{
+              display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+              width:"16px", height:"16px", borderRadius:"999px", border:"none", backgroundColor:"#cbd5e1", cursor:"pointer", padding:0,
+            }}>
+              <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                <path d="M1 1L7 7M7 1L1 7" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"999px", padding:"2px", flexShrink:0 }}>
+          {([["reg","Registered"],["abc","A–Z"]] as const).map(([id, label]) => {
+            const active = sortMode === id;
+            return (
+              <button key={id} onClick={() => setSortMode(id)} style={{
+                padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
+                backgroundColor: active ? "white" : "transparent",
+                color: active ? "#0e162a" : "#94a3b8", fontWeight: active ? 700 : 600, fontSize:"10px",
+                boxShadow: active ? "0 1px 3px rgba(14,22,42,0.12)" : "none",
+              }}>{label}</button>
+            );
+          })}
+        </div>
+      </div>
+      {indexed.length === 0 ? (
+        <div style={{ padding:"16px 0", textAlign:"center", color:"#94a3b8", fontSize:"12px" }}>No VIPs match &quot;{query}&quot;</div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(90px, 1fr))", gap:"8px", width:"100%" }}>
+          {indexed.map(({ v, i }) => {
+            const active = activeVIP === i;
+            return (
+              <button key={v.name} onClick={() => onSelect(i)} title={v.name} style={{
+                display:"flex", alignItems:"center", gap:"6px", padding:"5px 8px", borderRadius:"999px",
+                backgroundColor: active ? "#f0f0ff" : "white", minWidth:0, boxSizing:"border-box",
+                border: active ? "1px solid #5a3dfb" : "1px solid #e2e8f0", cursor:"pointer",
+              }}>
+                <img src={v.face} alt="" style={{ width:avatarSize, height:avatarSize, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
+                <span style={{ fontSize, fontWeight:600, color:"#0e162a", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", minWidth:0 }}>{v.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Shared by Top/Bottom color filters — Shoes uses its own smaller palette below, since footwear
+// in the mock data only ever comes in a handful of colors.
+const APPAREL_COLORS: { id:string; hex:string }[] = [
+  { id:"black",  hex:"#0f172a" },
+  { id:"blue",   hex:"#2563eb" },
+  { id:"green",  hex:"#16a34a" },
+  { id:"gray",   hex:"#94a3b8" },
+  { id:"orange", hex:"#f97316" },
+  { id:"purple", hex:"#7c3aed" },
+  { id:"red",    hex:"#ef4444" },
+  { id:"white",  hex:"#ffffff" },
+  { id:"gold",   hex:"#eab308" },
+  { id:"pink",   hex:"#ec4899" },
+  { id:"maroon", hex:"#7f1d1d" },
+  { id:"tan",    hex:"#d4b896" },
+  { id:"olive",  hex:"#78716c" },
+  { id:"sage",   hex:"#6b7c93" },
+];
+const SHOE_COLORS: { id:string; hex:string }[] = [
+  { id:"white",     hex:"#ffffff" },
+  { id:"lightgray", hex:"#e2e8f0" },
+  { id:"black",     hex:"#0f172a" },
+  { id:"gray",      hex:"#94a3b8" },
+];
+// A light swatch needs its own outline to stay visible against the white filter-panel
+// background — a colored swatch never does.
+const LIGHT_SWATCH_HEXES = new Set(["#ffffff", "#e2e8f0"]);
+
+function ColorSwatch({ hex, active, onClick, size = 22 }: { hex:string; active:boolean; onClick:()=>void; size?:number }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        width:size, height:size, borderRadius:"50%", flexShrink:0, cursor:"pointer", padding:0,
+        backgroundColor:hex, border:"none",
+        boxShadow: active
+          ? "0 0 0 2px white, 0 0 0 4px #5a3dfb"
+          : LIGHT_SWATCH_HEXES.has(hex) ? "inset 0 0 0 1px #ccd5e1" : "none",
+      }}
+    />
+  );
+}
+
+// Quick presets (60/70/80/90) for the common thresholds, plus a slider underneath for anything
+// in between — the presets used to be the only way in, which meant landing on e.g. 65% wasn't
+// possible at all, not just less convenient.
+// Resets the browser's native range-input chrome (Chrome/Safari/Firefox each draw their own
+// track/thumb border by default, which read as an unwanted outline around the control) down to a
+// flat gray track + solid purple thumb, matching the rest of the app's controls.
+function SimilaritySliderStyleTag() {
+  return (
+    <style>{`
+      .vca-similarity-slider { -webkit-appearance:none; appearance:none; background:transparent; outline:none; border:none; }
+      .vca-similarity-slider::-webkit-slider-runnable-track { height:4px; border-radius:999px; background:#e2e8f0; border:none; }
+      .vca-similarity-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#5a3dfb; border:none; margin-top:-5px; cursor:pointer; }
+      .vca-similarity-slider::-moz-range-track { height:4px; border-radius:999px; background:#e2e8f0; border:none; }
+      .vca-similarity-slider::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:#5a3dfb; border:none; cursor:pointer; }
+    `}</style>
+  );
+}
+function SimilarityControl({ value, onChange, height = 36 }: { value:number; onChange:(v:number)=>void; height?:number }) {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+      <SimilaritySliderStyleTag />
+      <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"999px", padding:"2px", height }}>
+        {[60,70,80,90].map(v => {
+          const active = value === v;
+          return (
+            <button key={v} onClick={() => onChange(v)} style={{
+              flex:1, borderRadius:"999px", border:"none", cursor:"pointer",
+              backgroundColor: active ? "white" : "transparent",
+              color: active ? "#5a3dfb" : "#94a3b8", fontWeight: active ? 700 : 600, fontSize:"12px",
+            }}>{v}%</button>
+          );
+        })}
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+        <input
+          className="vca-similarity-slider"
+          type="range" min={0} max={100} value={value}
+          onChange={e => onChange(Number(e.target.value))}
+          style={{ flex:1, cursor:"pointer" }}
+        />
+        <span style={{ fontSize:"12px", fontWeight:700, color:"#5a3dfb", width:"32px", textAlign:"right", flexShrink:0 }}>{value}%</span>
+      </div>
     </div>
   );
 }
@@ -758,8 +1479,8 @@ function AttrChip({ label, active, onClick, size = "md" }: { label:string; activ
   const compact = size === "sm";
   return (
     <button onClick={onClick} style={{
-      padding: compact ? "4px 10px" : "6px 16px", borderRadius:"100px", cursor:"pointer",
-      fontSize: compact ? "10px" : "13px", whiteSpace:"nowrap",
+      padding: compact ? "5px 12px" : "6px 16px", borderRadius:"100px", cursor:"pointer",
+      fontSize: compact ? "12px" : "13px", whiteSpace:"nowrap",
       fontWeight: active ? 700 : 600,
       color: active ? "#5a3dfb" : "#324055",
       backgroundColor: active ? "#f0f0ff" : "white",
@@ -788,203 +1509,7 @@ function FilterChip({ children, icon, avatar, onRemove }: { children:React.React
 
 // Shared by Re-ID Analysis, Smart Search, and RedFace's picker — lets a search start from
 // "who/what was captured on this specific camera" instead of only attribute/image matching.
-function CameraSelect({ value, onChange, size = "md" }: { value:string; onChange:(v:string)=>void; size?:"md"|"sm" }) {
-  const compact = size === "sm";
-  return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      style={{
-        width:"100%", height: compact ? "34px" : "36px", padding: compact ? "0 8px" : "0 12px",
-        borderRadius:"8px", border:BORDER, backgroundColor:"white", cursor:"pointer",
-        fontSize: compact ? "11px" : "13px", fontWeight:600, color: value ? "#0e162a" : "#94a3b8",
-      }}
-    >
-      <option value="">All Cameras</option>
-      {CAMERA_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-    </select>
-  );
-}
 
-function SmartSearchForm({ state, onSearch }: { state: SearchFilterState; onSearch:()=>void }) {
-  const {
-    searchType, setSearchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP,
-    threshold, setThreshold, gender, setGender, apparel, toggleApparel, props, toggleProps,
-    dateRange, setDateRange, licensePlate, setLicensePlate, camera, setCamera, reset,
-  } = state;
-  const target = selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : activeVIP >= 0 ? VIP_QUICK[activeVIP] : null;
-  const isVehicle = searchType === "VEHICLE";
-  return (
-    <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto", backgroundColor:"#f8fafc" }}>
-      <div style={{ backgroundColor:"white", padding:"40px 24px", display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-          <SmartSearchTitleIconSm />
-          <span style={{ fontSize:"18px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.36px" }}>Smart Search</span>
-        </div>
-        <span style={{ fontSize:"13px", fontWeight:600, color:"#475469", letterSpacing:"-0.26px" }}>
-          Enter images or search conditions for the target person or vehicle
-        </span>
-      </div>
-
-      <div style={{ maxWidth:"1440px", margin:"0 auto", padding:"48px 24px 40px", display:"flex", flexDirection:"column", gap:"20px" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ display:"flex", backgroundColor:"#e2e8f0", border:"1px solid #ccd5e1", borderRadius:"12px", padding:"1px", height:"42px", width:"288px" }}>
-            {(["PERSON","VEHICLE"] as const).map(t => {
-              const active = searchType === t;
-              return (
-                <button key={t} onClick={() => setSearchType(t)} style={{
-                  flex:1, borderRadius:"10px", border:"none", cursor:"pointer",
-                  backgroundColor: active ? "white" : "transparent",
-                  color: active ? "#5a3dfb" : "#64748a", fontWeight: active ? 700 : 600,
-                  fontSize:"13px", letterSpacing:"-0.26px",
-                  display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
-                }}>
-                  {t === "PERSON" ? <PersonIconSm/> : <VehicleIconSm/>} {t}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ display:"flex", gap:"12px" }}>
-            <button onClick={reset} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 20px", height:"42px", boxSizing:"border-box",
-              borderRadius:"8px", border:"1px solid #ccd5e1", backgroundColor:"white", cursor:"pointer",
-              fontSize:"13px", fontWeight:700, color:"#475469" }}>
-              <ResetIconSm /> Reset
-            </button>
-            <button onClick={onSearch} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 16px", height:"42px", boxSizing:"border-box",
-              borderRadius:"8px", border:"none", backgroundColor:"#5a3dfb", cursor:"pointer",
-              fontSize:"13px", fontWeight:700, color:"white" }}>
-              <SearchIconSm /> {isVehicle ? "Search Vehicle" : "Search"}
-            </button>
-          </div>
-        </div>
-
-        {!isVehicle && (
-          <div style={{ backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"24px", display:"flex", flexDirection:"column", gap:"20px" }}>
-            <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                <HistoryIconSm />
-                <span style={{ fontSize:"13px", fontWeight:700, color:"#324055" }}>Recent Targets</span>
-              </div>
-              <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"8px", overflowX:"auto" }}>
-                {RECENT_TARGETS_EN.map((t, i) => (
-                  <button key={i} onClick={() => selectRecentTarget(i)} style={{
-                    display:"flex", alignItems:"center", gap:"8px", padding:"8px 12px", borderRadius:"8px",
-                    backgroundColor:"white",
-                    border: selectedTarget === i ? "1px solid #5a3dfb" : "1px solid #e2e8f0",
-                    boxShadow: selectedTarget === i ? "0 2px 2px rgba(90,61,251,0.1)" : "none",
-                    cursor:"pointer", flexShrink:0,
-                  }}>
-                    <img src={t.face} alt="" style={{ width:"44px", height:"35px", borderRadius:"8px", objectFit:"cover" }} />
-                    <div style={{ textAlign:"left" }}>
-                      <p style={{ fontSize:"12px", fontWeight:600, color:"#0e162a", margin:0, whiteSpace:"nowrap" }}>{t.label}</p>
-                      <p style={{ fontSize:"10px", color:"#64748a", margin:0, whiteSpace:"nowrap" }}>{t.time}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                <StarIconSm />
-                <span style={{ fontSize:"13px", fontWeight:700, color:"#324055" }}>VIP Quick Select</span>
-              </div>
-              <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} />
-            </div>
-          </div>
-        )}
-
-        <div style={{ display:"flex", gap:"16px", alignItems:"flex-start" }}>
-          <div style={{ flex:1, backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"24px", display:"flex", flexDirection:"column", gap:"20px" }}>
-            <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-              <span style={{ fontSize:"13px", fontWeight:600, color:"#324055" }}>Search Period</span>
-              <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="split" emptyText="Last 7 days" />
-            </div>
-            {isVehicle ? (
-              <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-                <span style={{ fontSize:"13px", fontWeight:600, color:"#324055" }}>License Plate</span>
-                <div style={{ display:"flex", alignItems:"center", gap:"8px", height:"42px", padding:"0 16px",
-                  borderRadius:"8px", border:BORDER, backgroundColor:"#f8fafc" }}>
-                  <LicensePlateIconSm />
-                  <input
-                    value={licensePlate}
-                    onChange={e => setLicensePlate(e.target.value)}
-                    placeholder="SGA 1234 X"
-                    style={{ flex:1, border:"none", outline:"none", background:"none", fontFamily:"monospace", fontSize:"13px",
-                      fontWeight:500, color:"#0e162a", letterSpacing:"-0.26px" }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-                <span style={{ fontSize:"13px", fontWeight:600, color:"#324055" }}>Search by Image</span>
-                <div style={{ display:"flex", gap:"12px", height:"179px" }}>
-                  <div style={{ flex:1, borderRadius:"12px", border:"1px dashed #94a3b8", backgroundColor:"#f8fafc",
-                    display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", overflow:"hidden", position:"relative" }}>
-                    {target && <img src={target.face} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.15 }} />}
-                    <div style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
-                      <SmartSearchFaceIconSm />
-                      <span style={{ fontSize:"13px", fontWeight:700, color:"#324055" }}>Face</span>
-                    </div>
-                    <span style={{ position:"relative", fontSize:"12px", color:"#94a3b8", textAlign:"center" }}>Click or drop image<br/>to upload</span>
-                  </div>
-                  <div style={{ flex:1, borderRadius:"12px", border:"1px dashed #94a3b8", backgroundColor:"#f8fafc",
-                    display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", overflow:"hidden", position:"relative" }}>
-                    {target && <img src={target.body} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.15 }} />}
-                    <div style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
-                      <SmartSearchBodyIconSm />
-                      <span style={{ fontSize:"13px", fontWeight:700, color:"#324055" }}>Body</span>
-                    </div>
-                    <span style={{ position:"relative", fontSize:"12px", color:"#94a3b8", textAlign:"center" }}>Click or drop image<br/>to upload</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div style={{ flex:1, backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"24px", display:"flex", flexDirection:"column", gap:"20px" }}>
-            <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-              <span style={{ fontSize:"13px", fontWeight:600, color:"#324055" }}>Similarity</span>
-              <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"999px", padding:"2px", height:"36px" }}>
-                {[30,50,70,90].map(v => {
-                  const active = threshold === v;
-                  return (
-                    <button key={v} onClick={() => setThreshold(v)} style={{
-                      flex:1, borderRadius:"999px", border:"none", cursor:"pointer",
-                      backgroundColor: active ? "white" : "transparent",
-                      color: active ? "#5a3dfb" : "#94a3b8", fontWeight: active ? 700 : 600, fontSize:"12px",
-                    }}>{v}%</button>
-                  );
-                })}
-              </div>
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-              <span style={{ fontSize:"13px", fontWeight:600, color:"#324055" }}>Camera</span>
-              <CameraSelect value={camera} onChange={setCamera} />
-            </div>
-            {!isVehicle && (
-              <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-                <span style={{ fontSize:"13px", fontWeight:600, color:"#475469" }}>Quick Attribute Filters</span>
-                <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
-                  <span style={{ fontSize:"13px", fontWeight:600, color:"#64748a", width:"46px" }}>Gender</span>
-                  {GENDER_CHIPS.map(g => <AttrChip key={g} label={g} active={gender===g} onClick={() => setGender(gender===g ? "" : g)} />)}
-                </div>
-                <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
-                  <span style={{ fontSize:"13px", fontWeight:600, color:"#64748a", width:"46px" }}>Apparel</span>
-                  {APPAREL_CHIPS.map(a => <AttrChip key={a} label={a} active={apparel.includes(a)} onClick={() => toggleApparel(a)} />)}
-                </div>
-                <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
-                  <span style={{ fontSize:"13px", fontWeight:600, color:"#64748a", width:"46px" }}>Props</span>
-                  {PROPS_CHIPS.map(p => <AttrChip key={p} label={p} active={props.includes(p)} onClick={() => toggleProps(p)} />)}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_DATA)[number]; onClick: () => void; matchReasons?: string[] }) {
   const status = REID_STATUS_STYLE[p.status];
@@ -1013,7 +1538,7 @@ function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_D
       {/* Same REDFACE badge Live Monitoring's MonitorCard uses — a search shouldn't quietly hide
           that one of its hits is already flagged. */}
       {p.status === "RedFace" && (
-        <div style={{ position:"absolute", bottom:"60px", left:8, fontSize:"8px", fontWeight:800, color:"white",
+        <div style={{ position:"absolute", bottom:"60px", left:8, fontSize:"10px", fontWeight:800, color:"white",
           backgroundColor:"#ef4444", padding:"1px 5px", borderRadius:"2px", letterSpacing:"0.3px" }}>
           REDFACE
         </div>
@@ -1030,7 +1555,7 @@ function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_D
             </span>
           )}
         </div>
-        <span style={{ fontSize:"10px", color:"#94a3b8", fontFamily:"monospace" }}>2026-10-21 {p.time}</span>
+        <span style={{ fontSize:"10px", color:"#94a3b8", fontFamily:"monospace" }}>{cardTimestamp(p.date, p.time)}</span>
       </div>
       {/* Crop of the same big photo (p.url), not p.face — that field cycles through an unrelated
           stock-photo pool, which would show a different person's face here than the body photo
@@ -1042,8 +1567,9 @@ function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_D
   );
 }
 
-function SmartSearchResults({ state, results, onCardClick, onRefine, onReset }:
-  { state: SearchFilterState; results:(typeof REID_DATA); onCardClick:(id:number)=>void; onRefine:()=>void; onReset:()=>void }) {
+function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, topColors, bottomColors, shoesColors, emotion, ethnicGroup }:
+  { state: SearchFilterState; results:(typeof REID_DATA); onCardClick:(id:number)=>void; onRefine:()=>void; onReset:()=>void;
+    topColors: string[]; bottomColors: string[]; shoesColors: string[]; emotion: string; ethnicGroup: string }) {
   const { searchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP, threshold, gender, apparel, props, dateRange, licensePlate, camera } = state;
   // Captured once when results first land, not read live on every render — otherwise "as of"
   // would silently keep advancing on any unrelated re-render, making the Refresh button's job
@@ -1078,11 +1604,17 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset }:
         ...(camera ? [camera] : []),
         ...(searchType === "VEHICLE"
           ? (licensePlate ? [licensePlate] : [])
-          : [...(gender ? [gender] : []), ...apparel, ...props]),
+          : [
+              ...(gender ? [gender] : []), ...apparel, ...props,
+              ...[...topColors, ...bottomColors, ...shoesColors].map(c => c[0].toUpperCase() + c.slice(1)),
+              ...(emotion ? [emotion] : []), ...(ethnicGroup ? [ethnicGroup] : []),
+            ]),
       ];
 
+  const scrollRef = useRef<HTMLDivElement>(null);
   return (
-    <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto", backgroundColor:"#f8fafc" }}>
+    <div style={{ position:"relative", flex:1, overflow:"hidden" }}>
+    <div ref={scrollRef} className="vca-hide-scrollbar" style={{ position:"absolute", inset:0, overflowY:"auto", backgroundColor:"#f8fafc" }}>
       <div style={{ padding:"16px 24px", backgroundColor:"white", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:"12px" }}>
         <div className="vca-hide-scrollbar" style={{ display:"flex", alignItems:"center", gap:"8px", overflowX:"auto" }}>
           {target && (
@@ -1105,11 +1637,11 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset }:
       <div style={{ padding:"16px 24px 0" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px", flexWrap:"wrap", gap:"8px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-            <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Search Results</span>
+            <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Search results</span>
             <span style={{ fontSize:"13px", fontWeight:600, color:"#64748a" }}>{results.length} matches</span>
             <div style={{ width:"1px", height:"12px", backgroundColor:"#e2e8f0" }} />
             <span style={{ fontSize:"13px", color:"#94a3b8" }}>
-              Showing targets above <span style={{ fontWeight:700, color:"#475469" }}>{threshold}%</span> Similarity
+              Showing targets above <span style={{ fontWeight:700, color:"#475469" }}>{threshold}%</span> similarity
             </span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
@@ -1130,6 +1662,8 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset }:
         )}
       </div>
     </div>
+    <ScrollToTopButton containerRef={scrollRef} />
+    </div>
   );
 }
 
@@ -1144,94 +1678,13 @@ interface SearchFilterState {
   gender: string; setGender:(v:string)=>void;
   apparel: string[]; toggleApparel:(v:string)=>void;
   props: string[]; toggleProps:(v:string)=>void;
+  topColors: string[]; toggleTopColor:(v:string)=>void;
+  bottomColors: string[]; toggleBottomColor:(v:string)=>void;
+  shoesColors: string[]; toggleShoesColor:(v:string)=>void;
   dateRange: DateRangeValue; setDateRange:(v:DateRangeValue)=>void;
   licensePlate: string; setLicensePlate:(v:string)=>void;
   camera: string; setCamera:(v:string)=>void;
   reset: () => void;
-}
-
-function SmartSearchContent({ seedCard, onSeedConsumed, onGoRedmap, onGoAnalyzeFrame }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
-  const [searched, setSearched]         = useState(false);
-  const [detailId, setDetailId]         = useState<number|null>(null);
-  const [searchType, setSearchType]     = useState<"PERSON"|"VEHICLE">("PERSON");
-  const [selectedTarget, setSelectedTarget] = useState(-1);
-  const [activeVIP, setActiveVIP]       = useState(-1);
-  const [threshold, setThreshold]       = useState(30);
-  const [gender, setGender]             = useState("");
-  const [apparel, setApparel]           = useState<string[]>([]);
-  const [props, setProps]               = useState<string[]>([]);
-  const [dateRange, setDateRange]       = useState<DateRangeValue>({ start:null, end:null });
-  const [licensePlate, setLicensePlate] = useState("");
-  const [camera, setCamera]             = useState("");
-  // "UNSET" (not seedCard's own initial value) so the block below still fires on this
-  // component's very first render even when seedCard is ALREADY set at mount time — this tab
-  // mounts fresh on every deep-link (it doesn't exist until activeTab switches to it), so
-  // seeding it from "the previous seedCard" would just equal the incoming one and never fire.
-  const [prevSeedCard, setPrevSeedCard] = useState<typeof seedCard | "UNSET">("UNSET");
-
-  const toggleApparel = (a: string) => setApparel(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
-  const toggleProps   = (a: string) => setProps(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
-  const reset = () => { setSearchType("PERSON"); setThreshold(30); setGender(""); setApparel([]); setProps([]); setSelectedTarget(-1); setActiveVIP(-1); setDateRange({ start:null, end:null }); setLicensePlate(""); setCamera(""); };
-
-  // Deep-link from a Live Monitoring card's "Search" hover button — see ReIDContent's identical
-  // block for why camera/gender/date are what get seeded.
-  if (seedCard !== prevSeedCard) {
-    setPrevSeedCard(seedCard);
-    if (seedCard) {
-      setSelectedTarget(-1); setActiveVIP(-1); setApparel([]); setProps([]); setLicensePlate("");
-      setCamera(seedCard.cam);
-      setGender(seedCard.gender === "M" ? "Male" : "Female");
-      const day = new Date(seedCard.date);
-      setDateRange({ start: day, end: day });
-      setSearched(true);
-    }
-  }
-  useEffect(() => {
-    if (seedCard) onSeedConsumed?.();
-  }, [seedCard, onSeedConsumed]);
-
-  // Picking a recent target means "search for someone matching this profile" — it cascades the
-  // target's gender/apparel/props onto the rest of the form, and clicking the same one again
-  // releases it (clears the cascade back out). The two pickers share one image-preview slot, so
-  // selecting either clears the other.
-  const selectRecentTarget = (i: number) => {
-    if (selectedTarget === i) { setSelectedTarget(-1); setGender(""); setApparel([]); setProps([]); return; }
-    setSelectedTarget(i); setActiveVIP(-1);
-    const t = RECENT_TARGETS_EN[i];
-    setGender(t.gender); setApparel([t.apparel]); setProps(t.props);
-  };
-  const selectVIP = (i: number) => {
-    if (activeVIP === i) { setActiveVIP(-1); return; }
-    setActiveVIP(i); setSelectedTarget(-1);
-  };
-
-  const state: SearchFilterState = {
-    searchType, setSearchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP,
-    threshold, setThreshold, gender, setGender, apparel, toggleApparel, props, toggleProps,
-    dateRange, setDateRange, licensePlate, setLicensePlate, camera, setCamera, reset,
-  };
-
-  // A named target means "find this specific person elsewhere" — reuse their own photo across
-  // synthesized appearances instead of filterReidData, whose gender/apparel/props/date cycles are
-  // independent of any given target's cascaded profile and can easily have zero real overlap for
-  // a particular combination (see buildTargetResultRows).
-  const searchTarget = activeVIP >= 0 ? VIP_QUICK[activeVIP] : selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : null;
-  const results = searchType === "PERSON" && searchTarget
-    ? buildTargetResultRows(searchTarget.face, searchTarget.body, searchTarget.gender === "Male" ? "M" : "F", 20)
-        .filter(r => r.similarity >= threshold)
-    : filterReidData({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera });
-  const detailItem = detailId !== null ? results.find(p => p.id===detailId) ?? null : null;
-
-  return (
-    <>
-      {searched
-        ? <SmartSearchResults state={state} results={results} onCardClick={setDetailId}
-            onRefine={() => setSearched(false)} onReset={() => { reset(); setSearched(false); }} />
-        : <SmartSearchForm state={state} onSearch={() => setSearched(true)} />
-      }
-      {detailItem && <DetailModal item={reidToMatchItem(detailItem)} onClose={() => setDetailId(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
-    </>
-  );
 }
 
 // ── Re-ID Analysis Tab ─────────────────────────────────────────
@@ -1262,20 +1715,38 @@ const REID_DATE_CYCLE = [
   "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10",
 ];
 const REID_SIMILARITY_CYCLE = Array.from({ length: 24 }, (_, i) => 62 + ((i * 11) % 38)); // 62–99
+// Backs the Top/Bottom/Shoes color swatches in the Filter tab and RedFace's target picker — those
+// swatches used to toggle "active" with nothing behind them; filterReidData() never received the
+// selection, and REID_DATA had nothing to check it against even if it had. Bottom reuses the same
+// palette as top but rotated, so the two don't always land on the same color for a given person.
+const REID_TOP_COLOR_CYCLE = APPAREL_COLORS.map(c => c.id);
+const REID_BOTTOM_COLOR_CYCLE = [...REID_TOP_COLOR_CYCLE.slice(6), ...REID_TOP_COLOR_CYCLE.slice(0, 6)];
+const REID_SHOES_COLOR_CYCLE = SHOE_COLORS.map(c => c.id);
+// Same story as the colors above — Emotion/Ethnic group used to be plain inputs with nothing on
+// REID_DATA to check them against (see the "no backing field" comment that used to sit on their
+// state in LiveMonitoringTab/ReIDContent). Ethnic group is rotated by one relative to
+// ETHNIC_GROUP_OPTIONS so it doesn't always land in lockstep with shoesColor (both cycle length 4).
+const REID_EMOTION_CYCLE = EMOTION_OPTIONS;
+const REID_ETHNIC_GROUP_CYCLE = [...ETHNIC_GROUP_OPTIONS.slice(1), ...ETHNIC_GROUP_OPTIONS.slice(0, 1)];
 
 export const REID_DATA = PERSONS.map((p, i) => ({
   ...p,
-  status:     REID_STATUS_CYCLE[i % REID_STATUS_CYCLE.length] as ReIDStatus,
-  gender:     REID_GENDER_CYCLE[i % REID_GENDER_CYCLE.length],
-  age:        REID_AGE_CYCLE[i % REID_AGE_CYCLE.length],
-  score:      REID_SCORE_CYCLE[i % REID_SCORE_CYCLE.length],
-  cam:        REID_CAM_CYCLE[i % REID_CAM_CYCLE.length],
-  face:       REID_FACE_POOL[i % REID_FACE_POOL.length],
-  apparel:    REID_APPAREL_CYCLE[i % REID_APPAREL_CYCLE.length],
-  prop:       REID_PROP_CYCLE[i % REID_PROP_CYCLE.length],
-  date:       REID_DATE_CYCLE[i % REID_DATE_CYCLE.length],
-  similarity: REID_SIMILARITY_CYCLE[i % REID_SIMILARITY_CYCLE.length],
-  plate:      null as string | null,
+  status:      REID_STATUS_CYCLE[i % REID_STATUS_CYCLE.length] as ReIDStatus,
+  gender:      REID_GENDER_CYCLE[i % REID_GENDER_CYCLE.length],
+  age:         REID_AGE_CYCLE[i % REID_AGE_CYCLE.length],
+  score:       REID_SCORE_CYCLE[i % REID_SCORE_CYCLE.length],
+  cam:         REID_CAM_CYCLE[i % REID_CAM_CYCLE.length],
+  face:        REID_FACE_POOL[i % REID_FACE_POOL.length],
+  apparel:     REID_APPAREL_CYCLE[i % REID_APPAREL_CYCLE.length],
+  prop:        REID_PROP_CYCLE[i % REID_PROP_CYCLE.length],
+  date:        REID_DATE_CYCLE[i % REID_DATE_CYCLE.length],
+  similarity:  REID_SIMILARITY_CYCLE[i % REID_SIMILARITY_CYCLE.length],
+  topColor:    REID_TOP_COLOR_CYCLE[i % REID_TOP_COLOR_CYCLE.length],
+  bottomColor: REID_BOTTOM_COLOR_CYCLE[i % REID_BOTTOM_COLOR_CYCLE.length],
+  shoesColor:  REID_SHOES_COLOR_CYCLE[i % REID_SHOES_COLOR_CYCLE.length],
+  emotion:     REID_EMOTION_CYCLE[i % REID_EMOTION_CYCLE.length],
+  ethnicGroup: REID_ETHNIC_GROUP_CYCLE[i % REID_ETHNIC_GROUP_CYCLE.length],
+  plate:       null as string | null,
 }));
 
 // ── Vehicle search dataset (Figma node 182:14807 — VEHICLE mode filter is License plate only,
@@ -1312,6 +1783,7 @@ export const VEHICLE_DATA = VEHICLE_PLATES.map((plate, i) => {
     apparel: "", prop: null as string | null,
     date: REID_DATE_CYCLE[i % REID_DATE_CYCLE.length],
     similarity: REID_SIMILARITY_CYCLE[i % REID_SIMILARITY_CYCLE.length],
+    topColor: "", bottomColor: "", shoesColor: "", emotion: "", ethnicGroup: "",
     plate: plate as string | null,
   };
 });
@@ -1322,6 +1794,8 @@ export const VEHICLE_DATA = VEHICLE_PLATES.map((plate, i) => {
 function filterReidData(f: {
   searchType: "PERSON" | "VEHICLE"; gender: string; apparel: string[]; props: string[];
   dateRange: DateRangeValue; threshold: number; licensePlate?: string; camera?: string;
+  topColors?: string[]; bottomColors?: string[]; shoesColors?: string[];
+  emotion?: string; ethnicGroup?: string;
 }): typeof REID_DATA {
   // An untouched date range isn't "any time ever" — it defaults to the last 7 days, same as the
   // trigger's "Last 7 days" placeholder implies.
@@ -1354,6 +1828,11 @@ function filterReidData(f: {
     .filter(p => !f.camera || p.cam === f.camera)
     .filter(p => p.similarity >= f.threshold)
     .filter(p => inDateRange(p.date))
+    .filter(p => !f.topColors?.length || f.topColors.includes(p.topColor))
+    .filter(p => !f.bottomColors?.length || f.bottomColors.includes(p.bottomColor))
+    .filter(p => !f.shoesColors?.length || f.shoesColors.includes(p.shoesColor))
+    .filter(p => !f.emotion || p.emotion === f.emotion)
+    .filter(p => !f.ethnicGroup || p.ethnicGroup === f.ethnicGroup)
     .sort((a, b) => b.similarity - a.similarity);
 }
 
@@ -1364,6 +1843,9 @@ interface ReidCluster {
   meta: { label: string; value: string }[];
   action: string;
   matches: MatchItem[];
+  /** VIP identity (real name, from VIP_QUICK) vs. an Unknown sighting (arbitrary target label) —
+   * see generateNewRecognition() below. Drives the crown badge next to the title. */
+  isVip?: boolean;
 }
 
 // Unsplash serves images through imgix, so appending its query params re-renders the same
@@ -1385,6 +1867,10 @@ function withMatchVariation(url: string, i: number): string {
 // for one person crossing multiple cameras.
 function buildSuspectMatches(person: (typeof REID_DATA)[number], count: number): MatchItem[] {
   const base = reidToMatchItem(person);
+  // Spans 97% down to ~32% across the whole batch (not a fixed 0.8/step, which used to compress
+  // every match into a narrow 82-97% band regardless of `count`) — a "Min Similarity: 30%" filter
+  // elsewhere in the app only means something if results actually exist down near that floor.
+  const step = count > 1 ? 65 / (count - 1) : 0;
   return Array.from({ length: count }, (_, i) => ({
     ...base,
     id: person.id * 1000 + i,
@@ -1392,7 +1878,7 @@ function buildSuspectMatches(person: (typeof REID_DATA)[number], count: number):
     body: withMatchVariation(base.body, i),
     cam: CAMERA_OPTIONS[i % CAMERA_OPTIONS.length],
     time: TIMES_P[i % TIMES_P.length],
-    similarity: Math.round((97 - i * 0.8) * 10) / 10,
+    similarity: Math.round((97 - i * step) * 10) / 10,
   }));
 }
 
@@ -1406,6 +1892,10 @@ function buildSuspectMatches(person: (typeof REID_DATA)[number], count: number):
 // date combination can easily have no real overlap at all — the target is a person we already
 // have a photo of, not a filter that might come up empty.
 function buildTargetResultRows(face: string, body: string, genderAbbrev: "M" | "F", count: number): typeof REID_DATA {
+  // Same reasoning as buildSuspectMatches: span 97% down to ~32% across the batch instead of a
+  // fixed 0.8/step that compressed every result into a narrow 82-97% band no matter how low a
+  // "Min Similarity" threshold was actually set to.
+  const step = count > 1 ? 65 / (count - 1) : 0;
   return Array.from({ length: count }, (_, i) => ({
     id: 700000 + i,
     url: withMatchVariation(body, i),
@@ -1414,13 +1904,18 @@ function buildTargetResultRows(face: string, body: string, genderAbbrev: "M" | "
     badge: null as number | null,
     status: "Unknown" as ReIDStatus,
     cam: CAMERA_OPTIONS[i % CAMERA_OPTIONS.length],
-    similarity: Math.round((97 - i * 0.8) * 10) / 10,
+    similarity: Math.round((97 - i * step) * 10) / 10,
     gender: genderAbbrev,
     age: "--",
     score: null as number | null,
     apparel: "",
     prop: null as string | null,
     date: REID_DATE_CYCLE[i % REID_DATE_CYCLE.length],
+    topColor: REID_TOP_COLOR_CYCLE[i % REID_TOP_COLOR_CYCLE.length],
+    bottomColor: REID_BOTTOM_COLOR_CYCLE[i % REID_BOTTOM_COLOR_CYCLE.length],
+    shoesColor: REID_SHOES_COLOR_CYCLE[i % REID_SHOES_COLOR_CYCLE.length],
+    emotion: REID_EMOTION_CYCLE[i % REID_EMOTION_CYCLE.length],
+    ethnicGroup: REID_ETHNIC_GROUP_CYCLE[i % REID_ETHNIC_GROUP_CYCLE.length],
     plate: null as string | null,
   }));
 }
@@ -1481,7 +1976,7 @@ function ClusterMatchCard({ item, onClick }: { item: MatchItem; onClick?: () => 
         <span style={{ fontSize:"10px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.2px", fontFamily: item.plate ? "monospace" : undefined }}>
           {item.plate ?? item.cam}
         </span>
-        <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8", letterSpacing:"-0.2px" }}>{item.time}</span>
+        <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8", letterSpacing:"-0.2px" }}>{cardTimestamp(item.date, item.time)}</span>
       </div>
     </div>
   );
@@ -1494,7 +1989,12 @@ function ClusterCard({ cluster, onNavigateTab, onMatchClick }: { cluster: ReidCl
         <div style={{ display:"flex", alignItems:"center", gap:"16px", minWidth:0 }}>
           <img src={cluster.thumbnail} alt="" style={{ width:"48px", height:"48px", borderRadius:"8px", objectFit:"cover", flexShrink:0 }} />
           <div style={{ display:"flex", flexDirection:"column", gap:"4px", minWidth:0 }}>
-            <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px", whiteSpace:"nowrap" }}>{cluster.title}</span>
+            <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+              <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px", whiteSpace:"nowrap" }}>{cluster.title}</span>
+              {cluster.isVip && (
+                <span style={{ fontSize:"10px", fontWeight:800, color:"#5a3dfb", backgroundColor:"#ece9ff", padding:"2px 7px", borderRadius:"999px", letterSpacing:"-0.2px" }}>VIP</span>
+              )}
+            </div>
             <div style={{ display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
               {cluster.meta.map((m, i) => (
                 <React.Fragment key={m.label}>
@@ -1518,7 +2018,7 @@ function ClusterCard({ cluster, onNavigateTab, onMatchClick }: { cluster: ReidCl
   );
 }
 
-const VIP_QUICK = [
+export const VIP_QUICK = [
   { name:"Mina", face: MATCH_DATA[0].face, body: MATCH_DATA[0].body, gender:"Female" },
   { name:"Joon", face: MATCH_DATA[1].face, body: MATCH_DATA[1].body, gender:"Male" },
   { name:"Taeho", face: MATCH_DATA[3].face, body: MATCH_DATA[3].body, gender:"Male" },
@@ -1536,9 +2036,63 @@ const VIP_QUICK = [
   { name:"Hyunwoo", face: MATCH_DATA[6].face, body: MATCH_DATA[6].body, gender:"Male" },
 ];
 
+// The Re-ID Analysis landing view used to be two permanently-fixed example clusters — this
+// simulates Live Monitoring actually recognizing someone: most sightings (~70%) are an unnamed
+// passerby (an arbitrary target label, since there's no real identity behind them), the rest are
+// one of VIP_QUICK's registered VIPs. A VIP who's *already* in the visible list gets this new
+// sighting ADDED to their existing cluster (so "everywhere they've been captured" actually grows)
+// and bumped to the top, instead of splitting into a second, disconnected cluster for the same
+// person.
+function randomTargetName(): string {
+  return `Target #${Math.floor(1000 + Math.random() * 9000)}`;
+}
+function generateNewRecognition(existingClusters: ReidCluster[]): ReidCluster[] {
+  const now = new Date();
+  const date = formatCapturedDate(now);
+  const time = formatCapturedTime(now);
+  const cam = CAMERA_OPTIONS[Math.floor(Math.random() * CAMERA_OPTIONS.length)];
+  const similarity = Math.round((80 + Math.random() * 18) * 10) / 10;
+  const matchId = Date.now() + Math.floor(Math.random() * 1000);
+
+  if (Math.random() < 0.3) {
+    const vip = VIP_QUICK[Math.floor(Math.random() * VIP_QUICK.length)];
+    const genderAbbrev = vip.gender === "Male" ? "M" : "F";
+    const newMatch: MatchItem = { id:matchId, face:vip.face, body:vip.body, cam, date, time, similarity, gender:genderAbbrev, age:"--", plate:null, status:"VIP" };
+    const existing = existingClusters.find(c => c.id === `vip-${vip.name}`);
+    if (existing) {
+      const bumped: ReidCluster = { ...existing, matches: [newMatch, ...existing.matches] };
+      return [bumped, ...existingClusters.filter(c => c.id !== existing.id)];
+    }
+    // A brand-new cluster starts with a full re-id history (20 past appearances), not just this
+    // one fresh hit — a single photo doesn't read as "this identity has been re-identified
+    // across cameras," which is the whole point of a Re-ID cluster (same generator Recent
+    // Targets/VIP Quick Select search results already use for exactly this).
+    const history = buildTargetResultRows(vip.face, vip.body, genderAbbrev, 20).map(reidToMatchItem);
+    const fresh: ReidCluster = {
+      id: `vip-${vip.name}`, thumbnail: vip.face, title: vip.name,
+      meta: [{ label:"Gender", value:genderAbbrev }],
+      action: "RedFace", matches: [newMatch, ...history], isVip: true,
+    };
+    return [fresh, ...existingClusters];
+  }
+
+  const genderAbbrev = Math.random() < 0.5 ? "M" : "F";
+  const age = `${20 + Math.floor(Math.random() * 4) * 10}s`;
+  const photo = MATCH_DATA[Math.floor(Math.random() * MATCH_DATA.length)];
+  const newMatch: MatchItem = { id:matchId, face:photo.face, body:photo.body, cam, date, time, similarity, gender:genderAbbrev, age, plate:null, status:"Unknown" };
+  const history = buildTargetResultRows(photo.face, photo.body, genderAbbrev, 20).map(reidToMatchItem);
+  const fresh: ReidCluster = {
+    id: `unk-${matchId}`, thumbnail: photo.face, title: randomTargetName(),
+    meta: [{ label:"Gender", value:genderAbbrev }, { label:"Age", value:age }],
+    action: "RedFace", matches: [newMatch, ...history], isVip: false,
+  };
+  return [fresh, ...existingClusters];
+}
+const LIVE_RECOGNITION_FEED_CAP = 8;
+
 // gender/apparel/props here are what picking this target cascades onto the rest of the filter
 // form — a recent target isn't just a photo, it's "search for someone matching this profile".
-const RECENT_TARGETS_EN = [
+export const RECENT_TARGETS_EN = [
   { face: RECENT_TARGETS[0].face, body: RECENT_TARGETS[0].body, label:"Target 1024", time:"today 12:50", gender:"Female", apparel:"Skirts", props: [] as string[] },
   { face: RECENT_TARGETS[1].face, body: RECENT_TARGETS[1].body, label:"Target #254",  time:"today 13:21", gender:"Male", apparel:"Trousers", props: ["Backpack/Bag"] },
   { face: RECENT_TARGETS[2].face, body: RECENT_TARGETS[2].body, label:"Target #092",  time:"yesterday 18:30", gender:"Female", apparel:"Long Sleeve", props: ["Hat"] },
@@ -1552,9 +2106,9 @@ function PersonIconSm() {
     </svg>
   );
 }
-function VehicleIconSm() {
+function VehicleIconSm({ size = 16 }: { size?: number } = {}) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
       <path d="M12.6672 11.3327H14.0007C14.4007 11.3327 14.6674 11.066 14.6674 10.666V8.66585C14.6674 8.0658 14.2007 7.53242 13.6673 7.39908C12.4672 7.06572 10.6671 6.66569 10.6671 6.66569C10.6671 6.66569 9.80035 5.73228 9.2003 5.13223C8.86694 4.86554 8.46691 4.66553 8.00021 4.66553H3.33317C2.93314 4.66553 2.59978 4.93222 2.39976 5.26558L1.46635 7.19906C1.37806 7.45657 1.33301 7.72691 1.33301 7.99913V10.666C1.33301 11.066 1.5997 11.3327 1.99973 11.3327H3.33317" stroke="currentColor" strokeLinecap="round"/>
       <path d="M4.66634 12.6667C5.40272 12.6667 5.99967 12.0697 5.99967 11.3333C5.99967 10.597 5.40272 10 4.66634 10C3.92996 10 3.33301 10.597 3.33301 11.3333C3.33301 12.0697 3.92996 12.6667 4.66634 12.6667Z" stroke="currentColor" strokeLinecap="round"/>
       <path d="M6 11.334H10" stroke="currentColor" strokeLinecap="round"/>
@@ -1569,32 +2123,31 @@ function HistoryIconSm() {
     </svg>
   );
 }
-function StarIconSm() {
+function ImageIconSm({ size = 16 }: { size?: number }) {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+      <circle cx="9" cy="9" r="2"/>
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+    </svg>
+  );
+}
+function StarIconSm({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none">
       <path d="M5.78072 1.63235C5.80231 1.59316 5.83401 1.56047 5.87253 1.5377C5.91105 1.51494 5.95498 1.50293 5.99972 1.50293C6.04447 1.50293 6.0884 1.51494 6.12692 1.5377C6.16544 1.56047 6.19714 1.59316 6.21872 1.63235L7.69472 4.43435C7.72992 4.49923 7.77905 4.55552 7.83858 4.59916C7.89811 4.64281 7.96656 4.67273 8.03902 4.68678C8.11149 4.70083 8.18616 4.69867 8.25769 4.68044C8.32922 4.66221 8.39583 4.62837 8.45272 4.58135L10.5912 2.74935C10.6323 2.71596 10.6829 2.69646 10.7357 2.69365C10.7885 2.69084 10.8409 2.70487 10.8853 2.73373C10.9296 2.76258 10.9637 2.80476 10.9826 2.8542C11.0014 2.90364 11.0041 2.95779 10.9902 3.00885L9.57322 8.13185C9.5443 8.23669 9.48199 8.32923 9.39573 8.39546C9.30947 8.46169 9.20397 8.49799 9.09522 8.49885H2.90472C2.79589 8.49809 2.69028 8.46184 2.60392 8.39561C2.51756 8.32937 2.45517 8.23677 2.42622 8.13185L1.00972 3.00935C0.995849 2.95829 0.998535 2.90414 1.01739 2.8547C1.03625 2.80526 1.07032 2.76308 1.11467 2.73423C1.15903 2.70537 1.2114 2.69134 1.26424 2.69415C1.31708 2.69696 1.36767 2.71646 1.40872 2.74985L3.54672 4.58185C3.60362 4.62887 3.67023 4.66271 3.74176 4.68094C3.81328 4.69917 3.88796 4.70134 3.96042 4.68728C4.03289 4.67323 4.10134 4.64331 4.16087 4.59966C4.2204 4.55602 4.26953 4.49973 4.30472 4.43485L5.78072 1.63235Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M2.5 10.5H9.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
-function CalendarIconSm() {
+// Color/size match DefaultFaceIconSm/FullBodyIconSm (the "Search by image" icons directly above
+// this in RedFace's target picker) so the filter icons below read as the same icon language —
+// size defaults to that same #94A3B8 muted tone; callers pass a bigger size where they sit near
+// those larger icons.
+function CalendarIconSm({ size = 14, color = "#94A3B8" }: { size?: number; color?: string }) {
   return (
-    <svg width="14" height="14" viewBox="21 14 14 14" fill="none">
-      <path d="M31.2 14.5107C31.2495 14.5109 31.2897 14.5511 31.2898 14.6006V15.5771H33.3328C33.9713 15.5771 34.4888 16.0949 34.489 16.7334V26.333C34.489 26.9717 33.9715 27.4893 33.3328 27.4893H22.6667C22.0281 27.4891 21.5105 26.9716 21.5105 26.333V16.7334C21.5107 16.095 22.0283 15.5773 22.6667 15.5771H24.7107V14.6006C24.7107 14.551 24.7509 14.5107 24.8005 14.5107C24.85 14.5109 24.8903 14.5511 24.8904 14.6006V15.5771H31.1101V14.6006C31.1102 14.551 31.1503 14.5107 31.2 14.5107ZM21.6902 26.333C21.6902 26.8722 22.1275 27.3094 22.6667 27.3096H33.3328C33.8721 27.3096 34.3093 26.8723 34.3093 26.333V18.957H21.6902V26.333ZM23.7332 25.1768C23.7828 25.1768 23.824 25.217 23.824 25.2666C23.8239 25.3162 23.7828 25.3564 23.7332 25.3564C23.6837 25.3562 23.6434 25.3161 23.6433 25.2666C23.6433 25.2171 23.6837 25.177 23.7332 25.1768ZM25.8669 25.1768C25.9165 25.1769 25.9568 25.217 25.9568 25.2666C25.9567 25.3162 25.9165 25.3564 25.8669 25.3564C25.8173 25.3564 25.7771 25.3162 25.7771 25.2666C25.7771 25.217 25.8173 25.1768 25.8669 25.1768ZM27.9998 25.1768C28.0494 25.1768 28.0896 25.217 28.0896 25.2666C28.0896 25.3162 28.0494 25.3564 27.9998 25.3564C27.9502 25.3563 27.91 25.3162 27.9099 25.2666C27.9099 25.217 27.9502 25.1769 27.9998 25.1768ZM30.1335 25.1768C30.183 25.177 30.2234 25.2171 30.2234 25.2666C30.2233 25.3161 30.183 25.3562 30.1335 25.3564C30.0839 25.3564 30.0428 25.3162 30.0427 25.2666C30.0427 25.217 30.0839 25.1768 30.1335 25.1768ZM23.7332 23.043C23.7828 23.043 23.824 23.0841 23.824 23.1338C23.8237 23.1833 23.7827 23.2236 23.7332 23.2236C23.6838 23.2234 23.6435 23.1831 23.6433 23.1338C23.6433 23.0843 23.6837 23.0432 23.7332 23.043ZM25.8669 23.043C25.9165 23.0431 25.9568 23.0842 25.9568 23.1338C25.9566 23.1832 25.9164 23.2235 25.8669 23.2236C25.8174 23.2236 25.7773 23.1833 25.7771 23.1338C25.7771 23.0841 25.8173 23.043 25.8669 23.043ZM27.9998 23.043C28.0494 23.043 28.0896 23.0841 28.0896 23.1338C28.0894 23.1833 28.0493 23.2236 27.9998 23.2236C27.9503 23.2235 27.9101 23.1832 27.9099 23.1338C27.9099 23.0842 27.9502 23.0431 27.9998 23.043ZM30.1335 23.043C30.183 23.0432 30.2234 23.0843 30.2234 23.1338C30.2232 23.1831 30.1829 23.2234 30.1335 23.2236C30.084 23.2236 30.043 23.1833 30.0427 23.1338C30.0427 23.0841 30.0839 23.043 30.1335 23.043ZM32.2664 23.043C32.316 23.043 32.3562 23.0842 32.3562 23.1338C32.356 23.1832 32.3158 23.2236 32.2664 23.2236C32.2169 23.2236 32.1768 23.1832 32.1765 23.1338C32.1765 23.0841 32.2167 23.043 32.2664 23.043ZM27.9998 20.9102C28.0494 20.9102 28.0895 20.9504 28.0896 21C28.0896 21.0497 28.0494 21.0898 27.9998 21.0898C27.9502 21.0897 27.9099 21.0496 27.9099 21C27.91 20.9505 27.9502 20.9103 27.9998 20.9102ZM30.1335 20.9102C30.183 20.9104 30.2233 20.9506 30.2234 21C30.2234 21.0495 30.183 21.0896 30.1335 21.0898C30.0839 21.0898 30.0427 21.0497 30.0427 21C30.0428 20.9504 30.0839 20.9102 30.1335 20.9102ZM32.2664 20.9102C32.3159 20.9102 32.3561 20.9505 32.3562 21C32.3562 21.0496 32.316 21.0898 32.2664 21.0898C32.2167 21.0898 32.1765 21.0496 32.1765 21C32.1766 20.9504 32.2168 20.9102 32.2664 20.9102ZM22.6667 15.7568C22.1276 15.757 21.6904 16.1943 21.6902 16.7334V18.7773H34.3093V16.7334C34.3091 16.1942 33.8719 15.7568 33.3328 15.7568H31.2898V16.7334C31.2898 16.783 31.2495 16.8241 31.2 16.8242C31.1503 16.8242 31.1101 16.783 31.1101 16.7334V15.7568H24.8904V16.7334C24.8904 16.783 24.85 16.824 24.8005 16.8242C24.7509 16.8242 24.7107 16.7831 24.7107 16.7334V15.7568H22.6667Z" fill="#64748A" stroke="#64748A" strokeWidth="0.8867"/>
-    </svg>
-  );
-}
-function DropzoneFaceIconSm() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M12.875 7.66667C12.875 4.9737 10.693 2.79167 8 2.79167C5.30703 2.79167 3.125 4.9737 3.125 7.66667C3.125 10.3596 5.30703 12.5417 8 12.5417C10.693 12.5417 12.875 10.3596 12.875 7.66667ZM2 7.66667C2 4.3526 4.68594 1.66667 8 1.66667C11.3141 1.66667 14 4.3526 14 7.66667C14 10.9807 11.3141 13.6667 8 13.6667C4.68594 13.6667 2 10.9807 2 7.66667ZM6.15547 9.1526C6.50703 9.51823 7.11875 9.91667 8 9.91667C8.88125 9.91667 9.49297 9.51823 9.84453 9.1526C10.0602 8.9276 10.4164 8.92057 10.6391 9.1362C10.8617 9.35182 10.8711 9.70807 10.6555 9.93073C10.1375 10.4698 9.24922 11.0417 8 11.0417C6.75078 11.0417 5.8625 10.4698 5.34453 9.93073C5.12891 9.70573 5.13594 9.34948 5.36094 9.1362C5.58594 8.92292 5.94219 8.9276 6.15547 9.1526ZM5.375 6.54167C5.375 6.12682 5.71016 5.79167 6.125 5.79167C6.53984 5.79167 6.875 6.12682 6.875 6.54167C6.875 6.95651 6.53984 7.29167 6.125 7.29167C5.71016 7.29167 5.375 6.95651 5.375 6.54167ZM9.875 5.79167C10.2898 5.79167 10.625 6.12682 10.625 6.54167C10.625 6.95651 10.2898 7.29167 9.875 7.29167C9.46016 7.29167 9.125 6.95651 9.125 6.54167C9.125 6.12682 9.46016 5.79167 9.875 5.79167Z" fill="#324055"/>
-    </svg>
-  );
-}
-function DropzoneBodyIconSm() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M9.69575 2.75C9.69575 1.78477 8.93481 1 7.99888 1C7.06294 1 6.302 1.78477 6.302 2.75C6.302 3.71523 7.06294 4.5 7.99888 4.5C8.93481 4.5 9.69575 3.71523 9.69575 2.75ZM6.96219 5.6293C6.33382 5.39961 5.78233 4.96484 5.40319 4.37695L4.88617 3.57578C4.62634 3.17383 4.10137 3.06719 3.71161 3.33516C3.32186 3.60312 3.21581 4.14453 3.47564 4.54922L3.99266 5.34766C4.47256 6.08867 5.12744 6.67109 5.87778 7.05391V14.125C5.87778 14.609 6.25693 15 6.72622 15C7.19551 15 7.57466 14.609 7.57466 14.125V11.5H8.42309V14.125C8.42309 14.609 8.80224 15 9.27153 15C9.74082 15 10.12 14.609 10.12 14.125V7.05938C10.8915 6.67109 11.5623 6.06953 12.0475 5.30391L12.5301 4.54102C12.7846 4.13633 12.6732 3.59492 12.2808 3.32969C11.8884 3.06445 11.3635 3.1793 11.1063 3.58672L10.6237 4.34687C10.0457 5.26016 9.06207 5.8125 8.00418 5.8125C7.67011 5.8125 7.34399 5.75781 7.03378 5.65391C7.00992 5.6457 6.98605 5.63477 6.96219 5.6293Z" stroke="#324055"/>
+    <svg width={size} height={size} viewBox="21 14 14 14" fill="none">
+      <path d="M31.2 14.5107C31.2495 14.5109 31.2897 14.5511 31.2898 14.6006V15.5771H33.3328C33.9713 15.5771 34.4888 16.0949 34.489 16.7334V26.333C34.489 26.9717 33.9715 27.4893 33.3328 27.4893H22.6667C22.0281 27.4891 21.5105 26.9716 21.5105 26.333V16.7334C21.5107 16.095 22.0283 15.5773 22.6667 15.5771H24.7107V14.6006C24.7107 14.551 24.7509 14.5107 24.8005 14.5107C24.85 14.5109 24.8903 14.5511 24.8904 14.6006V15.5771H31.1101V14.6006C31.1102 14.551 31.1503 14.5107 31.2 14.5107ZM21.6902 26.333C21.6902 26.8722 22.1275 27.3094 22.6667 27.3096H33.3328C33.8721 27.3096 34.3093 26.8723 34.3093 26.333V18.957H21.6902V26.333ZM23.7332 25.1768C23.7828 25.1768 23.824 25.217 23.824 25.2666C23.8239 25.3162 23.7828 25.3564 23.7332 25.3564C23.6837 25.3562 23.6434 25.3161 23.6433 25.2666C23.6433 25.2171 23.6837 25.177 23.7332 25.1768ZM25.8669 25.1768C25.9165 25.1769 25.9568 25.217 25.9568 25.2666C25.9567 25.3162 25.9165 25.3564 25.8669 25.3564C25.8173 25.3564 25.7771 25.3162 25.7771 25.2666C25.7771 25.217 25.8173 25.1768 25.8669 25.1768ZM27.9998 25.1768C28.0494 25.1768 28.0896 25.217 28.0896 25.2666C28.0896 25.3162 28.0494 25.3564 27.9998 25.3564C27.9502 25.3563 27.91 25.3162 27.9099 25.2666C27.9099 25.217 27.9502 25.1769 27.9998 25.1768ZM30.1335 25.1768C30.183 25.177 30.2234 25.2171 30.2234 25.2666C30.2233 25.3161 30.183 25.3562 30.1335 25.3564C30.0839 25.3564 30.0428 25.3162 30.0427 25.2666C30.0427 25.217 30.0839 25.1768 30.1335 25.1768ZM23.7332 23.043C23.7828 23.043 23.824 23.0841 23.824 23.1338C23.8237 23.1833 23.7827 23.2236 23.7332 23.2236C23.6838 23.2234 23.6435 23.1831 23.6433 23.1338C23.6433 23.0843 23.6837 23.0432 23.7332 23.043ZM25.8669 23.043C25.9165 23.0431 25.9568 23.0842 25.9568 23.1338C25.9566 23.1832 25.9164 23.2235 25.8669 23.2236C25.8174 23.2236 25.7773 23.1833 25.7771 23.1338C25.7771 23.0841 25.8173 23.043 25.8669 23.043ZM27.9998 23.043C28.0494 23.043 28.0896 23.0841 28.0896 23.1338C28.0894 23.1833 28.0493 23.2236 27.9998 23.2236C27.9503 23.2235 27.9101 23.1832 27.9099 23.1338C27.9099 23.0842 27.9502 23.0431 27.9998 23.043ZM30.1335 23.043C30.183 23.0432 30.2234 23.0843 30.2234 23.1338C30.2232 23.1831 30.1829 23.2234 30.1335 23.2236C30.084 23.2236 30.043 23.1833 30.0427 23.1338C30.0427 23.0841 30.0839 23.043 30.1335 23.043ZM32.2664 23.043C32.316 23.043 32.3562 23.0842 32.3562 23.1338C32.356 23.1832 32.3158 23.2236 32.2664 23.2236C32.2169 23.2236 32.1768 23.1832 32.1765 23.1338C32.1765 23.0841 32.2167 23.043 32.2664 23.043ZM27.9998 20.9102C28.0494 20.9102 28.0895 20.9504 28.0896 21C28.0896 21.0497 28.0494 21.0898 27.9998 21.0898C27.9502 21.0897 27.9099 21.0496 27.9099 21C27.91 20.9505 27.9502 20.9103 27.9998 20.9102ZM30.1335 20.9102C30.183 20.9104 30.2233 20.9506 30.2234 21C30.2234 21.0495 30.183 21.0896 30.1335 21.0898C30.0839 21.0898 30.0427 21.0497 30.0427 21C30.0428 20.9504 30.0839 20.9102 30.1335 20.9102ZM32.2664 20.9102C32.3159 20.9102 32.3561 20.9505 32.3562 21C32.3562 21.0496 32.316 21.0898 32.2664 21.0898C32.2167 21.0898 32.1765 21.0496 32.1765 21C32.1766 20.9504 32.2168 20.9102 32.2664 20.9102ZM22.6667 15.7568C22.1276 15.757 21.6904 16.1943 21.6902 16.7334V18.7773H34.3093V16.7334C34.3091 16.1942 33.8719 15.7568 33.3328 15.7568H31.2898V16.7334C31.2898 16.783 31.2495 16.8241 31.2 16.8242C31.1503 16.8242 31.1101 16.783 31.1101 16.7334V15.7568H24.8904V16.7334C24.8904 16.783 24.85 16.824 24.8005 16.8242C24.7509 16.8242 24.7107 16.7831 24.7107 16.7334V15.7568H22.6667Z" fill={color} stroke={color} strokeWidth="0.8867"/>
     </svg>
   );
 }
@@ -1611,40 +2164,11 @@ function LicensePlateIconSm() {
     </svg>
   );
 }
-function FilterSlidersIconSm() {
-  return (
-    <svg width="12" height="12" viewBox="22 15 12 12" fill="none">
-      <path d="M30.6667 19.6667V22.3333M22 21H28M30.6667 21H34M25.3333 24.3333V27M28 25.6667H34M22 25.6667H25.3333M26.6667 15V17.6667M29.3333 16.3333H34M22 16.3333H26.6667" stroke="#475469" strokeLinecap="round"/>
-    </svg>
-  );
-}
 function ResetIconSm() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <path d="M2 8C2 9.18669 2.35189 10.3467 3.01118 11.3334C3.67047 12.3201 4.60754 13.0892 5.7039 13.5433C6.80026 13.9974 8.00666 14.1162 9.17054 13.8847C10.3344 13.6532 11.4035 13.0818 12.2426 12.2426C13.0818 11.4035 13.6532 10.3344 13.8847 9.17054C14.1162 8.00666 13.9974 6.80026 13.5433 5.7039C13.0892 4.60754 12.3201 3.67047 11.3334 3.01118C10.3467 2.35189 9.18669 2 8 2C6.32263 2.00631 4.71265 2.66082 3.50667 3.82667L2 5.33333" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M2 2V5.33333H5.33333" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
-function SmartSearchTitleIconSm() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M21.0002 21.0002L16.6602 16.6602" stroke="#5A3DFB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z" stroke="#5A3DFB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
-function SmartSearchFaceIconSm() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M16.0938 9.58301C16.0938 6.2168 13.3662 3.48926 10 3.48926C6.63379 3.48926 3.90625 6.2168 3.90625 9.58301C3.90625 12.9492 6.63379 15.6768 10 15.6768C13.3662 15.6768 16.0938 12.9492 16.0938 9.58301ZM2.5 9.58301C2.5 5.44043 5.85742 2.08301 10 2.08301C14.1426 2.08301 17.5 5.44043 17.5 9.58301C17.5 13.7256 14.1426 17.083 10 17.083C5.85742 17.083 2.5 13.7256 2.5 9.58301ZM7.69434 11.4404C8.13379 11.8975 8.89844 12.3955 10 12.3955C11.1016 12.3955 11.8662 11.8975 12.3057 11.4404C12.5752 11.1592 13.0205 11.1504 13.2988 11.4199C13.5771 11.6895 13.5889 12.1348 13.3193 12.4131C12.6719 13.0869 11.5615 13.8018 10 13.8018C8.43848 13.8018 7.32812 13.0869 6.68066 12.4131C6.41113 12.1318 6.41992 11.6865 6.70117 11.4199C6.98242 11.1533 7.42773 11.1592 7.69434 11.4404ZM6.71875 8.17676C6.71875 7.6582 7.1377 7.23926 7.65625 7.23926C8.1748 7.23926 8.59375 7.6582 8.59375 8.17676C8.59375 8.69531 8.1748 9.11426 7.65625 9.11426C7.1377 9.11426 6.71875 8.69531 6.71875 8.17676ZM12.3438 7.23926C12.8623 7.23926 13.2812 7.6582 13.2812 8.17676C13.2812 8.69531 12.8623 9.11426 12.3438 9.11426C11.8252 9.11426 11.4062 8.69531 11.4062 8.17676C11.4062 7.6582 11.8252 7.23926 12.3438 7.23926Z" fill="#324055"/>
-    </svg>
-  );
-}
-function SmartSearchBodyIconSm() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M12.1195 3.4375C12.1195 2.23096 11.1683 1.25 9.99843 1.25C8.82852 1.25 7.87734 2.23096 7.87734 3.4375C7.87734 4.64404 8.82852 5.625 9.99843 5.625C11.1683 5.625 12.1195 4.64404 12.1195 3.4375ZM8.70258 7.03662C7.91711 6.74951 7.22775 6.20605 6.75382 5.47119L6.10755 4.46973C5.78276 3.96729 5.12654 3.83398 4.63935 4.16895C4.15217 4.50391 4.0196 5.18066 4.34439 5.68652L4.99066 6.68457C5.59053 7.61084 6.40914 8.33887 7.34706 8.81738V17.6562C7.34706 18.2612 7.821 18.75 8.40761 18.75C8.99423 18.75 9.46816 18.2612 9.46816 17.6562V14.375H10.5287V17.6562C10.5287 18.2612 11.0026 18.75 11.5893 18.75C12.1759 18.75 12.6498 18.2612 12.6498 17.6562V8.82422C13.6142 8.33887 14.4527 7.58691 15.0592 6.62988L15.6624 5.67627C15.9806 5.17041 15.8414 4.49365 15.3509 4.16211C14.8604 3.83057 14.2042 3.97412 13.8827 4.4834L13.2795 5.43359C12.557 6.5752 11.3274 7.26562 10.0051 7.26562C9.58747 7.26562 9.17982 7.19727 8.79206 7.06738C8.76223 7.05713 8.7324 7.04346 8.70258 7.03662Z" fill="white" stroke="#324055"/>
     </svg>
   );
 }
@@ -1662,6 +2186,56 @@ function FullBodyIconSm() {
     </svg>
   );
 }
+
+// Shared "empty" look for a Search-by-image slot — one flavor, reused by Smart Search, Re-ID
+// Analysis, and RedFace's target picker (which previously each drew their own differently-sized,
+// differently-colored dropzone). previewSrc is a decorative low-opacity watermark for panels that
+// only preview a selected target's photo (no real upload); RedFace's own picker keeps its bespoke
+// full-opacity uploaded-photo state since only it has actual file-upload wiring.
+// Only rendered (and only has any effect) when the box is actually clickable — a box with no
+// onClick stays plain/decorative rather than inviting a click that does nothing.
+function ImageDropzoneHoverStyleTag() {
+  // !important is required here — the box's border/background come from an inline `style`
+  // (needed since they're computed per-instance), and inline styles always beat a plain
+  // stylesheet selector, hover or not.
+  return (
+    <style>{`
+      .vca-image-dropzone-clickable { cursor:pointer; transition:border-color 0.15s, background-color 0.15s; }
+      .vca-image-dropzone-clickable:hover { border-color:#5a3dfb !important; background-color:#f8f7ff !important; }
+      .vca-image-dropzone-clickable:hover .vca-dropzone-label { color:#5a3dfb !important; }
+      .vca-image-dropzone-clickable:hover .vca-dropzone-hint { opacity:1 !important; }
+    `}</style>
+  );
+}
+function ImageDropzoneBox({ icon, label, previewSrc, onClick, aspect }: {
+  icon: React.ReactNode; label: string; previewSrc?: string; onClick?: () => void; aspect?: "square"|"portrait";
+}) {
+  // aspect is opt-in (Live Monitoring's Photo tab, where face/body previews sit one above the
+  // other and read clearer at their real proportions) — callers that don't pass it keep the
+  // original flex-filled box unchanged (e.g. Re-ID Analysis's side-by-side pair).
+  const sizeStyle: React.CSSProperties = aspect
+    ? { width:"132px", aspectRatio: aspect === "square" ? "1 / 1" : "3 / 4", flex:"0 0 auto" }
+    : { flex:1, minHeight:"120px" };
+  // The hint has to be mounted/unmounted (not just opacity-toggled) — an always-present but
+  // invisible line still reserves its row of height in this flex column, which pushed the
+  // icon+label group above true center any time the box wasn't hovered.
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      className={onClick ? "vca-image-dropzone-clickable" : undefined} style={{
+      ...sizeStyle, borderRadius:"8px", border:"1px dashed #ccd5e1", backgroundColor:"white",
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"12px", overflow:"hidden", position:"relative",
+      padding:"20px 12px", boxSizing:"border-box" }}>
+      {onClick && <ImageDropzoneHoverStyleTag />}
+      {previewSrc && <img src={previewSrc} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.15 }} />}
+      <div style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
+        {icon}
+        <span className="vca-dropzone-label" style={{ fontSize:"11px", color:"#94a3b8" }}>{label}</span>
+        {onClick && hovered && <span style={{ fontSize:"10px", fontWeight:700, color:"#5a3dfb" }}>{previewSrc ? "Click to change" : "Click to upload"}</span>}
+      </div>
+    </div>
+  );
+}
 function SlidersIconSm({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
@@ -1669,226 +2243,130 @@ function SlidersIconSm({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+// "Co-occurrence frequency (high → low)" ran on as one line in a 280px-wide sidebar — breaks it
+// onto a second line starting at the "(" instead of wrapping wherever the text box happens to run
+// out of room (mid-word) or truncating with an ellipsis.
+function SortOptionLabel({ label }: { label: string }) {
+  const idx = label.indexOf(" (");
+  if (idx === -1) return <>{label}</>;
+  return <>{label.slice(0, idx)}<br />{label.slice(idx + 1)}</>;
+}
 
-function SearchPanel({ state, onSearch, onCollapse }: { state: SearchFilterState; onSearch: () => void; onCollapse: () => void }) {
-  const {
-    searchType, setSearchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP,
-    threshold, setThreshold, gender, setGender, apparel, toggleApparel, props, toggleProps,
-    dateRange, setDateRange, licensePlate, setLicensePlate, camera, setCamera, reset,
-  } = state;
-  const [attrOpen, setAttrOpen] = useState(false);
-  const target = selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : activeVIP >= 0 ? VIP_QUICK[activeVIP] : null;
-  const isVehicle = searchType === "VEHICLE";
-
+// Same picker look as Live Monitoring's "All Cameras ▾" (CameraDetailView above) — Re-ID's
+// `camera` search filter (already wired into filterReidData) had no UI to actually set it from,
+// same gap the Associate filter's search box used to have. A plain string, not tied to the
+// ALL_CAMERAS_ID sentinel CameraDetailView uses, since this sets a filter value, not which live
+// feed is being browsed — "" just means "no camera filter", same as every other cleared filter.
+// Lists CAMERA_OPTIONS (the "NC-1".."NC-4" labels REID_DATA's own `cam` field actually uses), not
+// the live camera roster from useVcaStore — those are a different id space ("CAM-NOV-001" etc.)
+// that no REID_DATA row's `cam` would ever match, which would make this filter silently return
+// nothing no matter which camera got picked.
+function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const label = value || "All Cameras";
   return (
-    <div style={{ width:"320px", flexShrink:0, backgroundColor:"white", borderRadius:"12px", padding:"24px 16px",
-      display:"flex", flexDirection:"column", gap:"24px", height:"100%", overflowY:"auto", boxSizing:"border-box" }}>
-
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-          <SlidersIconSm size={20} />
-          <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px" }}>Search Filters</span>
-        </div>
-        <button onClick={onCollapse} style={{ background:"none", border:"none", cursor:"pointer", padding:0, display:"flex", color:"#94a3b8" }}>
-          <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style={{ transform:"rotate(180deg)" }}>
-            <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-      </div>
-
-      <div style={{ display:"flex", backgroundColor:"#f1f5f9", border:"1px solid #f1f5f9", borderRadius:"12px", padding:"1px", width:"100%" }}>
-        {(["PERSON","VEHICLE"] as const).map(t => {
-          const active = searchType === t;
-          return (
-            <button key={t} onClick={() => setSearchType(t)} style={{
-              flex:1, borderRadius:"10px", border:"none", cursor:"pointer",
-              backgroundColor: active ? "white" : "transparent",
-              color: active ? "#5a3dfb" : "#64748a", fontWeight: active ? 700 : 600,
-              fontSize:"13px", lineHeight:"18px", letterSpacing:"-0.26px", padding:"6px 20px",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
+    <div style={{ position:"relative", width:"152px" }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
+        padding:"8px 12px", borderRadius:"8px", backgroundColor:"white", border:"1px solid #5a3dfb",
+        cursor:"pointer",
+      }}>
+        <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"14px", fontWeight:700, color:"#5a3dfb",
+          minWidth:0, overflow:"hidden" }}>
+          <CameraGlyph />
+          <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label}</span>
+        </span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink:0, transform: open?"rotate(180deg)":"none", transition:"transform 0.15s" }}>
+          <path d="M4 6l4 4 4-4" stroke="#5a3dfb" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, width:"100%", backgroundColor:"white",
+          border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden" }}>
+          <button onClick={() => { onChange(""); setOpen(false); }} style={{
+            display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
+            backgroundColor: !value ? "#f0f0ff" : "white",
+            fontSize:"13px", fontWeight: !value ? 700:500, color: !value ? "#5a3dfb":"#334155",
+          }}>
+            All Cameras
+          </button>
+          <div style={{ height:"1px", backgroundColor:"#e2e8f0" }} />
+          {CAMERA_OPTIONS.map(code => (
+            <button key={code} onClick={() => { onChange(code); setOpen(false); }} style={{
+              display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
+              backgroundColor: code===value ? "#f0f0ff" : "white",
+              fontSize:"13px", fontWeight: code===value ? 700:500, color: code===value ? "#5a3dfb":"#334155",
             }}>
-              {t === "PERSON" ? <PersonIconSm/> : <VehicleIconSm/>} {t}
+              {code}
             </button>
-          );
-        })}
-      </div>
-
-      {!isVehicle && (
-        <>
-          <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-              <HistoryIconSm />
-              <span style={{ fontSize:"13px", fontWeight:700, color:"#324055" }}>Recent Targets</span>
-            </div>
-            <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"8px", overflowX:"auto" }}>
-              {RECENT_TARGETS_EN.map((t, i) => (
-                <button key={i} onClick={() => selectRecentTarget(i)} style={{
-                  display:"flex", alignItems:"center", gap:"8px", padding:"8px 12px", borderRadius:"8px",
-                  backgroundColor: selectedTarget === i ? "#f0f0ff" : "#f1f5f9",
-                  border: selectedTarget === i ? "1px solid #5a3dfb" : "none",
-                  cursor:"pointer", flexShrink:0,
-                }}>
-                  <img src={t.face} alt="" style={{ width:"36px", height:"32px", borderRadius:"8px", objectFit:"cover" }} />
-                  <div style={{ textAlign:"left" }}>
-                    <p style={{ fontSize:"11px", fontWeight:600, color:"#0e162a", margin:0, whiteSpace:"nowrap" }}>{t.label}</p>
-                    <p style={{ fontSize:"9px", color:"#64748a", margin:0, whiteSpace:"nowrap" }}>{t.time}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-              <StarIconSm />
-              <span style={{ fontSize:"13px", fontWeight:700, color:"#324055" }}>VIP Quick Select</span>
-            </div>
-            <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} />
-          </div>
-        </>
+          ))}
+        </div>
       )}
-
-      <div style={{ height:"1px", backgroundColor:"#e2e8f0", width:"100%" }} />
-
-      <div style={{ display:"flex", flexDirection:"column", gap:"16px", width:"100%", flex:1 }}>
-        <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" emptyText="Last 7 days" />
-
-        <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
-          <span style={{ fontSize:"13px", fontWeight:600, color:"#475469" }}>Similarity</span>
-          <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"999px", padding:"2px", height:"36px" }}>
-            {[30,50,70,90].map(v => {
-              const active = threshold === v;
-              return (
-                <button key={v} onClick={() => setThreshold(v)} style={{
-                  flex:1, borderRadius:"999px", border:"none", cursor:"pointer",
-                  backgroundColor: active ? "white" : "transparent",
-                  color: active ? "#5a3dfb" : "#94a3b8", fontWeight: active ? 700 : 600, fontSize:"12px",
-                }}>{v}%</button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
-          <span style={{ fontSize:"13px", fontWeight:600, color:"#475469" }}>Camera</span>
-          <CameraSelect value={camera} onChange={setCamera} />
-        </div>
-
-        {isVehicle ? (
-          <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
-            <span style={{ fontSize:"13px", fontWeight:600, color:"#475469" }}>License Plate</span>
-            <div style={{ display:"flex", alignItems:"center", gap:"8px", height:"42px", padding:"0 16px",
-              borderRadius:"8px", border:BORDER, backgroundColor:"white" }}>
-              <LicensePlateIconSm />
-              <input
-                value={licensePlate}
-                onChange={e => setLicensePlate(e.target.value)}
-                placeholder="SGA 1234 X"
-                style={{ flex:1, border:"none", outline:"none", fontFamily:"monospace", fontSize:"12px",
-                  fontWeight:500, color:"#0e162a", letterSpacing:"-0.24px" }}
-              />
-            </div>
-          </div>
-        ) : (
-          <>
-            <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
-              <span style={{ fontSize:"13px", fontWeight:600, color:"#475469" }}>Search by Image</span>
-              <div style={{ display:"flex", gap:"12px" }}>
-                <div style={{ flex:1, height:"126px", borderRadius:"12px", border:"1px dashed #94a3b8", backgroundColor:"#f8fafc",
-                  display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", overflow:"hidden", position:"relative" }}>
-                  {target && <img src={target.face} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.15 }} />}
-                  <span style={{ position:"relative", display:"flex", alignItems:"center", gap:"4px", fontSize:"13px", fontWeight:700, color:"#324055" }}>
-                    <DropzoneFaceIconSm /> Face
-                  </span>
-                  <span style={{ position:"relative", fontSize:"12px", color:"#94a3b8", textAlign:"center" }}>Click or drop image<br/>to upload</span>
-                </div>
-                <div style={{ flex:1, height:"126px", borderRadius:"12px", border:"1px dashed #94a3b8", backgroundColor:"#f8fafc",
-                  display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", overflow:"hidden", position:"relative" }}>
-                  {target && <img src={target.body} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.15 }} />}
-                  <span style={{ position:"relative", display:"flex", alignItems:"center", gap:"4px", fontSize:"13px", fontWeight:700, color:"#324055" }}>
-                    <DropzoneBodyIconSm /> Body
-                  </span>
-                  <span style={{ position:"relative", fontSize:"12px", color:"#94a3b8", textAlign:"center" }}>Click or drop image<br/>to upload</span>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display:"flex", flexDirection:"column", gap:"10px", width:"100%" }}>
-              <button onClick={() => setAttrOpen(o => !o)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
-                backgroundColor:"#f8fafc", border:"none", borderRadius:"8px", padding:"0 16px", height:"42px", cursor:"pointer" }}>
-                <span style={{ display:"flex", alignItems:"center", gap:"8px", fontSize:"13px", fontWeight:600, color:"#475469" }}>
-                  <FilterSlidersIconSm /> Filter
-                </span>
-                <span style={{ display:"flex", color:"#475469", transform: attrOpen ? "rotate(180deg)" : "none" }}>
-                  <ChevronDownIconSm />
-                </span>
-              </button>
-              {attrOpen && (
-                <>
-                  <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"11px", fontWeight:600, color:"#94a3b8" }}>Gender</span>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
-                      {GENDER_CHIPS.map(g => <AttrChip key={g} label={g} active={gender===g} onClick={() => setGender(gender===g ? "" : g)} size="sm" />)}
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"11px", fontWeight:600, color:"#94a3b8" }}>Apparel</span>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
-                      {APPAREL_CHIPS.map(a => <AttrChip key={a} label={a} active={apparel.includes(a)} onClick={() => toggleApparel(a)} size="sm" />)}
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"11px", fontWeight:600, color:"#94a3b8" }}>Props</span>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
-                      {PROPS_CHIPS.map(p => <AttrChip key={p} label={p} active={props.includes(p)} onClick={() => toggleProps(p)} size="sm" />)}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-
-      <div style={{ display:"flex", gap:"12px", width:"100%" }}>
-        <button onClick={reset} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
-          padding:"12px 0", borderRadius:"8px", border:"1px solid #ccd5e1", backgroundColor:"white", cursor:"pointer",
-          fontSize:"13px", fontWeight:700, color:"#475469" }}>
-          <ResetIconSm /> Reset
-        </button>
-        <button onClick={onSearch} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
-          padding:"12px 0", borderRadius:"8px", border:"none", backgroundColor:"#0e162a", cursor:"pointer",
-          fontSize:"13px", fontWeight:700, color:"white" }}>
-          <SearchIconSm /> {isVehicle ? "Search Vehicle" : "Search"}
-        </button>
-      </div>
     </div>
   );
 }
 
-function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onNavigateTab?: (tab: DataTab) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
+function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: {
+  camera: string; onCameraChange: (v: string) => void;
+  seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onNavigateTab?: (tab: DataTab) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void;
+}) {
   const [expanded, setExpanded]         = useState(false);
+  // Same collapsible tabbed sidebar as Live Monitoring's Photo/Filter/VIP/Car search (see
+  // LiveSearchSidebar) — was its own separate SearchPanel layout before, which meant the two
+  // screens' search UIs could drift out of sync every time one of them changed.
+  const [searchTab, setSearchTab]       = useState<"Photo"|"Filter"|"VIP"|"Car">("Photo");
   const [hasSearched, setHasSearched]   = useState(false);
   const [detailId, setDetailId]         = useState<number | null>(null);
   const [searchType, setSearchType]     = useState<"PERSON"|"VEHICLE">("PERSON");
   const [selectedTarget, setSelectedTarget] = useState(-1);
   const [activeVIP, setActiveVIP]       = useState(-1);
-  const [threshold, setThreshold]       = useState(30);
+  const [threshold, setThreshold]       = useState(70);
   const [gender, setGender]             = useState("");
-  const [apparel, setApparel]           = useState<string[]>([]);
-  const [props, setProps]               = useState<string[]>([]);
+  const [hatFilter, setHatFilter]             = useState<""|"Hat"|"None">("");
+  const [sleeveFilter, setSleeveFilter]       = useState<""|"Short"|"Long">("");
+  const [bottomsFilter, setBottomsFilter]     = useState<""|"Trousers"|"Shorts"|"Skirts">("");
+  const [backpackFilter, setBackpackFilter]   = useState<""|"Exists"|"None">("");
+  const [emotion, setEmotion]           = useState("");
+  const [ethnicGroup, setEthnicGroup]   = useState("");
+  const [topColors, setTopColors]       = useState<string[]>([]);
+  const [bottomColors, setBottomColors] = useState<string[]>([]);
+  const [shoesColors, setShoesColors]   = useState<string[]>([]);
   const [dateRange, setDateRange]       = useState<DateRangeValue>({ start:null, end:null });
   const [licensePlate, setLicensePlate] = useState("");
-  const [camera, setCamera]             = useState("");
   // "UNSET" (not seedCard's own initial value) so the block below still fires on this
   // component's very first render even when seedCard is ALREADY set at mount time — this tab
   // mounts fresh on every deep-link (it doesn't exist until activeTab switches to it), so
   // seeding it from "the previous seedCard" would just equal the incoming one and never fire.
   const [prevSeedCard, setPrevSeedCard] = useState<typeof seedCard | "UNSET">("UNSET");
+  // The landing view (before any search) — continuously "recognizes" someone new every so often,
+  // newest at top, instead of sitting on two permanently-fixed example clusters forever.
+  const [liveClusters, setLiveClusters] = useState<ReidCluster[]>(CLUSTERS);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleNext = () => {
+      const delay = 15000 + Math.random() * 15000;
+      timer = setTimeout(() => {
+        setLiveClusters(prev => generateNewRecognition(prev).slice(0, LIVE_RECOGNITION_FEED_CAP));
+        scheduleNext();
+      }, delay);
+    };
+    scheduleNext();
+    return () => clearTimeout(timer);
+  }, []);
 
-  const toggleApparel = (a: string) => setApparel(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
-  const toggleProps   = (a: string) => setProps(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
-  const reset = () => { setSearchType("PERSON"); setThreshold(30); setGender(""); setApparel([]); setProps([]); setSelectedTarget(-1); setActiveVIP(-1); setDateRange({ start:null, end:null }); setLicensePlate(""); setCamera(""); setHasSearched(false); };
+  const toggleTopColor    = (c: string) => setTopColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+  const toggleBottomColor = (c: string) => setBottomColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+  const toggleShoesColor  = (c: string) => setShoesColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+  const clearAttrFilters = () => {
+    setHatFilter(""); setSleeveFilter(""); setBottomsFilter(""); setBackpackFilter("");
+    setEmotion(""); setEthnicGroup("");
+  };
+  const reset = () => {
+    setSearchType("PERSON"); setThreshold(70); setGender(""); clearAttrFilters();
+    setTopColors([]); setBottomColors([]); setShoesColors([]);
+    setSelectedTarget(-1); setActiveVIP(-1); setDateRange({ start:null, end:null });
+    setLicensePlate(""); onCameraChange(""); setHasSearched(false); setSearchTab("Photo");
+  };
 
   // Deep-link from a Live Monitoring card's "Re-ID" hover button — seed the filters that
   // actually narrow filterReidData() (camera/gender/date) so this lands on that person's
@@ -1896,9 +2374,10 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
   if (seedCard !== prevSeedCard) {
     setPrevSeedCard(seedCard);
     if (seedCard) {
-      setExpanded(true);
-      setSelectedTarget(-1); setActiveVIP(-1); setApparel([]); setProps([]); setLicensePlate("");
-      setCamera(seedCard.cam);
+      setExpanded(true); setSearchTab("Photo");
+      setSelectedTarget(-1); setActiveVIP(-1); clearAttrFilters(); setLicensePlate("");
+      setTopColors([]); setBottomColors([]); setShoesColors([]);
+      onCameraChange(seedCard.cam);
       setGender(seedCard.gender === "M" ? "Male" : "Female");
       const day = new Date(seedCard.date);
       setDateRange({ start: day, end: day });
@@ -1910,20 +2389,43 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
   }, [seedCard, onSeedConsumed]);
 
   const selectRecentTarget = (i: number) => {
-    if (selectedTarget === i) { setSelectedTarget(-1); setGender(""); setApparel([]); setProps([]); return; }
+    if (selectedTarget === i) { setSelectedTarget(-1); setGender(""); clearAttrFilters(); return; }
     setSelectedTarget(i); setActiveVIP(-1);
     const t = RECENT_TARGETS_EN[i];
-    setGender(t.gender); setApparel([t.apparel]); setProps(t.props);
+    setGender(t.gender);
+    if (t.apparel === "Short Sleeve" || t.apparel === "Long Sleeve") {
+      setSleeveFilter(t.apparel === "Short Sleeve" ? "Short" : "Long");
+      setBottomsFilter("");
+    } else {
+      setBottomsFilter(t.apparel as "Trousers"|"Shorts"|"Skirts");
+      setSleeveFilter("");
+    }
+    setHatFilter(t.props.includes("Hat") ? "Hat" : "");
+    setBackpackFilter(t.props.includes("Backpack/Bag") ? "Exists" : "");
   };
   const selectVIP = (i: number) => {
     if (activeVIP === i) { setActiveVIP(-1); return; }
     setActiveVIP(i); setSelectedTarget(-1);
   };
 
+  // Resolved down into the same apparel/props shape filterReidData/the results cluster expect —
+  // the segmented Hat/Sleeve/Bottoms/Backpack controls are a different UI over the same data,
+  // not a parallel filtering concept. Same derivation as Live Monitoring's LiveSearchSidebar.
+  const derivedApparel = [
+    sleeveFilter === "Short" ? "Short Sleeve" : sleeveFilter === "Long" ? "Long Sleeve" : null,
+    bottomsFilter || null,
+  ].filter((v): v is string => !!v);
+  const derivedProps = [
+    hatFilter === "Hat" ? "Hat" : null,
+    backpackFilter === "Exists" ? "Backpack/Bag" : null,
+  ].filter((v): v is string => !!v);
+
   const state: SearchFilterState = {
     searchType, setSearchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP,
-    threshold, setThreshold, gender, setGender, apparel, toggleApparel, props, toggleProps,
-    dateRange, setDateRange, licensePlate, setLicensePlate, camera, setCamera, reset,
+    threshold, setThreshold, gender, setGender,
+    apparel: derivedApparel, toggleApparel: () => {}, props: derivedProps, toggleProps: () => {},
+    topColors, toggleTopColor, bottomColors, toggleBottomColor, shoesColors, toggleShoesColor,
+    dateRange, setDateRange, licensePlate, setLicensePlate, camera, setCamera: onCameraChange, reset,
   };
 
   // Before a search runs, show the two illustrative example clusters (unchanged from before).
@@ -1946,46 +2448,61 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
   const searchResultCluster: ReidCluster | null = hasSearched ? {
     id: "search-result",
     thumbnail: searchType === "VEHICLE" ? carSvgDataUri(VEHICLE_COLOR_CYCLE[0]) : (searchTarget?.face ?? MATCH_DATA[0].face),
-    title: searchType === "VEHICLE" ? "Vehicle Search Result" : searchTarget && "label" in searchTarget ? searchTarget.label : searchTarget ? searchTarget.name : "Search Result",
+    title: searchType === "VEHICLE" ? "Vehicle search result" : searchTarget && "label" in searchTarget ? searchTarget.label : searchTarget ? searchTarget.name : "Search result",
     meta: targetMatches ? [
       { label:"Type", value: searchType },
-      { label:"Min. Similarity", value:`${threshold}%` },
+      { label:"Similarity", value:`${threshold}%` },
     ] : searchType === "VEHICLE" ? [
       { label:"Type", value: searchType },
       ...(camera ? [{ label:"Camera", value:camera }] : []),
       ...(licensePlate ? [{ label:"Plate", value:licensePlate }] : []),
-      { label:"Min. Similarity", value:`${threshold}%` },
+      { label:"Similarity", value:`${threshold}%` },
     ] : [
       { label:"Type", value: searchType },
       ...(camera ? [{ label:"Camera", value:camera }] : []),
       ...(gender ? [{ label:"Gender", value:gender }] : []),
-      ...(apparel.length ? [{ label:"Apparel", value:apparel.join(", ") }] : []),
-      ...(props.length ? [{ label:"Props", value:props.join(", ") }] : []),
-      { label:"Min. Similarity", value:`${threshold}%` },
+      ...(derivedApparel.length ? [{ label:"Apparel", value:derivedApparel.join(", ") }] : []),
+      ...(derivedProps.length ? [{ label:"Props", value:derivedProps.join(", ") }] : []),
+      ...(topColors.length ? [{ label:"Top color", value:topColors.join(", ") }] : []),
+      ...(bottomColors.length ? [{ label:"Bottom color", value:bottomColors.join(", ") }] : []),
+      ...(shoesColors.length ? [{ label:"Shoes color", value:shoesColors.join(", ") }] : []),
+      ...(emotion ? [{ label:"Emotion", value:emotion }] : []),
+      ...(ethnicGroup ? [{ label:"Ethnic group", value:ethnicGroup }] : []),
+      { label:"Similarity", value:`${threshold}%` },
     ],
     action: "RedFace",
-    matches: targetMatches ?? filterReidData({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera }).slice(0, 20)
+    matches: targetMatches ?? filterReidData({ searchType, gender, apparel: derivedApparel, props: derivedProps, dateRange, threshold, licensePlate, camera, topColors, bottomColors, shoesColors, emotion, ethnicGroup }).slice(0, 20)
       .map(p => ({ ...reidToMatchItem(p), similarity: p.similarity })),
   } : null;
-  const clusters = hasSearched ? (searchResultCluster ? [searchResultCluster] : []) : CLUSTERS;
+  const clusters = hasSearched ? (searchResultCluster ? [searchResultCluster] : []) : liveClusters;
   const detailItem = detailId !== null ? clusters.flatMap(c => c.matches).find(m => m.id === detailId) ?? null : null;
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"24px 24px 12px", backgroundColor:"#f1f5f9", boxSizing:"border-box" }}>
-      {expanded
-        ? <SearchPanel state={state} onSearch={() => setHasSearched(true)} onCollapse={() => setExpanded(false)} />
-        : (
-          <button onClick={() => setExpanded(true)} style={{
-            width:"48px", height:"48px", borderRadius:"16px", backgroundColor:"white", border:"none",
-            display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0,
-          }}>
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
-              <path d="M6 3L11 8L6 13" stroke="#0e162a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        )
-      }
-      <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:"16px" }}>
+    <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"20px 24px 12px", backgroundColor:"#f1f5f9", boxSizing:"border-box" }}>
+      <SlidingSearchPanel
+        expanded={expanded}
+        onExpand={() => setExpanded(true)}
+        sidebar={
+          <LiveSearchSidebar
+            state={state}
+            tab={searchTab} onTabChange={setSearchTab}
+            hatFilter={hatFilter} onHatChange={setHatFilter}
+            sleeveFilter={sleeveFilter} onSleeveChange={setSleeveFilter}
+            bottomsFilter={bottomsFilter} onBottomsChange={setBottomsFilter}
+            backpackFilter={backpackFilter} onBackpackChange={setBackpackFilter}
+            emotion={emotion} onEmotionChange={setEmotion}
+            ethnicGroup={ethnicGroup} onEthnicGroupChange={setEthnicGroup}
+            onSearch={() => setHasSearched(true)} onCollapse={() => setExpanded(false)}
+          />
+        }
+      />
+      <div style={{ position:"relative", flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"12px", flexShrink:0 }}>
+        <ReidCameraPicker value={camera} onChange={onCameraChange} />
+      </div>
+      <div style={{ position:"relative", flex:1, overflow:"hidden" }}>
+      <div ref={scrollRef} className="vca-hide-scrollbar" style={{ position:"absolute", inset:0, overflowY:"auto", display:"flex", flexDirection:"column", gap:"16px" }}>
         {clusters.length > 0
           ? clusters.map(c => <ClusterCard key={c.id} cluster={c} onNavigateTab={onNavigateTab} onMatchClick={setDetailId} />)
           : (
@@ -1994,6 +2511,9 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
             </div>
           )
         }
+      </div>
+      <ScrollToTopButton containerRef={scrollRef} />
+      </div>
       </div>
       {detailItem && <DetailModal item={detailItem} onClose={() => setDetailId(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
     </div>
@@ -2033,6 +2553,8 @@ interface RedfaceCandidate { id:number; url:string; cam:string; time:string; sim
 function candidatesFromFilters(f: {
   searchType: "PERSON" | "VEHICLE"; gender: string; apparel: string[]; props: string[];
   dateRange: DateRangeValue; threshold: number; licensePlate?: string; camera?: string;
+  topColors?: string[]; bottomColors?: string[]; shoesColors?: string[];
+  emotion?: string; ethnicGroup?: string;
 }): RedfaceCandidate[] {
   return filterReidData(f).slice(0, 12)
     .map(p => ({ id:p.id, url:p.url, cam:p.cam, time:p.time, similarity:p.similarity, plate:p.plate }));
@@ -2104,16 +2626,17 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   const [searchType, setSearchType]         = useState<"PERSON"|"VEHICLE">("PERSON");
   const [selectedTarget, setSelectedTarget] = useState(-1);
   const [activeVIP, setActiveVIP]           = useState(-1);
-  const [threshold, setThreshold]           = useState(80);
+  const [threshold, setThreshold]           = useState(70);
   const [gender, setGender]                 = useState("");
   const [apparel, setApparel]               = useState<string[]>([]);
   const [props, setProps]                   = useState<string[]>([]);
+  const [topColors, setTopColors]           = useState<string[]>([]);
+  const [bottomColors, setBottomColors]     = useState<string[]>([]);
+  const [shoesColors, setShoesColors]       = useState<string[]>([]);
   const [attrOpen, setAttrOpen]             = useState(false);
-  const [searched, setSearched]             = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<number|null>(null);
   const [dateRange, setDateRange]           = useState<DateRangeValue>({ start:null, end:null });
   const [licensePlate, setLicensePlate]     = useState("");
-  const [camera, setCamera]                 = useState("");
   const [uploadedFace, setUploadedFace]     = useState<string|null>(null);
   const [uploadedBody, setUploadedBody]     = useState<string|null>(null);
   const faceInputRef = useRef<HTMLInputElement>(null);
@@ -2145,29 +2668,38 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   const faceSrc = uploadedFace ?? target?.face;
   const hasBody = !!uploadedBody || !!target;
   const bodySrc = uploadedBody ?? target?.body;
-  const toggleApparel = (a: string) => setApparel(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
-  const toggleProps   = (a: string) => setProps(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
+  const toggleApparel     = (a: string) => setApparel(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
+  const toggleProps       = (a: string) => setProps(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
+  const toggleTopColor    = (c: string) => setTopColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+  const toggleBottomColor = (c: string) => setBottomColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+  const toggleShoesColor  = (c: string) => setShoesColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
   const reset = () => {
-    setSearchType("PERSON"); setThreshold(80); setGender(""); setApparel([]); setProps([]);
+    setSearchType("PERSON"); setThreshold(70); setGender(""); setApparel([]); setProps([]);
+    setTopColors([]); setBottomColors([]); setShoesColors([]);
     setSelectedTarget(-1); setActiveVIP(-1); setUploadedFace(null); setUploadedBody(null);
-    setDateRange({ start:null, end:null }); setLicensePlate(""); setCamera(""); setSearched(false);
+    setDateRange({ start:null, end:null }); setLicensePlate("");
   };
   // Same reasoning as Smart Search / Re-ID Analysis: a named target's cascaded gender/apparel/
   // props/date can coincidentally match nothing in REID_DATA, even though we already have a photo
-  // of exactly who we're looking for — reuse that photo instead of risking an empty result.
-  const targetCandidates: RedfaceCandidate[] | null = searchType === "PERSON" && target
-    ? buildTargetResultRows(target.face, target.body, target.gender === "Male" ? "M" : "F", 20)
+  // of exactly who we're looking for — reuse that photo instead of risking an empty result. This
+  // also covers a manually uploaded face/body with no target picked — faceSrc/bodySrc already
+  // fall back to uploadedFace/uploadedBody, so uploading a photo drives results the same way
+  // picking a Recent target or VIP does, instead of the upload being purely cosmetic.
+  const targetCandidates: RedfaceCandidate[] | null = searchType === "PERSON" && (faceSrc || bodySrc)
+    ? buildTargetResultRows(faceSrc ?? bodySrc!, bodySrc ?? faceSrc!, target?.gender === "Male" ? "M" : gender === "Male" ? "M" : "F", 20)
         .filter(r => r.similarity >= threshold)
         .map(p => ({ id: p.id, url: p.url, cam: p.cam, time: p.time, similarity: p.similarity, plate: p.plate }))
     : null;
-  const candidates = searched ? (targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera })) : [];
-  const handleSearch = () => {
-    const c = targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera });
-    setSearched(true);
-    setSelectedCandidate(c[0]?.id ?? null);
-  };
+  // Live — recomputes on every filter change instead of staying empty until a "Search" click, so
+  // the results panel never sits disconnected from the filters actually driving it.
+  const candidates = targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, topColors, bottomColors, shoesColors });
   const selectedObj = candidates.find(c => c.id === selectedCandidate) ?? null;
   const isVehicle = searchType === "VEHICLE";
+  // Distinguishes a genuinely blank slate (nothing chosen yet) from an active search that
+  // happens to match nothing — the two deserve different empty-state wording.
+  const hasAnyFilter = !!target || !!uploadedFace || !!uploadedBody || gender !== "" || apparel.length > 0 || props.length > 0
+    || topColors.length > 0 || bottomColors.length > 0 || shoesColors.length > 0
+    || !!dateRange.start || !!dateRange.end || licensePlate.trim() !== "" || threshold !== 70;
 
   return (
     <div style={{ backgroundColor:"white", border:BORDER, borderRadius:"16px", boxShadow:"0 12px 24px rgba(15,23,42,0.1)",
@@ -2180,8 +2712,8 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
             <UserCogIconSm />
           </div>
           <div>
-            <p style={{ fontSize:"16px", fontWeight:800, color:"#1d293b", margin:0, letterSpacing:"-0.32px" }}>Select Primary Target</p>
-            <p style={{ fontSize:"10px", color:"#94a3b8", margin:0 }}>Search and select a new target to rebuild RedFace relationship graph</p>
+            <p style={{ fontSize:"16px", fontWeight:800, color:"#1d293b", margin:0, letterSpacing:"-0.32px" }}>Select primary target</p>
+            <p style={{ fontSize:"13px", fontWeight:600, color:"#64748a", margin:0 }}>Search and select a new target to rebuild RedFace relationship graph</p>
           </div>
         </div>
         <button onClick={onCancel} style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex", flexShrink:0 }}>
@@ -2190,19 +2722,34 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
       </div>
 
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
-        <div className="vca-hide-scrollbar" style={{ width:"340px", flexShrink:0, backgroundColor:"#f8fafc", borderRight:BORDER,
-          padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"24px" }}>
+        {/* The "Search Candidates" button used to sit inside the same scrolling column as the
+            filters above it — expanding the Filter accordion could grow that content past the
+            column's height, and with the button just being the last flex child (no fixed slot of
+            its own) it got squeezed down to a sliver instead of staying a normal button. Now the
+            filters scroll in their own flex:1 area and the button lives in a sibling footer row
+            that's never part of that scroll, so it always renders at full size. */}
+        {/* Before anything's picked, the results panel on the right has nothing to show yet — that
+            empty space is put to use widening this panel instead (VIP/filter grids get more room
+            per row). Once a target or filter is actually set, results are the thing worth
+            focusing on, so this narrows back down and gives that space back to them. */}
+        <div style={{ width: hasAnyFilter ? "340px" : "480px", flexShrink:0, backgroundColor:"#f8fafc", borderRight:BORDER,
+          display:"flex", flexDirection:"column", overflow:"hidden", transition:"width 0.25s ease" }}>
+        <div className="vca-hide-scrollbar" style={{ flex:1, minHeight:0,
+          padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"16px" }}>
 
-          <div style={{ display:"flex", backgroundColor:"#f1f5f9", border:"1px solid #f1f5f9", borderRadius:"10px", padding:"1px", width:"100%" }}>
+          {/* Same fix as Smart Search's toggle: #f1f5f9 on this panel's own #f8fafc background is
+              two near-identical light grays, so the whole well (and VEHICLE's inactive state)
+              barely registered against the page at all. */}
+          <div style={{ display:"flex", backgroundColor:"#e2e8f0", border:"1px solid #ccd5e1", borderRadius:"10px", padding:"1px", width:"100%" }}>
             {(["PERSON","VEHICLE"] as const).map(t => {
               const active = searchType === t;
               return (
                 <button key={t} onClick={() => setSearchType(t)} style={{
                   flex:1, borderRadius:"9px", border:"none", cursor:"pointer",
                   backgroundColor: active ? "white" : "transparent",
-                  color: active ? "#5a3dfb" : "#64748a", fontWeight: active ? 700 : 600,
-                  fontSize:"11px", letterSpacing:"-0.2px", padding:"6px 0",
-                  display:"flex", alignItems:"center", justifyContent:"center", gap:"5px",
+                  color: active ? "#5a3dfb" : "#475469", fontWeight: active ? 700 : 600,
+                  fontSize:"13px", letterSpacing:"-0.2px", padding:"6px 0",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
                 }}>
                   {t === "PERSON" ? <PersonIconSm/> : <VehicleIconSm/>} {t}
                 </button>
@@ -2213,9 +2760,9 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
           {!isVehicle && (
             <>
               <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"4px", color:"#324055" }}>
                   <HistoryIconSm />
-                  <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Recent Targets</span>
+                  <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Recent targets</span>
                 </div>
                 <div style={{ display:"flex", gap:"8px" }}>
                   {RECENT_TARGETS_EN.slice(0, 2).map((t, i) => (
@@ -2236,9 +2783,9 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
               </div>
 
               <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"4px", color:"#324055" }}>
                   <StarIconSm />
-                  <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>VIP Quick Select</span>
+                  <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>VIP quick select</span>
                 </div>
                 <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} compact />
               </div>
@@ -2246,9 +2793,10 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
               <div style={{ height:"1px", backgroundColor:"#e2e8f0" }} />
 
               <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-                <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Search by image</span>
+                <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Search by image</span>
+                <ImageDropzoneHoverStyleTag />
                 <div style={{ display:"flex", gap:"10px" }}>
-                  <div onClick={() => faceInputRef.current?.click()} style={hasFace
+                  <div onClick={() => faceInputRef.current?.click()} className="vca-image-dropzone-clickable" style={hasFace
                     ? { flex:1, height:"84px", borderRadius:"8px", border:"1px solid #8c85ff", backgroundColor:"#f0f0ff", overflow:"hidden", position:"relative", cursor:"pointer" }
                     : { flex:1, height:"84px", borderRadius:"8px", border:"1px dashed #ccd5e1", backgroundColor:"white", cursor:"pointer",
                         display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px", color:"#94a3b8" }
@@ -2257,16 +2805,21 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                       <>
                         <img src={faceSrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
                         {!uploadedFace && <div style={{ position:"absolute", inset:0, backgroundColor:"rgba(90,61,251,0.15)" }} />}
+                        <div className="vca-dropzone-hint" style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center",
+                          backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
+                          <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>Click to change</span>
+                        </div>
                       </>
                     ) : (
                       <>
                         <DefaultFaceIconSm />
-                        <span style={{ fontSize:"10px", color:"#94a3b8" }}>Face</span>
+                        <span className="vca-dropzone-label" style={{ fontSize:"10px", color:"#94a3b8" }}>Face</span>
+                        <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"#5a3dfb", opacity:0 }}>Click to upload</span>
                       </>
                     )}
                     <input ref={faceInputRef} type="file" accept="image/*" onChange={handleFaceUpload} style={{ display:"none" }} />
                   </div>
-                  <div onClick={() => bodyInputRef.current?.click()} style={hasBody
+                  <div onClick={() => bodyInputRef.current?.click()} className="vca-image-dropzone-clickable" style={hasBody
                     ? { flex:1, height:"84px", borderRadius:"8px", border:"1px solid #8c85ff", backgroundColor:"#f0f0ff", overflow:"hidden", position:"relative", cursor:"pointer" }
                     : { flex:1, height:"84px", borderRadius:"8px", border:"1px dashed #ccd5e1", backgroundColor:"white", cursor:"pointer",
                         display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px", color:"#94a3b8" }
@@ -2275,11 +2828,16 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                       <>
                         <img src={bodySrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
                         {!uploadedBody && <div style={{ position:"absolute", inset:0, backgroundColor:"rgba(90,61,251,0.15)" }} />}
+                        <div className="vca-dropzone-hint" style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center",
+                          backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
+                          <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>Click to change</span>
+                        </div>
                       </>
                     ) : (
                       <>
                         <FullBodyIconSm />
-                        <span style={{ fontSize:"10px", color:"#94a3b8" }}>Full Body</span>
+                        <span className="vca-dropzone-label" style={{ fontSize:"10px", color:"#94a3b8" }}>Full body</span>
+                        <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"#5a3dfb", opacity:0 }}>Click to upload</span>
                       </>
                     )}
                     <input ref={bodyInputRef} type="file" accept="image/*" onChange={handleBodyUpload} style={{ display:"none" }} />
@@ -2290,18 +2848,13 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
           )}
 
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Search Period</span>
+            <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Date range</span>
             <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="split" size="sm" emptyText="Last 7 days" />
-          </div>
-
-          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Camera</span>
-            <CameraSelect value={camera} onChange={setCamera} size="sm" />
           </div>
 
           {isVehicle && (
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>License Plate</span>
+              <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>License plate</span>
               <div style={{ display:"flex", alignItems:"center", gap:"6px", height:"34px", padding:"0 10px",
                 borderRadius:"8px", border:BORDER, backgroundColor:"white" }}>
                 <LicensePlateIconSm />
@@ -2309,7 +2862,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                   value={licensePlate}
                   onChange={e => setLicensePlate(e.target.value)}
                   placeholder="SGA 1234 X"
-                  style={{ flex:1, border:"none", outline:"none", fontFamily:"monospace", fontSize:"11px",
+                  style={{ flex:1, border:"none", outline:"none", fontFamily:"monospace", fontSize:"12px",
                     fontWeight:500, color:"#0e162a", letterSpacing:"-0.22px" }}
                 />
               </div>
@@ -2317,33 +2870,15 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
           )}
 
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Min Similarity</span>
-              <span style={{ fontSize:"11px", fontWeight:800, color:"#5a3dfb", backgroundColor:"#f0f0ff", padding:"2px 6px", borderRadius:"4px" }}>{threshold}%</span>
-            </div>
-            <div style={{ backgroundColor:"white", borderRadius:"12px", padding:"12px 8px 10px", display:"flex", flexDirection:"column", gap:"12px" }}>
-              <div style={{ position:"relative", height:"16px", display:"flex", alignItems:"center" }}>
-                <div style={{ position:"absolute", left:0, right:0, height:"6px", borderRadius:"999px", backgroundColor:"#e2e8f0" }} />
-                <div style={{ position:"absolute", left:0, height:"6px", borderRadius:"999px", backgroundColor:"#5a3dfb",
-                  width:`${((threshold-30)/60)*100}%` }} />
-                <div style={{ position:"absolute", left:`calc(${((threshold-30)/60)*100}% - 8px)`, width:"16px", height:"16px", borderRadius:"50%",
-                  backgroundColor:"#5a3dfb", border:"2px solid white", boxShadow:"0 1px 3px rgba(0,0,0,0.19)" }} />
-                <input type="range" min={30} max={90} step={10} value={threshold} onChange={e => setThreshold(parseInt(e.target.value))}
-                  style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0, margin:0, cursor:"pointer" }} />
-              </div>
-              <div style={{ display:"flex", justifyContent:"space-between" }}>
-                {[30,50,70,80,90].map(v => (
-                  <span key={v} style={{ fontSize:"10px", fontWeight:600, color: v===threshold ? "#5a3dfb" : "#64748a" }}>{v}%</span>
-                ))}
-              </div>
-            </div>
+            <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Similarity</span>
+            <SimilarityControl value={threshold} onChange={setThreshold} height={34} />
           </div>
 
           {!isVehicle && (
             <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
               <button onClick={() => setAttrOpen(o => !o)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-                background:"none", border:"none", padding:0, cursor:"pointer" }}>
-                <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Quick Attribute Filters</span>
+                width:"100%", background:"none", border:"none", padding:"0 8px 0 0", cursor:"pointer" }}>
+                <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Filter</span>
                 <span style={{ display:"flex", color:"#94a3b8", transform: attrOpen ? "rotate(180deg)" : "none" }}>
                   <ChevronDownIconSm />
                 </span>
@@ -2368,31 +2903,53 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                       {PROPS_CHIPS.map(p => <AttrChip key={p} label={p} active={props.includes(p)} onClick={() => toggleProps(p)} size="sm" />)}
                     </div>
                   </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Top color</span>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                      {APPAREL_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={topColors.includes(c.id)} onClick={() => toggleTopColor(c.id)} size={18} />)}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Bottom color</span>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                      {APPAREL_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={bottomColors.includes(c.id)} onClick={() => toggleBottomColor(c.id)} size={18} />)}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Shoes color</span>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                      {SHOE_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={shoesColors.includes(c.id)} onClick={() => toggleShoesColor(c.id)} size={18} />)}
+                    </div>
+                  </div>
                 </>
               )}
             </div>
           )}
-
-          <button onClick={handleSearch} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
-            height:"36px", borderRadius:"8px", border:"none", backgroundColor:"#0e162a", color:"white", cursor:"pointer",
-            fontSize:"12px", fontWeight:700 }}>
-            <SearchIconSm /> Search Candidates
-          </button>
+        </div>
         </div>
 
         <div style={{ flex:1, padding:"20px", display:"flex", flexDirection:"column", gap:"16px", overflow:"hidden" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-              <span style={{ fontSize:"13px", fontWeight:800, color:"#1d293b" }}>Search Results</span>
-              <span style={{ fontSize:"11px", fontWeight:800, color:"#5a3dfb", backgroundColor:"#f0f0ff", padding:"2px 6px", borderRadius:"4px" }}>{candidates.length}</span>
+              <span style={{ fontSize:"13px", fontWeight:700, color:"#1d293b" }}>Search results</span>
+              <span style={{ fontSize:"10px", fontWeight:800, color:"#5a3dfb", backgroundColor:"#f0f0ff", padding:"2px 6px", borderRadius:"4px" }}>{candidates.length}</span>
             </div>
-            <span style={{ fontSize:"12px", fontWeight:600, color:"#94a3b8" }}>Click a target card to select</span>
+            {/* A muted, easy-to-miss line read as an afterthought — once candidates actually
+                exist, picking one is the ONE thing left to do, so it gets a filled, colored
+                callout instead until a card's actually clicked. */}
+            {candidates.length > 0 && selectedCandidate === null && (
+              <span style={{ fontSize:"12px", fontWeight:700, color:"#5a3dfb", backgroundColor:"#f0f0ff", padding:"4px 10px", borderRadius:"999px" }}>
+                ↓ Click a candidate below to select
+              </span>
+            )}
           </div>
           <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto" }}>
             {candidates.length === 0 ? (
               <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", color:"#94a3b8" }}>
                 <SearchIconSm />
-                <span style={{ fontSize:"13px", fontWeight:600 }}>Click &quot;Search Candidates&quot; to find matching targets</span>
+                <span style={{ fontSize:"13px", fontWeight:600 }}>
+                  {hasAnyFilter ? "No candidates match the current filters" : "← Choose a target or set a filter to see candidates"}
+                </span>
               </div>
             ) : (
               <div style={{ display:"flex", flexWrap:"wrap", gap:"16px" }}>
@@ -2406,7 +2963,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
       </div>
 
       <div style={{ padding:"16px 24px", borderTop:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-        <button onClick={reset} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:500, color:"#0e162a" }}>
+        <button onClick={reset} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"#0e162a" }}>
           <ResetIconSm /> Reset Filters
         </button>
         <div style={{ display:"flex", gap:"8px" }}>
@@ -2424,11 +2981,43 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
 
 const REDFACE_FACES = MATCH_DATA.map(m => m.face);
 const faceAt = (i: number) => REDFACE_FACES[i % REDFACE_FACES.length];
-const REDFACE_TIER1 = [510, 142].map((count, i) => ({ id: i, face: faceAt(i), count }));
-const REDFACE_TIER2 = [84, 62, 45, 31, 19, 12].map((count, i) => ({ id: i + 2, face: faceAt(i + 2), count }));
-const REDFACE_TIER3 = [4,3,3,2,2,1,1,1,1,1,1,1,1,1,1].map((count, i) => ({ id: i + 8, face: faceAt(i + 8), count }));
 
-type RedfaceNode = { id:number; face:string; count:number };
+// Deterministic pseudo-random in [0,1) — same formula as vcaStore.ts's own seededRandom.
+function redfaceSeededRandom(seed: number): number {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// Stable numeric seed from a target's name — same person always reproduces the same associate
+// graph, but a DIFFERENT target actually produces a different one (previously REDFACE_TIER1/2/3
+// were fixed arrays, so switching Primary Target changed the header photo/name but the entire
+// pyramid/grid underneath never moved).
+function redfaceSeedFromName(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 100000;
+  return h + 1;
+}
+
+// Same tier shape/sizes as the original hand-authored arrays (2 / 6 / 15 nodes, roughly
+// >100 / 10-99 / <10 co-occurrence counts per tier) — only the actual counts and faces vary
+// per seed, each tier still sorted descending like the originals were.
+function buildRedfaceTiers(seed: number) {
+  const tier1Counts = [Math.round(300 + redfaceSeededRandom(seed * 1.1) * 300), Math.round(100 + redfaceSeededRandom(seed * 1.3) * 150)]
+    .sort((a, b) => b - a);
+  const tier2Counts = Array.from({ length: 6 }, (_, i) => Math.round(10 + redfaceSeededRandom(seed * 2.1 + i) * 89))
+    .sort((a, b) => b - a);
+  const tier3Counts = Array.from({ length: 15 }, (_, i) => Math.round(1 + redfaceSeededRandom(seed * 3.1 + i) * 9))
+    .sort((a, b) => b - a);
+  // Status is a coarse mock watchlist read: mostly Unknown, a handful of VIP/Suspect, matching how
+  // registered/flagged people are actually a minority of any associate list.
+  const statusAt = (r: number): RedfaceNode["status"] => r > 0.88 ? "VIP" : r > 0.7 ? "Suspect" : "Unknown";
+  const tier1 = tier1Counts.map((count, i) => ({ id: i, face: faceAt(Math.floor(redfaceSeededRandom(seed * 4 + i) * REDFACE_FACES.length)), count, status: statusAt(redfaceSeededRandom(seed * 10 + i)) }));
+  const tier2 = tier2Counts.map((count, i) => ({ id: i + 2, face: faceAt(Math.floor(redfaceSeededRandom(seed * 5 + i) * REDFACE_FACES.length)), count, status: statusAt(redfaceSeededRandom(seed * 11 + i)) }));
+  const tier3 = tier3Counts.map((count, i) => ({ id: i + 8, face: faceAt(Math.floor(redfaceSeededRandom(seed * 6 + i) * REDFACE_FACES.length)), count, status: statusAt(redfaceSeededRandom(seed * 12 + i)) }));
+  return { tier1, tier2, tier3 };
+}
+
+type RedfaceNode = { id:number; face:string; count:number; status:"VIP"|"Suspect"|"Unknown" };
 type TierMeta = {
   weight:number; bg:string; labelBg:string; labelColor:string; label:string; sublabel:string;
   nodeSize:number; nodeBorder:number; nodeColor:string; step:number; lineWidth:number;
@@ -2437,12 +3026,12 @@ type TierMeta = {
 type PyramidRow = { key:string; weight:number; nodes:RedfaceNode[]; meta: TierMeta|null };
 
 const PYRAMID_TIER_META: Record<"tier1"|"tier2"|"tier3", TierMeta> = {
-  tier1: { weight:2.2, bg:"#fff1f2", labelBg:"#ffe4e6", labelColor:"#e11d48", label:"TIER 1 · RED ZONE", sublabel:">100 CO-OCCURRENCES",
+  tier1: { weight:2.2, bg:"#fff1f2", labelBg:"#ffe4e6", labelColor:"#f43f5e", label:"TIER 1 · RED ZONE", sublabel:">100 CO-OCCURRENCES",
     nodeSize:52, nodeBorder:3, nodeColor:"#f43f5e", step:16, lineWidth:1.4, dashFlow:true, lineOpacity:0.85 },
   tier2: { weight:2.6, bg:"#fffbeb", labelBg:"#fef3c7", labelColor:"#ea580c", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-OCCURRENCES",
     nodeSize:52, nodeBorder:2, nodeColor:"#f59e0b", step:11, lineWidth:1, dashed:true, lineOpacity:0.7 },
   tier3: { weight:3.4, bg:"#f8fafc", labelBg:"#e2e8f0", labelColor:"#475469", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-OCCURRENCES",
-    nodeSize:36, nodeBorder:2, nodeColor:"#94a3b8", step:6.5, lineWidth:0.6, lineOpacity:0.45, stagger:true },
+    nodeSize:42, nodeBorder:2, nodeColor:"#94a3b8", step:6.5, lineWidth:0.6, lineOpacity:0.45, stagger:true },
 };
 
 function xAt(i: number, count: number, step: number) {
@@ -2450,7 +3039,7 @@ function xAt(i: number, count: number, step: number) {
   return 50 - ((count - 1) * step) / 2 + i * step;
 }
 
-function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { primaryTarget:{ name:string; face:string }; rows: PyramidRow[]; onNodeClick:(tier:string, node:RedfaceNode)=>void; selectedNodeId:number|null }) {
+function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { primaryTarget:{ name:string; face:string } | null; rows: PyramidRow[]; onNodeClick:(tier:string, node:RedfaceNode)=>void; selectedNodeId:number|null }) {
   const totalWeight = rows.reduce((s, r) => s + r.weight, 0) || 1;
   const positioned = rows.reduce<{ list: Array<PyramidRow & { top:number; bottom:number; center:number }>; acc:number }>((state, r) => {
     const top = (state.acc / totalWeight) * 100;
@@ -2509,22 +3098,30 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
         }))}
       </svg>
 
-      <div style={{ position:"absolute", left:"50%", top:`${apexRow.center}%`, transform:"translate(-50%,-50%)",
-        display:"flex", flexDirection:"column", alignItems:"center", gap:"4px", zIndex:5 }}>
-        <div className="redface-avatar-hover" style={{ width:64, height:64, borderRadius:"12px", border:"3px solid #5a3dfb", backgroundColor:"white",
-          boxSizing:"border-box", boxShadow:"0 8px 20px rgba(90,61,251,0.25)" }}>
-          <img src={primaryTarget.face} alt="" style={{ width:"100%", height:"100%", borderRadius:"9px", objectFit:"cover", display:"block" }} />
+      {primaryTarget && (
+        <div style={{ position:"absolute", left:"50%", top:`${apexRow.center}%`, transform:"translate(-50%,-50%)",
+          display:"flex", flexDirection:"column", alignItems:"center", gap:"4px", zIndex:5 }}>
+          <div className="redface-avatar-hover" style={{ width:64, height:64, borderRadius:"12px", border:"3px solid #5a3dfb", backgroundColor:"white",
+            boxSizing:"border-box", boxShadow:"0 8px 20px rgba(90,61,251,0.25)" }}>
+            <img src={primaryTarget.face} alt="" style={{ width:"100%", height:"100%", borderRadius:"9px", objectFit:"cover", display:"block" }} />
+          </div>
+          <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"#5a3dfb", padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.4px" }}>PRIMARY</span>
         </div>
-        <span style={{ fontSize:"9px", fontWeight:800, color:"white", backgroundColor:"#5a3dfb", padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.4px" }}>PRIMARY</span>
-      </div>
+      )}
 
       {tierRows.map(r => r.nodes.map((n, i) => {
         const x = xAt(i, r.nodes.length, r.meta!.step);
         const y = nodeY(r, i);
+        // Same buildCooccurEvents sample the Joint Evidence panel uses for this node — reused
+        // here only for a lightweight last-seen/location tooltip, not to duplicate the panel.
+        const nodeEvents = buildCooccurEvents(n);
+        const nodeTopGroup = groupCooccurEvents(nodeEvents)[0];
+        const nodeLastSeen = [...nodeEvents].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).pop()!;
         return (
-          <div key={`${r.key}-node-${n.id}`} style={{ position:"absolute", left:`${x}%`, top:`${y}%`, transform:"translate(-50%,-50%)",
+          <div key={`${r.key}-node-${n.id}`} title={`Last seen ${nodeLastSeen.date} ${nodeLastSeen.time} · ${nodeTopGroup.location}`}
+            style={{ position:"absolute", left:`${x}%`, top:`${y}%`, transform:"translate(-50%,-50%)",
             display:"flex", flexDirection:"column", alignItems:"center", gap:"4px", zIndex: r.key === "tier1" ? 4 : r.key === "tier2" ? 3 : 2 }}>
-            <div className="redface-avatar-hover" onClick={() => onNodeClick(r.key, n)} style={{ width:r.meta!.nodeSize, height:r.meta!.nodeSize, borderRadius:"10px",
+            <div className="redface-avatar-hover" onClick={() => onNodeClick(r.key, n)} style={{ position:"relative", width:r.meta!.nodeSize, height:r.meta!.nodeSize, borderRadius:"10px",
               border:`${r.meta!.nodeBorder}px solid ${r.meta!.nodeColor}`, backgroundColor:"white", boxSizing:"border-box",
               boxShadow: n.id === selectedNodeId ? "0 0 0 3px rgba(90,61,251,0.45), 0 2px 8px rgba(15,23,42,0.15)" : "0 2px 8px rgba(15,23,42,0.15)" }}>
               <img src={n.face} alt="" style={{ width:"100%", height:"100%", borderRadius:`${10 - r.meta!.nodeBorder}px`, objectFit:"cover", display:"block" }} />
@@ -2537,18 +3134,41 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
   );
 }
 
-function LinkChainIconSm() {
+function LinkChainIconSm({ size = 14 }: { size?: number } = {}) {
   return (
-    <svg width="14" height="14" viewBox="0 0 28 28" fill="none">
+    <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
       <path d="M12.8334 14.583C13.0839 14.9179 13.4035 15.195 13.7706 15.3955C14.1376 15.5961 14.5435 15.7153 14.9606 15.7452C15.3778 15.7751 15.7965 15.7149 16.1884 15.5687C16.5802 15.4225 16.9361 15.1938 17.2318 14.898L18.9818 13.148C19.5131 12.5979 19.807 11.8611 19.8004 11.0964C19.7937 10.3317 19.487 9.60012 18.9462 9.05935C18.4055 8.51858 17.6739 8.21183 16.9092 8.20519C16.1444 8.19854 15.4077 8.49253 14.8576 9.02382L13.8543 10.0213M15.1669 13.4165C14.9164 13.0816 14.5967 12.8044 14.2297 12.6039C13.8627 12.4034 13.4568 12.2842 13.0397 12.2543C12.6225 12.2244 12.2038 12.2846 11.8119 12.4308C11.4201 12.5769 11.0642 12.8057 10.7685 13.1015L9.01854 14.8515C8.48725 15.4016 8.19326 16.1383 8.19991 16.9031C8.20655 17.6678 8.5133 18.3993 9.05407 18.9401C9.59484 19.4809 10.3264 19.7876 11.0911 19.7943C11.8559 19.8009 12.5926 19.5069 13.1427 18.9756L14.1402 17.9781" stroke="currentColor" strokeLinecap="round"/>
+    </svg>
+  );
+}
+function XCircleSmallIconSm() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3"/>
+      <path d="M6 6l4 4M10 6l-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+function SwapIconSm() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+      <path d="M2.5 5.5h9l-2.2-2.2M13.5 10.5h-9l2.2 2.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function MapPinIconSm() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+      <path d="M8 14.5s5-4.4 5-8.2A5 5 0 003 6.3c0 3.8 5 8.2 5 8.2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+      <circle cx="8" cy="6.2" r="1.6" stroke="currentColor" strokeWidth="1.3"/>
     </svg>
   );
 }
 
 const TIER_LINK_META: Record<string, { label:string; correlation:string }> = {
-  tier1: { label:"TIER 1 LINK", correlation:"Strong Correlation" },
-  tier2: { label:"TIER 2 LINK", correlation:"Moderate Correlation" },
-  tier3: { label:"TIER 3 LINK", correlation:"Weak Correlation" },
+  tier1: { label:"TIER 1 LINK", correlation:"Strong correlation" },
+  tier2: { label:"TIER 2 LINK", correlation:"Moderate correlation" },
+  tier3: { label:"TIER 3 LINK", correlation:"Weak correlation" },
 };
 
 const COOCCUR_CAMERAS = [
@@ -2558,17 +3178,15 @@ const COOCCUR_CAMERAS = [
   { code:"CAM-CBD-019", location:"Raffles Pl Int." },
 ];
 
-const JOINT_EVENT_DATES = [
-  { first:"2026-07-15 08:30", last:"2026-07-28 12:44" },
-  { first:"2026-07-10 14:12", last:"2026-07-26 19:05" },
-  { first:"2026-07-18 07:50", last:"2026-07-30 21:37" },
-];
-
 function assocId(n: RedfaceNode) {
   return `AS${String((100000 + n.id * 6421) % 900000 + 100000).padStart(6,"0")}`;
 }
 
-type CooccurEvent = { location:string; camCode:string; date:string; time:string };
+// gapSec is how many seconds AFTER the primary target the associate passed the same camera —
+// the actual signal for "walking together" (a couple of seconds apart, same stride) versus
+// "trailing" (tens of seconds to a couple of minutes back, consistent with following rather than
+// walking side by side).
+type CooccurEvent = { location:string; camCode:string; date:string; time:string; gapSec:number };
 
 const COOCCUR_DATES = ["07-15","07-18","07-20","07-22","07-25","07-27","07-28","07-30"];
 const COOCCUR_TIMES = ["07:52","08:30","08:42","12:05","14:18","18:15","19:40","21:40"];
@@ -2582,8 +3200,17 @@ function buildCooccurEvents(node: RedfaceNode): CooccurEvent[] {
     const cam = COOCCUR_CAMERAS[idx];
     const date = COOCCUR_DATES[(node.id + i * 3) % COOCCUR_DATES.length];
     const time = COOCCUR_TIMES[(node.id + i * 5) % COOCCUR_TIMES.length];
-    return { location: cam.location, camCode: cam.code, date: `2026-${date}`, time };
+    // ~2/3 of events land in the 0-3s "walking together" band, the rest in a 30-120s "trailing" band.
+    const walkingTogether = (node.id + i) % 3 !== 0;
+    const gapSec = walkingTogether ? (node.id + i * 7) % 4 : 30 + ((node.id + i * 11) % 91);
+    return { location: cam.location, camCode: cam.code, date: `2026-${date}`, time, gapSec };
   });
+}
+
+function gapLabel(gapSec: number): { text:string; color:string } {
+  return gapSec <= 3
+    ? { text:`${gapSec}s gap · Walking together`, color:"#16a34a" }
+    : { text:`${gapSec}s gap · Trailing`, color:"#ea580c" };
 }
 
 function groupCooccurEvents(events: CooccurEvent[]) {
@@ -2610,10 +3237,34 @@ function dominantTimeBucket(events: CooccurEvent[]) {
   return { bucket, pct: Math.round((count / events.length) * 100) };
 }
 
-function JointEvidencePanel({ primary, tier, node }: {
+// Companion-probability read: of the sampled co-capture events, what share fall in the 0-3s
+// "walking together" gap band versus the 30s+ "trailing" band. This is a real aggregate over
+// buildCooccurEvents' own gapSec field, not an independently fabricated number.
+function companionAnalytics(events: CooccurEvent[]) {
+  const walkingCount = events.filter(e => e.gapSec <= 3).length;
+  const probability = Math.round((walkingCount / events.length) * 100);
+  const avgGapSec = Math.round(events.reduce((s, e) => s + e.gapSec, 0) / events.length);
+  const interpretation = probability >= 80
+    ? "Strong walking-companion pattern"
+    : probability >= 50
+    ? "Mixed — sometimes together, sometimes trailing"
+    : "Mostly trailing, rarely side-by-side";
+  return { probability, avgGapSec, interpretation };
+}
+
+const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string }> = {
+  VIP: { bg:"#f0f0ff", text:"#5a3dfb" },
+  Suspect: { bg:"#fef3c7", text:"#ea580c" },
+  Unknown: { bg:"#f1f5f9", text:"#64748a" },
+};
+
+function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchToPrimary }: {
   primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode;
+  onClose: () => void; onExclude: () => void; onSwitchToPrimary: () => void;
 }) {
   const meta = TIER_LINK_META[tier];
+  const badge = TIER_BADGE_META[tier];
+  const statusBadge = STATUS_BADGE_META[node.status];
   const primaryId = primary.name.match(/\(([^)]+)\)/)?.[1] ?? "TS------";
   const events = buildCooccurEvents(node);
   const groups = groupCooccurEvents(events);
@@ -2622,73 +3273,151 @@ function JointEvidencePanel({ primary, tier, node }: {
   const sortedByDate = [...events].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   const firstSeen = sortedByDate[0];
   const lastSeen = sortedByDate[sortedByDate.length - 1];
+  const newestFirst = [...sortedByDate].reverse();
+  const { probability, avgGapSec, interpretation } = companionAnalytics(events);
+
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
 
   return (
-    <div className="vca-hide-scrollbar" style={{ width:"330px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER,
-      padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"20px" }}>
+    <div className="vca-hide-scrollbar" style={{ width:"460px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER,
+      padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"18px" }}>
+
+      {/* ── Section 1: header, profile comparison, badges, actions ── */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <span style={{ fontSize:"16px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.32px" }}>Joint Evidence Inspector</span>
-        <span style={{ fontSize:"11px", fontWeight:800, color:"#f43f5e", backgroundColor:"#ffeaea", padding:"3px 10px", borderRadius:"999px", whiteSpace:"nowrap" }}>{node.count} EVENTS</span>
+        <span title="Primary Target와 선택한 연관자가 함께 감지된 증거(시간·장소)를 보여줌" style={{ fontSize:"16px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</span>
+        <button onClick={onClose} title="Close" style={{ display:"flex", background:"none", border:"none", cursor:"pointer", color:"#94a3b8", padding:"2px" }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        </button>
       </div>
 
       <div style={{ border:BORDER, borderRadius:"8px", backgroundColor:"#f8fafc", padding:"16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", width:"96px" }}>
           <img src={primary.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid #f43f5e" }} />
           <span style={{ fontSize:"12px", fontWeight:800, color:"#0e162a" }}>{primaryId}</span>
+          <span style={{ fontSize:"9px", fontWeight:800, color:"white", backgroundColor:"#f43f5e", padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>PRIMARY</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
           <span style={{ fontSize:"10px", fontWeight:800, color:"#f43f5e", letterSpacing:"0.4px" }}>{meta.label}</span>
-          <div style={{ width:"28px", height:"28px", borderRadius:"50%", backgroundColor:"#ffeaea", display:"flex", alignItems:"center", justifyContent:"center", color:"#f43f5e" }}>
-            <LinkChainIconSm />
+          <div style={{ width:"32px", height:"32px", borderRadius:"50%", backgroundColor:"#ffeaea", display:"flex", alignItems:"center", justifyContent:"center", color:"#f43f5e" }}>
+            <LinkChainIconSm size={19} />
           </div>
-          <span style={{ fontSize:"11px", color:"#64748a" }}>{meta.correlation}</span>
+          <span style={{ fontSize:"10px", color:"#64748a", whiteSpace:"nowrap" }}>{meta.correlation}</span>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", width:"96px" }}>
           <img src={node.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid #ef4444" }} />
           <span style={{ fontSize:"12px", fontWeight:800, color:"#0e162a" }}>{assocId(node)}</span>
+          <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg, padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{node.status.toUpperCase()}</span>
         </div>
       </div>
 
-      <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-        <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px" }}>Co-capture Pattern</span>
+      <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
+        <span style={{ fontSize:"10px", fontWeight:800, color:badge.text, backgroundColor:badge.bg, padding:"3px 9px", borderRadius:"999px" }}>{badge.label}</span>
+        <span style={{ fontSize:"10px", fontWeight:800, color:"#475469", backgroundColor:"#f1f5f9", padding:"3px 9px", borderRadius:"999px" }}>{node.count} events</span>
+        <span style={{ fontSize:"10px", fontWeight:800, color:"#475469", backgroundColor:"#f1f5f9", padding:"3px 9px", borderRadius:"999px" }}>Last seen {lastSeen.date}</span>
+      </div>
 
+      <div style={{ display:"flex", gap:"8px" }}>
+        <button onClick={onExclude} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
+          padding:"9px 8px", borderRadius:"6px", border:"1px solid #fecdd3", cursor:"pointer",
+          backgroundColor:"white", color:"#e11d48", fontSize:"11px", fontWeight:700 }}>
+          <XCircleSmallIconSm /> Exclude false positive
+        </button>
+        <button onClick={onSwitchToPrimary} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
+          padding:"9px 8px", borderRadius:"6px", border:"1px solid #ded9ff", cursor:"pointer",
+          backgroundColor:"white", color:"#5a3dfb", fontSize:"11px", fontWeight:700 }}>
+          <SwapIconSm /> Make primary
+        </button>
+      </div>
+
+      {/* ── Section 2: relationship analytics ── */}
+      <div style={{ display:"flex", flexDirection:"column", gap:"10px", border:BORDER, borderRadius:"8px", padding:"14px", backgroundColor:"#f8fafc" }}>
+        <span title="함께 감지된 시간 간격, 주요 장소, 시간대 패턴을 종합한 관계 분석" style={{ fontSize:"13px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
         <div style={{ display:"flex", alignItems:"flex-start", gap:"8px", backgroundColor:"#f0f0ff", border:"1px solid #ded9ff", borderRadius:"8px", padding:"10px 12px" }}>
           <span style={{ color:"#5a3dfb", flexShrink:0, marginTop:"1px" }}><LinkChainIconSm /></span>
           <span style={{ fontSize:"12px", color:"#324055", lineHeight:1.5 }}>
-            Mostly seen together at <strong>{topGroup.location}</strong> ({topGroup.events.length}x), mainly during <strong>{bucket}</strong> hours ({pct}%)
+            Avg. <strong>{avgGapSec}s</strong> gap between passes → <strong>{probability}%</strong> companion probability. {interpretation}.
           </span>
         </div>
-
-        <div style={{ display:"flex", justifyContent:"space-between" }}>
-          <div>
-            <p style={{ margin:0, fontSize:"11px", color:"#94a3b8" }}>First seen</p>
-            <p style={{ margin:"2px 0 0", fontSize:"13px", fontWeight:700, color:"#0e162a" }}>{firstSeen.date} {firstSeen.time}</p>
+        <div style={{ display:"flex", gap:"10px" }}>
+          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"10px 12px", backgroundColor:"white" }}>
+            <p style={{ margin:0, fontSize:"10px", color:"#94a3b8", display:"flex", alignItems:"center", gap:"4px" }}><MapPinIconSm /> Top location</p>
+            <p style={{ margin:"4px 0 0", fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{topGroup.location}</p>
+            <p style={{ margin:"1px 0 0", fontSize:"10px", color:"#64748a" }}>{topGroup.events.length} of {events.length} sampled events</p>
           </div>
-          <div style={{ textAlign:"right" }}>
-            <p style={{ margin:0, fontSize:"11px", color:"#94a3b8" }}>Last seen</p>
-            <p style={{ margin:"2px 0 0", fontSize:"13px", fontWeight:700, color:"#0e162a" }}>{lastSeen.date} {lastSeen.time}</p>
+          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"10px 12px", backgroundColor:"white" }}>
+            <p style={{ margin:0, fontSize:"10px", color:"#94a3b8" }}>Time-of-day pattern</p>
+            <p style={{ margin:"4px 0 0", fontSize:"12px", fontWeight:700, color:"#0e162a", textTransform:"capitalize" }}>{bucket}</p>
+            <p style={{ margin:"1px 0 0", fontSize:"10px", color:"#64748a" }}>{pct}% of sampled events</p>
           </div>
         </div>
+        <div style={{ display:"flex", justifyContent:"space-between" }}>
+          <div>
+            <p style={{ margin:0, fontSize:"10px", color:"#94a3b8" }}>First seen</p>
+            <p style={{ margin:"2px 0 0", fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{firstSeen.date} {firstSeen.time}</p>
+          </div>
+          <div style={{ textAlign:"right" }}>
+            <p style={{ margin:0, fontSize:"10px", color:"#94a3b8" }}>Last seen</p>
+            <p style={{ margin:"2px 0 0", fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{lastSeen.date} {lastSeen.time}</p>
+          </div>
+        </div>
+      </div>
 
-        <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-          {groups.map(g => (
-            <div key={g.location} style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"12px", fontWeight:700, color:"#0e162a" }}>
-                  <CameraGlyph size={13} /> {g.location}
-                </span>
-                <span style={{ fontSize:"10px", fontWeight:800, color:"#475469", backgroundColor:"#f1f5f9", padding:"2px 7px", borderRadius:"999px" }}>{g.events.length}x</span>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:"4px", paddingLeft:"20px" }}>
-                {g.events.map((e, i) => (
-                  <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                    <span style={{ fontSize:"11px", color:"#94a3b8" }}>{e.camCode}</span>
-                    <span style={{ fontSize:"11px", color:"#64748a" }}>{e.date} {e.time}</span>
+
+      {/* ── Section 4: accordion timeline ── */}
+      <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
+          <span title="최신 감지 순으로 정렬된 동시 포착 이벤트 목록" style={{ fontSize:"13px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.26px", cursor:"help" }}>Event timeline</span>
+          <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8", whiteSpace:"nowrap" }}>Showing {events.length} most recent of {node.count}</span>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+          {newestFirst.map((e, i) => {
+            const gap = gapLabel(e.gapSec);
+            const open = expandedIdx === i;
+            return (
+              <div key={i} style={{ border:BORDER, borderRadius:"8px", overflow:"hidden" }}>
+                <button onClick={() => setExpandedIdx(open ? null : i)} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
+                  gap:"8px", padding:"9px 12px", background: open ? "#f8fafc" : "white", border:"none", cursor:"pointer" }}>
+                  <span style={{ display:"flex", alignItems:"center", gap:"8px", minWidth:0 }}>
+                    <span style={{ fontSize:"11px", fontWeight:700, color:"#0e162a", whiteSpace:"nowrap" }}>{e.date} {e.time}</span>
+                    <span style={{ fontSize:"10px", color:"#94a3b8", whiteSpace:"nowrap" }}>{e.camCode}</span>
+                  </span>
+                  <span style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
+                    <span style={{ fontSize:"10px", fontWeight:700, color:gap.color, whiteSpace:"nowrap" }}>{gap.text}</span>
+                    <span style={{ display:"flex", color:"#94a3b8", transform: open ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}><ChevronDownIconSm /></span>
+                  </span>
+                </button>
+                {open && (
+                  <div style={{ padding:"0 12px 12px", display:"flex", flexDirection:"column", gap:"8px" }}>
+                    <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"#324055" }}>
+                      <CameraGlyph size={12} /> {e.location} — {assocId(node)} detected {e.gapSec}s {e.gapSec <= 3 ? "after" : "behind"} Primary at this camera
+                    </span>
+                    {e.gapSec <= 3 ? (
+                      // Walking together (within 3s) — close enough to be the same camera frame,
+                      // so this is one capture with both people in it, not two. Primary shows as a
+                      // small avatar overlaid on the associate's capture rather than its own
+                      // equal-sized image alongside it.
+                      <div style={{ borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"#0e162a" }}>
+                        <img src={node.face} alt="" style={{ width:"100%", height:"96px", objectFit:"cover", display:"block" }} />
+                        <span style={{ position:"absolute", top:4, left:4, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.6)", padding:"1px 5px", borderRadius:"3px" }}>{e.camCode} · {assocId(node)}</span>
+                        <img src={primary.face} alt="" title="Primary" style={{ position:"absolute", bottom:6, left:6, width:"28px", height:"28px", borderRadius:"50%", objectFit:"cover", border:"2px solid #f43f5e" }} />
+                      </div>
+                    ) : (
+                      // Trailing (tens of seconds to minutes behind) — genuinely two different
+                      // moments at this camera, so two separate frames, one per person.
+                      <div style={{ display:"flex", gap:"8px" }}>
+                        {[{ label:"Primary", face:primary.face }, { label:assocId(node), face:node.face }].map((shot, si) => (
+                          <div key={si} style={{ flex:1, borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"#0e162a" }}>
+                            <img src={shot.face} alt="" style={{ width:"100%", height:"64px", objectFit:"cover", display:"block" }} />
+                            <span style={{ position:"absolute", top:4, left:4, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.6)", padding:"1px 5px", borderRadius:"3px" }}>{shot.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -2696,9 +3425,9 @@ function JointEvidencePanel({ primary, tier, node }: {
 }
 
 const TIER_BADGE_META: Record<"tier1"|"tier2"|"tier3", { bg:string; text:string; label:string }> = {
-  tier1: { bg:"#ffeaea", text:"#f43f5e", label:"Tier 1 (Red Zone)" },
-  tier2: { bg:"#fef3c7", text:"#ea580c", label:"Tier 2 (Orange Zone)" },
-  tier3: { bg:"#f1f5f9", text:"#475469", label:"Tier 3 (Slate Zone)" },
+  tier1: { bg:"#ffeaea", text:"#f43f5e", label:"Tier 1 (red zone)" },
+  tier2: { bg:"#fef3c7", text:"#ea580c", label:"Tier 2 (orange zone)" },
+  tier3: { bg:"#f1f5f9", text:"#475469", label:"Tier 3 (slate zone)" },
 };
 const COCAPTURE_COLOR: Record<"tier1"|"tier2"|"tier3", string> = {
   tier1:"#f43f5e", tier2:"#64748a", tier3:"#64748a",
@@ -2724,9 +3453,17 @@ function DataGridView({ rows, onInspect, selectedNodeId }: {
       </div>
       {rows.map((r, i) => {
         const badge = TIER_BADGE_META[r.tier];
-        const cam = COOCCUR_CAMERAS[r.node.id % COOCCUR_CAMERAS.length];
-        const dates = JOINT_EVENT_DATES[r.node.id % JOINT_EVENT_DATES.length];
-        const visits = Math.max(1, Math.round(r.node.count * 0.75));
+        // Derived from the exact same buildCooccurEvents/groupCooccurEvents call the Joint
+        // Evidence Inspector panel uses for this node — previously this row pulled its dates from
+        // an unrelated 3-entry JOINT_EVENT_DATES pool (keyed only by node.id % 3) while the panel
+        // computed its own independently-seeded sample, so the two views could show different
+        // "Last detected" dates for the SAME associate.
+        const events = buildCooccurEvents(r.node);
+        const groups = groupCooccurEvents(events);
+        const topGroup = groups[0];
+        const sortedByDate = [...events].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+        const firstSeen = sortedByDate[0];
+        const lastSeen = sortedByDate[sortedByDate.length - 1];
         return (
           <div key={`${r.tier}-${r.node.id}`} style={{ backgroundColor: i === 0 ? "#f0f0ff" : "white", borderTop:BORDER,
             padding:"10px 20px", display:"flex", gap:"8px", alignItems:"center" }}>
@@ -2739,9 +3476,9 @@ function DataGridView({ rows, onInspect, selectedNodeId }: {
               <span style={{ fontSize:"10px", fontWeight:800, color:badge.text, backgroundColor:badge.bg, padding:"2px 6px", borderRadius:"4px" }}>{badge.label}</span>
             </div>
             <span style={{ width:"110px", flexShrink:0, fontSize:"13px", fontWeight:700, color:COCAPTURE_COLOR[r.tier] }}>{r.node.count} Events</span>
-            <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#0e162a" }}>{`C0${(r.node.id % 5) + 1} ${cam.location.split(" ")[0]} (${visits}x)`}</span>
-            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#64748a" }}>{dates.first}</span>
-            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#64748a" }}>{dates.last}</span>
+            <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#0e162a" }}>{`${topGroup.camCode} ${topGroup.location.split(" ")[0]} (${topGroup.events.length}x)`}</span>
+            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#64748a" }}>{firstSeen.date} {firstSeen.time}</span>
+            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#64748a" }}>{lastSeen.date} {lastSeen.time}</span>
             <div style={{ width:"80px", flexShrink:0, display:"flex", justifyContent:"center" }}>
               <button onClick={() => onInspect(r.tier, r.node)} style={{ padding:"4px 10px", borderRadius:"6px", border:"none",
                 backgroundColor: r.node.id === selectedNodeId ? "#5a3dfb" : "#0e162a", color:"white", cursor:"pointer",
@@ -2756,7 +3493,9 @@ function DataGridView({ rows, onInspect, selectedNodeId }: {
   );
 }
 
-function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{ name:string; face:string }; onSwitchTarget:()=>void }) {
+function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
+  primaryTarget:{ name:string; face:string } | null; onSwitchTarget:()=>void; onSwitchToNode:(node:RedfaceNode)=>void;
+}) {
   const [tier1On, setTier1On] = useState(true);
   const [tier2On, setTier2On] = useState(true);
   const [tier3On, setTier3On] = useState(true);
@@ -2765,31 +3504,86 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{
   const [selectedNode, setSelectedNode] = useState<{ tier:"tier1"|"tier2"|"tier3"; node:RedfaceNode } | null>(null);
   const toggleSelectedNode = (tier: string, node: RedfaceNode) =>
     setSelectedNode(prev => prev && prev.node.id === node.id ? null : { tier: tier as "tier1"|"tier2"|"tier3", node });
+  // Investigator override on top of the seeded/deterministic data — "Exclude false positive"
+  // hides a node from every view (pyramid/grid/counts) since a dismissed non-match shouldn't keep
+  // cluttering the associate list. Reset whenever the Primary Target itself changes — these ids
+  // belong to THIS person's associate graph, not the next one's.
+  const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    setExcludedIds(new Set());
+    setSelectedNode(null);
+  }, [primaryTarget?.name]);
+  const handleExcludeNode = (id: number) => {
+    setExcludedIds(prev => new Set(prev).add(id));
+    setSelectedNode(null);
+  };
 
-  const tier1 = REDFACE_TIER1.filter(n => n.count >= minHits);
-  const tier2 = REDFACE_TIER2.filter(n => n.count >= minHits);
-  const tier3 = REDFACE_TIER3.filter(n => n.count >= minHits);
-  const totalAll = REDFACE_TIER1.length + REDFACE_TIER2.length + REDFACE_TIER3.length;
+  // Recomputed only when the Primary Target actually changes — same person always reproduces the
+  // same associate graph, but switching to someone else now genuinely changes who's in it instead
+  // of only updating the header photo/name above a graph that never moved.
+  // Only the name actually feeds the seed — depending on the whole primaryTarget object would
+  // recompute (and reshuffle every associate's face/count) on every parent re-render, since it's
+  // passed down as a fresh object literal each time even when the same person is still selected.
+  const { tier1: REDFACE_TIER1, tier2: REDFACE_TIER2, tier3: REDFACE_TIER3 } = useMemo(
+    () => buildRedfaceTiers(primaryTarget ? redfaceSeedFromName(primaryTarget.name) : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [primaryTarget?.name]
+  );
+
+  const [sortDir, setSortDir] = useState<"desc"|"asc">("desc");
+  const [sortOpen, setSortOpen] = useState(false);
+  const SORT_OPTIONS: { id:"desc"|"asc"; label:string }[] = [
+    { id:"desc", label:"Co-occurrence frequency (high → low)" },
+    { id:"asc",  label:"Co-occurrence frequency (low → high)" },
+  ];
+  const notExcluded = (n: RedfaceNode) => !excludedIds.has(n.id);
+  // Reuses buildCooccurEvents' own dates rather than a separate fabricated "last activity" field —
+  // a node passes the filter if ANY of its sampled co-capture events fall inside the range.
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ start:null, end:null });
+  const inDateRange = (n: RedfaceNode) => {
+    if (!dateRange.start && !dateRange.end) return true;
+    return buildCooccurEvents(n).some(e => {
+      const d = new Date(e.date);
+      if (dateRange.start && d < dateRange.start) return false;
+      if (dateRange.end && d > dateRange.end) return false;
+      return true;
+    });
+  };
+  const sortNodes = (nodes: RedfaceNode[]) => [...nodes].sort((a, b) => sortDir === "desc" ? b.count - a.count : a.count - b.count);
+
+  const tier1 = sortNodes(REDFACE_TIER1.filter(n => n.count >= minHits && notExcluded(n) && inDateRange(n)));
+  const tier2 = sortNodes(REDFACE_TIER2.filter(n => n.count >= minHits && notExcluded(n) && inDateRange(n)));
+  const tier3 = sortNodes(REDFACE_TIER3.filter(n => n.count >= minHits && notExcluded(n) && inDateRange(n)));
+  const totalAll = REDFACE_TIER1.filter(notExcluded).length + REDFACE_TIER2.filter(notExcluded).length + REDFACE_TIER3.filter(notExcluded).length;
   const totalVisible = (tier1On ? tier1.length : 0) + (tier2On ? tier2.length : 0) + (tier3On ? tier3.length : 0);
-  const reset = () => { setTier1On(true); setTier2On(true); setTier3On(true); setMinHits(1); };
+  const reset = () => { setTier1On(true); setTier2On(true); setTier3On(true); setMinHits(1); setSortDir("desc"); setDateRange({ start:null, end:null }); };
 
+  // No primary target yet means there's nobody to compute co-occurrence against — the tier
+  // filter counts/toggles in the sidebar still describe the dataset, but the canvas itself has
+  // nothing real to plot, so it renders the same empty zone bands as the Figma "before search"
+  // landing state instead of dots that don't actually belong to anyone.
+  // Once a primary target is set, Min. co-occurrences (or Date range/Exclude) can filter a tier
+  // down to zero nodes — that tier's zone band used to keep rendering at full weighted height
+  // with nothing in it, reading as broken empty space rather than "nothing here anymore." Only
+  // the pre-search landing state (no primaryTarget) still shows every toggled-on tier as an empty
+  // band on purpose (see comment above) — that placeholder case is left alone.
   const visibleRows: PyramidRow[] = [
     { key:"apex", weight:1.3, nodes:[], meta:null },
-    ...(tier1On ? [{ key:"tier1", weight:PYRAMID_TIER_META.tier1.weight, nodes:tier1, meta:PYRAMID_TIER_META.tier1 }] : []),
-    ...(tier2On ? [{ key:"tier2", weight:PYRAMID_TIER_META.tier2.weight, nodes:tier2, meta:PYRAMID_TIER_META.tier2 }] : []),
-    ...(tier3On ? [{ key:"tier3", weight:PYRAMID_TIER_META.tier3.weight, nodes:tier3, meta:PYRAMID_TIER_META.tier3 }] : []),
+    ...(tier1On && (!primaryTarget || tier1.length > 0) ? [{ key:"tier1", weight:PYRAMID_TIER_META.tier1.weight, nodes: primaryTarget ? tier1 : [], meta:PYRAMID_TIER_META.tier1 }] : []),
+    ...(tier2On && (!primaryTarget || tier2.length > 0) ? [{ key:"tier2", weight:PYRAMID_TIER_META.tier2.weight, nodes: primaryTarget ? tier2 : [], meta:PYRAMID_TIER_META.tier2 }] : []),
+    ...(tier3On && (!primaryTarget || tier3.length > 0) ? [{ key:"tier3", weight:PYRAMID_TIER_META.tier3.weight, nodes: primaryTarget ? tier3 : [], meta:PYRAMID_TIER_META.tier3 }] : []),
   ];
   const hasVisibleTier = tier1On || tier2On || tier3On;
-  const gridRows: Array<{ tier:"tier1"|"tier2"|"tier3"; node:RedfaceNode }> = [
+  const gridRows: Array<{ tier:"tier1"|"tier2"|"tier3"; node:RedfaceNode }> = !primaryTarget ? [] : [
     ...(tier1On ? tier1.map(node => ({ tier:"tier1" as const, node })) : []),
     ...(tier2On ? tier2.map(node => ({ tier:"tier2" as const, node })) : []),
     ...(tier3On ? tier3.map(node => ({ tier:"tier3" as const, node })) : []),
   ];
 
   const tierRows = [
-    { on:tier1On, toggle:() => setTier1On(o => !o), bg:"#ffebee", text:"#e11d48", label:"Tier 1 Red Zone (>100)", count:REDFACE_TIER1.length, badgeBg:"#f43f5e" },
-    { on:tier2On, toggle:() => setTier2On(o => !o), bg:"#fffbeb", text:"#ea580c", label:"Tier 2 Orange Zone (10~99)", count:REDFACE_TIER2.length, badgeBg:"#f59e0b" },
-    { on:tier3On, toggle:() => setTier3On(o => !o), bg:"#f1f5f9", text:"#324055", label:"Tier 3 Slate Zone (<10)", count:REDFACE_TIER3.length, badgeBg:"#475569" },
+    { on:tier1On, toggle:() => setTier1On(o => !o), bg:"#ffebee", text:"#f43f5e", label:"Tier 1 red zone (>100)", count:REDFACE_TIER1.filter(notExcluded).length, badgeBg:"#f43f5e" },
+    { on:tier2On, toggle:() => setTier2On(o => !o), bg:"#fffbeb", text:"#ea580c", label:"Tier 2 orange zone (10~99)", count:REDFACE_TIER2.filter(notExcluded).length, badgeBg:"#f59e0b" },
+    { on:tier3On, toggle:() => setTier3On(o => !o), bg:"#f1f5f9", text:"#324055", label:"Tier 3 slate zone (<10)", count:REDFACE_TIER3.filter(notExcluded).length, badgeBg:"#475569" },
   ];
 
   return (
@@ -2799,18 +3593,13 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
             <SlidersIconSm />
-            <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px" }}>Associate Filter</span>
+            <span title="선택한 대상과 자주 함께 감지된 인물을 좁혀서 찾는 필터" style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px", cursor:"help" }}>Associate filter</span>
           </div>
           <span style={{ fontSize:"12px", fontWeight:700, color:"#475469", backgroundColor:"#f1f5f9", padding:"2px 8px", borderRadius:"10px" }}>{totalVisible}/{totalAll}</span>
         </div>
 
-        <div style={{ display:"flex", alignItems:"center", gap:"8px", border:BORDER, borderRadius:"6px", padding:"10px 12px" }}>
-          <SearchIconSm />
-          <span style={{ fontSize:"12px", color:"#94a3b8" }}>Search associate ID or name...</span>
-        </div>
-
         <div style={{ display:"flex", flexDirection:"column", gap:"10px", width:"100%" }}>
-          <span style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px" }}>Zone Tiers</span>
+          <span title="Primary Target와 함께 감지된 횟수(co-occurrence)를 구간별로 나눈 등급" style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px", cursor:"help" }}>Zone tiers</span>
           <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
             {tierRows.map(row => (
               <button key={row.label} onClick={row.toggle} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -2826,35 +3615,55 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", gap:"10px", width:"100%" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <span style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px" }}>Min. Co-occurrences</span>
-            <span style={{ fontSize:"11px", color:"#5a3dfb" }}>{minHits} Hits</span>
-          </div>
-          <div style={{ position:"relative", height:"14px", display:"flex", alignItems:"center" }}>
-            <div style={{ position:"absolute", left:0, right:0, height:"4px", borderRadius:"2px", backgroundColor:"#e2e8f0" }} />
-            <div style={{ position:"absolute", left:0, height:"4px", borderRadius:"2px", backgroundColor:"#5a3dfb",
-              width:`${((minHits-1)/149)*100}%` }} />
-            <div style={{ position:"absolute", left:`calc(${((minHits-1)/149)*100}% - 5px)`, width:"10px", height:"10px", borderRadius:"50%",
-              backgroundColor:"white", border:"2px solid #5a3dfb" }} />
-            <input type="range" min={1} max={150} value={minHits} onChange={e => setMinHits(parseInt(e.target.value))}
-              style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0, margin:0, cursor:"pointer" }} />
-          </div>
-          <div style={{ display:"flex", justifyContent:"space-between", fontSize:"10px", fontWeight:600, color:"#475469" }}>
-            <span>1</span><span>10</span><span>50</span><span>100</span><span>150+</span>
+          <span title="Primary Target와 같은 시간대에 같은 카메라에 함께 잡힌 횟수 — 이 값 이상인 인물만 표시" style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px", cursor:"help" }}>Min. co-occurrences</span>
+          {/* Same fixed-choice pattern as Min Similarity — a free 1-150 drag slider with no step
+              made landing on a specific number close to impossible; these five map directly to the
+              tier cutoffs above (Tier 3 <10, Tier 2 10-99, Tier 1 >100). */}
+          <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"999px", padding:"2px", height:"34px" }}>
+            {[1,10,50,100,150].map(v => {
+              const active = minHits === v;
+              return (
+                <button key={v} onClick={() => setMinHits(v)} style={{
+                  flex:1, borderRadius:"999px", border:"none", cursor:"pointer",
+                  backgroundColor: active ? "white" : "transparent",
+                  color: active ? "#5a3dfb" : "#94a3b8", fontWeight: active ? 700 : 600, fontSize:"12px",
+                }}>{v}</button>
+              );
+            })}
           </div>
         </div>
 
-        <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
-          <span style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px" }}>Sort Associates by</span>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", border:BORDER, borderRadius:"6px", padding:"10px 12px" }}>
-            <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a" }}>Co-occurrence Frequency (High → Low)</span>
-            <ChevronDownIconSm />
-          </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:"10px", width:"100%" }}>
+          <span title="함께 감지된 날짜가 이 기간에 포함되는 연관자만 표시" style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px", cursor:"help" }}>Date range</span>
+          <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" size="sm" emptyText="All time" />
+        </div>
+
+        <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%", position:"relative" }}>
+          <span style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px" }}>Sort associates by</span>
+          <button onClick={() => setSortOpen(o => !o)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+            border:BORDER, borderRadius:"6px", padding:"10px 12px", width:"100%", backgroundColor:"white", cursor:"pointer" }}>
+            <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a", lineHeight:1.4 }}><SortOptionLabel label={SORT_OPTIONS.find(o => o.id === sortDir)!.label} /></span>
+            <span style={{ display:"flex", flexShrink:0, transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}><ChevronDownIconSm /></span>
+          </button>
+          {sortOpen && (
+            <div style={{ position:"absolute", top:"100%", left:0, marginTop:"4px", width:"100%", backgroundColor:"white",
+              border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden" }}>
+              {SORT_OPTIONS.map(opt => (
+                <button key={opt.id} onClick={() => { setSortDir(opt.id); setSortOpen(false); }} style={{
+                  display:"block", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
+                  backgroundColor: sortDir === opt.id ? "#f0f0ff" : "white",
+                  fontSize:"12px", fontWeight: sortDir === opt.id ? 700 : 500, color: sortDir === opt.id ? "#5a3dfb" : "#334155", lineHeight:1.4,
+                }}>
+                  <SortOptionLabel label={opt.label} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", width:"100%", paddingTop:"4px" }}>
           <button onClick={reset} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
-            padding:"10px", borderRadius:"6px", border:BORDER, backgroundColor:"white", cursor:"pointer", fontSize:"12px", fontWeight:500, color:"#475469" }}>
+            padding:"10px", borderRadius:"6px", border:BORDER, backgroundColor:"white", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"#475469" }}>
             <ResetIconSm /> Reset Filters
           </button>
         </div>
@@ -2863,25 +3672,29 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{
       <div className="vca-hide-scrollbar" style={{ flex:1, display:"flex", flexDirection:"column", overflowY:"auto" }}>
         <div style={{ backgroundColor:"white", borderBottom:BORDER, padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-            <img src={primaryTarget.face} alt="" style={{ width:"44px", height:"44px", borderRadius:"6px", objectFit:"cover", border:"2px solid #f43f5e" }} />
-            <div>
-              <span style={{ display:"inline-flex", fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"#f43f5e", padding:"2px 6px", borderRadius:"4px", letterSpacing:"-0.2px" }}>PRIMARY TARGET</span>
-              <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", margin:"4px 0 0", letterSpacing:"-0.28px" }}>{primaryTarget.name}</p>
-            </div>
-            <button onClick={onSwitchTarget} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 12px",
-              borderRadius:"6px", backgroundColor:"#f1f5f9", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"#475469" }}>
-              <SearchIconSm /> Switch Primary Target
-            </button>
+            {primaryTarget && (
+              <>
+                <img src={primaryTarget.face} alt="" style={{ width:"44px", height:"44px", borderRadius:"6px", objectFit:"cover", border:"2px solid #5a3dfb" }} />
+                <div>
+                  <span title="지금 기준으로 삼고 있는 인물 — 이 사람과 자주 함께 감지된 연관자를 찾음" style={{ display:"inline-flex", fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"#5a3dfb", padding:"2px 6px", borderRadius:"4px", letterSpacing:"-0.2px", cursor:"help" }}>PRIMARY TARGET</span>
+                  <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", margin:"4px 0 0", letterSpacing:"-0.28px" }}>{primaryTarget.name}</p>
+                </div>
+                <button onClick={onSwitchTarget} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 12px",
+                  borderRadius:"6px", backgroundColor:"#f1f5f9", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"#475469" }}>
+                  <SwapIconSm /> Switch Primary Target
+                </button>
+              </>
+            )}
           </div>
           <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"8px", padding:"4px" }}>
             {(["pyramid","grid"] as const).map(v => {
               const active = view === v;
               return (
-                <button key={v} onClick={() => setView(v)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px",
+                <button key={v} onClick={() => setView(v)} title={v === "pyramid" ? "연관자를 등급별 시각 배치로 보기" : "연관자를 표 형태 목록으로 보기"} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px",
                   borderRadius:"6px", border:"none", cursor:"pointer",
                   backgroundColor: active ? "white" : "transparent", color: active ? "#0f172a" : "#64748a",
                   fontSize:"12px", fontWeight: active ? 700 : 600 }}>
-                  {v === "pyramid" ? <LayersIconSm/> : <TableIconSm/>} {v === "pyramid" ? "Pyramid & Zone" : "Data Grid"}
+                  {v === "pyramid" ? <LayersIconSm/> : <TableIconSm/>} {v === "pyramid" ? "Pyramid & zone" : "Data grid"}
                 </button>
               );
             })}
@@ -2909,8 +3722,14 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{
         )}
       </div>
 
-      {selectedNode && (
-        <JointEvidencePanel primary={primaryTarget} tier={selectedNode.tier} node={selectedNode.node} />
+      {/* selectedNode can only be set by clicking a rendered node, and nodes only render once a
+          primaryTarget exists (see visibleRows above), so primaryTarget is guaranteed here too. */}
+      {selectedNode && primaryTarget && (
+        <JointEvidencePanel primary={primaryTarget} tier={selectedNode.tier} node={selectedNode.node}
+          onClose={() => setSelectedNode(null)}
+          onExclude={() => handleExcludeNode(selectedNode.node.id)}
+          onSwitchToPrimary={() => onSwitchToNode(selectedNode.node)}
+        />
       )}
     </div>
   );
@@ -2930,6 +3749,14 @@ function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_
     setPickerOpen(false);
   };
 
+  // "Make primary" from the Joint Evidence panel — promotes the associate node itself into the
+  // new Primary Target, so the whole graph recomputes around them instead of just relabeling the
+  // header photo. Reuses the same assocId() the panel already displays for that node, so the
+  // person the investigator just saw stays the same identifier after the switch.
+  const handleSwitchToNode = (node: RedfaceNode) => {
+    setPrimaryTarget({ name:`Suspect (${assocId(node)})`, face: node.face });
+  };
+
   // Deep-link from a Live Monitoring card's "RedFace" hover button — skip the picker and go
   // straight to this person as the confirmed primary target. Uses the card's full photo (url),
   // not its unrelated `face` stock-photo field, so the "same person" stays visually consistent.
@@ -2947,14 +3774,25 @@ function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_
 
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", position:"relative", backgroundColor:"#f8fafc", overflow:"hidden" }}>
-      {primaryTarget && <AssociateGraphView primaryTarget={primaryTarget} onSwitchTarget={() => setPickerOpen(true)} />}
+      {/* Renders even before a target is picked — this is the "before search" landing state
+          (empty zone bands, filter sidebar, no primary-target header) that sits behind the blur
+          while the picker is open, instead of a bare empty page. */}
+      <AssociateGraphView primaryTarget={primaryTarget} onSwitchTarget={() => setPickerOpen(true)}
+        onSwitchToNode={handleSwitchToNode} />
       {pickerOpen && (
+        // backdropFilter/backgroundColor live on the scrolling container itself now, not on a
+        // separate inset:0 sibling sized to just one screen's height — that sibling stayed pinned
+        // to the wrapper's own fixed box while the modal+padding below it (6vh top + up to 92vh
+        // modal + 24px bottom, which alone already exceeds 100vh) pushed the wrapper into
+        // scrolling, so scrolling down ran past the tinted/blurred box into plain page background.
+        // A background-color painted on the scrolling element itself extends across its full
+        // scrollable content, however tall that turns out to be.
         <div
           onClick={e => { if (e.target === e.currentTarget && primaryTarget) setPickerOpen(false); }}
-          style={{ position:"absolute", inset:0, zIndex:50, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"24px", paddingTop:"6vh", overflow:"auto" }}
+          style={{ position:"absolute", inset:0, zIndex:50, overflow:"auto",
+            backdropFilter:"blur(9px)", backgroundColor:"rgba(205,205,205,0.4)" }}
         >
-          <div style={{ position:"absolute", inset:0, backdropFilter:"blur(9px)", backgroundColor:"rgba(205,205,205,0.4)" }} />
-          <div style={{ position:"relative" }}>
+          <div style={{ minHeight:"100%", boxSizing:"border-box", display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"24px", paddingTop:"6vh" }}>
             <PrimaryTargetPickerModal onConfirm={handleConfirm} onCancel={() => primaryTarget && setPickerOpen(false)} />
           </div>
         </div>
@@ -2964,12 +3802,15 @@ function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_
 }
 
 // ── Tab icons ──────────────────────────────────────────────────
-const TAB_ICONS: Record<DataTab, React.ReactNode> = {
+export const TAB_ICONS: Record<DataTab, React.ReactNode> = {
   "Live Monitoring": (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-      <path d="M8 2V14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M2 8H14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M12.6667 2H3.33333C2.59695 2 2 2.59695 2 3.33333V12.6667C2 13.403 2.59695 14 3.33333 14H12.6667C13.403 14 14 13.403 14 12.6667V3.33333C14 2.59695 13.403 2 12.6667 2Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+    // viewBox is 24 units (lucide's native size) while the sibling tab icons below use a 16-unit
+    // viewBox at the same 15px render size — same nominal strokeWidth=1 would end up ~35% thinner
+    // here once scaled (15/24 vs 15/16), so this compensates to land on the same rendered
+    // thickness as the others instead of just copying their "1".
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/>
+      <circle cx="12" cy="12" r="3"/>
     </svg>
   ),
   "Re-ID Analysis": (
@@ -2998,8 +3839,15 @@ const TAB_ICONS: Record<DataTab, React.ReactNode> = {
 };
 
 // ── Main DataPage ──────────────────────────────────────────────
-const DATA_TABS: DataTab[] = ["Live Monitoring","Re-ID Analysis","Smart Search","RedFace"];
-
+// Smart Search isn't its own top-level tab anymore — it lives inside Live Monitoring (see
+// LiveMonitoringTab), matching how Re-ID Analysis/RedFace each keep their own search UI embedded
+// in place rather than sending the operator to a separate destination to search from.
+const DATA_TABS: DataTab[] = ["Live Monitoring","Re-ID Analysis","RedFace"];
+// "RedFace" doesn't say what it does on its own — a first-time viewer has no way to guess this
+// is a co-occurrence/associate-finder feature just from the tab label.
+const DATA_TAB_TOOLTIPS: Partial<Record<DataTab, string>> = {
+  "RedFace": "선택한 인물과 여러 카메라에 자주 함께 감지된 동행/연관자를 찾는 기능",
+};
 export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
   // Always lands on Live Monitoring — deliberately not persisted, unlike Best Frame's
   // camera selection. Switching sub-tabs while on this screen is normal component state;
@@ -3013,6 +3861,29 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
     setActiveTab(tab);
   };
 
+  // Live Monitoring's camera picker (real store codes, e.g. "CAM-NOV-001") and Re-ID's camera
+  // filter (the separate "NC-1".."NC-4" mock id space REID_DATA's own `cam` field uses) can't
+  // share a raw value — a specific selection in one has no equivalent in the other's id space,
+  // and forcing one through would make the other silently filter down to zero real matches. "All
+  // Cameras" is the one state that means the same thing in both spaces, so only that syncs both
+  // ways; a specific pick in either tab stays local to that tab.
+  const [liveCam, setLiveCamRaw] = useState<string>(ALL_CAMERAS_ID);
+  const [reidCam, setReidCamRaw] = useState<string>("");
+  const setLiveCam = (v: string) => { setLiveCamRaw(v); if (v === ALL_CAMERAS_ID) setReidCamRaw(""); };
+  const setReidCam = (v: string) => { setReidCamRaw(v); if (v === "") setLiveCamRaw(ALL_CAMERAS_ID); };
+
+  // The global command palette (mounted outside this component, in ClientLayout) can only reach
+  // this deep via the shared store — there's no prop path from there to here. Same
+  // compare-during-render pattern as seedCard below: `requestId` always increments, so switching
+  // to the same tab twice in a row still re-fires for whichever child cares about cameraCode/
+  // vipIndex/recentTargetIndex.
+  const dataNavRequest = useVcaStore(s => s.dataNavRequest);
+  const [prevNavRequestId, setPrevNavRequestId] = useState<number | null>(null);
+  if (dataNavRequest && dataNavRequest.requestId !== prevNavRequestId) {
+    setPrevNavRequestId(dataNavRequest.requestId);
+    setActiveTab(dataNavRequest.tab);
+  }
+
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", backgroundColor:"#f8fafc" }}>
 
@@ -3021,7 +3892,7 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
         {DATA_TABS.map(tab => {
           const active = activeTab===tab;
           return (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{ height:"100%", padding:"0 18px", background:"none", border:"none", cursor:"pointer",
+            <button key={tab} onClick={() => setActiveTab(tab)} title={DATA_TAB_TOOLTIPS[tab]} style={{ height:"100%", padding:"0 18px", background:"none", border:"none", cursor:"pointer",
               display:"flex", alignItems:"center", gap:"6px",
               borderBottom: active?"2px solid #0e162a":"2px solid transparent",
               color: active?"#0e162a":"#64748a",
@@ -3034,9 +3905,8 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
         })}
       </div>
 
-      {activeTab==="Live Monitoring" && <LiveMonitoringTab onNavigateTab={handleNavigateFromCard} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
-      {activeTab==="Re-ID Analysis"   && <ReIDContent seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} onNavigateTab={setActiveTab} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
-      {activeTab==="Smart Search"     && <SmartSearchContent seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
+      {activeTab==="Live Monitoring" && <LiveMonitoringTab openCam={liveCam} onOpenCamChange={setLiveCam} onNavigateTab={handleNavigateFromCard} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
+      {activeTab==="Re-ID Analysis"   && <ReIDContent camera={reidCam} onCameraChange={setReidCam} seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} onNavigateTab={setActiveTab} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
       {activeTab==="RedFace"          && <RedFaceContent seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} />}
     </div>
   );

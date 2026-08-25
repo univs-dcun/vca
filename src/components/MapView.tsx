@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LiveEvent, Device, TrackingHop, nearestDistrict, getFacePhoto, formatTimeAgo,
   DISTRICT_ALERT_THRESHOLD_KEY, DISTRICT_MODERATE_THRESHOLD_KEY,
   DEFAULT_DISTRICT_ALERT_THRESHOLD, DEFAULT_DISTRICT_MODERATE_THRESHOLD } from "@/lib/mockData";
-import { useVcaStore, vcaEventsToLiveEvents } from "@/lib/vcaStore";
+import { useVcaStore, vcaEventsToLiveEvents, VIP_SIMULATION_CAMERAS, type Camera } from "@/lib/vcaStore";
 import { useApiData } from "@/hooks/useApiData";
 import { getDistricts } from "@/lib/api/dashboard";
+import { isTodaySgt } from "@/lib/time";
 
 // Leaflet popups are raw HTML strings, not React — values dropped into an inline onclick="...('...')"
 // attribute need their quotes escaped so a name/label containing one can't break the attribute.
@@ -19,13 +20,48 @@ function escapeAttr(s: string): string {
 // detection. Replaces the old always-on, hardcoded zone-count pills so the default map only
 // ever shows where something was really just found.
 const VIP_PING_COLOR = "#5a3dfb";
-const TRACKING_PING_COLOR = "#16a34a";
 
+// Both camera-dot variants below share a bigger invisible "vca-camera-dot-hit" box around the
+// actual small visible dot ("vca-camera-dot-visual") — a 10px circle is a tiny target to hit
+// exactly, and the wrapper (translate-centered on the marker's real lat/lng, same as before)
+// gives click/hover a more forgiving area without changing how big the dot looks. The hover
+// scale-up itself is a plain CSS rule in globals.css (.vca-camera-dot-hit:hover ...).
 function recentPingHtml(color: string): string {
   return `
-    <div style="position:relative;width:10px;height:10px;transform:translateX(-50%) translateY(-50%)">
-      <span class="vca-alert-ping" style="position:absolute;inset:0;border-radius:50%;background:${color};"></span>
-      <div style="position:relative;width:10px;height:10px;border-radius:50%;background:${color};border:1.5px solid white;"></div>
+    <div class="vca-camera-dot-hit" style="position:relative;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;transform:translateX(-50%) translateY(-50%)">
+      <div class="vca-camera-dot-visual" style="position:relative;width:10px;height:10px;transition:transform 0.15s ease">
+        <span class="vca-alert-ping" style="position:absolute;inset:0;border-radius:50%;background:${color};"></span>
+        <div style="position:relative;width:10px;height:10px;border-radius:50%;background:${color};border:1.5px solid white;"></div>
+      </div>
+    </div>`;
+}
+
+// Same footprint as recentPingHtml (so both anchor identically) but no expanding ring and a
+// muted dark-gray fill — every camera's location still gets marked when zoomed in, but only the
+// ones with a recent VIP hit get the attention-grabbing pulse.
+function quietCameraDotHtml(): string {
+  return `
+    <div class="vca-camera-dot-hit" style="position:relative;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;transform:translateX(-50%) translateY(-50%)">
+      <div class="vca-camera-dot-visual" style="position:relative;width:10px;height:10px;border-radius:50%;background:#475469;border:1.5px solid white;transition:transform 0.15s ease"></div>
+    </div>`;
+}
+
+// Hover tooltip for a zoomed-in camera dot — same name+status-badge+zone shape as the System
+// panel's device pin popup (getDevicePopupHTML above), just triggered on hover instead of click
+// and sourced from Camera's own fields (a Camera and a System-panel Device are separate mock
+// pools in this app, not joinable by anything reliable — see the camera-data-pool-consolidation
+// notes elsewhere — so this reads Camera's own status/zone rather than trying to cross-reference).
+function cameraDotTooltipHtml(cam: Camera): string {
+  const isLive = cam.status === "online";
+  return `
+    <div style="font-family:'SUIT',system-ui,sans-serif;padding:8px 10px;display:flex;flex-direction:column;gap:3px;min-width:120px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="font-size:12px;font-weight:800;color:#0e162a;letter-spacing:-0.24px;white-space:nowrap">${cam.name}</span>
+        <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:999px;flex-shrink:0;color:${isLive ? "#16a34a" : "#f43f5e"};background:${isLive ? "rgba(34,197,94,0.12)" : "rgba(244,63,94,0.12)"}">
+          ${isLive ? "LIVE" : "OFFLINE"}
+        </span>
+      </div>
+      <span style="font-size:10px;font-weight:600;color:#64748a;white-space:nowrap">${cam.zone || cam.location}</span>
     </div>`;
 }
 
@@ -37,32 +73,38 @@ const CLUSTER_ZOOM_BREAKPOINT = 14;
 // Ported from RedmapMap.tsx's statusMarkerHtml() — same colors/dashed-camera-icon — but driven by
 // real computed { count, hasCamera } instead of RedmapMap's hardcoded STATUS_ZONES, and by
 // user-configurable thresholds instead of hardcoded ones.
-function districtPillHtml(label: string, count: number, hasCamera: boolean, alertThreshold: number, moderateThreshold: number): string {
+function districtPillHtml(label: string, count: number, hasOnlineCamera: boolean, alertThreshold: number, moderateThreshold: number): string {
   const isAlert = count >= alertThreshold;
   const isDark = !isAlert && count >= moderateThreshold;
-  const isDashed = !hasCamera;
+  // Dashed = this district's camera(s) are offline, not "no camera was ever installed here".
+  const isDashed = !hasOnlineCamera;
   let bg: string, textColor: string, border: string;
   if (isAlert)      { bg = "#f43f5e"; textColor = "white";   border = ""; }
   else if (isDark)  { bg = "#0e162a"; textColor = "white";   border = ""; }
-  else if (isDashed){ bg = "white";   textColor = "#64748a"; border = "border:1.5px dashed #5a3dfb;"; }
+  // Offline cameras aren't as urgent a signal as a real, nonzero VIP count — purple is reserved
+  // for things that actually need attention, so this stays a neutral gray instead.
+  else if (isDashed){ bg = "white";   textColor = "#64748a"; border = "border:1.5px dashed #ccd5e1;"; }
   else              { bg = "white";   textColor = "#334155"; border = "border:1.5px solid #5a3dfb;"; }
   const camSvg = isDashed
-    ? `<svg width="14" height="11" viewBox="0 0 14 11" fill="none" style="flex-shrink:0">
-        <path d="M1 1L13 10" stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round"/>
-        <path d="M6 1H2A1.5 1.5 0 0 0 0.5 2.5v5A1.5 1.5 0 0 0 2 9h9A1.5 1.5 0 0 0 11.5 7.5V5"
-              stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M10 2L13.5 0.5V10L10 8.5"
-              stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+    ? `<svg width="14" height="14" viewBox="0 0 18 18" fill="none" style="flex-shrink:0">
+        <path d="M7.99512 4.5H10.5001C10.8979 4.5 11.2795 4.65804 11.5608 4.93934C11.8421 5.22064 12.0001 5.60218 12.0001 6V7.875L15.9361 5.5785C15.9931 5.54524 16.0579 5.52762 16.1238 5.52739C16.1898 5.52717 16.2547 5.54436 16.3119 5.57722C16.3691 5.61009 16.4167 5.65747 16.4497 5.71459C16.4827 5.7717 16.5001 5.83652 16.5001 5.9025V12.0495"
+              stroke="#64748A" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 12C12 12.3978 11.842 12.7794 11.5607 13.0607C11.2794 13.342 10.8978 13.5 10.5 13.5H3C2.60218 13.5 2.22064 13.342 1.93934 13.0607C1.65804 12.7794 1.5 12.3978 1.5 12V6C1.5 5.60218 1.65804 5.22064 1.93934 4.93934C2.22064 4.65804 2.60218 4.5 3 4.5H4.5"
+              stroke="#64748A" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M1.5 1.5L16.5 16.5" stroke="#64748A" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>`
     : "";
-  const labelHtml = isDashed ? label : `${label}&nbsp;&nbsp;${count}`;
+  // Offline pills don't show the raw count — a number sitting next to an "offline" signal read as
+  // contradictory (is it online or not?). The camera-off icon carries "offline" on its own, placed
+  // after the district name rather than before it.
+  const labelHtml = isDashed ? label : (count > 0 ? `${label}&nbsp;&nbsp;${count}` : label);
   const fw = isDark || isAlert ? 700 : 600;
   const shadow = isDark || isAlert ? "0 2px 10px rgba(0,0,0,0.2)" : "0 2px 6px rgba(0,0,0,0.08)";
   return `<div style="transform:translateX(-50%) translateY(-50%);display:inline-flex;align-items:center;
       gap:5px;background:${bg};${border}border-radius:999px;padding:5px 12px;
       font-family:'SUIT',system-ui,sans-serif;font-size:12px;font-weight:${fw};
       color:${textColor};box-shadow:${shadow};white-space:nowrap;letter-spacing:-0.2px">
-    ${camSvg}${labelHtml}</div>`;
+    ${labelHtml}${camSvg}</div>`;
 }
 
 function getPopupHTML(event: LiveEvent): string {
@@ -170,9 +212,9 @@ function getDevicePopupHTML(device: Device, zoneName: string): string {
   const isLive = device.status === "Live";
   return `
     <div style="font-family:'SUIT',system-ui,sans-serif;width:200px;padding:12px 14px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-right:18px;gap:8px">
         <span style="font-size:13px;font-weight:800;color:#0e162a;letter-spacing:-0.26px">${device.name}</span>
-        <span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;color:${isLive ? "#16a34a" : "#f43f5e"};background:${isLive ? "rgba(34,197,94,0.12)" : "rgba(244,63,94,0.12)"}">
+        <span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;color:${isLive ? "#16a34a" : "#f43f5e"};background:${isLive ? "rgba(34,197,94,0.12)" : "rgba(244,63,94,0.12)"};flex-shrink:0">
           ${isLive ? "LIVE" : "OUT"}
         </span>
       </div>
@@ -397,18 +439,28 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
 
       if (zoom <= CLUSTER_ZOOM_BREAKPOINT) {
         // ── Zoomed out: one pill per district ──
-        const today = new Date().toDateString();
+        const now = new Date();
         districts.forEach((district) => {
           const camerasInDistrict = cameras.filter(c => nearestDistrict(c.lat, c.lng).id === district.id);
-          const hasCamera = camerasInDistrict.length > 0;
+          // The dashed pill means "this district's camera(s) are offline right now" — not "there's
+          // no camera here" (every district has at least one registered camera; some just happen
+          // to be down). Checking `.status === "online"` rather than just array length is what
+          // actually captures that.
+          const hasOnlineCamera = camerasInDistrict.some(c => c.status === "online");
           const count = recentEvents.filter(ev =>
             ev.type === "VIP" &&
-            new Date(ev.timestamp).toDateString() === today &&
+            isTodaySgt(new Date(ev.timestamp), now) &&
             nearestDistrict(ev.lat, ev.lng).id === district.id
           ).length;
+          // A district with a working camera but zero detections is pure noise ("nothing happened
+          // here") — maps that show location pins/badges (Airbnb, Kayak, Expedia, Zillow — checked
+          // via Mobbin) only ever put a pin where there's actually something to report, never a
+          // "$0"/"0 results" pin. An offline district is a different, still-worth-seeing signal (a
+          // coverage gap, not "quiet"), so that dashed pill stays regardless of count.
+          if (hasOnlineCamera && count === 0) return;
 
           const icon = L.divIcon({
-            html: districtPillHtml(district.label, count, hasCamera, alertThreshold, moderateThreshold),
+            html: districtPillHtml(district.label, count, hasOnlineCamera, alertThreshold, moderateThreshold),
             iconSize: [1, 1],
             iconAnchor: [0, 0],
             className: "vca-zone-icon",
@@ -418,25 +470,42 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
             .on("click", () => onDistrictSelectRef.current?.(district.id));
         });
       } else {
-        // ── Zoomed in: per-location recent-activity dots (same visual as before) ──
-        // Dedupe by rounded lat/lng so repeat hits at the same site (e.g. a person seen on two
-        // cameras in the same zone) don't stack multiple pings on top of each other.
-        const seen = new Set<string>();
-        recentEvents.forEach((ev) => {
-          const key = `${ev.lat.toFixed(4)},${ev.lng.toFixed(4)}`;
-          if (seen.has(key)) return;
-          seen.add(key);
+        // ── Zoomed in: one dot per camera ──
+        // Every camera's location is marked, not just the ones with something to report — a
+        // pulsing VIP ping for a hit within the last hour (real elapsed time; "today" was too
+        // coarse here — a hit from 9 hours ago is not "recent" even if it's still today), a
+        // plain quiet marker everywhere else so the map still reads as "here's where the
+        // cameras are," not just "here's where something happened."
+        //
+        // Iterates VIP_SIMULATION_CAMERAS, NOT the store's `cameras` — those are two separately
+        // generated coordinate pools (see VIP_SIMULATION_CAMERAS's own comment in vcaStore.ts):
+        // `cameras` is the small ~50-60 camera set the System device list uses, while the VIP
+        // ticker (ClientLayout.tsx) stamps every simulated event's lat/lng from THIS ~1,000-camera
+        // pool instead. Matching pings against `cameras` meant the coordinates almost never lined
+        // up (different jitter, different pool entirely) — the ping would show at the wrong spot
+        // or not at all. This pool is also what makes "every camera's location" actually mean the
+        // full ~1,000-camera deployment, not just the small device list.
+        const RECENT_VIP_WINDOW_MS = 60 * 60 * 1000;
+        const nowMs = Date.now();
+        const recentVipKeys = new Set<string>();
+        recentEvents.forEach(ev => {
+          if (ev.type !== "VIP") return;
+          if (nowMs - new Date(ev.timestamp).getTime() > RECENT_VIP_WINDOW_MS) return;
+          recentVipKeys.add(`${ev.lat.toFixed(4)},${ev.lng.toFixed(4)}`);
+        });
 
-          const color = ev.type === "Tracking" ? TRACKING_PING_COLOR : VIP_PING_COLOR;
+        VIP_SIMULATION_CAMERAS.forEach(cam => {
+          const key = `${cam.lat.toFixed(4)},${cam.lng.toFixed(4)}`;
           const icon = L.divIcon({
-            html: recentPingHtml(color),
+            html: recentVipKeys.has(key) ? recentPingHtml(VIP_PING_COLOR) : quietCameraDotHtml(),
             iconSize: [1, 1],
             iconAnchor: [0, 0],
             className: "vca-zone-icon",
           });
-          L.marker([ev.lat, ev.lng], { icon })
+          L.marker([cam.lat, cam.lng], { icon })
             .addTo(group)
-            .on("click", () => onCameraSelectRef.current?.(ev.location));
+            .bindTooltip(cameraDotTooltipHtml(cam), { direction: "top", offset: [0, -14], className: "vca-camera-tooltip", opacity: 1 })
+            .on("click", () => onCameraSelectRef.current?.(cam.location));
         });
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -542,7 +611,7 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
                      <div onclick="window.__vcaGoRedmapTrace && window.__vcaGoRedmapTrace('${escapeAttr(selectedEvent.name)}')"
                        style="margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:4px;
                        font-size:12px;font-weight:700;color:#5a3dfb;cursor:pointer">
-                       View Full Trace on RedMap
+                       View Full Trace on Redmap
                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2L7 5L3 8" stroke="#5a3dfb" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                      </div>
                    </div>

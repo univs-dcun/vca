@@ -19,9 +19,9 @@ interface ToastItem extends ToastOptions {
 const VARIANT_STYLES: Record<ToastVariant, { bg: string; border: string; title: string; desc: string }> = {
   default: { bg: "#f8fafc", border: "#e2e8f0", title: "#0e162a", desc: "#475469" },
   success: { bg: "#e1f3e7", border: "#aed7bc", title: "#16a34a", desc: "#16a34a" },
-  info:    { bg: "#f0f8ff", border: "#d3e0fd", title: "#0973dc", desc: "#0973dc" },
+  info:    { bg: "#f0f8ff", border: "#d3e0fd", title: "#38bdf8", desc: "#38bdf8" },
   warning: { bg: "#fffbeb", border: "#fce1b3", title: "#ea580c", desc: "#ea580c" },
-  error:   { bg: "#ffeaea", border: "#f43f5e", title: "#d91616", desc: "#d91616" },
+  error:   { bg: "#ffeaea", border: "#f43f5e", title: "#f43f5e", desc: "#f43f5e" },
 };
 
 function ToastIcon({ variant }: { variant: ToastVariant }) {
@@ -91,7 +91,7 @@ function Toast({ item, onDismiss }: { item: ToastItem; onDismiss: (id: number) =
         <button
           onClick={() => { item.onAction?.(); onDismiss(item.id); }}
           style={{
-            padding: "6px 12px", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.26px",
+            padding: "6px 12px", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.26px",
             color: "#ffffff", backgroundColor: "#0e162a",
             border: "none", borderRadius: "8px", cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
           }}

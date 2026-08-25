@@ -4,9 +4,20 @@ import { useState, useRef, useEffect } from "react";
 import RedmapMap, { TRACKING_ORIGIN } from "./RedmapMap";
 import type { RedmapMode as Mode, SimilarityLimit, HitResult, DateRange } from "@/types/redmap";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { useToast } from "./Toast";
 
 const BORDER = "1px solid #e2e8f0";
 
+// Unlike BestFramePage's camera list (now sourced from the shared VIP_SIMULATION_CAMERAS pool —
+// see vcaStore.ts), these hits are intentionally hand-authored narrative content (specific face/
+// body photos, elapsed-time framing, isUnregistered flag) rather than a checkable camera list, so
+// there's no real payoff in re-keying them onto shared camera ids the way BestFrame's bulk filler
+// was. The `camera`/`location`/`mapLabel` strings here don't correspond to any real camera id in
+// CAMERAS/VIP_SIMULATION_CAMERAS today — that's fine as long as nothing cross-navigates from a
+// Redmap hit to another page by name (nothing currently does). If a "View Live"/"Open in Best
+// Frame" action ever gets added here, it'll hit the same silent-match-failure bug the Dashboard's
+// device popup had (see BestFramePage.tsx's focusLocation handling) unless these are re-keyed
+// onto real camera ids first.
 export const MOCK_RESULTS: HitResult[] = [
   {
     id: "hit-1",
@@ -22,6 +33,7 @@ export const MOCK_RESULTS: HitResult[] = [
     mapLabel: "Novena",
     lat: 1.3200, lng: 103.8440,
     elapsed: "20m 12s Elapsed", elapsedAlert: false,
+    personId: "p1", personLabel: "Match 1",
   },
   {
     id: "hit-2",
@@ -37,6 +49,7 @@ export const MOCK_RESULTS: HitResult[] = [
     mapLabel: "Geylang",
     lat: 1.3131, lng: 103.8600,
     elapsed: "30m 32s Elapsed", elapsedAlert: false,
+    personId: "p1", personLabel: "Match 1",
   },
   {
     id: "hit-3",
@@ -51,6 +64,7 @@ export const MOCK_RESULTS: HitResult[] = [
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
     mapLabel: "Marine",
     lat: 1.3015, lng: 103.9070,
+    personId: "p1", personLabel: "Match 1",
   },
 ];
 
@@ -75,6 +89,7 @@ const RESULT_SET_MODERATE: HitResult[] = [
     mapLabel: "Jurong",
     lat: 1.3329, lng: 103.7436,
     elapsed: "1h 40m Elapsed", elapsedAlert: true,
+    personId: "p1", personLabel: "Match 1",
   },
   {
     id: "hit-m2",
@@ -89,6 +104,7 @@ const RESULT_SET_MODERATE: HitResult[] = [
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
     mapLabel: "Clarke Quay",
     lat: 1.2884, lng: 103.8460,
+    personId: "p1", personLabel: "Match 1",
   },
 ];
 
@@ -106,12 +122,79 @@ const RESULT_SET_SPARSE: HitResult[] = [
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
     mapLabel: "Tampines",
     lat: 1.3530, lng: 103.9440,
+    personId: "p1", personLabel: "Match 1",
+  },
+];
+
+// A low-similarity search can genuinely surface more than one distinct person, not just several
+// sightings of the same one — this set demonstrates that so the person-filter chips (see
+// distinctPersons below) have something real to group/color-code. Two people, two sightings each.
+const RESULT_SET_LOOKALIKES: HitResult[] = [
+  {
+    id: "hit-l1",
+    camera: "Bugis MRT BM1",
+    location: "Bugis MRT Station",
+    date: "2026-06-17",
+    time: "08:20:11",
+    score: "58.3%",
+    bodyScore: "52.0%",
+    isUnregistered: true,
+    faceUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&h=100&q=80",
+    bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
+    mapLabel: "Bugis",
+    lat: 1.3006, lng: 103.8559,
+    personId: "p1", personLabel: "Match 1",
+  },
+  {
+    id: "hit-l2",
+    camera: "City Hall CH2",
+    location: "City Hall Link",
+    date: "2026-06-17",
+    time: "09:05:47",
+    score: "55.1%",
+    bodyScore: "49.8%",
+    isUnregistered: true,
+    faceUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&h=100&q=80",
+    bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
+    mapLabel: "City Hall",
+    lat: 1.2930, lng: 103.8520,
+    personId: "p1", personLabel: "Match 1",
+  },
+  {
+    id: "hit-l3",
+    camera: "Somerset SS1",
+    location: "Somerset Skywalk",
+    date: "2026-06-17",
+    time: "08:45:02",
+    score: "56.7%",
+    bodyScore: "50.2%",
+    isUnregistered: true,
+    faceUrl: "https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=100&h=100&q=80",
+    bodyUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&h=200&q=80",
+    mapLabel: "Somerset",
+    lat: 1.3006, lng: 103.8390,
+    personId: "p2", personLabel: "Match 2",
+  },
+  {
+    id: "hit-l4",
+    camera: "Dhoby Ghaut DG3",
+    location: "Dhoby Ghaut Xchange",
+    date: "2026-06-17",
+    time: "09:30:18",
+    score: "54.4%",
+    bodyScore: "48.1%",
+    isUnregistered: true,
+    faceUrl: "https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=100&h=100&q=80",
+    bodyUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&h=200&q=80",
+    mapLabel: "Dhoby Ghaut",
+    lat: 1.2988, lng: 103.8455,
+    personId: "p2", personLabel: "Match 2",
   },
 ];
 
 const RESULT_SET_EMPTY: HitResult[] = [];
 
-const RESULT_SETS: HitResult[][] = [MOCK_RESULTS, RESULT_SET_MODERATE, RESULT_SET_SPARSE, RESULT_SET_EMPTY];
+const RESULT_SETS: HitResult[][] = [MOCK_RESULTS, RESULT_SET_MODERATE, RESULT_SET_SPARSE, RESULT_SET_EMPTY, RESULT_SET_LOOKALIKES];
 
 // Deterministic (not random) so re-running the exact same search — same uploaded file, same
 // license plate — always lands on the same result set instead of flickering between runs.
@@ -121,6 +204,11 @@ function hashStr(s: string): number {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
+
+// Colors assigned to distinct people in a result set, in first-appearance order — shared by the
+// person-filter chips, each result card's person tag, and that person's trail/markers on the map,
+// so the same color always means the same person across all three.
+const PERSON_COLORS = ["#5a3dfb", "#38bdf8", "#f43f5e", "#16a34a", "#f59e0b"];
 
 /* ── SVG Icons ──────────────────────────────────────────────── */
 function PersonIcon({ color = "currentColor", size = 16 }: { color?: string; size?: number }) {
@@ -231,6 +319,16 @@ function CloseIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
       <path d="M4 4L14 14M14 4L4 14" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Deliberately bolder/redder than CloseIcon — this removes a sighting from the trace, not just
+// dismisses a panel, so it needs to read as "this one's wrong" at a glance, not as generic chrome.
+function RemoveFromTraceIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <path d="M2.5 2.5L9.5 9.5M9.5 2.5L2.5 9.5" stroke="#e11d48" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
@@ -347,12 +445,12 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
       {open && (
         <div style={{
           position: "absolute", top: "42px", left: 0, zIndex: 2000,
-          backgroundColor: "white", border: "1px solid #E8EEF2", borderRadius: "8px",
+          backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "8px",
           boxShadow: "0 8px 32px rgba(0,0,0,0.12)", display: "flex", overflow: "hidden", width: "560px",
         }}>
           {/* Left: month list */}
           <div ref={listRef} style={{
-            width: "148px", borderRight: "1px solid #E8EEF2",
+            width: "148px", borderRight: "1px solid #e2e8f0",
             overflowY: "auto", maxHeight: "360px", flexShrink: 0,
             paddingTop: "4px", paddingBottom: "4px",
           }}>
@@ -368,7 +466,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
                   style={{
                     padding: "9px 16px", fontSize: "13px",
                     fontWeight: active ? 700 : 500,
-                    color: active ? "#5a3dfb" : "#17191A",
+                    color: active ? "#5a3dfb" : "#0e162a",
                     backgroundColor: active ? "#F0F0FF" : "transparent",
                     cursor: "pointer",
                   }}
@@ -385,7 +483,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
             <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
               {(["start","end"] as const).map(s => (
                 <span key={s} style={{
-                  fontSize: "11px", padding: "2px 10px", borderRadius: "999px", fontWeight: 600,
+                  fontSize: "12px", padding: "2px 10px", borderRadius: "999px", fontWeight: 600,
                   backgroundColor: step === s ? "#eef2ff" : "#f1f5f9",
                   color: step === s ? "#5a3dfb" : "#94a3b8",
                   border: `1px solid ${step === s ? "#c7d2fe" : "#e2e8f0"}`,
@@ -397,15 +495,15 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
 
             {/* Month nav */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-              <button onClick={prevMonth} aria-label="Previous month" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#17191A", padding: "2px 6px", lineHeight: 1 }}>‹</button>
-              <span style={{ fontSize: "14px", fontWeight: 700, color: "#17191A" }}>{MONTHS_FULL[viewMonth]} {viewYear}</span>
-              <button onClick={nextMonth} aria-label="Next month" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#17191A", padding: "2px 6px", lineHeight: 1 }}>›</button>
+              <button onClick={prevMonth} aria-label="Previous month" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#0e162a", padding: "2px 6px", lineHeight: 1 }}>‹</button>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a" }}>{MONTHS_FULL[viewMonth]} {viewYear}</span>
+              <button onClick={nextMonth} aria-label="Next month" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#0e162a", padding: "2px 6px", lineHeight: 1 }}>›</button>
             </div>
 
             {/* Day headers */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: "2px" }}>
               {DAY_HEADS.map(d => (
-                <div key={d} style={{ textAlign: "center", fontSize: "11px", fontWeight: 600, color: "#94a3b8", padding: "3px 0" }}>{d}</div>
+                <div key={d} style={{ textAlign: "center", fontSize: "10px", fontWeight: 600, color: "#94a3b8", padding: "3px 0" }}>{d}</div>
               ))}
             </div>
 
@@ -425,7 +523,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
                       height: "34px", display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: "13px", fontWeight: ds === "start" || ds === "end" ? 700 : 400,
                       cursor: "pointer", borderRadius: ds === "start" || ds === "end" ? "50%" : "4px",
-                      color: ds === "start" || ds === "end" ? "white" : ds === "range" ? "#5a3dfb" : "#17191A",
+                      color: ds === "start" || ds === "end" ? "white" : ds === "range" ? "#5a3dfb" : "#0e162a",
                       backgroundColor: ds === "start" || ds === "end" ? "#5a3dfb" : ds === "range" ? "#F0F0FF" : "transparent",
                       transition: "background 0.1s",
                     }}
@@ -441,7 +539,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
               <div style={{ marginTop: "10px", textAlign: "right" }}>
                 <button
                   onClick={() => { onChange({ start: null, end: null }); setStep("start"); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: "#94a3b8", fontWeight: 600 }}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: "10px", color: "#94a3b8", fontWeight: 600 }}
                 >
                   Clear
                 </button>
@@ -456,8 +554,9 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
 
 /* ── Component ─────────────────────────────────────────────── */
 export default function RedmapPage({ initialSearchName, onInitialSearchConsumed }: { initialSearchName?: string | null; onInitialSearchConsumed?: () => void } = {}) {
+  const { showToast } = useToast();
   const [mode, setMode] = useState<Mode>("person");
-  const [similarity, setSimilarity] = useState<SimilarityLimit>(30);
+  const [similarity, setSimilarity] = useState<SimilarityLimit>(70);
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
   const [licensePlate, setLicensePlate] = useState("");
   const [faceImage, setFaceImage] = useState<string | null>(null);
@@ -475,6 +574,14 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   const [hoverUpload, setHoverUpload] = useState<"face" | "body" | null>(null);
   const [traceName, setTraceName] = useState<string | null>(null);
   const [timelineNewestFirst, setTimelineNewestFirst] = useState(true);
+  // A sighting that's obviously a different person (see the X button on each trace node below)
+  // gets pulled out of the route without being deleted from the underlying search results — the
+  // left result list still shows it, just dimmed, so excluding is a correction to the trace, not
+  // a destructive edit to what was actually found.
+  const [excludedHitIds, setExcludedHitIds] = useState<Set<string>>(new Set());
+  // Which distinct person(s) the map/route-history panel currently trace — only meaningful (and
+  // only shown as chips) when the current results actually contain more than one distinct person.
+  const [selectedPersonIds, setSelectedPersonIds] = useState<Set<string>>(new Set());
   const uploadInputRef = useRef<HTMLInputElement>(null);
   // Tracks the last `initialSearchName` value already consumed, following React's "adjusting
   // state when a prop changes" pattern (state, not a ref, so it's safe to read during render).
@@ -495,6 +602,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     setHasSearched(true);
     setActiveHit(MOCK_RESULTS.length - 1);
     setActiveNode(MOCK_RESULTS.length - 1);
+    setSelectedPersonIds(new Set([MOCK_RESULTS[MOCK_RESULTS.length - 1].personId]));
     setTraceName(initialSearchName);
   }
 
@@ -504,6 +612,20 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     if (initialSearchName) onInitialSearchConsumed?.();
   }, [initialSearchName, onInitialSearchConsumed]);
 
+  // A body-only search has nothing but build/clothing to go on, which matches far more loosely
+  // than a face does — the same 70% the face search treats as solid confidence would let in the
+  // kind of lookalike-heavy results RESULT_SET_LOOKALIKES demonstrates. Forcing a higher floor
+  // here (and disabling the presets below it) keeps a body-only search from ever reaching that
+  // territory, rather than just defaulting there and letting the user slide back down.
+  const BODY_ONLY_MIN_SIMILARITY = 75;
+  const bodyOnly = mode === "person" && !!bodyFileKey && !faceFileKey;
+  // Only a body upload can newly create the body-only state (there's no way to remove a face once
+  // set short of Reset, which already puts similarity back at 70) — so the floor only needs
+  // enforcing right here, as a direct response to that upload, not as an effect watching for it.
+  const bumpSimilarityForBodyOnly = (hasFace: boolean) => {
+    if (!hasFace) setSimilarity(s => s < BODY_ONLY_MIN_SIMILARITY ? BODY_ONLY_MIN_SIMILARITY : s);
+  };
+
   const handleUploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -511,7 +633,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     const url = URL.createObjectURL(file);
     const key = `${file.name}_${file.size}`;
     if (uploadFor === "face") { setFaceImage(url); setFaceFileKey(key); }
-    else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); }
+    else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); bumpSimilarityForBodyOnly(!!faceImage); }
     setUploadFor(null);
   };
 
@@ -524,11 +646,22 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     const url = URL.createObjectURL(file);
     const key = `${file.name}_${file.size}`;
     if (uploadFor === "face") { setFaceImage(url); setFaceFileKey(key); }
-    else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); }
+    else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); bumpSimilarityForBodyOnly(!!faceImage); }
     setUploadFor(null);
   };
 
   const handleSearch = () => {
+    // An empty query used to still run — hashing down to whichever RESULT_SET the empty key
+    // landed on (often RESULT_SET_EMPTY) — and land on "No matching sightings found," reading as
+    // a real search that failed rather than a search that was never actually given anything to
+    // look for. Block it before it runs and say so instead.
+    const hasQuery = mode === "car" ? licensePlate.trim().length > 0 : !!faceFileKey || !!bodyFileKey;
+    if (!hasQuery) {
+      showToast({ variant:"warning", title:"Enter a search", desc: mode === "car"
+        ? "Enter a license plate to search."
+        : "Upload a face or body image to search." });
+      return;
+    }
     // Which result set comes back depends on what was actually searched for — the same
     // face/body/plate always reproduces the same outcome, but a different upload will usually
     // land on a different (or empty) set instead of always showing the same 3-camera trail
@@ -537,13 +670,33 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
       ? `car:${licensePlate.trim().toUpperCase()}`
       : `person:${faceFileKey ?? ""}|${bodyFileKey ?? ""}`;
     const picked = RESULT_SETS[hashStr(searchKey) % RESULT_SETS.length];
-    setResults(picked);
+    // dateRange was collected in the toolbar but never actually consulted here — picking a range
+    // that excludes every mock hit's date still returned the exact same results as picking
+    // nothing at all. Both fields are already "YYYY-MM-DD" strings, so this is a plain string
+    // comparison, no Date parsing needed.
+    const inDateRange = (date: string) =>
+      (!dateRange.start || date >= dateRange.start) && (!dateRange.end || date <= dateRange.end);
+    // The similarity control used to be decorative — this is what actually keeps a low-confidence
+    // match out of the results instead of just labeling it low-confidence. Body-only searches
+    // compare against bodyScore (see BODY_ONLY_MIN_SIMILARITY above); everything else compares
+    // against the face-anchored score.
+    const filtered = (mode === "person"
+      ? picked.filter(hit => parseFloat(bodyOnly ? hit.bodyScore : hit.score) >= similarity)
+      : picked
+    ).filter(hit => inDateRange(hit.date));
+    setResults(filtered);
+    setExcludedHitIds(new Set());
     setHasSearched(true);
     // The map/right panel show the combined tracking route for ALL search results as soon as a
     // search runs — not just after clicking one. Pre-select the most recent hit so it's highlighted
     // by default; clicking any result or map marker afterwards just moves which node is highlighted.
-    setActiveHit(picked.length ? picked.length - 1 : null);
-    setActiveNode(picked.length ? picked.length - 1 : null);
+    setActiveHit(filtered.length ? filtered.length - 1 : null);
+    setActiveNode(filtered.length ? filtered.length - 1 : null);
+    // If these results span more than one distinct person, default the trace to just the most
+    // recent hit's person — an empty selection would leave the map/timeline blank, and selecting
+    // everyone by default would recreate the exact overlapping-paths confusion the chips exist
+    // to prevent.
+    setSelectedPersonIds(filtered.length ? new Set([filtered[filtered.length - 1].personId]) : new Set());
     // A manual search is a fresh, untargeted query — clear any "Tracing: <name>" label left over
     // from a Dashboard deep-link, otherwise these generic results stay mislabeled as tracing that
     // earlier person until Reset is clicked.
@@ -552,7 +705,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
 
   const handleReset = () => {
     setMode("person");
-    setSimilarity(30);
+    setSimilarity(70);
     setDateRange({ start: null, end: null });
     setLicensePlate("");
     setFaceImage(null);
@@ -563,7 +716,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     setHasSearched(false);
     setActiveHit(null);
     setActiveNode(null);
+    setSelectedPersonIds(new Set());
     setTraceName(null);
+    setExcludedHitIds(new Set());
   };
 
   const handleHitClick = (index: number) => {
@@ -587,9 +742,24 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // result is clicked. A search that came back with no hits has nothing to trace.
   const trackingActive = hasSearched && results.length > 0;
 
+  // Distinct people in the CURRENT results, in first-appearance order. Chips only render when
+  // there's more than one — a single person's own sightings don't need disambiguating, and
+  // showing a one-chip row every search would just be noise.
+  const distinctPersons = Array.from(new Map(results.map((h) => [h.personId, h.personLabel])).entries())
+    .map(([personId, personLabel], i) => ({ personId, personLabel, color: PERSON_COLORS[i % PERSON_COLORS.length] }));
+  const showPersonChips = distinctPersons.length > 1;
+  const personColor = (personId: string) => distinctPersons.find((p) => p.personId === personId)?.color ?? PERSON_COLORS[0];
+  const togglePerson = (personId: string) => {
+    setSelectedPersonIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(personId)) next.delete(personId); else next.add(personId);
+      return next;
+    });
+  };
+
   const inputBase: React.CSSProperties = {
     background: "none", border: "none", outline: "none",
-    fontSize: "13px", fontWeight: 500, color: "#1d293b",
+    fontSize: "13px", fontWeight: 600, color: "#1d293b",
     fontFamily: "'SUIT', sans-serif",
   };
 
@@ -614,7 +784,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           }}>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button onClick={() => setUploadFor(null)} aria-label="Close" style={{
-                width: "37px", height: "37px", borderRadius: "8px", backgroundColor: "#f5f6f8",
+                width: "37px", height: "37px", borderRadius: "8px", backgroundColor: "#f8fafc",
                 border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 <CloseIcon />
@@ -635,8 +805,8 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 <FocusIcon />
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", textAlign: "center" }}>
-                <span style={{ fontSize: "15px", fontWeight: 700, color: "#5a3dfb" }}>Drag and drop an image here</span>
-                <span style={{ fontSize: "11px", fontWeight: 500, color: "#475469" }}>
+                <span style={{ fontSize: "16px", fontWeight: 700, color: "#5a3dfb" }}>Drag and drop an image here</span>
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "#475469" }}>
                   File types supported: JPG, PNG, GIF, TIFF, HEIC, WebP. Max size 50MB
                 </span>
               </div>
@@ -700,7 +870,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           <>
             {/* License plate */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "13px", fontWeight: 500, color: "#64748a", whiteSpace: "nowrap" }}>License plate</span>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "#64748a", whiteSpace: "nowrap" }}>License plate</span>
               <div style={{
                 display: "flex", alignItems: "center", gap: "6px",
                 border: BORDER, borderRadius: "999px",
@@ -740,7 +910,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
               {([
                 { key: "face" as const, label: "Face", image: faceImage },
-                { key: "body" as const, label: "Body", image: bodyImage },
+                { key: "body" as const, label: "Full body", image: bodyImage },
               ]).map(({ key, label, image }) => {
                 const active = !!image;
                 const uploading = uploadFor === key;
@@ -776,29 +946,54 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
 
             <div style={{ width: "1px", height: "24px", backgroundColor: "#e2e8f0" }} />
 
-            {/* Similarity */}
+            {/* Similarity — quick presets plus a slider for anything in between, so landing on
+                e.g. 65% doesn't require picking the nearest preset and living with it. */}
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span style={{ fontSize: "13px", fontWeight: 600, color: "#475469", whiteSpace: "nowrap" }}>Similarity</span>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "#475469", whiteSpace: "nowrap" }}
+                title={bodyOnly ? `Body-only searches start at ${BODY_ONLY_MIN_SIMILARITY}% match — matching by build/clothing alone is too loose to trust below that.` : undefined}
+              >Similarity</span>
               <div style={{ display: "flex", gap: "2px", backgroundColor: "#f1f5f9", borderRadius: "999px", padding: "2px", height: "36px", boxSizing: "border-box" }}>
-                {([30, 50, 70, 90] as SimilarityLimit[]).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSimilarity(s)}
-                    style={{
-                      padding: "8px 12px", borderRadius: "999px",
-                      border: "none", cursor: "pointer",
-                      backgroundColor: similarity === s ? "white" : "transparent",
-                      color: similarity === s ? "#5a3dfb" : "#94a3b8",
-                      fontWeight: similarity === s ? 700 : 600,
-                      fontSize: "12px",
-                      display: "flex", alignItems: "center",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    {s}%
-                  </button>
-                ))}
+                {([60, 70, 80, 90] as SimilarityLimit[]).map((s) => {
+                  const disabled = bodyOnly && s < BODY_ONLY_MIN_SIMILARITY;
+                  return (
+                    <button
+                      key={s}
+                      disabled={disabled}
+                      onClick={() => setSimilarity(s)}
+                      title={disabled ? "Not available for a body-only search" : undefined}
+                      style={{
+                        padding: "8px 12px", borderRadius: "999px",
+                        border: "none", cursor: disabled ? "not-allowed" : "pointer",
+                        backgroundColor: similarity === s ? "white" : "transparent",
+                        color: disabled ? "#cbd5e1" : similarity === s ? "#5a3dfb" : "#94a3b8",
+                        fontWeight: similarity === s ? 700 : 600,
+                        fontSize: "12px",
+                        display: "flex", alignItems: "center",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {s}%
+                    </button>
+                  );
+                })}
               </div>
+              {/* Resets the browser's native range-input chrome (Chrome/Safari/Firefox each draw
+                  their own track/thumb border by default) down to a flat gray track + solid
+                  purple thumb — same treatment as Data's Smart Search Similarity slider. */}
+              <style>{`
+                .vca-similarity-slider { -webkit-appearance:none; appearance:none; background:transparent; outline:none; border:none; }
+                .vca-similarity-slider::-webkit-slider-runnable-track { height:4px; border-radius:999px; background:#e2e8f0; border:none; }
+                .vca-similarity-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#5a3dfb; border:none; margin-top:-5px; cursor:pointer; }
+                .vca-similarity-slider::-moz-range-track { height:4px; border-radius:999px; background:#e2e8f0; border:none; }
+                .vca-similarity-slider::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:#5a3dfb; border:none; cursor:pointer; }
+              `}</style>
+              <input
+                className="vca-similarity-slider"
+                type="range" min={bodyOnly ? BODY_ONLY_MIN_SIMILARITY : 0} max={100} value={similarity}
+                onChange={e => setSimilarity(Number(e.target.value))}
+                style={{ width: "100px", cursor: "pointer" }}
+              />
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#5a3dfb", width: "30px", flexShrink: 0 }}>{similarity}%</span>
             </div>
           </>
         )}
@@ -844,13 +1039,17 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden",
         }}>
 
-          <div style={{ flex: 1, overflow: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* vca-thin-scrollbar — the native scrollbar eats into the right padding since it sits
+              inside the border-box, on top of the content edge; a thin custom scrollbar shrinks
+              that so the left/right padding reads as symmetric instead of the right side looking
+              squeezed. */}
+          <div className="vca-thin-scrollbar" style={{ flex: 1, overflow: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
 
             {/* ── Search Targets (read-only preview of the uploaded face/body) ── */}
             {mode === "person" && (faceImage || bodyImage) && (
               <>
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <h3 style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.32px" }}>Search Targets</h3>
+                  <h3 style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.32px" }}>Search targets</h3>
                   <div style={{ display: "flex", gap: "24px" }}>
                     {([
                       { key: "face" as const, image: faceImage, height: "100px" },
@@ -858,7 +1057,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                     ]).map(({ key, image, height }) => (
                       <div key={key} style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
                         <span style={{
-                          fontSize: "11px", fontWeight: 700, color: "#5145e9",
+                          fontSize: "12px", fontWeight: 700, color: "#5a3dfb",
                           backgroundColor: "#eef0ff", borderRadius: "6px",
                           padding: "4px 8px", alignSelf: "flex-start",
                         }}>
@@ -901,7 +1100,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
 
             {/* ── Search Results header ── */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.32px" }}>Search Results</h3>
+              <h3 style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.32px" }}>Search results</h3>
               <span style={{
                 width: "18px", height: "18px", borderRadius: "999px", backgroundColor: "#f1f5f9",
                 color: "#324055", fontSize: "10px", fontWeight: 600,
@@ -911,13 +1110,37 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
               </span>
               {traceName && (
                 <span style={{
-                  fontSize: "11px", fontWeight: 700, color: "#5a3dfb", backgroundColor: "#f0f0ff",
+                  fontSize: "12px", fontWeight: 700, color: "#5a3dfb", backgroundColor: "#f0f0ff",
                   borderRadius: "999px", padding: "3px 10px", whiteSpace: "nowrap",
                 }}>
                   Tracing: {traceName}
                 </span>
               )}
             </div>
+
+            {/* ── Person filter chips — only when these results actually contain more than one
+                distinct person. Toggling a chip controls who the map/route-history panel trace;
+                the results grid below always keeps showing everyone regardless of selection. */}
+            {showPersonChips && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {distinctPersons.map((p) => {
+                  const active = selectedPersonIds.has(p.personId);
+                  return (
+                    <button key={p.personId} onClick={() => togglePerson(p.personId)} style={{
+                      display: "flex", alignItems: "center", gap: "6px", padding: "5px 12px",
+                      borderRadius: "999px", cursor: "pointer",
+                      border: active ? `1px solid ${p.color}` : "1px solid #ccd5e1",
+                      backgroundColor: active ? p.color : "white",
+                      fontSize: "12px", fontWeight: active ? 700 : 600,
+                      color: active ? "white" : "#324055",
+                    }}>
+                      <span style={{ width: "8px", height: "8px", borderRadius: "999px", backgroundColor: active ? "white" : p.color, flexShrink: 0 }} />
+                      {p.personLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* ── Search Results grid ── */}
             {!hasSearched ? (
@@ -946,8 +1169,10 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 </p>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                {results.map((hit, index) => (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                {results.map((hit, index) => {
+                  const excluded = excludedHitIds.has(hit.id);
+                  return (
                   <div
                     key={hit.id}
                     onClick={() => handleHitClick(index)}
@@ -957,6 +1182,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                       cursor: "pointer", display: "flex", flexDirection: "column", gap: "6px",
                       padding: "4px", borderRadius: "10px",
                       border: activeHit === index ? "2px solid #5a3dfb" : "2px solid transparent",
+                      opacity: excluded ? 0.45 : 1,
                       transition: "all 0.2s",
                     }}
                   >
@@ -970,17 +1196,38 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                         <span style={{ position: "absolute", top: "4px", left: "4px", backgroundColor: "rgba(90,61,251,0.4)", color: "white", fontSize: "10px", fontWeight: 600, padding: "2px 4px", borderRadius: "3px" }}>Body</span>
                       </div>
                     </div>
-                    <div style={{ backgroundColor: "#f1f5f9", borderRadius: "6px", padding: "4px 6px" }}>
-                      <span style={{ fontSize: "10px", color: "#324055" }}>
-                        Face <span style={{ fontWeight: 800, color: "#5a3dfb" }}>{hit.score}</span> · Body <span style={{ fontWeight: 800, color: "#5a3dfb" }}>{hit.bodyScore}</span>
+                    <div style={{ backgroundColor: "#f1f5f9", borderRadius: "6px", padding: "4px 6px", overflow: "hidden" }}>
+                      <span style={{ display: "block", fontSize: "10px", color: "#324055", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        Face <span style={{ fontWeight: 800, color: "#5a3dfb" }}>{hit.score}</span>
+                        {/* No body image was searched → bodyScore has nothing real behind it and
+                            reads as "0%", not an actual (low) match — show Face alone rather than
+                            a body score that isn't measuring anything. */}
+                        {parseFloat(hit.bodyScore) > 0 && (
+                          <> · Body <span style={{ fontWeight: 800, color: "#5a3dfb" }}>{hit.bodyScore}</span></>
+                        )}
                       </span>
                     </div>
+                    {excluded ? (
+                      <button
+                        onClick={e => { e.stopPropagation(); setExcludedHitIds(prev => { const next = new Set(prev); next.delete(hit.id); return next; }); }}
+                        style={{ display: "flex", alignItems: "center", gap: "4px", border: "none", background: "none", padding: 0, cursor: "pointer", width: "fit-content" }}
+                      >
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: "#e11d48" }}>Excluded</span>
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: "#5a3dfb", textDecoration: "underline" }}>Restore</span>
+                      </button>
+                    ) : showPersonChips && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <span style={{ width: "6px", height: "6px", borderRadius: "999px", backgroundColor: personColor(hit.personId), flexShrink: 0 }} />
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: personColor(hit.personId) }}>{hit.personLabel}</span>
+                      </div>
+                    )}
                     <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                       <PinIconSm />
                       <span style={{ fontSize: "10px", fontWeight: 600, color: "#475469" }}>{hit.location}</span>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1001,11 +1248,17 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
               mapLabel: h.mapLabel,
               time: h.time.slice(0, 5),
               isAlert: h.isUnregistered,
+              color: personColor(h.personId),
+              groupId: h.personId,
+              // Keeps `results` and `hits` the same length/order — see the comment on
+              // TrackingHit.hidden in RedmapMap.tsx for why this can't just be a `.filter()`.
+              hidden: excludedHitIds.has(h.id),
             })) : []}
             trackingActive={trackingActive}
             showStatus={false}
             activeNode={activeNode}
             onMarkerClick={handleMarkerClick}
+            visibleGroupIds={showPersonChips ? Array.from(selectedPersonIds) : null}
           />
         </div>
 
@@ -1020,7 +1273,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0,
           }}>
             <h3 style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.32px" }}>
-              Multi-Track Route History
+              Multi-track route history
             </h3>
             <button onClick={() => setTimelineNewestFirst(v => !v)} style={{
               display: "flex", alignItems: "center", gap: "4px", background: "none", border: "none",
@@ -1056,34 +1309,51 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 <div style={{ position: "absolute", left: "22px", top: "22px", bottom: "22px", width: "2px", backgroundColor: "#e2e8f0" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                   {(() => {
+                    // Only the currently-traced person(s) get a row here — an untraced lookalike's
+                    // sightings would otherwise sit in the same flat list with nothing to show they
+                    // don't belong to who's actually being traced. The shared TRACKING_ORIGIN node
+                    // only makes sense for ONE target, so it's dropped once more than one distinct
+                    // person is being traced at once (see RedmapMap's identical rule).
+                    const tracedHits = results
+                      .map((hit, hitIndex) => ({ hit, hitIndex }))
+                      .filter(({ hit }) => !showPersonChips || selectedPersonIds.has(hit.personId))
+                      .filter(({ hit }) => !excludedHitIds.has(hit.id));
+                    const showOrigin = tracedHits.length > 0 && new Set(tracedHits.map((t) => t.hit.personId)).size <= 1;
                     const nodes = [
-                      { key: "origin", location: TRACKING_ORIGIN.label, date: TRACKING_ORIGIN.date, time: TRACKING_ORIGIN.time, faceUrl: TRACKING_ORIGIN.faceUrl, elapsed: undefined as string | undefined, elapsedAlert: false },
-                      ...results.map((hit) => ({ key: hit.id, location: hit.location, date: hit.date, time: hit.time, faceUrl: hit.faceUrl, elapsed: hit.elapsed, elapsedAlert: hit.elapsedAlert })),
+                      ...(showOrigin ? [{
+                        key: "origin", location: TRACKING_ORIGIN.label, date: TRACKING_ORIGIN.date, time: TRACKING_ORIGIN.time,
+                        faceUrl: TRACKING_ORIGIN.faceUrl, elapsed: undefined as string | undefined, elapsedAlert: false,
+                        hitIndex: -1, color: PERSON_COLORS[0],
+                      }] : []),
+                      ...tracedHits.map(({ hit, hitIndex }) => ({
+                        key: hit.id, location: hit.location, date: hit.date, time: hit.time, faceUrl: hit.faceUrl,
+                        elapsed: hit.elapsed, elapsedAlert: hit.elapsedAlert, hitIndex, color: personColor(hit.personId),
+                      })),
                     ];
                     const ordered = timelineNewestFirst ? [...nodes].reverse() : nodes;
                     return ordered.map((node, i) => {
                       // Position in the original chronological array (origin=-1..MOCK_RESULTS.length-1),
                       // independent of which direction we're currently displaying it in.
                       const index = timelineNewestFirst ? nodes.length - 1 - i : i;
-                      const num = i + 1; // display rank — always 1..N top-to-bottom either way
+                      const num = index + 1; // chronological step number — stable regardless of sort direction
                       const isLatest = index === nodes.length - 1;
-                      const isActive = activeNode === index - 1;
+                      const isActive = node.hitIndex >= 0 && activeNode === node.hitIndex;
                       return (
                         <div
                           key={node.key}
-                          onClick={() => { if (index > 0) handleNodeClick(index - 1); }}
-                          onMouseEnter={e => { if (index > 0 && !isActive) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                          onClick={() => { if (node.hitIndex >= 0) handleNodeClick(node.hitIndex); }}
+                          onMouseEnter={e => { if (node.hitIndex >= 0 && !isActive) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
                           onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; }}
-                          style={{ display: "flex", alignItems: "flex-start", gap: "12px", position: "relative", zIndex: 1, cursor: index > 0 ? "pointer" : "default", borderRadius: "12px", transition: "background-color 0.15s" }}
+                          style={{ display: "flex", alignItems: "flex-start", gap: "12px", position: "relative", zIndex: 1, cursor: node.hitIndex >= 0 ? "pointer" : "default", borderRadius: "12px", transition: "background-color 0.15s" }}
                         >
                           <div style={{
                             width: "44px", height: "44px", borderRadius: "999px", flexShrink: 0,
-                            border: isActive ? "2px solid #5a3dfb" : "1px solid #ccd5e1",
+                            border: isActive ? `2px solid ${node.color}` : "1px solid #ccd5e1",
                             backgroundColor: "white",
                             display: "flex", alignItems: "center", justifyContent: "center",
                             transition: "all 0.2s",
                           }}>
-                            <span style={{ fontSize: "13px", fontWeight: 700, color: isActive ? "#5a3dfb" : "#94a3b8" }}>
+                            <span style={{ fontSize: "13px", fontWeight: 700, color: isActive ? node.color : "#94a3b8" }}>
                               {String(num).padStart(2, "0")}
                             </span>
                           </div>
@@ -1094,18 +1364,49 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                             boxShadow: isActive ? "2px 2px 6px rgba(0,0,0,0.06)" : "none",
                             transition: "all 0.2s",
                           }}>
-                            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                              <div style={{ width: "64px", height: "48px", borderRadius: "8px", overflow: "hidden", flexShrink: 0 }}>
-                                <img src={node.faceUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} alt="" />
-                              </div>
-                              <div style={{ minWidth: 0 }}>
-                                <p style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", margin: 0, marginBottom: "4px" }}>{node.location}</p>
-                                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                                  <ClockIconSm />
-                                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748a", fontFamily: "monospace" }}>{node.date}</span>
+                            <div style={{ display: "flex", gap: "10px", alignItems: "center", justifyContent: "space-between" }}>
+                              <div style={{ display: "flex", gap: "10px", alignItems: "center", minWidth: 0 }}>
+                                <div style={{ width: "64px", height: "48px", borderRadius: "8px", overflow: "hidden", flexShrink: 0 }}>
+                                  <img src={node.faceUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} alt="" />
                                 </div>
-                                <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748a", fontFamily: "monospace", paddingLeft: "16px" }}>{node.time}</span>
+                                <div style={{ minWidth: 0 }}>
+                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", margin: 0, marginBottom: "4px" }}>{node.location}</p>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                    <ClockIconSm />
+                                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748a", fontFamily: "monospace" }}>{node.date}</span>
+                                  </div>
+                                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748a", fontFamily: "monospace", paddingLeft: "16px" }}>{node.time}</span>
+                                </div>
                               </div>
+                              {/* Not this trace's origin (hitIndex -1) — only a real sighting can be
+                                  a wrong one. Removing pulls it out of THIS route only; it stays in
+                                  the left result list (dimmed, restorable) since it's still a real
+                                  search hit, just not this person's. */}
+                              {node.hitIndex >= 0 && (
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setExcludedHitIds(prev => new Set(prev).add(node.key));
+                                    // The left list's own "Excluded · Restore" tag is the lasting way
+                                    // back, but it's easy to miss right after the click — a toast with
+                                    // its own Undo gives an immediate way to reverse a misclick without
+                                    // hunting for that hit in the grid.
+                                    showToast({
+                                      variant: "default", title: `Removed "${node.location}" from this trace`,
+                                      actionLabel: "Undo",
+                                      onAction: () => setExcludedHitIds(prev => { const next = new Set(prev); next.delete(node.key); return next; }),
+                                    });
+                                  }}
+                                  title="Not the same person — remove from this trace"
+                                  style={{
+                                    width: "22px", height: "22px", borderRadius: "999px", flexShrink: 0,
+                                    border: "1px solid #fecdd3", backgroundColor: "#fff1f2",
+                                    display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                                  }}
+                                >
+                                  <RemoveFromTraceIcon />
+                                </button>
+                              )}
                             </div>
                             {node.elapsed && (
                               <div style={{

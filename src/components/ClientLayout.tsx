@@ -13,9 +13,10 @@ import SkeletonBestFrame from "./SkeletonBestFrame";
 import SkeletonData from "./SkeletonData";
 import SkeletonRedmap from "./SkeletonRedmap";
 import DetectionActivityChart from "./DetectionActivityChart";
+import CommandPalette from "./CommandPalette";
 import { ToastProvider, useToast } from "./Toast";
 import { LiveEvent, Device, getFacePhoto } from "@/lib/mockData";
-import { useVcaStore, VIP_SIMULATION_CAMERAS } from "@/lib/vcaStore";
+import { useVcaStore, VIP_SIMULATION_CAMERAS, type Camera } from "@/lib/vcaStore";
 
 export type NavTab = "DASHBOARD" | "BEST FRAME" | "DATA" | "REDMAP";
 const VALID_TABS: NavTab[] = ["DASHBOARD", "BEST FRAME", "DATA", "REDMAP"];
@@ -60,6 +61,31 @@ function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
 // since the pool is static; no reason to re-filter it on every tick.
 const VIP_SIM_ONLINE_CAMERAS = VIP_SIMULATION_CAMERAS.filter(c => c.status === "online");
 
+function hashStringToIndex(s: string, mod: number): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % mod;
+}
+
+// A real person mostly keeps showing up at the same one or two spots they actually frequent, not
+// bouncing across the city's whole ~1,000-camera network every sighting. Picking a genuinely
+// random camera each tick (as this used to) meant virtually every 2nd sighting of the same VIP
+// landed on a brand-new camera — which instantly and permanently promotes them to a multi-camera
+// "Tracking" row (see addEvent in vcaStore.ts) and never lets them go back. Given only ~16
+// registered VIPs cycling through ticks every 15-30s, that meant everyone ended up as "Tracking"
+// within an hour and no plain "VIP Detection" sightings survived. Pinning each person to 3
+// regular cameras (deterministic from their id, so stable across ticks/reloads) keeps most
+// sightings repeating at the same camera (stays a plain VIP row) and bounds any real trail to at
+// most those 3 cameras, instead of growing unbounded.
+function regularCamerasForPerson(personId: string): Camera[] {
+  const pool = VIP_SIM_ONLINE_CAMERAS;
+  return [
+    pool[hashStringToIndex(personId, pool.length)],
+    pool[hashStringToIndex(`${personId}-alt1`, pool.length)],
+    pool[hashStringToIndex(`${personId}-alt2`, pool.length)],
+  ];
+}
+
 function VipAlertTicker({ onNavigate }: { onNavigate: (event: LiveEvent) => void }) {
   const { showToast } = useToast();
   useEffect(() => {
@@ -71,7 +97,9 @@ function VipAlertTicker({ onNavigate }: { onNavigate: (event: LiveEvent) => void
         const onlineCameras = VIP_SIM_ONLINE_CAMERAS;
         if (persons.length > 0 && onlineCameras.length > 0) {
           const person = persons[Math.floor(Math.random() * persons.length)];
-          const camera = onlineCameras[Math.floor(Math.random() * onlineCameras.length)];
+          const regulars = regularCamerasForPerson(person.id);
+          const r = Math.random();
+          const camera = r < 0.6 ? regulars[0] : r < 0.85 ? regulars[1] : regulars[2];
           const confidence = Math.round((68 + Math.random() * 27) * 10) / 10;
           const timestamp = new Date().toISOString();
           const liveEvent: LiveEvent = {
@@ -153,6 +181,19 @@ export default function ClientLayout() {
   };
   const [showDetectionChart, setShowDetectionChart] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  // Cmd+K (Mac) / Ctrl+K (everywhere else) toggles the global command palette from anywhere in
+  // the app, not just while some particular field has focus.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen(o => !o);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const [bestFrameFocusLocation, setBestFrameFocusLocation] = useState<string | null>(null);
   const [redmapAutoSearchName, setRedmapAutoSearchName] = useState<string | null>(null);
   const [bestFrameAnalyzeLocation, setBestFrameAnalyzeLocation] = useState<string | null>(null);
@@ -180,11 +221,13 @@ export default function ClientLayout() {
   return (
     <ToastProvider>
     <VipAlertTicker onNavigate={handleNotificationNavigate} />
+    <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onGoToPage={setActivePage} />
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
       <Navbar
         activeTab={activePage}
         onTabChange={setActivePage}
         onNotificationSelect={handleNotificationNavigate}
+        onOpenSearch={() => setPaletteOpen(true)}
         // Only actually affects the Dashboard tab's Sidebar+Map layout — hidden on the other tabs
         // (via Navbar's own `{onSidebarPositionChange && (...)}` guard) so the Settings dropdown
         // doesn't show a "Sidebar" control that would do nothing while looking at Best Frame/Data/RedMap.
@@ -277,7 +320,7 @@ export default function ClientLayout() {
                     <path d="M4 10L8 6L12 10" stroke="#0e162a" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   <span style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.24px", whiteSpace: "nowrap" }}>
-                    Detection Topology
+                    Detection topology
                   </span>
                 </button>
               )}

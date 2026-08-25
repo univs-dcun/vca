@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Search, Crown } from "lucide-react";
-import { Device, DeviceStatus, FilterType, SidebarTab, LiveEvent, FACE_PHOTOS, getFacePhoto, formatTimeAgo, nearestDistrict } from "@/lib/mockData";
-import { useVcaStore, vcaEventsToLiveEvents } from "@/lib/vcaStore";
+import { Device, DeviceStatus, FilterType, SidebarTab, LiveEvent, TrackingHop, FACE_PHOTOS, getFacePhoto, formatTimeAgo, nearestDistrict } from "@/lib/mockData";
+import { useVcaStore, vcaEventsToLiveEvents, todaysDetectionHits } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useApiData } from "@/hooks/useApiData";
 import { getDashboardStats, getDevices, getDistricts } from "@/lib/api/dashboard";
@@ -165,18 +165,39 @@ function FilterPillIcon({ id, color }: { id: FilterType; color:string }) {
   return null;
 }
 
+// angleDeg: 0 = top (12 o'clock), increasing clockwise — 90 = right, 180 = bottom, 270 = left.
+function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
+  const angleRad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(angleRad), y: cy + r * Math.sin(angleRad) };
+}
+
+function describeArc(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
+  if (endAngle <= startAngle) return "";
+  const start = polarToCartesian(cx, cy, r, startAngle);
+  const end = polarToCartesian(cx, cy, r, endAngle);
+  const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
+}
+
+// A real gauge: the filled arc's sweep is proportional to `pct` (0% = no arc, 100% = the full
+// half-circle). The previous version drew 3 fixed decorative paths that never changed shape
+// regardless of `pct` — the gauge looked identical whether availability was 19% or 90%, which is
+// why it always read as "not filling in."
 function AvailabilityDonut({ pct, size = 92 }: { pct: number; size?: number }) {
   const height = size * (40 / 92);
   // Neutral gray by default; only shift to a semantic signal color when availability is
   // genuinely low (matches the red/green convention already used elsewhere in this file for
   // LIVE/OUT status).
   const ringColor = pct < 50 ? "#f43f5e" : "#94a3b8";
+  const cx = 46, cy = 40, r = 34, strokeWidth = 10;
+  const sweep = 180 * (Math.max(0, Math.min(100, pct)) / 100);
+  const trackPath = describeArc(cx, cy, r, 270, 450);
+  const fillPath = describeArc(cx, cy, r, 270, 270 + sweep);
   return (
     <div style={{ position:"relative", width:size, height, flexShrink:0 }}>
       <svg width={size} height={height} viewBox="0 0 92 40" fill="none">
-        <path d="M17.8092 40C16.1597 35.4974 15.6272 30.666 16.2567 25.9154C16.8862 21.1648 18.6592 16.635 21.4254 12.7099C24.1917 8.78485 27.8696 5.58025 32.1475 3.36773C36.4254 1.15522 41.1772 0 46 0C50.8228 0 55.5746 1.15522 59.8525 3.36773C64.1304 5.58025 67.8083 8.78485 70.5746 12.7099C73.3408 16.635 75.1138 21.1648 75.7433 25.9154C76.3728 30.666 75.8403 35.4974 74.1908 40L66.1363 37.0874C67.3145 33.8712 67.6949 30.4202 67.2452 27.0269C66.7956 23.6336 65.5292 20.3981 63.5533 17.5944C61.5774 14.7908 58.9503 12.5018 55.8946 10.9215C52.839 9.34108 49.4449 8.51593 46 8.51593C42.5551 8.51593 39.161 9.34108 36.1054 10.9215C33.0497 12.5018 30.4226 14.7908 28.4467 17.5944C26.4708 20.3981 25.2044 23.6336 24.7548 27.0269C24.3051 30.4202 24.6855 33.8712 25.8637 37.0874L17.8092 40Z" fill={ringColor} fillOpacity="0.05"/>
-        <path d="M17.7829 40C15.6048 33.9904 15.4173 27.4368 17.2482 21.3118C19.0791 15.1869 22.8309 9.81731 27.9464 6L33 12.7943C29.3399 15.5235 26.6566 19.3647 25.3492 23.7465C24.0419 28.1282 24.1804 32.816 25.7443 37.1124L17.7829 40Z" fill={ringColor} fillOpacity="0.5"/>
-        <path d="M17.7424 40C15.6138 33.9904 15.4305 27.4368 17.2199 21.3118C19.0093 15.1869 22.676 9.81731 27.6756 6L29 7.81182C24.3763 11.3375 20.9848 16.2998 19.3294 21.9612C17.6741 27.6225 17.8433 33.6808 19.8118 39.2356L17.7424 40Z" fill={ringColor}/>
+        <path d={trackPath} stroke={ringColor} strokeOpacity={0.15} strokeWidth={strokeWidth} strokeLinecap="round" fill="none"/>
+        {fillPath && <path d={fillPath} stroke={ringColor} strokeWidth={strokeWidth} strokeLinecap="round" fill="none"/>}
         <text x="46" y="33" textAnchor="middle" fontSize="13" fontWeight="800" fill={ringColor} fontFamily="SUIT, sans-serif">{pct}%</text>
       </svg>
     </div>
@@ -258,18 +279,25 @@ function StatusBadge({ status }: { status: string }) {
 // Same counts EventsSummary/CollapsedSidebar both show — derived from vcaStore so a live
 // detection added anywhere (e.g. the Data tab's monitoring feed) updates them everywhere.
 function useEventCounts() {
-  const detections = vcaEventsToLiveEvents(useVcaStore(s => s.events));
+  const storeEvents = useVcaStore(s => s.events);
+  const detections = vcaEventsToLiveEvents(storeEvents);
   const persons = useVcaStore(s => s.persons);
   // delta/deltaPct/down (yesterday-comparison fields) come from the future-backend stub rather
   // than importing the mock object directly — see lib/api/dashboard.ts. Falls back to a flat
   // (no change) delta for the brief window before the fetch resolves.
   const { data: dashboardStats } = useApiData(() => getDashboardStats(), []);
   const flatDelta = { delta: 0, deltaPct: 0, down: false };
+  // "Today's detections" opens the Dashboard's detection-activity chart (see EventsSummary's
+  // onToggleDetectionChart below), so it needs to count the same way that chart does — every
+  // individual hit today, unrolling a Tracking row's whole multi-camera history — not
+  // `detections.length` (one per row, so a person tracked across 10 cameras only counted as 1).
+  // Otherwise this number and the chart it opens visibly don't add up to each other.
+  const todaysHitCount = todaysDetectionHits(storeEvents).length;
   return {
     vipTargets: persons.filter(p => p.type === "VIP").length,
     watchlistMatch: { ...(dashboardStats?.watchlistMatch ?? flatDelta), count: detections.filter(e => e.type === "VIP").length },
     tracking: { ...(dashboardStats?.tracking ?? flatDelta), count: detections.filter(e => e.type === "Tracking").length },
-    eventsToday: { ...(dashboardStats?.eventsToday ?? flatDelta), count: detections.length },
+    eventsToday: { ...(dashboardStats?.eventsToday ?? flatDelta), count: todaysHitCount },
   };
 }
 
@@ -285,7 +313,7 @@ function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPers
         <div style={{ padding:"14px 16px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
             <Crown size={16} color="#5a3dfb" />
-            <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Registered VIP Targets</p>
+            <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Registered VIP targets</p>
             <span style={{ fontSize:"14px", fontWeight:800, color:"#5a3dfb" }}>{persons.length}</span>
           </div>
           <button onClick={onClose} aria-label="Close" style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
@@ -310,9 +338,9 @@ function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPers
                   <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:"3px" }}>
                     <span style={{ fontSize:"13px", fontWeight:600, color:"#0e162a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
                     {p.description && (
-                      <span style={{ fontSize:"11px", fontWeight:500, color:"#64748a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.description}</span>
+                      <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.description}</span>
                     )}
-                    <span style={{ fontSize:"11px", fontWeight:500, color:"#94a3b8" }}>Registered {registeredLabel}</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Registered {registeredLabel}</span>
                   </div>
                   <VipBadge />
                 </button>
@@ -347,7 +375,7 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
             transition:"background-color 0.15s",
           }}
         >
-          <span style={{ fontSize:"16px", fontWeight:700, color:"#334155", letterSpacing:"-0.32px" }}>Registered VIP Targets</span>
+          <span style={{ fontSize:"16px", fontWeight:700, color:"#334155", letterSpacing:"-0.32px" }}>Registered VIP targets</span>
           <span style={{ fontSize:"16px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.32px" }}>{vipTargets}</span>
         </button>
       </div>
@@ -358,10 +386,9 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
         />
       )}
       <div style={{ display:"flex", alignItems:"center", gap:"16px", borderTop:BORDER, borderBottom:BORDER, padding:"12px 0", minHeight:"78px", boxSizing:"border-box" }}>
-        <div style={{ flex:1, minWidth:0 }}>
-          <StatCol icon={<WatchlistStatIcon />} label="VIP Detections" labelColor="#324055" labelFontSize={13} count={watchlistMatch.count} delta={watchlistMatch.delta} deltaPct={watchlistMatch.deltaPct} down={watchlistMatch.down} />
-        </div>
-        <div style={{ width:"1px", backgroundColor:"#E2E8F0", alignSelf:"stretch", flexShrink:0 }} />
+        {/* This one opens the chart below, not "Today's detections" — the chart is specifically
+            about VIP detection volume over the day, so the click target should be the stat that
+            actually names what it's showing. */}
         <div
           onClick={onToggleDetectionChart}
           onMouseEnter={() => setIsDetectionsHovered(true)}
@@ -372,6 +399,10 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
             borderRadius:"8px", padding:"4px", margin:"-4px", transition:"background-color 0.15s",
           }}
         >
+          <StatCol icon={<WatchlistStatIcon />} label="VIP detections" labelColor="#324055" labelFontSize={13} count={watchlistMatch.count} delta={watchlistMatch.delta} deltaPct={watchlistMatch.deltaPct} down={watchlistMatch.down} />
+        </div>
+        <div style={{ width:"1px", backgroundColor:"#E2E8F0", alignSelf:"stretch", flexShrink:0 }} />
+        <div style={{ flex:1, minWidth:0 }}>
           <StatCol icon={<EventsTodayStatIcon />} label="Today's detections" labelColor="#475469" labelFontSize={13} count={eventsToday.count} delta={eventsToday.delta} deltaPct={eventsToday.deltaPct} down={eventsToday.down} />
         </div>
       </div>
@@ -389,7 +420,7 @@ function LocationPickerModal({ current, onSelect, onClose }: { current: string |
       style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.4)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
       <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"320px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"70vh", overflow:"hidden", boxShadow:"0 20px 60px rgba(14,22,42,0.18)" }}>
         <div style={{ padding:"14px 16px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-          <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Select Location</p>
+          <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Select location</p>
           <button onClick={onClose} aria-label="Close" style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
@@ -437,67 +468,137 @@ function CameraTrailIcon() {
   );
 }
 
-// Tracking events are anonymous multi-camera re-id trails rather than a single photo+name
-// detection, so they get their own row: a person thumbnail followed by a hop-by-hop camera
-// trail (each hop = a small rounded camera marker + where/when), ending in a "Tracking" tag.
-// Every hop column keeps its label in NORMAL flow (never absolutely positioned) so long labels
-// like "Jurong East" stay fully visible and scrollable instead of getting clipped by the row's
-// overflow-x. Continuity of the dashed connector is instead handled by TWO pieces per gap: an
-// internal flex:1 filler inside the badge row (covers whatever extra width this hop's own label
-// adds beyond its 20px badge) plus a fixed dash between columns (the actual hop-to-hop gap) —
-// together they always touch, so the line never breaks, and nothing renders past the last badge.
-const TRAIL_HOP_GAP = "14px";
-// A plain CSS "dashed" border re-stretches its dash/gap lengths to fit each element's own width,
-// so two adjoining dashed pieces of different widths (the filler vs. the fixed gap) render with
-// mismatched dash rhythm and look crinkled where they meet. A repeating-gradient background tiles
-// at a fixed pixel interval regardless of the element's width, so consecutive pieces line up.
-const HOP_DASH_STYLE: React.CSSProperties = {
-  height:"1.5px",
-  backgroundImage:"repeating-linear-gradient(to right, #475469 0, #475469 3px, transparent 3px, transparent 6px)",
+// A vertical dashed connector between stacked hops in the expanded view — same fixed-interval
+// repeating-gradient trick as before (a plain CSS dashed border restretches to each element's own
+// height, so it needs a fixed pixel tile to look consistent from hop to hop).
+const HOP_DASH_STYLE_VERTICAL: React.CSSProperties = {
+  width:"1.5px",
+  backgroundImage:"repeating-linear-gradient(to bottom, #475469 0, #475469 3px, transparent 3px, transparent 6px)",
 };
+
+function ChevronDownIcon({ rotated }: { rotated: boolean }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ transform: rotated ? "rotate(180deg)" : "none", transition:"transform 0.15s", flexShrink:0 }}>
+      <path d="M4 6L8 10L12 6" stroke="#94a3b8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+// Tracking events are anonymous multi-camera re-id trails rather than a single photo+name
+// detection. A collapsed row summarizes the trail as "N cameras" plus a truncated route string
+// (never a horizontal scroller — long routes just ellipsize, same as any other single-line label
+// in this list) so every row stays a fixed, predictable height. Clicking a row expands a
+// hop-by-hop timeline stacked VERTICALLY underneath it — full detail with zero horizontal
+// scrolling, since the sidebar's width is fixed but its height can grow per row.
+function hopCameraKey(hop: TrackingHop): string {
+  return `${hop.location}::${hop.cameraLabel ?? ""}`;
+}
 
 function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; isSelected: boolean; onClick: () => void }) {
   const photoUrl = getFacePhoto(event.id);
-  const hops = event.path ?? [];
+  // event.path is stored oldest-first, but the most-recently-seen camera is what an operator
+  // cares about first — reverse once here so both the collapsed route line and the expanded
+  // timeline read newest-first (leftmost / topmost = just now), and everything downstream can
+  // just take hops[0] as "the latest hop".
+  const hops = [...(event.path ?? [])].reverse();
+  const lastHop = hops[0];
+  // "N cameras" must count DISTINCT cameras, not raw hits — a person re-visiting their same
+  // regular camera many times over the day is still a single camera in that count.
+  const distinctCameraCount = new Set(hops.map(hopCameraKey)).size;
+  // Same collapsing idea for the expanded timeline below — a camera the person sat in front of
+  // for hours (many repeat hits, none 2 minutes apart) would otherwise render as a wall of
+  // identical-looking rows that makes "3 cameras" look wrong at a glance. Each group keeps its
+  // most recent hit's time (hops[0] of the run, since hops is newest-first) and a ×N visit count.
+  const visitGroups = hops.reduce<{ hop: TrackingHop; count: number }[]>((groups, hop) => {
+    const prevGroup = groups[groups.length - 1];
+    if (prevGroup && hopCameraKey(prevGroup.hop) === hopCameraKey(hop)) {
+      prevGroup.count++;
+    } else {
+      groups.push({ hop, count: 1 });
+    }
+    return groups;
+  }, []);
   const [isHovered, setIsHovered] = useState(false);
   return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{
-        display:"flex", alignItems:"flex-start", gap:"12px", padding:"10px 16px", cursor:"pointer",
-        backgroundColor: isSelected ? "#f6f6fe" : isHovered ? "#f8fafc" : "transparent",
-        transition:"background-color 0.15s",
-      }}
-    >
-      <PersonThumb isSelected={isSelected} photoUrl={photoUrl} />
-      {/* Hops scroll on their own if they overflow — the "Tracking" tag below stays outside
-          this scroll area so it's never pushed off-screen and hidden. */}
-      <div style={{ flex:1, minWidth:0, display:"flex", alignItems:"flex-start" }}>
-        <div style={{ minWidth:0, display:"flex", alignItems:"flex-start", overflowX:"auto" }}>
-          {hops.map((hop, i) => {
-            const isLast = i === hops.length - 1;
+    <div>
+      <div
+        onClick={onClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          padding:"10px 16px", cursor:"pointer",
+          backgroundColor: isSelected ? "#f6f6fe" : isHovered ? "#f8fafc" : "transparent",
+          transition:"background-color 0.15s",
+        }}
+      >
+        <div style={{ display:"flex", gap:"10px", alignItems:"center", flex:1, minWidth:0 }}>
+          <PersonThumb isSelected={isSelected} photoUrl={photoUrl} />
+          <div style={{ display:"flex", flexDirection:"column", gap:"5px", flex:1, minWidth:0 }}>
+            <div style={{ display:"flex", gap:"6px", alignItems:"baseline" }}>
+              <span title={event.name} style={{ fontSize:"13px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.26px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {event.name}
+              </span>
+              <span title={`${distinctCameraCount} camera${distinctCameraCount === 1 ? "" : "s"}`} style={{
+                width:"16px", height:"16px", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center",
+                fontSize:"10px", fontWeight:600, color:"#64748a",
+                border:"1px solid #ccd5e1", borderRadius:"50%",
+              }}>{distinctCameraCount}</span>
+            </div>
+            <div style={{ display:"flex", gap:"5px", alignItems:"center", minWidth:0 }}>
+              <LocationPinIcon color="#324055" />
+              {/* Just the camera captured most recently — expanding the row already shows the
+                  full hop-by-hop history below, so cramming a route chain into this collapsed
+                  line was redundant (and its directional arrow kept reading as ambiguous/
+                  backwards no matter which way it pointed). The "· time ago" that used to trail
+                  this got dropped too — a real camera code (e.g. "Geylang 9 CAM-SIM-51314") plus
+                  a timestamp genuinely doesn't fit next to the "N cameras"/"Tracking" badges on
+                  the right in a 380px sidebar, so time lost out to showing the full camera name —
+                  the exact time is still one click away in the expanded timeline below. The
+                  name itself is never truncated (wraps instead) now that it isn't sharing this
+                  line with a chevron. */}
+              {lastHop && (
+                <span style={{ minWidth:0, fontSize:"12px", fontWeight:600, color:"#324055", wordBreak:"break-word" }}>
+                  {lastHop.location}{lastHop.cameraLabel ? ` ${lastHop.cameraLabel}` : ""}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        {/* Right-side column: "Tracking" label on top, expand/collapse chevron directly under
+            it — alignItems:"flex-end" keeps the chevron flush with wherever "Tracking" happens
+            to end, instead of the chevron living on the left side lining up with nothing above
+            it. */}
+        <div style={{ marginLeft:"8px", flexShrink:0, alignSelf:"flex-start", marginTop:"10px", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
+            <PawTrackIcon size={14} />
+            <span style={{ fontSize:"12px", fontWeight:600, color:"#6d9300", letterSpacing:"-0.24px", whiteSpace:"nowrap" }}>Tracking</span>
+          </div>
+          <ChevronDownIcon rotated={isSelected} />
+        </div>
+      </div>
+      {isSelected && (
+        <div style={{ display:"flex", flexDirection:"column", padding:"0 16px 12px 60px" }}>
+          {visitGroups.map(({ hop, count }, i) => {
+            const isLast = i === visitGroups.length - 1;
             return (
-              <div key={i} style={{
-                display:"flex", flexDirection:"column", alignItems:"flex-start", gap:"5px",
-                flexShrink:0, paddingRight: isLast ? 0 : TRAIL_HOP_GAP,
-              }}>
-                {/* badge-row overshoots into this column's own trailing gap (via calc), so the
-                    single dash inside it runs from the badge all the way to the next hop with no
-                    seam — two separate dashed pieces meeting mid-line is what caused the "crinkled"
-                    look, since each one's dash rhythm restarts independently at its own edge. */}
-                <div style={{ display:"flex", alignItems:"center", width: isLast ? "100%" : `calc(100% + ${TRAIL_HOP_GAP})` }}>
+              <div key={i} style={{ display:"flex", gap:"8px", alignItems: isLast ? "center" : "stretch" }}>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", width:"20px", flexShrink:0 }}>
                   <div style={{ width:"20px", height:"16px", backgroundColor:"#324055", borderRadius:"7px", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                     <CameraTrailIcon />
                   </div>
-                  {!isLast && <div style={{ ...HOP_DASH_STYLE, flex:1, minWidth:0, marginLeft:"2px" }} />}
+                  {!isLast && <div style={{ ...HOP_DASH_STYLE_VERTICAL, flex:1, minHeight:"14px", marginTop:"2px" }} />}
                 </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:"4px" }}>
-                  <span style={{ fontSize:"10px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.2px", whiteSpace:"nowrap" }}>
-                    {hop.location}{hop.cameraLabel ? ` ${hop.cameraLabel}` : ""}
+                <div style={{ display:"flex", flexDirection:"column", gap:"2px", paddingBottom: isLast ? 0 : "10px" }}>
+                  <span style={{ display:"flex", alignItems:"center", gap:"5px" }}>
+                    <span style={{ fontSize:"12px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.24px" }}>
+                      {hop.location}{hop.cameraLabel ? ` ${hop.cameraLabel}` : ""}
+                    </span>
+                    {count > 1 && (
+                      <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>×{count}</span>
+                    )}
                   </span>
-                  <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a", letterSpacing:"-0.2px", whiteSpace:"nowrap" }}>
+                  <span style={{ fontSize:"12px", fontWeight:600, color:"#64748a", letterSpacing:"-0.2px" }}>
                     {formatTimeAgo(hop.timestamp)}
                   </span>
                 </div>
@@ -505,19 +606,16 @@ function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; is
             );
           })}
         </div>
-        {/* Plain (no dashed line) spacer stretches to fill whatever's left, pinning the tag to
-            the row's right edge — same right-aligned column the VIP badge sits in on VIP rows. */}
-        <div style={{ flex:1, minWidth:"10px" }} />
-        <div style={{ display:"flex", alignItems:"center", gap:"4px", flexShrink:0, marginTop:"1px" }}>
-          <PawTrackIcon size={14} />
-          <span style={{ fontSize:"12px", fontWeight:600, color:"#6d9300", letterSpacing:"-0.24px", whiteSpace:"nowrap" }}>Tracking</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function VipEventRow({ event, isSelected, photoUrl, onClick }: { event: LiveEvent; isSelected: boolean; photoUrl: string; onClick: () => void }) {
+function VipEventRow({ event, isSelected, photoUrl, onClick, locationFilter }: { event: LiveEvent; isSelected: boolean; photoUrl: string; onClick: () => void; locationFilter?: string | null }) {
+  // Already scoped to one location (the "Live Analytics · Tampines" header above says so) —
+  // repeating that same location on every row just to append the camera label pushed long labels
+  // (e.g. "CAM-SIM-513...") into ellipsis. Only the camera name is new information here.
+  const secondLine = locationFilter ? (event.cameraLabel ?? event.location) : `${event.location}${event.cameraLabel ? ` · ${event.cameraLabel}` : ""}`;
   const [isHovered, setIsHovered] = useState(false);
   return (
     <div
@@ -545,8 +643,8 @@ function VipEventRow({ event, isSelected, photoUrl, onClick }: { event: LiveEven
           </div>
           <div style={{ display:"flex", gap:"5px", alignItems:"center" }}>
             <LocationPinIcon color="#324055" />
-            <span title={`${event.location}${event.cameraLabel ? ` · ${event.cameraLabel}` : ""}`} style={{ fontSize:"12px", fontWeight:600, color:"#324055", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-              {event.location}{event.cameraLabel ? ` · ${event.cameraLabel}` : ""}
+            <span title={secondLine} style={{ fontSize:"12px", fontWeight:600, color:"#324055", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              {secondLine}
             </span>
             <span style={{ color:"#cbd5e1", fontSize:"11px", flexShrink:0 }}>·</span>
             <span style={{ fontSize:"12px", fontWeight:600, color:"#64748a", flexShrink:0 }}>{formatTimeAgo(event.timestamp)}</span>
@@ -598,9 +696,14 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
     : locationFilter
       ? byType.filter(e => e.location.toLowerCase().includes(locationFilter.toLowerCase()))
       : byType;
-  const filtered = personFilter
+  const unsorted = personFilter
     ? byLocation.filter(e => e.name.toLowerCase() === personFilter.toLowerCase())
     : byLocation;
+  // Newest first — the store's own insertion order isn't a reliable proxy for this: a person
+  // with several past (non-Tracking) hits gets their whole row cluster reinserted together
+  // oldest-first within that cluster whenever any one of their hits changes, so relying on
+  // insertion order alone could show an older hit above a newer one from someone else.
+  const filtered = [...unsorted].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
@@ -613,7 +716,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
       {/* Live Analytics + filter */}
       <div style={{ padding:"20px 20px 12px", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"12px" }}>
-          <span style={{ fontSize:"16px", fontWeight:700, color:"#334155", letterSpacing:"-0.32px" }}>Live Analytics</span>
+          <span style={{ fontSize:"16px", fontWeight:700, color:"#334155", letterSpacing:"-0.32px" }}>Live analytics</span>
           <button
             onClick={() => setShowLocationPicker(true)}
             style={{ display:"flex", alignItems:"center", gap:"4px", background:"none", border:"none", cursor:"pointer", padding:0 }}
@@ -659,7 +762,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
                   display:"flex", alignItems:"center", gap:"4px",
                   padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
                   backgroundColor: active ? "#5a3dfb" : "#f1f5f9",
-                  color, fontSize:"12px", fontWeight:500, letterSpacing:"-0.24px", transition:"all 0.15s",
+                  color, fontSize:"12px", fontWeight:600, letterSpacing:"-0.24px", transition:"all 0.15s",
                 }}>
                 <FilterPillIcon id={id} color={color} />
                 {id === "VIP Detection" ? "VIP Detection" : id}
@@ -673,7 +776,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
       <div style={{ flex:1, overflowY:"auto", minHeight:0 }}>
         {paginated.length === 0 && (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", padding:"32px 20px" }}>
-            <span style={{ fontSize:"13px", fontWeight:500, color:"#94a3b8", textAlign:"center", letterSpacing:"-0.26px" }}>
+            <span style={{ fontSize:"13px", fontWeight:600, color:"#94a3b8", textAlign:"center", letterSpacing:"-0.26px" }}>
               No events detected currently.
             </span>
           </div>
@@ -686,7 +789,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
               {event.type === "Tracking" ? (
                 <TrackingEventRow event={event} isSelected={isSelected} onClick={() => onEventSelect?.(isSelected ? null : event)} />
               ) : (
-                <VipEventRow event={event} isSelected={isSelected} photoUrl={photoUrl} onClick={() => onEventSelect?.(isSelected ? null : event)} />
+                <VipEventRow event={event} isSelected={isSelected} photoUrl={photoUrl} onClick={() => onEventSelect?.(isSelected ? null : event)} locationFilter={locationFilter} />
               )}
               {i < paginated.length - 1 && <div style={{ height:"1px", backgroundColor:"#e2e8f0", margin:"0 16px" }} />}
             </div>
@@ -696,7 +799,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
 
       {/* Pagination */}
       <div style={{ padding:"10px 16px", borderTop:BORDER, flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center", backgroundColor:"white" }}>
-        <span style={{ fontSize:"11px", color:"#94a3b8", fontWeight:500 }}>{rangeStart} – {rangeEnd} of {filtered.length}</span>
+        <span style={{ fontSize:"10px", color:"#94a3b8", fontWeight:600 }}>{rangeStart} – {rangeEnd} of {filtered.length}</span>
         <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
           <span style={{ fontSize:"11px", color:"#94a3b8" }}>Go to page</span>
           <input type="number" min={1} max={totalPages} value={safePage}
@@ -746,7 +849,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
   // — see lib/api/dashboard.ts. `devices` defaults to [] for the brief pre-fetch window, which
   // the existing "No devices found." empty state already covers.
   const { data: dashboardStats } = useApiData(() => getDashboardStats(), []);
-  const { data: devicesData } = useApiData(() => getDevices(), []);
+  const { data: devicesData, error: devicesError, refetch: refetchDevices } = useApiData(() => getDevices(), []);
   const devices = devicesData ?? [];
   const linkedCams = dashboardStats?.linkedCams ?? { count: 0, delta: 0, deltaPct: 0, down: false };
   const offlineCams = dashboardStats?.offlineCams ?? { count: 0, delta: 0, deltaPct: 0, down: false };
@@ -761,6 +864,12 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
   const listRef = useRef<HTMLDivElement>(null);
   const firstRowRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  // `devices` comes from useApiData and starts empty until the fetch resolves, so on first mount
+  // there's no row to measure yet — the initial recalc() below silently no-ops (guarded by
+  // `!row`), and without devices.length in the deps here, nothing ever asks it to try again once
+  // real rows actually exist. That's why pageSize was permanently stuck at the PAGE_SIZE default
+  // regardless of how tall the sidebar actually was — this re-runs recalc once real data (and a
+  // real first row to measure) arrives.
   useEffect(() => {
     const recalc = () => {
       const container = listRef.current;
@@ -772,7 +881,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
     const ro = new ResizeObserver(recalc);
     if (listRef.current) ro.observe(listRef.current);
     return () => ro.disconnect();
-  }, []);
+  }, [devices.length]);
 
   const filtered = devices.filter(d =>
     (d.name.toLowerCase().includes(search.toLowerCase()) || d.ip.includes(search)) &&
@@ -791,16 +900,16 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
         <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
           <SystemHeaderIcon />
           <p style={{ fontSize:"16px", fontWeight:700, color:"#334155", letterSpacing:"-0.32px" }}>
-            Infrastructure & Debug
+            Infrastructure & debug
           </p>
         </div>
         <div style={{ display:"flex", alignItems:"flex-start", borderTop:BORDER, borderBottom:BORDER, padding:"12px 0", minHeight:"78px", boxSizing:"border-box" }}>
           <div style={{ flex:1 }}>
-            <StatCol icon={<LinkedCamsIcon />} label="Linked Cams" labelFontSize={13} count={linkedCount} delta={linkedCams.delta} deltaPct={linkedCams.deltaPct} down={linkedCams.down} />
+            <StatCol icon={<LinkedCamsIcon />} label="Linked cams" labelFontSize={13} count={linkedCount} delta={linkedCams.delta} deltaPct={linkedCams.deltaPct} down={linkedCams.down} />
           </div>
           <div style={{ width:"1px", backgroundColor:"#E2E8F0", alignSelf:"stretch", flexShrink:0 }} />
           <div style={{ flex:1, paddingLeft:"14px" }}>
-            <StatCol icon={<OfflineCamsIcon />} label="Out Cams" labelFontSize={13} count={offlineCount} delta={offlineCams.delta} deltaPct={offlineCams.deltaPct} down={offlineCams.down} />
+            <StatCol icon={<OfflineCamsIcon />} label="Out cams" labelFontSize={13} count={offlineCount} delta={offlineCams.delta} deltaPct={offlineCams.deltaPct} down={offlineCams.down} />
           </div>
           <div style={{ width:"1px", backgroundColor:"#E2E8F0", alignSelf:"stretch", flexShrink:0 }} />
           <div style={{ flex:1, paddingLeft:"14px", display:"flex", flexDirection:"column", alignItems:"center" }}>
@@ -835,7 +944,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
                 display:"flex", alignItems:"center", gap:"5px",
                 padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
                 backgroundColor: active ? "#5a3dfb" : "#f1f5f9",
-                color: active ? "white" : "#324055", fontSize:"12px", fontWeight:500, letterSpacing:"-0.24px", transition:"all 0.15s",
+                color: active ? "white" : "#324055", fontSize:"12px", fontWeight:600, letterSpacing:"-0.24px", transition:"all 0.15s",
               }}>
               <span style={{ width:"6px", height:"6px", borderRadius:"50%", backgroundColor: active ? "white" : dotColor, flexShrink:0 }} />
               {id === "Off" ? "Out" : id}
@@ -860,9 +969,22 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
           above the pagination bar. Only the true last page (e.g. 1000 not divisible by pageSize)
           can ever be short — that's unavoidable, not a bug. */}
       <div ref={listRef} style={{ flex:1, overflowY:"auto", minHeight:0 }}>
-        {filtered.length === 0 && (
+        {/* A failed fetch and a genuinely-empty filter used to look identical ("No devices
+            found."), which reads as "your search matched nothing" when the real problem is the
+            list never loaded at all — distinguish the two so a real fetch failure is visible
+            and recoverable instead of silently indistinguishable from zero results. */}
+        {devicesError ? (
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", padding:"32px 20px", gap:"10px" }}>
+            <span style={{ fontSize:"13px", fontWeight:600, color:"#f43f5e", textAlign:"center", letterSpacing:"-0.26px" }}>
+              Couldn&apos;t load devices.
+            </span>
+            <button onClick={refetchDevices} style={{ fontSize:"12px", fontWeight:700, color:"#5a3dfb", background:"none", border:"none", cursor:"pointer", padding:0 }}>
+              Retry
+            </button>
+          </div>
+        ) : filtered.length === 0 && (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", padding:"32px 20px" }}>
-            <span style={{ fontSize:"13px", fontWeight:500, color:"#94a3b8", textAlign:"center", letterSpacing:"-0.26px" }}>
+            <span style={{ fontSize:"13px", fontWeight:600, color:"#94a3b8", textAlign:"center", letterSpacing:"-0.26px" }}>
               No devices found.
             </span>
           </div>
@@ -887,7 +1009,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
               }}>
               <div style={{ display:"flex", flexDirection:"column", gap:"1px", overflow:"hidden" }}>
                 <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", letterSpacing:"-0.24px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.name}</span>
-                <span style={{ fontSize:"12px", fontWeight:500, color:"#94a3b8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{zone}</span>
+                <span style={{ fontSize:"12px", fontWeight:600, color:"#94a3b8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{zone}</span>
               </div>
               <div><StatusBadge status={device.status} /></div>
               <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.type}</span>
@@ -904,7 +1026,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
 
       {/* Pagination */}
       <div style={{ padding:"10px 16px", borderTop:BORDER, flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <span style={{ fontSize:"11px", color:"#94a3b8", fontWeight:500 }}>{rangeStart} – {rangeEnd} of {filtered.length}</span>
+        <span style={{ fontSize:"10px", color:"#94a3b8", fontWeight:600 }}>{rangeStart} – {rangeEnd} of {filtered.length}</span>
         <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
           <span style={{ fontSize:"11px", color:"#94a3b8" }}>Go to page</span>
           <input type="number" min={1} max={totalPages} value={safePage}
@@ -936,7 +1058,13 @@ function nearestZoneName(lat: number, lng: number, cameras: { name: string; lat:
   return best?.name ?? "Unknown";
 }
 
-function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }) {
+function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, onPinDevice, pinnedDeviceId }: {
+  position?: "left" | "right";
+  onEventSelect?: (event: LiveEvent | null) => void;
+  selectedEventId?: string;
+  onPinDevice?: (device: Device | null) => void;
+  pinnedDeviceId?: string | null;
+}) {
   const [tab, setTab] = usePersistedSidebarTab();
   const [hovered, setHovered] = useState<{ id: string; top: number; item: LiveEvent | Device } | null>(null);
   const { vipTargets, watchlistMatch, tracking } = useEventCounts();
@@ -983,13 +1111,13 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
               width:"38px", height:"38px", borderRadius:"10px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
               backgroundColor: vipTargets > 0 ? "#eef2ff" : "#f1f5f9", border: vipTargets > 0 ? "1px solid #c7d2fe" : "1px solid #e2e8f0",
             }}>
-              <span style={{ fontSize:"8px", fontWeight:700, color: vipTargets > 0 ? "#5a3dfb" : "#94a3b8", letterSpacing:"0.5px" }}>VIP</span>
-              <span style={{ fontSize:"13px", fontWeight:800, color: vipTargets > 0 ? "#5a3dfb" : "#94a3b8", lineHeight:1 }}>{vipTargets}</span>
+              <span style={{ fontSize:"10px", fontWeight:600, color: vipTargets > 0 ? "#5a3dfb" : "#94a3b8", letterSpacing:"0.5px" }}>VIP</span>
+              <span style={{ fontSize:"13px", fontWeight:700, color: vipTargets > 0 ? "#5a3dfb" : "#94a3b8", lineHeight:1 }}>{vipTargets}</span>
             </div>
             {/* This is just today's detection count, not an alert — plain gray, no red. */}
             <div style={{ width:"38px", height:"38px", borderRadius:"10px", backgroundColor:"#f1f5f9", border:"1px solid #e2e8f0", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-              <span style={{ fontSize:"8px", fontWeight:700, color:"#64748a", letterSpacing:"0.3px" }}>TODAY</span>
-              <span style={{ fontSize:"13px", fontWeight:800, color:"#334155", lineHeight:1 }}>{todayTotal}</span>
+              <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a", letterSpacing:"0.3px" }}>TODAY</span>
+              <span style={{ fontSize:"13px", fontWeight:700, color:"#334155", lineHeight:1 }}>{todayTotal}</span>
             </div>
           </>
         ) : (
@@ -999,8 +1127,8 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
             width:"38px", height:"38px", borderRadius:"10px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
             backgroundColor: availability < 50 ? "#fff1f2" : "#f1f5f9", border: availability < 50 ? "1px solid #fecdd3" : "1px solid #e2e8f0",
           }}>
-            <span style={{ fontSize:"8px", fontWeight:700, color: availability < 50 ? "#f43f5e" : "#94a3b8", letterSpacing:"0.3px" }}>AVAIL</span>
-            <span style={{ fontSize:"13px", fontWeight:800, color: availability < 50 ? "#f43f5e" : "#94a3b8", lineHeight:1 }}>{availability}%</span>
+            <span style={{ fontSize:"10px", fontWeight:600, color: availability < 50 ? "#f43f5e" : "#94a3b8", letterSpacing:"0.3px" }}>AVAIL</span>
+            <span style={{ fontSize:"13px", fontWeight:700, color: availability < 50 ? "#f43f5e" : "#94a3b8", lineHeight:1 }}>{availability}%</span>
           </div>
         )}
       </div>
@@ -1010,11 +1138,14 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
         {tab === "EVENTS"
           ? liveEvents.map(event => {
               const photoUrl = getFacePhoto(event.id);
+              const isSelected = event.id === selectedEventId;
               return (
                 <div key={event.id}
                   onMouseEnter={e => handleMouseEnter(e, event.id, event)}
+                  onClick={() => onEventSelect?.(isSelected ? null : event)}
                   style={{ width:"40px", height:"40px", borderRadius:"10px", overflow:"hidden", flexShrink:0, cursor:"pointer", position:"relative",
-                    border: event.type==="VIP" ? "2px solid #5a3dfb" : "1.5px solid #e2e8f0" }}>
+                    border: event.type==="VIP" ? "2px solid #5a3dfb" : "1.5px solid #e2e8f0",
+                    boxShadow: isSelected ? "0 0 0 2px #5a3dfb" : "none" }}>
                   <img src={photoUrl} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} alt="" />
                   {event.type === "VIP" && (
                     <div style={{ position:"absolute", top:"1px", right:"1px", width:"15px", height:"15px", borderRadius:"50%", backgroundColor:"#5a3dfb", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -1026,11 +1157,14 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
             })
           : devices.map(device => {
               const isLive = device.status === "Live";
+              const isPinned = device.id === pinnedDeviceId;
               return (
                 <div key={device.id}
                   onMouseEnter={e => handleMouseEnter(e, device.id, device)}
-                  style={{ width:"40px", height:"40px", borderRadius:"10px", backgroundColor: isLive ? "#0e162a" : "#f8fafc", border: isLive ? "1px solid #334155" : "1px solid #fecdd3", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", flexShrink:0 }}>
-                  <span style={{ fontSize:"9px", fontWeight:700, color: isLive ? "white" : "#f43f5e", fontFamily:"monospace", textAlign:"center" }}>{device.name}</span>
+                  onClick={() => onPinDevice?.(isPinned ? null : device)}
+                  style={{ width:"40px", height:"40px", borderRadius:"10px", backgroundColor: isLive ? "#0e162a" : "#f8fafc", border: isLive ? "1px solid #334155" : "1px solid #fecdd3", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", flexShrink:0,
+                    boxShadow: isPinned ? "0 0 0 2px #5a3dfb" : "none" }}>
+                  <span style={{ fontSize:"10px", fontWeight:600, color: isLive ? "white" : "#f43f5e", fontFamily:"monospace", textAlign:"center" }}>{device.name}</span>
                   <div style={{ position:"absolute", bottom:"3px", right:"3px", width:"6px", height:"6px", borderRadius:"50%", backgroundColor: isLive ? "#22c55e" : "#f43f5e" }} />
                 </div>
               );
@@ -1074,7 +1208,7 @@ function CollapsedSidebar({ position = "left" }: { position?: "left" | "right" }
               <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"3px" }}>{zone}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span style={{ fontSize:"12px", fontWeight:800, color:"white" }}>{device.name}</span>
-                <span style={{ fontSize:"10px", fontWeight:700, color: isLive ? "#22c55e" : "#f43f5e", backgroundColor: isLive ? "rgba(34,197,94,0.1)" : "rgba(244,63,94,0.1)", padding:"2px 6px", borderRadius:"4px" }}>
+                <span style={{ fontSize:"10px", fontWeight:600, color: isLive ? "#22c55e" : "#f43f5e", backgroundColor: isLive ? "rgba(34,197,94,0.1)" : "rgba(244,63,94,0.1)", padding:"2px 6px", borderRadius:"4px" }}>
                   {isLive ? "● LIVE" : "○ OFF"}
                 </span>
               </div>
@@ -1107,7 +1241,15 @@ export default function Sidebar({ onEventSelect, selectedEventId, locationFilter
   const [activeTab, setActiveTab] = usePersistedSidebarTab();
   const [personFilter, setPersonFilter] = useState<string | null>(null);
 
-  if (isCollapsed) return <CollapsedSidebar position={position} />;
+  if (isCollapsed) return (
+    <CollapsedSidebar
+      position={position}
+      onEventSelect={onEventSelect}
+      selectedEventId={selectedEventId}
+      onPinDevice={onPinDevice}
+      pinnedDeviceId={pinnedDeviceId}
+    />
+  );
 
   return (
     <div style={{ width:"380px", flexShrink:0, height:"100%", backgroundColor:"white", ...(position === "right" ? { borderLeft: BORDER } : { borderRight: BORDER }), display:"flex", flexDirection:"column", overflow:"hidden" }}>

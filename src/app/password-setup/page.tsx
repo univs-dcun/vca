@@ -41,7 +41,7 @@ export default function PasswordSetupPage() {
           display: "flex", flexDirection: "column", gap: "40px", alignItems: "center",
         }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", width: "100%" }}>
-            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "#1d293b", letterSpacing: "-0.52px", lineHeight: "40px" }}>Set Password</h1>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "#1d293b", letterSpacing: "-0.52px", lineHeight: "40px" }}>Set password</h1>
             <p style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "#475469", letterSpacing: "-0.32px" }}>Please set your new password.</p>
           </div>
 

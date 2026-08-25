@@ -8,9 +8,11 @@ export interface MatchItem {
   face: string;
   body: string;
   cam: string;
+  date: string;
   time: string;
   similarity: number;
   gender: "M" | "F";
   age: string;
   plate?: string | null;
+  status: ReIDStatus;
 }

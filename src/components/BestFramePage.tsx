@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Search } from "lucide-react";
 import BestFrameDetailPage from "./BestFrameDetailPage";
 import { useToast } from "./Toast";
 import type { DetType, MonitorState, Camera, Detection, CamData, HUDState } from "@/types/detection";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { VIP_SIMULATION_CAMERAS } from "@/lib/vcaStore";
+import { recentSgtClockTime, sgtHour, sgtMinute } from "@/lib/time";
 
 const BORDER = "1px solid #E2E8F0";
 
 function FilterIcon({ type, color, active, size = 14 }: { type: DetType; color: string; active?: boolean; size?: number }) {
   if (type === "VIP") return active ? (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
-      <path d="M7.70796 2.17647C7.73673 2.12421 7.77901 2.08062 7.83037 2.05027C7.88173 2.01992 7.9403 2.00391 7.99996 2.00391C8.05962 2.00391 8.11819 2.01992 8.16955 2.05027C8.22091 2.08062 8.26318 2.12421 8.29196 2.17647L10.26 5.91247C10.3069 5.99898 10.3724 6.07402 10.4518 6.13222C10.5311 6.19041 10.6224 6.23031 10.719 6.24904C10.8156 6.26778 10.9152 6.26489 11.0106 6.24059C11.106 6.21628 11.1948 6.17116 11.2706 6.10847L14.122 3.6658C14.1767 3.62128 14.2441 3.59528 14.3146 3.59154C14.3851 3.58779 14.4549 3.6065 14.514 3.64497C14.5732 3.68343 14.6186 3.73968 14.6437 3.8056C14.6689 3.87152 14.6725 3.94372 14.654 4.0118L12.7646 10.8425C12.7261 10.9822 12.643 11.1056 12.528 11.1939C12.413 11.2822 12.2723 11.3306 12.1273 11.3318H3.87329C3.72818 11.3308 3.58736 11.2825 3.47222 11.1941C3.35707 11.1058 3.27389 10.9824 3.23529 10.8425L1.34662 4.01247C1.32812 3.94438 1.3317 3.87218 1.35685 3.80626C1.382 3.74034 1.42741 3.6841 1.48656 3.64563C1.5457 3.60717 1.61553 3.58846 1.68598 3.5922C1.75644 3.59595 1.82389 3.62195 1.87862 3.66647L4.72929 6.10914C4.80516 6.17183 4.89396 6.21695 4.98933 6.24125C5.0847 6.26556 5.18427 6.26845 5.28089 6.24971C5.37751 6.23097 5.46878 6.19107 5.54815 6.13288C5.62752 6.07469 5.69303 5.99965 5.73996 5.91314L7.70796 2.17647Z" fill={color} stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3.33333 14H12.6667" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7.70796 2.17647C7.73673 2.12421 7.77901 2.08062 7.83037 2.05027C7.88173 2.01992 7.9403 2.00391 7.99996 2.00391C8.05962 2.00391 8.11819 2.01992 8.16955 2.05027C8.22091 2.08062 8.26318 2.12421 8.29196 2.17647L10.26 5.91247C10.3069 5.99898 10.3724 6.07402 10.4518 6.13222C10.5311 6.19041 10.6224 6.23031 10.719 6.24904C10.8156 6.26778 10.9152 6.26489 11.0106 6.24059C11.106 6.21628 11.1948 6.17116 11.2706 6.10847L14.122 3.6658C14.1767 3.62128 14.2441 3.59528 14.3146 3.59154C14.3851 3.58779 14.4549 3.6065 14.514 3.64497C14.5732 3.68343 14.6186 3.73968 14.6437 3.8056C14.6689 3.87152 14.6725 3.94372 14.654 4.0118L12.7646 10.8425C12.7261 10.9822 12.643 11.1056 12.528 11.1939C12.413 11.2822 12.2723 11.3306 12.1273 11.3318H3.87329C3.72818 11.3308 3.58736 11.2825 3.47222 11.1941C3.35707 11.1058 3.27389 10.9824 3.23529 10.8425L1.34662 4.01247C1.32812 3.94438 1.3317 3.87218 1.35685 3.80626C1.382 3.74034 1.42741 3.6841 1.48656 3.64563C1.5457 3.60717 1.61553 3.58846 1.68598 3.5922C1.75644 3.59595 1.82389 3.62195 1.87862 3.66647L4.72929 6.10914C4.80516 6.17183 4.89396 6.21695 4.98933 6.24125C5.0847 6.26556 5.18427 6.26845 5.28089 6.24971C5.37751 6.23097 5.46878 6.19107 5.54815 6.13288C5.62752 6.07469 5.69303 5.99965 5.73996 5.91314L7.70796 2.17647Z" fill="white" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M3.33333 14H12.6667" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   ) : (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
@@ -23,12 +25,12 @@ function FilterIcon({ type, color, active, size = 14 }: { type: DetType; color: 
   );
   if (type === "Vehicle") return active ? (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
-      <path d="M12.6667 6.66667H3.33333C2.59695 6.66667 2 7.26362 2 8V10.6667C2 11.403 2.59695 12 3.33333 12H12.6667C13.403 12 14 11.403 14 10.6667V8C14 7.26362 13.403 6.66667 12.6667 6.66667Z" fill={color} stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M14 5.33333L12.6667 6.66667L11.6667 4.2C11.5724 3.94756 11.4038 3.72962 11.1831 3.5749C10.9625 3.42019 10.7001 3.33597 10.4307 3.33333H5.6C5.32834 3.32709 5.06125 3.40401 4.83451 3.55378C4.60778 3.70355 4.43221 3.91902 4.33133 4.17133L3.33333 6.66667L2 5.33333" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M4.66667 9.33333H4.67417" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M11.3333 9.33333H11.3408" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3.33333 12V13.3333" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M12.6667 12V13.3333" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12.6667 6.66602H3.33333C2.59695 6.66602 2 7.26297 2 7.99935V10.666C2 11.4024 2.59695 11.9993 3.33333 11.9993H12.6667C13.403 11.9993 14 11.4024 14 10.666V7.99935C14 7.26297 13.403 6.66602 12.6667 6.66602Z" fill="white" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14 5.33238L12.6667 6.66572L11.6667 4.19905C11.5724 3.94661 11.4038 3.72867 11.1831 3.57395C10.9625 3.41924 10.7001 3.33502 10.4307 3.33238H5.6C5.32834 3.32614 5.06125 3.40306 4.83451 3.55283C4.60778 3.70259 4.43221 3.91807 4.33133 4.17038L3.33333 6.66572L2 5.33238" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M4.66675 9.33398H4.67425" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M11.3333 9.33398H11.3408" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M3.33325 12V13.3333" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12.6667 12V13.3333" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   ) : (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
@@ -44,9 +46,9 @@ function FilterIcon({ type, color, active, size = 14 }: { type: DetType; color: 
   return active ? (
     <svg width={size} height={size} viewBox="0 0 14 14" fill="none" style={{ flexShrink:0 }}>
       <g clipPath="url(#filterIconUnknownClipActive)">
-        <path d="M2.24583 5.02833C2.16069 4.64481 2.17376 4.24599 2.28384 3.86886C2.39392 3.49174 2.59744 3.14851 2.87552 2.871C3.15361 2.5935 3.49726 2.3907 3.87462 2.28141C4.25198 2.17213 4.65082 2.15989 5.03417 2.24583C5.24516 1.91584 5.53584 1.64428 5.87939 1.45617C6.22294 1.26806 6.60832 1.16946 7 1.16946C7.39168 1.16946 7.77706 1.26806 8.12061 1.45617C8.46416 1.64428 8.75484 1.91584 8.96583 2.24583C9.34976 2.15951 9.74929 2.1717 10.1272 2.28125C10.5052 2.3908 10.8493 2.59417 11.1276 2.87242C11.4058 3.15068 11.6092 3.49479 11.7188 3.87275C11.8283 4.25071 11.8405 4.65024 11.7542 5.03417C12.0842 5.24516 12.3557 5.53583 12.5438 5.87939C12.7319 6.22294 12.8305 6.60832 12.8305 7C12.8305 7.39168 12.7319 7.77706 12.5438 8.12061C12.3557 8.46416 12.0842 8.75484 11.7542 8.96583C11.8401 9.34918 11.8279 9.74802 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4026 10.5083 11.6061 10.1311 11.7162C9.75401 11.8262 9.35519 11.8393 8.97167 11.7542C8.76094 12.0854 8.47005 12.3582 8.12591 12.5471C7.78177 12.7361 7.39552 12.8351 7.00292 12.8351C6.61032 12.8351 6.22407 12.7361 5.87993 12.5471C5.53579 12.3582 5.24489 12.0854 5.03417 11.7542C4.65082 11.8401 4.25198 11.8279 3.87462 11.7186C3.49726 11.6093 3.15361 11.4065 2.87552 11.129C2.59744 10.8515 2.39392 10.5083 2.28384 10.1311C2.17376 9.75401 2.16069 9.35519 2.24583 8.97167C1.91331 8.76122 1.63941 8.4701 1.44961 8.12537C1.25982 7.78065 1.16029 7.39352 1.16029 7C1.16029 6.60648 1.25982 6.21935 1.44961 5.87462C1.63941 5.5299 1.91331 5.23877 2.24583 5.02833Z" fill={color} stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M5.3025 5.25C5.43964 4.86014 5.71034 4.5314 6.06664 4.32199C6.42294 4.11259 6.84186 4.03605 7.24919 4.10592C7.65652 4.17578 8.02598 4.38756 8.29213 4.70372C8.55828 5.01989 8.70395 5.42005 8.70333 5.83333C8.70333 7 6.95333 7.58333 6.95333 7.58333" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M7 9.91667H7.00583" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M2.24583 5.02833C2.16069 4.64481 2.17376 4.24599 2.28384 3.86886C2.39392 3.49174 2.59744 3.14851 2.87552 2.871C3.15361 2.5935 3.49726 2.3907 3.87462 2.28141C4.25198 2.17213 4.65082 2.15989 5.03417 2.24583C5.24516 1.91584 5.53584 1.64428 5.87939 1.45617C6.22294 1.26806 6.60832 1.16946 7 1.16946C7.39168 1.16946 7.77706 1.26806 8.12061 1.45617C8.46416 1.64428 8.75484 1.91584 8.96583 2.24583C9.34976 2.15951 9.74929 2.1717 10.1272 2.28125C10.5052 2.3908 10.8493 2.59417 11.1276 2.87242C11.4058 3.15068 11.6092 3.49479 11.7188 3.87275C11.8283 4.25071 11.8405 4.65024 11.7542 5.03417C12.0842 5.24516 12.3557 5.53583 12.5438 5.87939C12.7319 6.22294 12.8305 6.60832 12.8305 7C12.8305 7.39168 12.7319 7.77706 12.5438 8.12061C12.3557 8.46416 12.0842 8.75484 11.7542 8.96583C11.8401 9.34918 11.8279 9.74802 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4026 10.5083 11.6061 10.1311 11.7162C9.75401 11.8262 9.35519 11.8393 8.97167 11.7542C8.76094 12.0854 8.47005 12.3582 8.12591 12.5471C7.78177 12.7361 7.39552 12.8351 7.00292 12.8351C6.61032 12.8351 6.22407 12.7361 5.87993 12.5471C5.53579 12.3582 5.24489 12.0854 5.03417 11.7542C4.65082 11.8401 4.25198 11.8279 3.87462 11.7186C3.49726 11.6093 3.15361 11.4065 2.87552 11.129C2.59744 10.8515 2.39392 10.5083 2.28384 10.1311C2.17376 9.75401 2.16069 9.35519 2.24583 8.97167C1.91331 8.76122 1.63941 8.4701 1.44961 8.12537C1.25982 7.78065 1.16029 7.39352 1.16029 7C1.16029 6.60648 1.25982 6.21935 1.44961 5.87462C1.63941 5.5299 1.91331 5.23877 2.24583 5.02833Z" fill="#FEF3C7" stroke="#FEF3C7" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M5.3025 5.25C5.43964 4.86014 5.71034 4.5314 6.06664 4.32199C6.42294 4.11259 6.84186 4.03605 7.24919 4.10592C7.65652 4.17578 8.02598 4.38756 8.29213 4.70372C8.55828 5.01989 8.70395 5.42005 8.70333 5.83333C8.70333 7 6.95333 7.58333 6.95333 7.58333" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M7 9.91667H7.00583" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
       </g>
       <defs>
         <clipPath id="filterIconUnknownClipActive"><rect width="14" height="14" fill="white"/></clipPath>
@@ -71,7 +73,30 @@ function FilterIcon({ type, color, active, size = 14 }: { type: DetType; color: 
 // matches that instead of the sky-blue this page used to use on its own.
 const DET_COLOR: Record<DetType, string> = { VIP: "#5a3dfb", Vehicle: "#38bdf8", Unknown: "#976400" };
 
+// How long the sidebar's "VIP detected now" pulsing dot stays lit after a hit — long enough not
+// to be missed on a glance, short enough that it still means "just now" rather than "at some
+// point today." (Also cleared immediately if the operator checks the camera first — see
+// ackedVipCamIds below — so it never lingers past the point someone's actually looked.)
+const VIP_DOT_TIMEOUT_MIN = 2;
+
+function toMinutesSinceMidnight(hhmmss: string): number {
+  const [h, m] = hhmmss.split(":").map(Number);
+  return h * 60 + m;
+}
+
 const PURPLE_FILTER = "invert(28%) sepia(64%) saturate(3086%) hue-rotate(237deg) brightness(0.92)";
+
+// Sidebar camera-list filter chips. "Network" shows the Normal network section (its chip label
+// used to say "Live", which didn't match the section title it revealed — renamed to agree with
+// it). "File" merges what used to be separate Video and Image chips into one filter, since
+// they're both saved footage as opposed to a live feed; the Video list / Image list sections
+// still render as their own distinct groups underneath it.
+type CamTypeFilter = "All" | "Network" | "File";
+const CAM_TYPE_FILTERS: { id: CamTypeFilter; label: string }[] = [
+  { id:"All",     label:"All" },
+  { id:"Network", label:"Network" },
+  { id:"File",    label:"File" },
+];
 
 /* ── Camera data ──────────────────────────────────────────── */
 const BG = [
@@ -85,69 +110,89 @@ const AVATAR = [
 ];
 const CAR_IMG = "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?auto=format&fit=crop&w=80&q=80";
 
+// Detection `time` values are computed relative to the actual current time (recentSgtClockTime),
+// not literal hardcoded clock strings — a fixed string like "16:31:50" inevitably drifts into
+// looking like a FUTURE detection as real time passes the current SGT clock (Navbar's header
+// keeps advancing live). Offsets below are chosen so each camera's own cluster keeps roughly the
+// same relative spacing/story it always had, just re-anchored to "now" — and each entry is
+// listed newest-first within its camera, matching how CameraCard renders the list (also enforced
+// defensively by a sort in CameraCard itself, in case this ordering ever drifts).
 export const CAM_DATA: Record<string, CamData> = {
   bs1a: { camLabel: "CAM_WestGate_BS1", location: "Main Intake Road", bgUrl: BG[0], detections: [
-    { id:"d1", type:"VIP",          name:"Sarah Lin",              group:"Staff (Finance)", confidence:98.4, time:"15:04:18", top:"15%", left:"10%", width:"12%", height:"38%" },
-    { id:"d2", type:"Vehicle",      name:"Vehicle SGX411",         group:"Navy",            confidence:92.8, time:"15:03:48", top:"20%", left:"48%", width:"18%", height:"28%" },
-    { id:"d3", type:"VIP",          name:"Dr. Alex Wong",          group:"VIP group",       confidence:98.4, time:"15:04:18", top:"18%", left:"68%", width:"12%", height:"36%" },
-    { id:"d4", type:"Unknown", name:"Blue shirts • Man • Bag",group:"Unknown",    confidence:0,    time:"15:04:18", top:"25%", left:"32%", width:"11%", height:"35%" },
+    { id:"d3", type:"VIP",          name:"Dr. Alex Wong",          group:"VIP group",       confidence:98.4, time:recentSgtClockTime(86), top:"18%", left:"68%", width:"12%", height:"36%" },
+    { id:"d1", type:"VIP",          name:"Sarah Lin",              group:"Staff (Finance)", confidence:98.4, time:recentSgtClockTime(87), top:"15%", left:"10%", width:"12%", height:"38%" },
+    { id:"d4", type:"Unknown", name:"Blue shirts • Man • Bag",group:"Unknown",    confidence:0,    time:recentSgtClockTime(88), top:"25%", left:"32%", width:"11%", height:"35%" },
+    { id:"d2", type:"Vehicle",      name:"Vehicle SGX411",         group:"Navy",            confidence:92.8, time:recentSgtClockTime(89), top:"20%", left:"48%", width:"18%", height:"28%" },
+    { id:"d21", type:"VIP",     name:"Michelle Tan",       group:"VIP group",     confidence:95.7, time:recentSgtClockTime(90), top:"17%", left:"22%", width:"12%", height:"37%" },
+    { id:"d22", type:"Unknown", name:"Red cap • Male",     group:"Unknown",       confidence:0,    time:recentSgtClockTime(91), top:"24%", left:"58%", width:"11%", height:"34%" },
+    { id:"d23", type:"Vehicle", name:"Vehicle YW2281",     group:"Logistics",     confidence:87.4, time:recentSgtClockTime(92), top:"19%", left:"5%",  width:"17%", height:"27%" },
+    { id:"d24", type:"VIP",     name:"James Kwek",         group:"Staff (Security)", confidence:90.1, time:recentSgtClockTime(93), top:"16%", left:"78%", width:"12%", height:"37%" },
+    { id:"d25", type:"Unknown", name:"Grey hoodie • Female", group:"Unknown",     confidence:0,    time:recentSgtClockTime(94), top:"23%", left:"42%", width:"11%", height:"34%" },
   ]},
   bs3: { camLabel: "CAM_EastGate_BS3", location: "Annex 2F Hall", bgUrl: BG[1], detections: [
-    { id:"d5", type:"VIP",          name:"hong gildong", group:"VIP group",    confidence:72.6, time:"16:31:42", top:"22%", left:"25%", width:"13%", height:"37%" },
-    { id:"d6", type:"Unknown", name:"Unknown Person",group:"Unknown", confidence:0,    time:"16:31:50", top:"24%", left:"55%", width:"11%", height:"34%" },
+    { id:"d6", type:"Unknown", name:"Unknown Person",group:"Unknown", confidence:0,    time:recentSgtClockTime(0), top:"24%", left:"55%", width:"11%", height:"34%" },
+    { id:"d5", type:"VIP",          name:"hong gildong", group:"VIP group",    confidence:72.6, time:recentSgtClockTime(1), top:"22%", left:"25%", width:"13%", height:"37%" },
   ]},
   bs2: { camLabel: "CAM_NorthGate_BS2", location: "Orchard MRT Gate", bgUrl: BG[0], detections: [
-    { id:"d7", type:"Vehicle", name:"Vehicle XB3291", group:"Logistics", confidence:81.3, time:"16:30:58", top:"20%", left:"40%", width:"18%", height:"28%" },
+    { id:"d7", type:"Vehicle", name:"Vehicle XB3291", group:"Logistics", confidence:81.3, time:recentSgtClockTime(1), top:"20%", left:"40%", width:"18%", height:"28%" },
   ]},
   ca2: { camLabel: "CAM_CentralA_CA2", location: "CA2 Sub Station", bgUrl: BG[1], detections: [
-    { id:"d8", type:"Unknown", name:"Red jacket • Female", group:"Unknown", confidence:0, time:"16:29:33", top:"26%", left:"52%", width:"12%", height:"34%" },
+    { id:"d8", type:"Unknown", name:"Red jacket • Female", group:"Unknown", confidence:0, time:recentSgtClockTime(2), top:"26%", left:"52%", width:"12%", height:"34%" },
   ]},
   bs1b: { camLabel: "CAM_WestGate_BS1B", location: "Bugis MRT", bgUrl: BG[0], detections: [
-    { id:"d9",  type:"VIP",     name:"hong gildong", group:"VIP group",  confidence:76.9, time:"16:28:11", top:"20%", left:"18%", width:"13%", height:"36%" },
-    { id:"d10", type:"Vehicle", name:"Vehicle XC112", group:"Security",  confidence:64.2, time:"16:28:15", top:"22%", left:"60%", width:"16%", height:"26%" },
+    { id:"d9",  type:"VIP",     name:"hong gildong", group:"VIP group",  confidence:76.9, time:recentSgtClockTime(1), top:"20%", left:"18%", width:"13%", height:"36%" },
+    { id:"d10", type:"Vehicle", name:"Vehicle XC112", group:"Security",  confidence:64.2, time:recentSgtClockTime(4), top:"22%", left:"60%", width:"16%", height:"26%" },
   ]},
   hb4:  { camLabel: "CAM_HarbourB_HB4", location: "HB4 Terminal",  bgUrl: BG[1], detections: [
-    { id:"d11", type:"Unknown", name:"Blue cap • Male", group:"Unknown", confidence:0, time:"16:27:45", top:"22%", left:"36%", width:"12%", height:"36%" },
+    { id:"d11", type:"Unknown", name:"Blue cap • Male", group:"Unknown", confidence:0, time:recentSgtClockTime(5), top:"22%", left:"36%", width:"12%", height:"36%" },
   ]},
   nc1:  { camLabel: "CAM_NorthC_NC1",   location: "NC 1 West",      bgUrl: BG[0], detections: [
-    { id:"d12", type:"VIP", name:"hong gildong", group:"Staff (HR)", confidence:77.8, time:"16:26:30", top:"19%", left:"48%", width:"13%", height:"38%" },
+    { id:"d12", type:"VIP", name:"hong gildong", group:"Staff (HR)", confidence:77.8, time:recentSgtClockTime(6), top:"19%", left:"48%", width:"13%", height:"38%" },
   ]},
   or2:  { camLabel: "CAM_OrchardC_OR2",    location: "Orchard Central",       bgUrl: BG[0], detections: [
-    { id:"d13", type:"VIP", name:"hong gildong", group:"VIP group", confidence:74.2, time:"16:20:10", top:"20%", left:"30%", width:"12%", height:"36%" },
+    { id:"d13", type:"VIP", name:"hong gildong", group:"VIP group", confidence:74.2, time:recentSgtClockTime(12), top:"20%", left:"30%", width:"12%", height:"36%" },
   ]},
   tp1:  { camLabel: "CAM_TampinesH_TP1",   location: "Tampines Hub",          bgUrl: BG[1], detections: [
-    { id:"d14", type:"Vehicle", name:"Vehicle TJ8821", group:"Logistics", confidence:88.1, time:"16:19:44", top:"22%", left:"45%", width:"16%", height:"26%" },
+    { id:"d14", type:"Vehicle", name:"Vehicle TJ8821", group:"Logistics", confidence:88.1, time:recentSgtClockTime(13), top:"22%", left:"45%", width:"16%", height:"26%" },
   ]},
   jr1:  { camLabel: "CAM_JurongG_JR1",     location: "Jurong Gateway",        bgUrl: BG[0], detections: [
-    { id:"d15", type:"Unknown", name:"Grey hoodie • Male", group:"Unknown", confidence:0, time:"16:18:59", top:"24%", left:"38%", width:"11%", height:"34%" },
+    { id:"d15", type:"Unknown", name:"Grey hoodie • Male", group:"Unknown", confidence:0, time:recentSgtClockTime(14), top:"24%", left:"38%", width:"11%", height:"34%" },
   ]},
   sg1:  { camLabel: "CAM_SengkangR_SG1",   location: "Sengkang Riverside",    bgUrl: BG[1], detections: [
-    { id:"d16", type:"VIP", name:"Dr. Alex Wong", group:"VIP group", confidence:91.5, time:"16:17:30", top:"18%", left:"55%", width:"12%", height:"37%" },
+    { id:"d16", type:"VIP", name:"Dr. Alex Wong", group:"VIP group", confidence:91.5, time:recentSgtClockTime(15), top:"18%", left:"55%", width:"12%", height:"37%" },
   ]},
   cq1:  { camLabel: "CAM_ClarkeQ_CQ1",     location: "Clarke Quay",           bgUrl: BG[0], detections: [
-    { id:"d17", type:"Vehicle", name:"Vehicle CQ4471", group:"Navy", confidence:79.6, time:"16:16:12", top:"20%", left:"40%", width:"17%", height:"27%" },
+    { id:"d17", type:"Vehicle", name:"Vehicle CQ4471", group:"Navy", confidence:79.6, time:recentSgtClockTime(16), top:"20%", left:"40%", width:"17%", height:"27%" },
   ]},
   wd1:  { camLabel: "CAM_WoodlandsCP_WD1", location: "Woodlands Checkpoint",  bgUrl: BG[1], detections: [
-    { id:"d18", type:"Unknown", name:"Unknown", group:"Unknown", confidence:0, time:"16:15:05", top:"23%", left:"50%", width:"12%", height:"35%" },
+    { id:"d18", type:"Unknown", name:"Unknown", group:"Unknown", confidence:0, time:recentSgtClockTime(17), top:"23%", left:"50%", width:"12%", height:"35%" },
   ]},
   ak1:  { camLabel: "CAM_AngMoKioH_AK1",   location: "Ang Mo Kio Hub",        bgUrl: BG[0], detections: [
-    { id:"d19", type:"VIP", name:"hong gildong", group:"Staff (HR)", confidence:68.9, time:"16:14:20", top:"19%", left:"33%", width:"13%", height:"38%" },
+    { id:"d19", type:"VIP", name:"hong gildong", group:"Staff (HR)", confidence:68.9, time:recentSgtClockTime(18), top:"19%", left:"33%", width:"13%", height:"38%" },
   ]},
   kl1:  { camLabel: "CAM_KallangW_KL1",    location: "Kallang Wave",          bgUrl: BG[1], detections: [] },
   py1:  { camLabel: "CAM_PayaLebarS_PY1",  location: "Paya Lebar Square",     bgUrl: BG[0], detections: [
-    { id:"d20", type:"Vehicle", name:"Vehicle PL9012", group:"Logistics", confidence:83.0, time:"16:12:47", top:"21%", left:"48%", width:"18%", height:"28%" },
+    { id:"d20", type:"Vehicle", name:"Vehicle PL9012", group:"Logistics", confidence:83.0, time:recentSgtClockTime(20), top:"21%", left:"48%", width:"18%", height:"28%" },
+  ]},
+  // Saved recordings/snapshots (Video list / Image list in the sidebar) — clicking one of these
+  // opens its analysis directly (see openFileDetail) rather than toggling it into the live grid,
+  // so each needs its own real detection to land on instead of DEFAULT_DATA's empty feed.
+  v1: { camLabel: "CAM_WestGate_BS1_REC1", location: "Main Intake Road", bgUrl: BG[0], detections: [
+    { id:"dv1", type:"VIP", name:"Dr. Alex Wong", group:"VIP group", confidence:95.1, time:recentSgtClockTime(40), top:"18%", left:"40%", width:"12%", height:"36%" },
+  ]},
+  v2: { camLabel: "CAM_WestGate_BS1_REC2", location: "Main Intake Road", bgUrl: BG[0], detections: [
+    { id:"dv2", type:"Vehicle", name:"Vehicle SGX411", group:"Navy", confidence:88.2, time:recentSgtClockTime(50), top:"20%", left:"45%", width:"18%", height:"28%" },
+  ]},
+  v3: { camLabel: "CAM_WestGate_BS1_REC3", location: "Main Intake Road", bgUrl: BG[0], detections: [
+    { id:"dv3", type:"Unknown", name:"Grey hoodie • Male", group:"Unknown", confidence:0, time:recentSgtClockTime(60), top:"24%", left:"38%", width:"11%", height:"34%" },
+  ]},
+  i1: { camLabel: "CAM_WestGate_BS1_SNAP1", location: "Main Intake Road", bgUrl: BG[0], sourceType:"image", detections: [
+    { id:"di1", type:"VIP", name:"Sarah Lin", group:"Staff (Finance)", confidence:93.5, time:recentSgtClockTime(70), top:"15%", left:"20%", width:"12%", height:"38%" },
   ]},
 };
 export const DEFAULT_DATA: CamData = { camLabel:"CAM_Unknown", location:"Unknown", bgUrl:BG[0], detections:[] };
 
 /* ── Sidebar initial data ─────────────────────────────────────── */
-// Deterministic pseudo-random in [0,1) — a plain Math.random() would differ between the
-// server-rendered and client-hydrated pass and trigger a hydration mismatch.
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed * 12.9898) * 43758.5453;
-  return x - Math.floor(x);
-}
-
 export const NORMAL_CAMS_INIT: Camera[] = [
   { id:"bs1a", name:"BS1",          checked:true,  monitor:"active" },
   { id:"bs3",  name:"BS3",          checked:false, monitor:"alert"  },
@@ -166,19 +211,21 @@ export const NORMAL_CAMS_INIT: Camera[] = [
   { id:"ak1",  name:"AK1",          checked:false, monitor:"normal" },
   { id:"kl1",  name:"KL1",          checked:false, monitor:"normal" },
   { id:"py1",  name:"PY1",          checked:false, monitor:"normal" },
-  // Bulk-generated to simulate a full ~1,000-camera deployment (Normal network list at
-  // real-world scale) — deterministic, not Math.random, so server/client renders match.
-  // Ids not present in CAM_DATA fall back to DEFAULT_DATA (generic feed), by design — there's
-  // no real footage behind these, so a generic placeholder is honest rather than fabricated.
-  ...Array.from({ length: 984 }, (_, i) => {
-    const n = i + 17;
-    return {
-      id: `cam-${String(n).padStart(4, "0")}`,
-      name: `CAM-${String(n).padStart(4, "0")}`,
-      checked: false,
-      monitor: (seededRandom(n * 7.31) > 0.94 ? "alert" : "normal") as MonitorState,
-    };
-  }),
+  // Drawn from the SAME shared camera pool the Dashboard's live VIP simulation uses
+  // (VIP_SIMULATION_CAMERAS in vcaStore.ts), not a separately-generated, unrelated ~1,000-camera
+  // list with its own "CAM-0017"-style ids. Before this, BestFrame's camera list and the rest of
+  // the app's simulated cameras were two disjoint id-spaces — nothing here could ever correspond
+  // to a real detection event elsewhere in the app. A real camera-registry fetch has exactly one
+  // place to plug in (VIP_SIMULATION_CAMERAS' source) and both this list and the live simulation
+  // pick it up. Ids not present in CAM_DATA fall back to DEFAULT_DATA (generic feed), by design —
+  // there's no curated detection footage behind these, so a generic placeholder is honest rather
+  // than fabricated.
+  ...VIP_SIMULATION_CAMERAS.map(cam => ({
+    id: cam.id,
+    name: cam.name,
+    checked: false,
+    monitor: (cam.status === "online" ? "normal" : "alert") as MonitorState,
+  })),
 ];
 export const VIDEO_CAMS_INIT: Camera[] = [
   { id:"v1", name:"BS1", checked:false, monitor:"normal" },
@@ -302,7 +349,10 @@ function CameraCard({
   style?: React.CSSProperties;
   sidePanelOnHover?: boolean;
 }) {
-  const dets = filterType === "All" ? data.detections : data.detections.filter(d => d.type === filterType);
+  // Newest first — "time" is an "HH:MM:SS" string within the same day, so a plain descending
+  // string sort already gives correct chronological order without needing to parse it.
+  const dets = (filterType === "All" ? data.detections : data.detections.filter(d => d.type === filterType))
+    .slice().sort((a, b) => b.time.localeCompare(a.time));
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [feedHovered, setFeedHovered] = useState(false);
@@ -355,7 +405,7 @@ function CameraCard({
           style={{ position:"absolute", top:10, left:10, display:"flex", alignItems:"center", gap:"5px", zIndex:10, backgroundColor:"rgba(14,22,42,0.55)", padding:"4px 8px", border:"1.5px solid transparent" }}
         >
           <div style={{ width:"6px", height:"6px", borderRadius:"50%", backgroundColor:"#22c55e", flexShrink:0 }} />
-          <span style={{ fontSize:"10px", fontWeight:700, color:"white", letterSpacing:"-0.2px" }}>
+          <span style={{ fontSize:"10px", fontWeight:600, color:"white", letterSpacing:"-0.2px" }}>
             {data.camLabel} • {data.location}
           </span>
         </div>
@@ -416,12 +466,12 @@ function CameraCard({
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#f8fafc")}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
               >
-                {/* Avatar + status dot */}
+                {/* Avatar + status dot — rounded-square (8px), not a circle, per Figma */}
                 <div style={{ position:"relative", flexShrink:0, width:"42px", height:"42px" }}>
                   <img src={avatarSrc} alt=""
-                    style={{ width:"42px", height:"42px", borderRadius:"50%", objectFit:"cover", display:"block" }} />
+                    style={{ width:"42px", height:"42px", borderRadius:"8px", objectFit:"cover", display:"block" }} />
                   <div style={{
-                    position:"absolute", top:0, right:0, width:"10px", height:"10px", borderRadius:"50%", border:"1px solid white",
+                    position:"absolute", top:"-2px", right:"-3px", width:"10px", height:"10px", borderRadius:"50%", border:"1px solid white",
                     backgroundColor: DET_COLOR[det.type],
                   }} />
                 </div>
@@ -441,10 +491,14 @@ function CameraCard({
                     <div style={{ display:"flex", alignItems:"center", gap:"4px", overflow:"hidden" }}>
                       <FilterIcon type={det.type} color="#475469" size={14} />
                       <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", letterSpacing:"-0.2px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                        {det.group}
+                        {/* VIP and Vehicle rows read just "VIP"/"Vehicle" here — the specific
+                            group (Staff/VIP group, Navy/Logistics/Security fleet, etc.) varied
+                            row to row and read as inconsistent; that detail is still available
+                            in the HUD popup / Inspection Detail view. */}
+                        {det.type === "VIP" ? "VIP" : det.type === "Vehicle" ? "Vehicle" : det.group}
                       </span>
                     </div>
-                    <span style={{ fontSize:"10px", fontWeight:500, color:"#64748a", fontFamily:"monospace", flexShrink:0 }}>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a", fontFamily:"monospace", flexShrink:0 }}>
                       {det.time}
                     </span>
                   </div>
@@ -501,17 +555,17 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
       <div style={{ display:"flex", gap:"12px", backgroundColor:"#f8fafc", borderRadius:"16px", padding:"12px" }}>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", width:"96px", flexShrink:0 }}>
           <img src={det.type === "Vehicle" ? CAR_IMG : AVATAR[0]} alt="" style={{ width:"100%", aspectRatio: det.type === "Vehicle" ? "1/1" : "77/177", objectFit:"cover", borderRadius:"8px", display:"block" }} />
-          <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a" }}>LIVE SNAPSHOT</span>
+          <span title="지금 카메라가 실시간으로 찍은 사진" style={{ fontSize:"10px", fontWeight:600, color:"#64748a", cursor:"help" }}>LIVE SNAPSHOT</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", flex:1, minWidth:0 }}>
           {isUnknown ? (
             <div style={{ width:"100%", aspectRatio:"1/1", borderRadius:"10px", border:"2px dashed #f97316", backgroundColor:"#fffbf0", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span style={{ fontSize:"10px", fontWeight:700, color:"#f97316", textAlign:"center" }}>NO DB MATCH</span>
+              <span title="사전에 등록된 데이터베이스에서 일치하는 인물을 찾지 못함" style={{ fontSize:"10px", fontWeight:600, color:"#f97316", textAlign:"center", cursor:"help" }}>NO DB MATCH</span>
             </div>
           ) : (
             <img src={det.type === "Vehicle" ? CAR_IMG : AVATAR[0]} alt="" style={{ width:"100%", aspectRatio:"1/1", objectFit:"cover", borderRadius:"10px", display:"block", filter:"sepia(0.2)" }} />
           )}
-          <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a" }}>ENROLLED DB</span>
+          <span title="사전에 등록된 데이터베이스 속 대조 사진" style={{ fontSize:"10px", fontWeight:600, color:"#64748a", cursor:"help" }}>ENROLLED DB</span>
         </div>
       </div>
 
@@ -520,7 +574,7 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
         <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
           <FilterIcon type={det.type} color={c} size={20} />
           <span style={{ fontSize:"18px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.36px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-            {isUnknown ? "Unknown Target" : det.name}
+            {isUnknown ? "Unknown target" : det.name}
           </span>
         </div>
         <p style={{ fontSize:"13px", fontWeight:400, color:"#475469" }}>{hud.location} &nbsp;•&nbsp; {det.time}</p>
@@ -575,14 +629,13 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
 }
 
 /* ── Sidebar item ──────────────────────────────────────────── */
-const STATUS_DOT: Record<MonitorState, string> = {
-  active: "#29CD00",
-  normal: "#CCD5E1",
-  alert:  "#D91616",
-};
-
-function BulletCameraIcon({ monitor = "normal" }: { monitor?: MonitorState }) {
-  const dot = STATUS_DOT[monitor];
+// Used to also draw its own status dot (green/gray/red for active/normal/alert) baked into the
+// icon — combined with CameraItem's own activity-rank dot overlaid on top (see below), that put
+// two colored dots on one 20px icon. "alert" is already obvious from the row's dimmed/disabled
+// styling, and "active" vs "normal" wasn't distinguishing anything else in the row, so that dot
+// was pure redundant clutter — removed, keeping just the one dot that carries unique information
+// (whether this camera has a detection right now).
+function BulletCameraIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
       <path d="M13.9583 10H16.985C17.127 10.0001 17.2666 10.0364 17.3906 10.1056C17.5146 10.1748 17.6189 10.2745 17.6935 10.3953C17.7681 10.5161 17.8107 10.654 17.8171 10.7958C17.8234 10.9377 17.7935 11.0788 17.73 11.2058L16.035 14.5967C15.9707 14.7252 15.8743 14.8348 15.7552 14.9151C15.636 14.9953 15.4981 15.0434 15.3549 15.0546C15.2117 15.0659 15.068 15.0399 14.9377 14.9792C14.8075 14.9185 14.6952 14.8252 14.6117 14.7083L12.8417 12.2333" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
@@ -590,7 +643,6 @@ function BulletCameraIcon({ monitor = "normal" }: { monitor?: MonitorState }) {
       <path d="M1.66663 15.8333H4.79996C5.11057 15.8355 5.4156 15.7508 5.68064 15.5888C5.94568 15.4269 6.16019 15.1941 6.29996 14.9167L7.49996 12.5" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M1.66675 17.4993V14.166" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M5.83337 7.5H5.84171" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="5.5" cy="4.5" r="3" fill={dot} stroke="white"/>
     </svg>
   );
 }
@@ -604,9 +656,11 @@ function CameraItem({ cam, onToggle, type = "camera", disabled = false, activity
   const isCapped = disabled && !cam.checked;
   const iconColor = isChecked ? "#8b5cf6" : "#64748A";
   const [hovered, setHovered] = useState(false);
-  // 0 = has a VIP detection right now, 1 = has some other detection, 2/undefined = quiet.
-  // Surfaced as a small dot so a VIP hit is spottable without reading every row's text.
-  const activityColor = activityRank === 0 ? "#5a3dfb" : activityRank === 1 ? "#16a34a" : null;
+  // Only a VIP hit gets a dot now — the second color (green, for Vehicle/Unknown) read as a
+  // tracking indicator elsewhere in the app and was confusing here, so it's gone; VIP is the one
+  // signal worth interrupting a scan of the list for. Pulses (see .vca-vip-dot-pulse) since it
+  // means "detected right now," not just "has a record."
+  const isVipActive = !isAlert && activityRank === 0;
   return (
     <button
       onClick={onToggle}
@@ -614,18 +668,20 @@ function CameraItem({ cam, onToggle, type = "camera", disabled = false, activity
       onMouseLeave={() => setHovered(false)}
       style={{ display:"flex", alignItems:"center", gap:"8px", padding:"10px 12px", borderRadius:"10px", width:"100%", border:"none", cursor: isAlert ? "default" : "pointer", backgroundColor: isChecked ? "#eeeafe" : hovered && !isAlert && !isCapped ? "#f8fafc" : "transparent", flexShrink:0, opacity: isAlert || isCapped ? 0.4 : 1 }}
     >
-      {isAlert ? <div style={{ width:"18px", height:"18px", flexShrink:0 }} /> : <CheckboxIcon checked={cam.checked} />}
+      {/* Video/Image rows navigate straight to their analysis screen on click — there's nothing
+          for a checkbox to toggle there, so it's replaced with a plain spacer to keep alignment. */}
+      {type !== "camera" || isAlert ? <div style={{ width:"18px", height:"18px", flexShrink:0 }} /> : <CheckboxIcon checked={cam.checked} />}
       <div style={{ flexShrink:0, position:"relative" }}>
         {type === "camera"
-          ? <BulletCameraIcon monitor={cam.monitor} />
+          ? <BulletCameraIcon />
           : type === "video"
           ? <VideoFileIcon color={iconColor} />
           : <ImageFileIcon />}
-        {activityColor && (
-          <div style={{ position:"absolute", top:-2, right:-2, width:"7px", height:"7px", borderRadius:"50%", backgroundColor: activityColor, border:"1.5px solid white" }} />
+        {isVipActive && (
+          <div title="VIP detected now" className="vca-vip-dot-pulse" style={{ position:"absolute", top:-2, right:-2, width:"7px", height:"7px", borderRadius:"50%", backgroundColor:"#5a3dfb", border:"1.5px solid white" }} />
         )}
       </div>
-      <span style={{ flex:1, fontSize:"13px", fontWeight: isChecked ? 700 : 400, color: isChecked ? "#8b5cf6" : "#64748a", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+      <span style={{ flex:1, textAlign:"left", fontSize:"13px", fontWeight: isChecked ? 700 : 400, color: isChecked ? "#8b5cf6" : "#64748a", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
         {cam.name}
       </span>
       <MonitorIcon purple={isChecked} />
@@ -688,7 +744,7 @@ function CollapsedIcon({ type, badge, purple=false }: { type:"camera"|"video"|"i
       </div>
       {badge !== undefined && (
         <div style={{ position:"absolute", top:"-4px", right:"-4px", backgroundColor: purple ? "#5a3dfb" : "#94a3b8", borderRadius:"999px", minWidth:"16px", height:"16px", padding:"0 3px", display:"flex", alignItems:"center", justifyContent:"center" }}>
-          <span style={{ fontSize:"9px", fontWeight:700, color:"white", lineHeight:"16px" }}>{badge}</span>
+          <span style={{ fontSize:"10px", fontWeight:600, color:"white", lineHeight:"16px" }}>{badge}</span>
         </div>
       )}
     </div>
@@ -714,6 +770,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   const [videoCams,  setVideoCams]  = useState<Camera[]>(VIDEO_CAMS_INIT);
   const [imageCams,  setImageCams]  = useState<Camera[]>(IMAGE_CAMS_INIT);
   const [camSearch, setCamSearch] = useState("");
+  const [camTypeFilter, setCamTypeFilter] = useState<CamTypeFilter>("All");
   const [expanded, setExpanded] = useState({ normal:true, video:true, image:true });
   const [collapsed, setCollapsed] = useState(false);
   const [filterType, setFilterType] = useState<DetType | "All">("All");
@@ -724,6 +781,48 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   // state when a prop changes" pattern (state, not a ref, so it's safe to read during render).
   const [prevFocusLocation, setPrevFocusLocation] = useState(focusLocation ?? null);
   const [prevAnalyzeFrameLocation, setPrevAnalyzeFrameLocation] = useState(analyzeFrameLocation ?? null);
+  // Grid tile priority order (camera ids). Independent from gridCams (which is just "whatever's
+  // currently checked") so a fresh VIP hit can jump a tile to the front — top-left, since CSS
+  // grid auto-placement lays out children row-major — without that position resetting back to
+  // insertion order on every render.
+  const [gridOrder, setGridOrder] = useState<string[]>([]);
+  const [prevGridKey, setPrevGridKey] = useState("");
+  // Sidebar "VIP detected now" dot: cleared once VIP_DOT_TIMEOUT_MIN passes OR once the operator
+  // checks that camera (adds it to the grid) — whichever comes first. Nothing else in this
+  // component reads real wall-clock time on its own timer, so a periodic re-render tick is needed
+  // for the timeout half to actually take effect instead of only updating on the next unrelated
+  // render.
+  const [ackedVipCamIds, setAckedVipCamIds] = useState<Set<string>>(new Set());
+  const [, setVipDotTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setVipDotTick(t => t + 1), 15000);
+    return () => clearInterval(interval);
+  }, []);
+  const hasRecentUnackedVip = (camId: string): boolean => {
+    if (ackedVipCamIds.has(camId)) return false;
+    const vipDets = (CAM_DATA[camId] ?? DEFAULT_DATA).detections.filter(d => d.type === "VIP");
+    if (vipDets.length === 0) return false;
+    const latestMin = Math.max(...vipDets.map(d => toMinutesSinceMidnight(d.time)));
+    const now = new Date();
+    const nowMin = sgtHour(now) * 60 + sgtMinute(now);
+    const diff = nowMin - latestMin;
+    return diff >= 0 && diff <= VIP_DOT_TIMEOUT_MIN;
+  };
+  // FLIP animation for grid reordering — CSS Grid can't transition a child moving from one
+  // cell to another (row/column assignment isn't an animatable property), so instead: measure
+  // each tile's actual screen position before the reorder, let React re-render into the new
+  // order, then measure again and animate FROM the old delta back to identity via `transform`.
+  // That's what actually makes a VIP hit's jump to top-left visible as a slide instead of a
+  // silent teleport.
+  const gridTileRefs = useRef(new Map<string, HTMLDivElement>());
+  const gridTileRectsRef = useRef(new Map<string, DOMRect>());
+  // Clicking the collapsed sidebar's search icon needs to both expand the sidebar AND focus the
+  // now-just-mounted input — the ref isn't there yet at click time (sidebar is still collapsed),
+  // so the actual focus() happens in an effect once `collapsed` flips. A plain ref (not state) for
+  // the "pending focus" flag, since clearing it is a side-effect cleanup, not something a render
+  // needs to react to.
+  const wantsSearchFocusRef = useRef(false);
+  const camSearchInputRef = useRef<HTMLInputElement>(null);
 
   const mainRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -747,6 +846,24 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         setVideoCams(prev => prev.map(c => ({ ...c, checked: false })));
         setImageCams(prev => prev.map(c => ({ ...c, checked: false })));
         setHighlightCamId(match.id);
+      } else {
+        // The hint came from the System tab's own device list, whose zone names (e.g. "Bishan
+        // 3") are drawn from a completely different bulk-generated pool than this page's 16
+        // curated CAM_DATA locations — they were never going to substring-match. Rather than
+        // silently doing nothing (the previous behavior), isolate to a synthesized tile named
+        // after the actual device so "View Live" always shows *a* single matching camera. It
+        // falls back to DEFAULT_DATA (generic feed, no detections) same as any other
+        // bulk-generated camera with no real footage behind it — honest, not fabricated.
+        const focusId = `focus-${hint.replace(/[^a-z0-9]+/g, "-")}`;
+        setNormalCams(prev => {
+          const withFocusCam = prev.some(c => c.id === focusId)
+            ? prev
+            : [...prev, { id: focusId, name: focusLocation, checked: false, monitor: "normal" as MonitorState }];
+          return withFocusCam.map(c => ({ ...c, checked: c.id === focusId }));
+        });
+        setVideoCams(prev => prev.map(c => ({ ...c, checked: false })));
+        setImageCams(prev => prev.map(c => ({ ...c, checked: false })));
+        setHighlightCamId(focusId);
       }
     }
   }
@@ -788,6 +905,13 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     if (analyzeFrameLocation) onAnalyzeFrameConsumed?.();
   }, [analyzeFrameLocation, onAnalyzeFrameConsumed]);
 
+  useEffect(() => {
+    if (!collapsed && wantsSearchFocusRef.current) {
+      camSearchInputRef.current?.focus();
+      wantsSearchFocusRef.current = false;
+    }
+  }, [collapsed]);
+
   // Auto-clear the highlight a few seconds after it's set (setState inside the timer's
   // callback, not synchronously in the effect body, so this is the sanctioned effect pattern).
   useEffect(() => {
@@ -814,6 +938,9 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
       return;
     }
     setter(prev => prev.map(c => c.id === id ? { ...c, checked: !c.checked } : c));
+    // Checking a camera means the operator looked at it — acknowledge its VIP dot right away
+    // rather than making them wait out the timeout.
+    setAckedVipCamIds(prev => prev.has(id) ? prev : new Set(prev).add(id));
   };
 
   // Alert cameras are shown disabled (no checkbox affordance) in the sidebar, so they must
@@ -824,17 +951,110 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   // Video list / Image list entries feed the SAME grid as Normal network — checking any of
   // them should put a tile on screen, not just tick a box with no visible effect.
   const gridCams = [...activeCams, ...checkedVideoCams, ...checkedImageCams];
+
+  // Reconcile gridOrder against whatever's actually checked right now: keep existing tiles in
+  // their current position, append newly-checked ones at the end, drop unchecked ones. Runs
+  // during render (not an effect) since it's adjusting state in response to a change that
+  // already happened this render, same pattern as the focusLocation handling above.
+  const gridKey = gridCams.map(c => c.id).join(",");
+  if (gridKey !== prevGridKey) {
+    setPrevGridKey(gridKey);
+    const currentIds = new Set(gridCams.map(c => c.id));
+    setGridOrder(prev => {
+      const kept = prev.filter(id => currentIds.has(id));
+      const added = gridCams.map(c => c.id).filter(id => !kept.includes(id));
+      return [...kept, ...added];
+    });
+  }
+  const gridCamsById = new Map(gridCams.map(c => [c.id, c]));
+  const orderedIds = gridOrder.filter(id => gridCamsById.has(id));
+  const missingIds = gridCams.map(c => c.id).filter(id => !orderedIds.includes(id));
+  const rawOrderedGridCams = [...orderedIds, ...missingIds].map(id => gridCamsById.get(id)!);
+  // Standing priority, not just a one-off reaction to the live ticker below: any currently-checked
+  // camera that actually has a VIP detection sits ahead of the quiet ones, every render — a VIP
+  // hit shouldn't stay wherever it happened to land in the grid (e.g. one top-left, one
+  // bottom-right) just because that's the order its checkbox got ticked in. Array.sort is stable,
+  // so within "has VIP" / "doesn't" it keeps gridOrder's own sequence (insertion order + whatever
+  // the ticker below has already promoted).
+  const orderedGridCams = [...rawOrderedGridCams].sort((a, b) => {
+    const aVip = (CAM_DATA[a.id] ?? DEFAULT_DATA).detections.some(d => d.type === "VIP") ? 1 : 0;
+    const bVip = (CAM_DATA[b.id] ?? DEFAULT_DATA).detections.some(d => d.type === "VIP") ? 1 : 0;
+    return bVip - aVip;
+  });
+  const orderedGridIdsKey = orderedGridCams.map(c => c.id).join(",");
+  useLayoutEffect(() => {
+    const prevRects = gridTileRectsRef.current;
+    const nextRects = new Map<string, DOMRect>();
+    gridTileRefs.current.forEach((el, id) => nextRects.set(id, el.getBoundingClientRect()));
+    nextRects.forEach((nextRect, id) => {
+      const prevRect = prevRects.get(id);
+      if (!prevRect) return;
+      const dx = prevRect.left - nextRect.left;
+      const dy = prevRect.top - nextRect.top;
+      if (!dx && !dy) return;
+      const el = gridTileRefs.current.get(id);
+      if (!el) return;
+      el.style.transition = "none";
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      // Force layout so the browser registers the starting transform before we clear it —
+      // otherwise both style writes coalesce into one paint and nothing appears to move.
+      el.getBoundingClientRect();
+      el.style.transition = "transform 0.4s ease";
+      el.style.transform = "";
+    });
+    gridTileRectsRef.current = nextRects;
+  }, [orderedGridIdsKey]);
+  // The live ticker below fires on its own timer, so its callback would otherwise close over
+  // whichever gridCams array existed when the effect was set up — a ref keeps it reading the
+  // current one every tick without re-subscribing the timer on every grid change.
+  const gridCamsRef = useRef(gridCams);
+  useEffect(() => {
+    gridCamsRef.current = gridCams;
+  }, [gridCams]);
+
+  // Simulates a fresh VIP hit landing on one of the currently-gridded cameras every so often —
+  // it jumps to the front of gridOrder (top-left, since CSS grid lays children out row-major),
+  // then right, then the row below, exactly matching where the rest of the tiles get pushed to.
+  // (No highlight ring on the surfaced tile — that looked off, so this only reorders for now.)
+  // This reads CAM_DATA (this page's own static, hand-authored detection set) rather than the
+  // shared vcaStore — this page's camera ids (NORMAL_CAMS_INIT, "CAM-0017" etc.) are a completely
+  // separate id-space from the store's `cameras`/VIP_SIMULATION_CAMERAS, so there's no real
+  // camera to join a shared VIP event against yet. VipAlertTicker in ClientLayout.tsx is the one
+  // real event producer in the app; once this page's camera ids are unified with the store's (see
+  // the camera-data-pool consolidation), this should pick its "has a fresh VIP hit" candidates
+  // from real vcaStore events instead of the static CAM_DATA lookup below.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleNext = () => {
+      const delay = 20000 + Math.random() * 20000;
+      timer = setTimeout(() => {
+        const vipCandidates = gridCamsRef.current.filter(c => (CAM_DATA[c.id] ?? DEFAULT_DATA).detections.some(d => d.type === "VIP"));
+        if (vipCandidates.length > 0) {
+          const chosen = vipCandidates[Math.floor(Math.random() * vipCandidates.length)];
+          setGridOrder(prev => [chosen.id, ...prev.filter(id => id !== chosen.id)]);
+        }
+        scheduleNext();
+      }, delay);
+    };
+    scheduleNext();
+    return () => clearTimeout(timer);
+  }, []);
   const atGridCap = gridCams.length >= MAX_GRID_CAMS;
-  const totalCamCount = normalCams.length + videoCams.length + imageCams.length;
   // Sidebar "Enter Source" search — filters each list's visible rows only; the counts/badges
   // above (activeCams.length etc.) stay based on the full unfiltered lists.
   const camNameMatches = (c: Camera) => c.name.toLowerCase().includes(camSearch.trim().toLowerCase());
   // With ~1,000 cameras, scrolling to find "whatever's happening right now" isn't realistic —
-  // cameras with an actual detection (VIP first) float to the top of the list instead of sitting
-  // wherever they land alphabetically/by-id among a sea of quiet ones.
+  // cameras with an actual detection float to the top of the list instead of sitting wherever
+  // they land alphabetically/by-id among a sea of quiet ones. Rank 0 (VIP, sorts highest) tracks
+  // the same "recent and not yet checked" window as the pulsing dot itself — once that clears,
+  // the camera settles down to rank 1 with the other has-some-detection cameras rather than
+  // staying pinned at the top forever. Offline (alert) cameras always rank last, below even the
+  // quiet-but-online ones — they can't be selected or have a live detection, so there's nothing
+  // "active" about their position mixed in with real cameras.
   const activityRank = (c: Camera) => {
+    if (c.monitor === "alert") return 3;
+    if (hasRecentUnackedVip(c.id)) return 0;
     const dets = (CAM_DATA[c.id] ?? DEFAULT_DATA).detections;
-    if (dets.some(d => d.type === "VIP")) return 0;
     if (dets.length > 0) return 1;
     return 2;
   };
@@ -843,11 +1063,23 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     .sort((a, b) => activityRank(a) - activityRank(b));
   const visibleVideoCams  = camSearch ? videoCams.filter(camNameMatches)  : videoCams;
   const visibleImageCams  = camSearch ? imageCams.filter(camNameMatches)  : imageCams;
+  const showNormalSection = camTypeFilter === "All" || camTypeFilter === "Network";
+  const showVideoSection  = camTypeFilter === "All" || camTypeFilter === "File";
+  const showImageSection  = camTypeFilter === "All" || camTypeFilter === "File";
   const clearAllCams = () => {
     setNormalCams(prev => prev.map(c => ({ ...c, checked:false })));
     setVideoCams(prev => prev.map(c => ({ ...c, checked:false })));
     setImageCams(prev => prev.map(c => ({ ...c, checked:false })));
   };
+
+  // Video/Image list items open straight into their own analysis screen instead of toggling into
+  // the live grid — a saved recording/snapshot isn't something you "add to the live feed," it's
+  // something you go inspect. The live grid's own selection is left untouched by this.
+  function openFileDetail(c: Camera) {
+    const data = CAM_DATA[c.id] ?? DEFAULT_DATA;
+    if (!data.detections[0]) return;
+    setDetailView({ camId: c.id, data, det: data.detections[0] });
+  }
 
   function handleDetClick(det: Detection, data: CamData, camId: string, e: React.MouseEvent) {
     e.stopPropagation();
@@ -879,11 +1111,11 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     );
   }
 
-  const FILTER_CFG: { id: DetType | "All"; label: string; color?: string; activeBg?: string }[] = [
+  const FILTER_CFG: { id: DetType | "All"; label: string; color?: string }[] = [
     { id:"All",     label:"All" },
-    { id:"VIP",     label:"VIP",     color: DET_COLOR.VIP,     activeBg:"#f0f0ff" },
-    { id:"Vehicle", label:"Vehicle", color: DET_COLOR.Vehicle, activeBg:"#f2faff" },
-    { id:"Unknown", label:"Unknown", color: DET_COLOR.Unknown, activeBg:"#fef3c7" },
+    { id:"VIP",     label:"VIP",     color: DET_COLOR.VIP },
+    { id:"Vehicle", label:"Vehicle", color: DET_COLOR.Vehicle },
+    { id:"Unknown", label:"Unknown", color: DET_COLOR.Unknown },
   ];
 
   return (
@@ -892,10 +1124,34 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
       {/* Collapsed sidebar */}
       {collapsed && (
         <div style={{ width:"64px", flexShrink:0, backgroundColor:"white", borderRight:BORDER, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:"16px", paddingBottom:"16px", gap:"10px" }}>
-          <CollapsedIcon type="search" />
-          <CollapsedIcon type="camera" badge={activeCams.length} purple={activeCams.length > 0} />
-          <CollapsedIcon type="video"  badge={checkedVideoCams.length} purple={checkedVideoCams.length > 0} />
-          <CollapsedIcon type="image"  badge={checkedImageCams.length} purple={checkedImageCams.length > 0} />
+          <button
+            onClick={() => { setCollapsed(false); wantsSearchFocusRef.current = true; }}
+            aria-label="Expand sidebar and search cameras"
+            style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex" }}
+          >
+            <CollapsedIcon type="search" />
+          </button>
+          <button
+            onClick={() => { setCollapsed(false); setCamTypeFilter("Network"); setExpanded(p => ({ ...p, normal:true })); }}
+            aria-label="Show live camera list"
+            style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex" }}
+          >
+            <CollapsedIcon type="camera" badge={activeCams.length} purple={activeCams.length > 0} />
+          </button>
+          <button
+            onClick={() => { setCollapsed(false); setCamTypeFilter("File"); setExpanded(p => ({ ...p, video:true })); }}
+            aria-label="Show video list"
+            style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex" }}
+          >
+            <CollapsedIcon type="video"  badge={checkedVideoCams.length} purple={checkedVideoCams.length > 0} />
+          </button>
+          <button
+            onClick={() => { setCollapsed(false); setCamTypeFilter("File"); setExpanded(p => ({ ...p, image:true })); }}
+            aria-label="Show image list"
+            style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex" }}
+          >
+            <CollapsedIcon type="image"  badge={checkedImageCams.length} purple={checkedImageCams.length > 0} />
+          </button>
         </div>
       )}
 
@@ -903,11 +1159,12 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
       {!collapsed && (
         <div style={{ width:"240px", flexShrink:0, backgroundColor:"white", display:"flex", flexDirection:"column", overflow:"hidden" }}>
           <div style={{ padding:"24px 12px 10px" }}>
-            <p style={{ fontSize:"20px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.4px" }}>Live Camera</p>
+            <p style={{ fontSize:"20px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.4px" }}>Live camera</p>
           </div>
           <div style={{ padding:"0 12px 10px" }}>
             <div style={{ display:"flex", alignItems:"center", backgroundColor:"#f1f5f9", borderRadius:"8px", height:"36px", padding:"0 14px", gap:"8px" }}>
               <input
+                ref={camSearchInputRef}
                 value={camSearch}
                 onChange={e => setCamSearch(e.target.value)}
                 placeholder="Enter Source"
@@ -916,20 +1173,50 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
               <Search size={14} color="#475469" />
             </div>
           </div>
+          <div style={{ padding:"0 12px 10px", display:"flex", gap:"6px" }}>
+            {CAM_TYPE_FILTERS.map(f => {
+              const active = camTypeFilter === f.id;
+              return (
+                <button key={f.id} onClick={() => setCamTypeFilter(f.id)} style={{
+                  padding:"6px 14px", borderRadius:"999px", cursor:"pointer",
+                  border: active ? "1px solid #324055" : "1px solid #ccd5e1",
+                  backgroundColor: active ? "#f1f5f9" : "white",
+                  color:"#324055", fontSize:"12px", fontWeight: active ? 700 : 600,
+                }}>
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
           <div style={{ flex:1, overflowY:"auto", minHeight:0 }}>
-            <SidebarSection label="Normal network" count={activeCams.length} expanded={expanded.normal} onToggle={() => setExpanded(p => ({ ...p, normal:!p.normal }))} />
-            {expanded.normal && visibleNormalCams.map(c => (
-              <CameraItem key={c.id} cam={c} type="camera" onToggle={() => toggle(normalCams, setNormalCams, c.id)} disabled={atGridCap} activityRank={activityRank(c)} />
-            ))}
-            <SidebarSection label="Video list" badge={videoCams.length} expanded={expanded.video} onToggle={() => setExpanded(p => ({ ...p, video:!p.video }))} />
-            {expanded.video && visibleVideoCams.map(c => (
-              <CameraItem key={c.id} cam={c} type="video" onToggle={() => toggle(videoCams, setVideoCams, c.id)} disabled={atGridCap} />
-            ))}
-            <SidebarSection label="Image list" badge={imageCams.length} expanded={expanded.image} onToggle={() => setExpanded(p => ({ ...p, image:!p.image }))} />
-            {expanded.image && visibleImageCams.map(c => (
-              <CameraItem key={c.id} cam={c} type="image" onToggle={() => toggle(imageCams, setImageCams, c.id)} disabled={atGridCap} />
-            ))}
-            {camSearch && visibleNormalCams.length === 0 && visibleVideoCams.length === 0 && visibleImageCams.length === 0 && (
+            {showNormalSection && (
+              <>
+                <SidebarSection label="Normal network" count={activeCams.length} expanded={expanded.normal} onToggle={() => setExpanded(p => ({ ...p, normal:!p.normal }))} />
+                {expanded.normal && visibleNormalCams.map(c => (
+                  <CameraItem key={c.id} cam={c} type="camera" onToggle={() => toggle(normalCams, setNormalCams, c.id)} disabled={atGridCap} activityRank={activityRank(c)} />
+                ))}
+              </>
+            )}
+            {showVideoSection && (
+              <>
+                <SidebarSection label="Video list" badge={videoCams.length} expanded={expanded.video} onToggle={() => setExpanded(p => ({ ...p, video:!p.video }))} />
+                {expanded.video && visibleVideoCams.map(c => (
+                  <CameraItem key={c.id} cam={c} type="video" onToggle={() => openFileDetail(c)} />
+                ))}
+              </>
+            )}
+            {showImageSection && (
+              <>
+                <SidebarSection label="Image list" badge={imageCams.length} expanded={expanded.image} onToggle={() => setExpanded(p => ({ ...p, image:!p.image }))} />
+                {expanded.image && visibleImageCams.map(c => (
+                  <CameraItem key={c.id} cam={c} type="image" onToggle={() => openFileDetail(c)} />
+                ))}
+              </>
+            )}
+            {camSearch
+              && (!showNormalSection || visibleNormalCams.length === 0)
+              && (!showVideoSection || visibleVideoCams.length === 0)
+              && (!showImageSection || visibleImageCams.length === 0) && (
               <div style={{ padding:"24px 16px", textAlign:"center", fontSize:"12px", fontWeight:600, color:"#94a3b8" }}>
                 No cameras match &quot;{camSearch}&quot;.
               </div>
@@ -962,7 +1249,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px 12px", flexShrink:0, borderBottom:BORDER }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
             <span style={{ fontSize:"13px", fontWeight:700, color:"#0e162a", letterSpacing:"-0.24px" }}>
-              {gridCams.length} / {totalCamCount} selected
+              {gridCams.length} / {MAX_GRID_CAMS} selected
             </span>
             {gridCams.length > 0 && (
               <button
@@ -984,9 +1271,9 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                 return (
                   <button key="All" onClick={() => setFilterType("All")} style={{
                     padding:"6px 16px", borderRadius:"999px", cursor:"pointer",
-                    border: active ? "1px solid #324055" : "1px solid #ccd5e1",
-                    backgroundColor: active ? "#f1f5f9" : "white",
-                    color: "#324055",
+                    border: active ? "1px solid #0e162a" : "1px solid #ccd5e1",
+                    backgroundColor: active ? "#0e162a" : "white",
+                    color: active ? "white" : "#324055",
                     fontSize:"13px", fontWeight: active ? 700 : 600,
                   }}>All</button>
                 );
@@ -997,8 +1284,8 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                   display:"flex", alignItems:"center", gap:"6px",
                   padding:"6px 12px", borderRadius:"999px", cursor:"pointer",
                   border: active ? `1px solid ${c}` : "1px solid #ccd5e1",
-                  backgroundColor: active ? f.activeBg : "white",
-                  color: active ? c : "#324055",
+                  backgroundColor: active ? c : "white",
+                  color: active ? "white" : "#324055",
                   fontSize:"13px", fontWeight: active ? 700 : 600,
                 }}>
                   <FilterIcon type={f.id as DetType} color={c} active={active} />
@@ -1025,28 +1312,36 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
               gridTemplateRows: `repeat(${layout.rows}, minmax(0, 1fr))`,
               gap:"1px", backgroundColor:"#e2e8f0", flex:1, minHeight:0,
             }}>
-              {gridCams.map((cam) => {
-                const camData = CAM_DATA[cam.id] ?? DEFAULT_DATA;
-                const hasVip = camData.detections.some(d => d.type === "VIP");
-                const card = (
-                  <CameraCard
-                    key={cam.id}
-                    cam={cam}
-                    data={camData}
-                    filterType={filterType}
-                    onDetClick={handleDetClick}
-                    onHeaderArrowClick={() => setDetailView({ camId: cam.id, data: camData, det: camData.detections[0] })}
-                    sidePanelOnHover={layout.sidePanelOnHover}
-                    style={cam.id === highlightCamId ? { boxShadow: "inset 0 0 0 3px #5a3dfb", transition: "box-shadow 0.3s" } : undefined}
-                  />
-                );
-                // The glow is a box-shadow, which needs a wrapper WITHOUT overflow:hidden to
-                // actually bleed outward — CameraCard's own root clips it for its internal
-                // content's sake, so the glow has to live one level up instead.
-                if (!hasVip) return card;
+              {orderedGridCams.map((cam) => {
+                // Synthesized deep-link tiles (see focusLocation handling above) have no CAM_DATA
+                // entry — label them with the actual device name instead of the generic
+                // "CAM_Unknown • Unknown" DEFAULT_DATA fallback.
+                const camData = CAM_DATA[cam.id] ?? (cam.id.startsWith("focus-")
+                  ? { ...DEFAULT_DATA, camLabel: "Live Feed", location: cam.name }
+                  : DEFAULT_DATA);
+                // A VIP hit on a gridded tile used to also flash the whole tile's edge in purple
+                // (vca-cam-alert-glow) — surfacing "VIP here" a different way now (the pulsing
+                // dot in the sidebar list), so this tile-wide flash is gone; the corner label's
+                // own quieter glow (vca-cam-label-glow, in CameraCard) still marks the tile itself.
                 return (
-                  <div key={cam.id} className="vca-cam-alert-glow" style={{ position:"relative", height:"100%", minHeight:0 }}>
-                    {card}
+                  <div
+                    key={cam.id}
+                    // React's documented "map of refs" pattern (react.dev/learn/manipulating-the-dom-with-refs)
+                    // for tracking each grid tile's DOM node for the FLIP reorder animation below —
+                    // this ref callback only stores nodes for a later effect, never affects rendering.
+                    // eslint-disable-next-line react-hooks/refs
+                    ref={el => { if (el) gridTileRefs.current.set(cam.id, el); else gridTileRefs.current.delete(cam.id); }}
+                    style={{ height:"100%", minHeight:0 }}
+                  >
+                    <CameraCard
+                      cam={cam}
+                      data={camData}
+                      filterType={filterType}
+                      onDetClick={handleDetClick}
+                      onHeaderArrowClick={() => setDetailView({ camId: cam.id, data: camData, det: camData.detections[0] })}
+                      sidePanelOnHover={layout.sidePanelOnHover}
+                      style={cam.id === highlightCamId ? { boxShadow: "inset 0 0 0 3px #5a3dfb", transition: "box-shadow 0.3s" } : undefined}
+                    />
                   </div>
                 );
               })}
@@ -1055,7 +1350,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
               {Array.from({ length: emptySlots }).map((_, i) => (
                 <div key={`empty-${i}`} style={{ backgroundColor:"#f8fafc", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:"6px", color:"#cbd5e1" }}>
                   <BulletCameraIcon />
-                  <span style={{ fontSize:"11px", fontWeight:600, color:"#94a3b8" }}>Awaiting camera</span>
+                  <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Awaiting camera</span>
                 </div>
               ))}
             </div>

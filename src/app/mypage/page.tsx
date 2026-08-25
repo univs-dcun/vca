@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import {
@@ -34,8 +34,11 @@ function LockIconSm() {
   );
 }
 function MonitorIcon() {
+  // 16x16 (viewBox stays 14x14) — every other CardHeader icon on this page is 16x16; this one
+  // rendering at 14x14 made "Active Login Sessions" sit visibly smaller/off-center next to its
+  // siblings ("Profile Information", "Security & Access Control", etc.).
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+    <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
       <path d="M4.66648 12.25H9.33352M7 9.91667V12.25M2.33296 1.75H11.667C12.3114 1.75 12.8338 2.27233 12.8338 2.91667V8.75C12.8338 9.39433 12.3114 9.91667 11.667 9.91667H2.33296C1.68858 9.91667 1.1662 9.39433 1.1662 8.75V2.91667C1.1662 2.27233 1.68858 1.75 2.33296 1.75Z" stroke="#475469" strokeLinecap="round" strokeWidth="1.1"/>
     </svg>
   );
@@ -89,11 +92,40 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-function DropdownBtn({ value }: { value: string }) {
+function DropdownBtn({ value, options, onSelect }: { value: string; options: string[]; onSelect: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+  useEscapeKey(() => setOpen(false), open);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "6px 10px", cursor: "pointer" }}>
-      <span style={{ fontSize: "12px", fontWeight: 600, color: "#324055", letterSpacing: "-0.24px" }}>{value}</span>
-      <ChevronDownIcon />
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "6px 10px", cursor: "pointer" }}
+      >
+        <span style={{ fontSize: "12px", fontWeight: 600, color: "#324055", letterSpacing: "-0.24px" }}>{value}</span>
+        <ChevronDownIcon />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20, backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", minWidth: "150px", overflow: "hidden" }}>
+          {options.map(opt => (
+            <button
+              key={opt}
+              onClick={() => { onSelect(opt); setOpen(false); }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", backgroundColor: opt === value ? "#f8fafc" : "white", cursor: "pointer", fontSize: "12px", fontWeight: opt === value ? 700 : 500, color: "#324055" }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -133,7 +165,7 @@ function fieldBorder(active: boolean) {
 // in-page modal (same field/validation logic as the auth flow's /password-setup, which is a
 // different case: first-time setup, not an already-logged-in user changing theirs) instead of
 // navigating to a full standalone route.
-function PasswordChangeModal({ onClose }: { onClose: () => void }) {
+function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [step, setStep] = useState<"current" | "new" | "done">("current");
   const [currentPassword, setCurrentPassword] = useState("");
   const [showCurrent, setShowCurrent] = useState(false);
@@ -164,6 +196,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
   const handleSubmit = () => {
     if (!canSubmit || !formatValid || mismatch) return;
     setStep("done");
+    onSuccess();
   };
 
   return (
@@ -187,8 +220,8 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
               </svg>
             </div>
             <div style={{ textAlign: "center" }}>
-              <p style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0e162a" }}>Password changed</p>
-              <p style={{ margin: "4px 0 0", fontSize: "13px", fontWeight: 500, color: "#64748a" }}>Your password has been updated.</p>
+              <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0e162a" }}>Password changed</p>
+              <p style={{ margin: "4px 0 0", fontSize: "13px", fontWeight: 600, color: "#64748a" }}>Your password has been updated.</p>
             </div>
             <button
               onClick={onClose}
@@ -200,7 +233,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.34px" }}>Change Password</h2>
+              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.34px" }}>Change password</h2>
               <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                   <path d="M4 4L14 14M14 4L4 14" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
@@ -287,7 +320,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
 
-                <p style={{ margin: 0, fontSize: "11px", fontWeight: 600, color: "#475469", letterSpacing: "-0.22px" }}>
+                <p style={{ margin: 0, fontSize: "10px", fontWeight: 600, color: "#475469", letterSpacing: "-0.22px" }}>
                   At least 8 characters, including letters, numbers, and special characters
                 </p>
 
@@ -353,7 +386,7 @@ function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { in
         display: "flex", flexDirection: "column", gap: "20px",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.34px" }}>Map Alert Thresholds</h2>
+          <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.34px" }}>Map alert thresholds</h2>
           <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M4 4L14 14M14 4L4 14" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
@@ -361,7 +394,7 @@ function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { in
           </button>
         </div>
 
-        <p style={{ margin: 0, fontSize: "12px", fontWeight: 500, color: "#94a3b8", lineHeight: 1.5 }}>
+        <p style={{ margin: 0, fontSize: "12px", fontWeight: 600, color: "#94a3b8", lineHeight: 1.5 }}>
           Today&apos;s VIP-hit count a district needs before its map badge turns red (alert) or navy (moderate).
         </p>
 
@@ -376,7 +409,7 @@ function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { in
                 height: "40px", padding: "0 20px", border: "none", borderRadius: "8px",
                 backgroundColor: dirty ? "#5a3dfb" : "#f1f5f9",
                 color: dirty ? "white" : "#94a3b8",
-                fontSize: "13px", fontWeight: 800, letterSpacing: "-0.26px",
+                fontSize: "13px", fontWeight: 700, letterSpacing: "-0.26px",
                 cursor: dirty ? "pointer" : "default",
                 transition: "background-color 0.15s, color 0.15s",
               }}
@@ -394,7 +427,19 @@ function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { in
 export default function MyPage() {
   const router = useRouter();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordJustChanged, setPasswordJustChanged] = useState(false);
   const [showThresholdModal, setShowThresholdModal] = useState(false);
+  const [sessionsTerminated, setSessionsTerminated] = useState(false);
+  const [language, setLanguage] = useState("English");
+  const [timezone, setTimezone] = useState("SGT (UTC+8)");
+  // Only one session is ever listed here (this mock has no other-device data to actually
+  // terminate) — the confirmation is honest about that rather than pretending to have revoked
+  // something. Auto-clears the same way BestFramePage's highlightCamId does.
+  useEffect(() => {
+    if (!sessionsTerminated) return;
+    const timer = setTimeout(() => setSessionsTerminated(false), 3000);
+    return () => clearTimeout(timer);
+  }, [sessionsTerminated]);
   // Default on the server-rendered pass so hydration never mismatches; a client-only effect
   // then applies whatever this browser last saved (same pattern as sidebarPosition elsewhere).
   const [alertThreshold, setAlertThresholdState] = useState(DEFAULT_DISTRICT_ALERT_THRESHOLD);
@@ -424,9 +469,9 @@ export default function MyPage() {
             <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "8px" }}>
               <span style={{ fontSize: "12px", fontWeight: 600, color: "#64748a", letterSpacing: "-0.24px" }}>Settings</span>
               <span style={{ fontSize: "11px", color: "#94a3b8" }}>{">"}</span>
-              <span style={{ fontSize: "12px", fontWeight: 700, color: "#5a3dfb", letterSpacing: "-0.24px" }}>My Page</span>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#5a3dfb", letterSpacing: "-0.24px" }}>My page</span>
             </div>
-            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 800, color: "#0e162a" }}>My Page</h1>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "#0e162a" }}>My page</h1>
             <p style={{ margin: "8px 0 0", fontSize: "13px", fontWeight: 600, color: "#64748a", letterSpacing: "-0.26px" }}>
               Centrally manage your admin profile, security settings, and monitoring preferences.
             </p>
@@ -437,7 +482,7 @@ export default function MyPage() {
             {/* Profile Information */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <Card>
-                <CardHeader icon={<UserCheckIcon />} title="Profile Information" />
+                <CardHeader icon={<UserCheckIcon />} title="Profile information" />
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
                     <span style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.32px" }}>John Doe</span>
@@ -449,9 +494,9 @@ export default function MyPage() {
                 </div>
                 <div style={{ height: "1px", backgroundColor: "#e2e8f0", width: "100%" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                  <ReadOnlyField label="Full Name" value="John Doe" />
-                  <ReadOnlyField label="Email Address" value="johndoe@email.com" />
-                  <ReadOnlyField label="Department / Team" value="Operational Control Team Alpha" />
+                  <ReadOnlyField label="Full name" value="John Doe" />
+                  <ReadOnlyField label="Email address" value="johndoe@email.com" />
+                  <ReadOnlyField label="Department / team" value="Operational Control Team Alpha" />
                 </div>
               </Card>
             </div>
@@ -459,13 +504,15 @@ export default function MyPage() {
             {/* Security & Access Control */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <Card>
-                <CardHeader icon={<ShieldIcon />} title="Security & Access Control" />
+                <CardHeader icon={<ShieldIcon />} title="Security & access control" />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                  <span style={{ fontSize: "12px", fontWeight: 800, color: "#0e162a", letterSpacing: "0.006px" }}>Password Settings</span>
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a", letterSpacing: "0.006px" }}>Password settings</span>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderRadius: "10px", padding: "12px" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.28px" }}>Password Change</span>
-                      <span style={{ fontSize: "10px", fontWeight: 600, color: "#475469", letterSpacing: "-0.2px" }}>Last changed 45 days ago</span>
+                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.28px" }}>Password change</span>
+                      <span style={{ fontSize: "10px", fontWeight: 600, color: "#475469", letterSpacing: "-0.2px" }}>
+                        {passwordJustChanged ? "Last changed just now" : "Last changed 45 days ago"}
+                      </span>
                     </div>
                     <button
                       onClick={() => setShowPasswordModal(true)}
@@ -478,10 +525,18 @@ export default function MyPage() {
                 <div style={{ height: "1px", backgroundColor: "#e2e8f0", width: "100%" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <CardHeader icon={<MonitorIcon />} title="Active Login Sessions" />
-                    <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "11px", color: "#d91616", textDecoration: "underline" }}>
-                      Terminate All Others
-                    </button>
+                    <CardHeader icon={<MonitorIcon />} title="Active login sessions" />
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      {sessionsTerminated && (
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: "#22c55e" }}>No other sessions found</span>
+                      )}
+                      <button
+                        onClick={() => setSessionsTerminated(true)}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "11px", color: "#f43f5e", textDecoration: "underline" }}
+                      >
+                        Terminate All Others
+                      </button>
+                    </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderRadius: "10px", padding: "12px" }}>
                     <div style={{ display: "flex", gap: "10px", alignItems: "center", flex: 1, minWidth: 0 }}>
@@ -501,23 +556,23 @@ export default function MyPage() {
             {/* System Preferences */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <Card>
-                <CardHeader icon={<SlidersIcon />} title="System Preferences" />
+                <CardHeader icon={<SlidersIcon />} title="System preferences" />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#0e162a", letterSpacing: "0.006px" }}>Interface Language</span>
-                    <DropdownBtn value="English" />
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a", letterSpacing: "0.006px" }}>Interface language</span>
+                    <DropdownBtn value={language} options={["English", "한국어"]} onSelect={setLanguage} />
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#0e162a", letterSpacing: "0.006px" }}>Timezone</span>
-                    <DropdownBtn value="SGT (UTC+8)" />
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a", letterSpacing: "0.006px" }}>Timezone</span>
+                    <DropdownBtn value={timezone} options={["SGT (UTC+8)", "UTC", "KST (UTC+9)"]} onSelect={setTimezone} />
                   </div>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "#e2e8f0", width: "100%" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                  <CardHeader icon={<AlertBellIcon />} title="Map Alert Thresholds" />
+                  <CardHeader icon={<AlertBellIcon />} title="Map alert thresholds" />
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderRadius: "10px", padding: "12px" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.28px" }}>Alert Levels</span>
+                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.28px" }}>Alert levels</span>
                       <span style={{ fontSize: "10px", fontWeight: 600, color: "#475469", letterSpacing: "-0.2px" }}>Alert {alertThreshold} · Moderate {moderateThreshold}</span>
                     </div>
                     <button
@@ -533,7 +588,12 @@ export default function MyPage() {
           </div>
         </div>
       </div>
-      {showPasswordModal && <PasswordChangeModal onClose={() => setShowPasswordModal(false)} />}
+      {showPasswordModal && (
+        <PasswordChangeModal
+          onClose={() => setShowPasswordModal(false)}
+          onSuccess={() => setPasswordJustChanged(true)}
+        />
+      )}
       {showThresholdModal && (
         <ThresholdModal
           initialAlert={alertThreshold}

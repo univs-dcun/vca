@@ -116,6 +116,24 @@ body {
   display: none;
 }
 
+.vca-thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #ccd5e1 transparent;
+}
+.vca-thin-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+.vca-thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.vca-thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #ccd5e1;
+  border-radius: 999px;
+}
+.vca-thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
 @keyframes vca-rise-in {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
@@ -145,27 +163,11 @@ body {
   animation: vca-vip-flash 0.9s ease-in-out infinite;
 }
 
-/* Best Frame camera tile with a VIP detection — a softly blurred glow line right at the tile's
-   edge (no hard-edged ring) plus a short, saturated bloom just past it, so it reads as a neon
-   sign glowing rather than a plain static outline. A brighter/more vivid violet than the flatter
-   brand purple (#5a3dfb) on purpose — this needs to pop, not blend in. Kept tight (short
-   blur/spread) so it doesn't bleed across into neighboring grid tiles. box-shadow (not border) so
-   it doesn't shift the tile's layout. Blinks a handful of times to catch the eye, then settles to
-   nothing (fill-mode: forwards ends on the "none" keyframe) instead of pulsing forever, which read
-   as visual noise across several tiles. */
-@keyframes vca-cam-alert-glow {
-  0%, 100% { box-shadow: none; }
-  50%      { box-shadow: 0 0 6px 1px #a855f7, 0 0 14px 3px rgba(168,85,247,0.55), 0 0 24px 6px rgba(168,85,247,0.25); }
-}
-.vca-cam-alert-glow {
-  animation: vca-cam-alert-glow 0.6s ease-in-out 4 forwards;
-  z-index: 1;
-}
-
-/* Once the tile-edge glow above finishes its handful of blinks, the camera-label chip in the
-   tile's top-left corner takes over as the lasting (but much quieter) indicator that a VIP is
-   still in frame — same animation-delay length as the tile-edge glow's total run time so the two
-   hand off without a gap, and this one keeps blinking for as long as the detection is active. */
+/* Best Frame camera tile with a VIP detection — the camera-label chip in the tile's top-left
+   corner blinks as a quiet, lasting indicator that a VIP is still in frame (a louder tile-wide
+   flash used to run first; removed in favor of the sidebar list's pulsing dot instead). The
+   2.4s animation-delay is a holdover from when it handed off from that removed flash — kept so
+   the blink doesn't start jarringly the instant a VIP appears. */
 @keyframes vca-cam-label-glow {
   0%, 100% { border-color: transparent; box-shadow: none; }
   50%      { border-color: #a855f7; box-shadow: 0 0 6px 1px rgba(168,85,247,0.7); }
@@ -173,6 +175,34 @@ body {
 .vca-cam-label-glow {
   animation: vca-cam-label-glow 1.1s ease-in-out infinite;
   animation-delay: 2.4s;
+}
+
+/* Best Frame sidebar camera list — the small dot marking "VIP detected right now" grows/shrinks
+   gently so it reads as a live signal rather than a static status icon. */
+@keyframes vca-vip-dot-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.35); }
+}
+.vca-vip-dot-pulse {
+  animation: vca-vip-dot-pulse 1.4s ease-in-out infinite;
+}
+
+/* Dashboard map, zoomed-in camera dots — hover grows the visible dot inside its (larger,
+   invisible) click/hover hit box, and strips Leaflet's default tooltip chrome so the
+   name/status/zone card we build ourselves in MapView's cameraDotTooltipHtml is the only
+   styling that shows. */
+.vca-camera-dot-hit:hover .vca-camera-dot-visual {
+  transform: scale(1.4);
+}
+.leaflet-tooltip.vca-camera-tooltip {
+  background: white;
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(14,22,42,0.16);
+  padding: 0;
+}
+.leaflet-tooltip.vca-camera-tooltip::before {
+  display: none;
 }
 
 /* Flowing dashed line for a tracking route (Redmap search results, Dashboard Tracking events) */
