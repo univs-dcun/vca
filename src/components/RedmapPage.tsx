@@ -274,20 +274,6 @@ function PlateIcon() {
   );
 }
 
-function TimelineIcon() {
-  return (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-      <line x1="8" y1="8" x2="8" y2="24" stroke="var(--gray-300)" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="8" cy="8" r="3" fill="var(--gray-300)" />
-      <circle cx="8" cy="16" r="3" fill="var(--gray-200)" />
-      <circle cx="8" cy="24" r="3" fill="var(--gray-100)" />
-      <line x1="14" y1="8" x2="26" y2="8" stroke="var(--gray-200)" strokeWidth="2" strokeLinecap="round" />
-      <line x1="14" y1="16" x2="24" y2="16" stroke="var(--gray-200)" strokeWidth="2" strokeLinecap="round" />
-      <line x1="14" y1="24" x2="22" y2="24" stroke="var(--gray-200)" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function ResetIconSm() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -1262,8 +1248,11 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           />
         </div>
 
-        {/* RIGHT: Route History Timeline — same landing-state rule as the left panel. */}
-        {hasSearched && (
+        {/* RIGHT: Route History Timeline — only mounts when there is an actual route to
+            trace. A search that came back empty hides this panel outright rather than
+            showing an empty-state next to the left panel's own "no results" message —
+            two empty states side by side just restated the same thing. */}
+        {trackingActive && (
         <div style={{
           width: "320px", backgroundColor: "white", borderLeft: BORDER,
           display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden",
@@ -1288,23 +1277,6 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           </div>
 
           <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            {hasSearched && results.length === 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "12px" }}>
-                <TimelineIcon />
-                <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "var(--gray-400)" }}>
-                  No sightings to trace —<br />
-                  <strong style={{ color: "var(--gray-700)" }}>this search came back empty</strong>
-                </p>
-              </div>
-            ) : !trackingActive ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "12px" }}>
-                <TimelineIcon />
-                <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "var(--gray-400)" }}>
-                  Click a hit result to view<br />
-                  <strong style={{ color: "var(--gray-700)" }}>movement tracking history</strong>
-                </p>
-              </div>
-            ) : (
               <div style={{ position: "relative" }}>
                 <div style={{ position: "absolute", left: "22px", top: "22px", bottom: "22px", width: "2px", backgroundColor: "var(--gray-200)" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -1426,7 +1398,6 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                   })()}
                 </div>
               </div>
-            )}
           </div>
         </div>
         )}
