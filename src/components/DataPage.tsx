@@ -5,7 +5,7 @@ import { useVcaStore } from "@/lib/vcaStore";
 import { sgtDateKey } from "@/lib/time";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 
-const BORDER = "1px solid #E2E8F0";
+const BORDER = "1px solid var(--gray-200)";
 export type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
 
 export const MATCH_DATA: MatchItem[] = [
@@ -50,8 +50,8 @@ function ScoreBadge({ score }: { score: number }) {
   const high = score >= 90, mid = score >= 85;
   return (
     <span style={{ fontSize:"10px", fontWeight:800, fontFamily:"monospace",
-      color: high?"#16a34a":mid?"#475469":"#64748a",
-      backgroundColor: high?"#dcfce7":"#f1f5f9",
+      color: high?"var(--success-400)":mid?"var(--gray-600)":"var(--gray-500)",
+      backgroundColor: high?"var(--success-100)":"var(--gray-100)",
       padding:"2px 6px", borderRadius:"999px" }}>
       {score}%
     </span>
@@ -69,20 +69,20 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
       <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"560px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"90vh", overflow:"hidden", boxShadow:"0 20px 60px rgba(14,22,42,0.18)" }}>
 
         {/* Header */}
-        <div style={{ padding:"14px 16px", borderBottom:BORDER, backgroundColor:"#f8fafc", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ padding:"14px 16px", borderBottom:BORDER, backgroundColor:"var(--gray-50)", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-            <div style={{ width:"10px", height:"10px", borderRadius:"50%", backgroundColor:"#34d399", flexShrink:0 }} />
+            <div style={{ width:"10px", height:"10px", borderRadius:"50%", backgroundColor:"var(--success-400)", flexShrink:0 }} />
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                <p style={{ fontSize:"13px", fontWeight:700, color:"#0e162a" }}>Re-ID Object #REC-{String(item.id).padStart(4,"0")}</p>
+                <p style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>Re-ID Object #REC-{String(item.id).padStart(4,"0")}</p>
                 <ScoreBadge score={item.similarity} />
-                <span style={{ fontSize:"10px", fontWeight:700, color:"#475469", backgroundColor:"#f1f5f9", padding:"2px 7px", borderRadius:"999px" }}>{item.cam}</span>
+                <span style={{ fontSize:"10px", fontWeight:700, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"2px 7px", borderRadius:"999px" }}>{item.cam}</span>
                 <span style={{ fontSize:"10px", fontWeight:800, color:REID_STATUS_STYLE[item.status].text, backgroundColor:`${REID_STATUS_STYLE[item.status].text}1a`, padding:"2px 7px", borderRadius:"999px" }}>{item.status}</span>
               </div>
-              <p style={{ fontSize:"10px", color:"#94a3b8", marginTop:"1px" }}>{item.time}</p>
+              <p style={{ fontSize:"10px", color:"var(--gray-400)", marginTop:"1px" }}>{item.time}</p>
             </div>
           </div>
-          <button onClick={onClose} style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
+          <button onClick={onClose} style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
@@ -92,28 +92,28 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
 
           {/* Face/Body */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
-            <div style={{ border:BORDER, borderRadius:"12px", padding:"10px", backgroundColor:"#f8fafc", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
-              <img src={item.face} alt="" style={{ width:"156px", height:"156px", objectFit:"cover", borderRadius:"12px", border:"2px solid #5a3dfb" }} />
-              <p style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8", letterSpacing:"0.5px" }}>Face</p>
+            <div style={{ border:BORDER, borderRadius:"12px", padding:"10px", backgroundColor:"var(--gray-50)", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
+              <img src={item.face} alt="" style={{ width:"156px", height:"156px", objectFit:"cover", borderRadius:"12px", border:"2px solid var(--primary-400)" }} />
+              <p style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", letterSpacing:"0.5px" }}>Face</p>
             </div>
-            <div style={{ border:BORDER, borderRadius:"12px", padding:"10px", backgroundColor:"#f8fafc", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
-              <img src={item.body} alt="" style={{ width:"124px", height:"186px", objectFit:"cover", borderRadius:"12px", border:"2px solid #5a3dfb" }} />
-              <p style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8", letterSpacing:"0.5px" }}>Full-body</p>
+            <div style={{ border:BORDER, borderRadius:"12px", padding:"10px", backgroundColor:"var(--gray-50)", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
+              <img src={item.body} alt="" style={{ width:"124px", height:"186px", objectFit:"cover", borderRadius:"12px", border:"2px solid var(--primary-400)" }} />
+              <p style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", letterSpacing:"0.5px" }}>Full-body</p>
             </div>
           </div>
 
           {/* AI attrs */}
           <div>
-            <p style={{ fontSize:"12px", fontWeight:800, color:"#0e162a", marginBottom:"8px" }}>AI attribute classification</p>
+            <p style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)", marginBottom:"8px" }}>AI attribute classification</p>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"8px" }}>
               {([
-                ["Gender/age", item.gender==="F"?`Female | ${item.age}`:`Male | ${item.age}`, item.gender==="F"?"#ec4899":"#5a3dfb"],
-                ["Top color", "White Jacket", "#334155"],
-                ["Bottom color", "Dark Accent", "#334155"],
-                ["Belongings", "Black Handbag", "#334155"],
+                ["Gender/age", item.gender==="F"?`Female | ${item.age}`:`Male | ${item.age}`, item.gender==="F"?"#ec4899":"var(--primary-400)"],
+                ["Top color", "White Jacket", "var(--gray-700)"],
+                ["Bottom color", "Dark Accent", "var(--gray-700)"],
+                ["Belongings", "Black Handbag", "var(--gray-700)"],
               ] as [string,string,string][]).map(([label,val,color]) => (
-                <div key={label} style={{ padding:"8px 10px", borderRadius:"10px", backgroundColor:"#f8fafc", border:BORDER }}>
-                  <p style={{ fontSize:"10px", color:"#94a3b8", fontWeight:600, marginBottom:"2px" }}>{label}</p>
+                <div key={label} style={{ padding:"8px 10px", borderRadius:"10px", backgroundColor:"var(--gray-50)", border:BORDER }}>
+                  <p style={{ fontSize:"10px", color:"var(--gray-400)", fontWeight:600, marginBottom:"2px" }}>{label}</p>
                   <p style={{ fontSize:"10px", fontWeight:600, color }}>{val}</p>
                 </div>
               ))}
@@ -125,14 +125,14 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
         {/* Footer — Watchlist registration is a Portal(admin) function, not a VCA operator
             screen action, so it doesn't live here; Analyze Frame (same wording as Best Frame's
             own popup button) deep-links to that camera's Inspection Detail instead. */}
-        <div style={{ padding:"12px 16px", borderTop:BORDER, backgroundColor:"#f8fafc", display:"flex", justifyContent:"flex-end", gap:"8px", flexShrink:0 }}>
+        <div style={{ padding:"12px 16px", borderTop:BORDER, backgroundColor:"var(--gray-50)", display:"flex", justifyContent:"flex-end", gap:"8px", flexShrink:0 }}>
           <button
             onClick={() => onGoAnalyzeFrame?.(item.cam)}
-            style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", border:BORDER, backgroundColor:"white", fontSize:"12px", fontWeight:600, color:"#64748a", cursor:"pointer" }}
+            style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", border:BORDER, backgroundColor:"white", fontSize:"12px", fontWeight:600, color:"var(--gray-500)", cursor:"pointer" }}
           >
             Analyze Frame
           </button>
-          <button onClick={onGoRedmap} style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", backgroundColor:"#0e162a", border:"none", color:"white", fontSize:"12px", fontWeight:700, cursor:"pointer" }}>
+          <button onClick={onGoRedmap} style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", backgroundColor:"var(--gray-900)", border:"none", color:"white", fontSize:"12px", fontWeight:700, cursor:"pointer" }}>
             Track on Map
           </button>
         </div>
@@ -214,7 +214,7 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
       ...(fill ? { flex:"1 1 136px", maxWidth:"160px" } : { width:"136px", flexShrink:0 }),
       borderRadius:"8px", overflow:"hidden", backgroundColor:"white", cursor:"pointer",
       border:"none", borderBottom:0,
-      boxShadow:"0 3px 8px -2px rgba(15, 23, 42, 0.12)",
+      boxShadow:"0 3px 8px -2px rgba(14, 22, 42, 0.12)",
       transform:"translateZ(0)",
     }}>
       <img src={p.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
@@ -230,16 +230,16 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
       )}
       {p.status === "RedFace" && (
         <div style={{ position:"absolute", bottom:"52px", left:8, fontSize:"10px", fontWeight:800, color:"white",
-          backgroundColor:"#ef4444", padding:"1px 5px", borderRadius:"2px", letterSpacing:"0.3px" }}>
+          backgroundColor:"var(--danger-400)", padding:"1px 5px", borderRadius:"2px", letterSpacing:"0.3px" }}>
           REDFACE
         </div>
       )}
       {hovered && (
         <div style={{ position:"absolute", inset:0, backgroundColor:"rgba(14,22,42,0.6)",
           display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", zIndex:20 }}>
-          <HoverActionBtn label="Re-ID" icon={<ReidIconSm />} color="#5a3dfb" onClick={e => { e.stopPropagation(); onNavigateTab?.("Re-ID Analysis", p); }} />
-          <HoverActionBtn label="RedFace" icon={<RedFaceIconSm />} color="#f97316" onClick={e => { e.stopPropagation(); onNavigateTab?.("RedFace", p); }} />
-          <HoverActionBtn label="Redmap" icon={<RedMapIconSm />} color="#16a34a" onClick={e => { e.stopPropagation(); onGoRedmap?.(); }} />
+          <HoverActionBtn label="Re-ID" icon={<ReidIconSm />} color="var(--primary-400)" onClick={e => { e.stopPropagation(); onNavigateTab?.("Re-ID Analysis", p); }} />
+          <HoverActionBtn label="RedFace" icon={<RedFaceIconSm />} color="var(--warning-500)" onClick={e => { e.stopPropagation(); onNavigateTab?.("RedFace", p); }} />
+          <HoverActionBtn label="Redmap" icon={<RedMapIconSm />} color="var(--success-400)" onClick={e => { e.stopPropagation(); onGoRedmap?.(); }} />
         </div>
       )}
       <div style={{ position:"absolute", left:"-1px", right:"-1px", bottom:"-2px", height:"72px", backgroundColor:"white",
@@ -247,18 +247,18 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
         padding:"7px 11px 24px", boxSizing:"border-box", display:"flex", flexDirection:"column", gap:"2px" }}>
         <div style={{ display:"flex", alignItems:"baseline", gap:"3px" }}>
           <span style={{ fontSize:"12px", fontWeight:800, color:status.text, letterSpacing:"-0.2px" }}>{p.status}</span>
-          {p.status === "VIP" && p.score !== null && <span style={{ fontSize:"10px", fontWeight:600, color:"#475469" }}>{p.score}%</span>}
+          {p.status === "VIP" && p.score !== null && <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-600)" }}>{p.score}%</span>}
         </div>
-        <div style={{ display:"flex", gap:"4px", fontSize:"12px", fontWeight:600, color:"#0e162a" }}>
+        <div style={{ display:"flex", gap:"4px", fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>
           <span>{p.gender}</span><span>{p.age}</span>
         </div>
-        <span style={{ fontSize:"10px", fontWeight:600, color:"#475469", letterSpacing:"-0.2px", marginBottom:"6px" }}>{cardTimestamp(p.date, p.time)}</span>
+        <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-600)", letterSpacing:"-0.2px", marginBottom:"6px" }}>{cardTimestamp(p.date, p.time)}</span>
       </div>
       <div style={{ position:"absolute", right:"6px", bottom:"40px", width:"60px", height:"60px",
         borderRadius:"8px", overflow:"hidden", transform:"translateZ(0)",
         // Only VIP gets a ring (brand purple) — Unknown has nothing to call out, and RedFace
         // already gets its own dedicated "REDFACE" badge on this card (below).
-        boxShadow: p.status === "VIP" ? "0 0 0 2px #5a3dfb" : "none" }}>
+        boxShadow: p.status === "VIP" ? "0 0 0 2px var(--primary-400)" : "none" }}>
         {/* Zoomed-in crop of the same big photo's face area, not a separate unrelated image —
             anchored a bit below the very top edge (most head-and-shoulders stock photos frame
             the face around 15-25% down, not flush at 0%) and zoomed less aggressively than a
@@ -317,7 +317,7 @@ function ScrollToTopButton({ containerRef }: { containerRef: React.RefObject<HTM
       onClick={() => containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
       title="Scroll to top"
       style={{ position:"absolute", right:"20px", bottom:"20px", width:"40px", height:"40px", borderRadius:"50%",
-        backgroundColor:"#0e162a", color:"white", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+        backgroundColor:"var(--gray-900)", color:"white", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
         boxShadow:"0 4px 14px rgba(14,22,42,0.3)", zIndex:20 }}
     >
       <ScrollUpIconSm />
@@ -344,16 +344,16 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
         <div style={{ position:"relative", width:"152px" }}>
           <button onClick={() => setPickerOpen(o => !o)} style={{
             display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
-            padding:"8px 12px", borderRadius:"8px", backgroundColor:"white", border:"1px solid #5a3dfb",
+            padding:"8px 12px", borderRadius:"8px", backgroundColor:"white", border:"1px solid var(--primary-400)",
             cursor:"pointer",
           }}>
-            <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"14px", fontWeight:700, color:"#5a3dfb",
+            <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"14px", fontWeight:700, color:"var(--primary-400)",
               minWidth:0, overflow:"hidden" }}>
               <CameraGlyph />
               <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pickerLabel}</span>
             </span>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink:0, transform: pickerOpen?"rotate(180deg)":"none", transition:"transform 0.15s" }}>
-              <path d="M4 6l4 4 4-4" stroke="#5a3dfb" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M4 6l4 4 4-4" stroke="var(--primary-400)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
           {pickerOpen && (
@@ -362,23 +362,23 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
               maxHeight:"320px", display:"flex", flexDirection:"column" }}>
               <button onClick={() => { onSwitchCam(ALL_CAMERAS_ID); setPickerOpen(false); }} style={{
                 display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer", flexShrink:0,
-                backgroundColor: isAll ? "#f0f0ff" : "white",
-                fontSize:"13px", fontWeight: isAll ? 700:500, color: isAll ? "#5a3dfb":"#334155",
+                backgroundColor: isAll ? "var(--primary-100)" : "white",
+                fontSize:"13px", fontWeight: isAll ? 700:500, color: isAll ? "var(--primary-400)":"var(--gray-700)",
               }}>
                 All Cameras
               </button>
-              <div style={{ height:"1px", backgroundColor:"#e2e8f0", flexShrink:0 }} />
+              <div style={{ height:"1px", backgroundColor:"var(--gray-200)", flexShrink:0 }} />
               {/* The camera roster can run to dozens of entries — without its own scroll region
                   this list just kept growing past the bottom of the screen instead of scrolling. */}
               <div className="vca-thin-scrollbar" style={{ overflowY:"auto" }}>
                 {cameras.map(cam => (
                   <button key={cam.id} onClick={() => { onSwitchCam(cam.code); setPickerOpen(false); }} style={{
                     display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
-                    backgroundColor: cam.code===camId ? "#f0f0ff" : "white",
-                    fontSize:"13px", fontWeight: cam.code===camId ? 700:500, color: cam.code===camId ? "#5a3dfb":"#334155",
+                    backgroundColor: cam.code===camId ? "var(--primary-100)" : "white",
+                    fontSize:"13px", fontWeight: cam.code===camId ? 700:500, color: cam.code===camId ? "var(--primary-400)":"var(--gray-700)",
                   }}>
                     {cam.code}
-                    <span style={{ fontSize:"10px", fontWeight:800, color: cam.status==="online" ? "#16a34a" : "#94a3b8" }}>
+                    <span style={{ fontSize:"10px", fontWeight:800, color: cam.status==="online" ? "var(--success-400)" : "var(--gray-400)" }}>
                       {cam.status==="online" ? "ON" : "OFF"}
                     </span>
                   </button>
@@ -389,11 +389,11 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
         </div>
         {camera && (
           <>
-            <span style={{ fontSize:"10px", fontWeight:800, color: camera.status==="online" ? "#16a34a" : "#94a3b8",
-              backgroundColor: camera.status==="online" ? "#f0fdf4" : "#f1f5f9", padding:"4px 10px", borderRadius:"999px" }}>
+            <span style={{ fontSize:"10px", fontWeight:800, color: camera.status==="online" ? "var(--success-400)" : "var(--gray-400)",
+              backgroundColor: camera.status==="online" ? "var(--success-100)" : "var(--gray-100)", padding:"4px 10px", borderRadius:"999px" }}>
               {camera.status==="online" ? "ONLINE" : "OFFLINE"}
             </span>
-            <span style={{ fontSize:"12px", color:"#94a3b8" }}>IP {camera.ip} · RTSP Connected</span>
+            <span style={{ fontSize:"12px", color:"var(--gray-400)" }}>IP {camera.ip} · RTSP Connected</span>
           </>
         )}
       </div>
@@ -499,7 +499,7 @@ function seedLiveFeed(): Record<string, (typeof REID_DATA)> {
 function AllOptionRow({ label, options, value, onChange }: { label:string; options:string[]; value:string; onChange:(v:string)=>void }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-      <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>{label}</span>
+      <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>{label}</span>
       <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
         <AttrChip label="All" active={value === ""} onClick={() => onChange("")} size="sm" />
         {options.map(o => <AttrChip key={o} label={o} active={value === o} onClick={() => onChange(o)} size="sm" />)}
@@ -522,15 +522,15 @@ function SimpleSelect({ value, options, onChange }: { value:string; options:stri
   return (
     <div style={{ position:"relative", width:"100%" }}>
       <style>{`
-        .vca-simple-select-trigger:hover { border-color:#8c85ff !important; }
-        .vca-simple-select-option:hover { background-color:#f8fafc; }
+        .vca-simple-select-trigger:hover { border-color:var(--primary-300) !important; }
+        .vca-simple-select-option:hover { background-color:var(--gray-50); }
       `}</style>
       <button onClick={() => setOpen(o => !o)} className="vca-simple-select-trigger" style={{
         display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
         height:"32px", padding:"0 10px", borderRadius:"8px", border:BORDER, backgroundColor:"white", cursor:"pointer",
       }}>
-        <span style={{ fontSize:"12px", fontWeight:600, color: value ? "#0e162a" : "#94a3b8" }}>{value || "All"}</span>
-        <span style={{ display:"flex", color:"#475469", transform: open ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}>
+        <span style={{ fontSize:"12px", fontWeight:600, color: value ? "var(--gray-900)" : "var(--gray-400)" }}>{value || "All"}</span>
+        <span style={{ display:"flex", color:"var(--gray-600)", transform: open ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}>
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </span>
       </button>
@@ -542,8 +542,8 @@ function SimpleSelect({ value, options, onChange }: { value:string; options:stri
             return (
               <button key={o || "__all__"} onClick={() => { onChange(o); setOpen(false); }} className="vca-simple-select-option" style={{
                 display:"flex", alignItems:"center", gap:"6px", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
-                backgroundColor: active ? "#f0f0ff" : "white",
-                fontSize:"12px", fontWeight: active ? 700 : 500, color: active ? "#5a3dfb" : "#334155",
+                backgroundColor: active ? "var(--primary-100)" : "white",
+                fontSize:"12px", fontWeight: active ? 700 : 500, color: active ? "var(--primary-400)" : "var(--gray-700)",
               }}>
                 <span style={{ display:"flex", width:"12px", flexShrink:0 }}>
                   {active && <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
@@ -580,7 +580,7 @@ function SlidingSearchPanel({ expanded, onExpand, sidebar }: { expanded: boolean
           the button's height (its header text, tab icons, etc.) would otherwise still show through
           as a sliver instead of a clean collapsed rail. */}
       <div style={{
-        position:"absolute", top:0, left:0, bottom:0, width:"48px", backgroundColor:"#f1f5f9",
+        position:"absolute", top:0, left:0, bottom:0, width:"48px", backgroundColor:"var(--gray-100)",
         display:"flex", flexDirection:"column", alignItems:"center",
         opacity: expanded ? 0 : 1, pointerEvents: expanded ? "none" : "auto",
         transition:"opacity 0.15s ease",
@@ -591,7 +591,7 @@ function SlidingSearchPanel({ expanded, onExpand, sidebar }: { expanded: boolean
           style={{
             width:"48px", height:"48px", borderRadius:"16px",
             backgroundColor:"white", border:"none", display:"flex", alignItems:"center", justifyContent:"center",
-            cursor:"pointer", color:"#475469", flexShrink:0,
+            cursor:"pointer", color:"var(--gray-600)", flexShrink:0,
           }}
         >
           <SearchIconSm size={20} />
@@ -666,17 +666,17 @@ function LiveSearchSidebar({
   // Same size/weight/color as the "Date range" section label above — was smaller, muted-gray,
   // and all-caps, which read as a visually distinct (and unintentionally lower-priority) label
   // style from the rest of the sidebar's section titles.
-  const filterLabelStyle: React.CSSProperties = { fontSize:"12px", fontWeight:700, color:"#324055" };
+  const filterLabelStyle: React.CSSProperties = { fontSize:"12px", fontWeight:700, color:"var(--gray-700)" };
 
   return (
     <div style={{ width:"320px", flexShrink:0, backgroundColor:"white", borderRadius:"12px",
       display:"flex", flexDirection:"column", height:"100%", overflow:"hidden", boxSizing:"border-box" }}>
       <div style={{ padding:"20px 16px 12px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"8px", color:"#0e162a" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"8px", color:"var(--gray-900)" }}>
           <SearchIconSm size={16} />
-          <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px" }}>Smart search</span>
+          <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px" }}>Smart search</span>
         </div>
-        <button onClick={onCollapse} aria-label="Collapse" style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
+        <button onClick={onCollapse} aria-label="Collapse" style={{ background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </div>
@@ -688,8 +688,8 @@ function LiveSearchSidebar({
             <button key={t.id} onClick={() => changeTab(t.id)} style={{
               flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"4px", padding:"8px 0 10px",
               background:"none", border:"none", cursor:"pointer",
-              borderBottom: active ? "2px solid #5a3dfb" : "2px solid transparent",
-              color: active ? "#5a3dfb" : "#94a3b8", marginBottom:"-1px",
+              borderBottom: active ? "2px solid var(--primary-400)" : "2px solid transparent",
+              color: active ? "var(--primary-400)" : "var(--gray-400)", marginBottom:"-1px",
             }}>
               {/* Fixed-height slot regardless of each icon's own rendered size — the Vehicle
                   icon renders a couple px taller than the others (see VehicleIconSm) since it's
@@ -707,8 +707,8 @@ function LiveSearchSidebar({
 
       <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto", padding:"16px", display:"flex", flexDirection:"column", gap:"18px" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"#324055" }}>
-            <CalendarIconSm size={12} color="#324055" />
+          <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"var(--gray-700)" }}>
+            <CalendarIconSm size={12} color="var(--gray-700)" />
             <span style={{ fontSize:"12px", fontWeight:700 }}>Date range</span>
           </div>
           <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="split" size="sm" emptyText="Last 7 days" showIcon={false} />
@@ -717,7 +717,7 @@ function LiveSearchSidebar({
         {tab === "Photo" && (
           <>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"#324055" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"var(--gray-700)" }}>
                 <HistoryIconSm />
                 <span style={{ fontSize:"12px", fontWeight:700 }}>Recent targets</span>
               </div>
@@ -726,29 +726,29 @@ function LiveSearchSidebar({
                   <button key={i} onClick={() => selectRecentTarget(i)} style={{
                     display:"flex", alignItems:"center", gap:"6px", padding:"6px 10px", borderRadius:"8px",
                     backgroundColor:"white",
-                    border: selectedTarget === i ? "1px solid #5a3dfb" : "1px solid #e2e8f0",
+                    border: selectedTarget === i ? "1px solid var(--primary-400)" : "1px solid var(--gray-200)",
                     cursor:"pointer", flexShrink:0,
                   }}>
                     <img src={t.face} alt="" style={{ width:"32px", height:"26px", borderRadius:"6px", objectFit:"cover" }} />
-                    <span style={{ fontSize:"11px", fontWeight:600, color:"#0e162a", whiteSpace:"nowrap" }}>{t.label}</span>
+                    <span style={{ fontSize:"11px", fontWeight:600, color:"var(--gray-900)", whiteSpace:"nowrap" }}>{t.label}</span>
                   </button>
                 ))}
               </div>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>Target face</span>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>Target face</span>
               <ImageDropzoneBox icon={<DefaultFaceIconSm />} label="Face" previewSrc={faceSrc} aspect="square"
                 onClick={() => faceInputRef.current?.click()} />
               <input ref={faceInputRef} type="file" accept="image/*" onChange={handleFaceUpload} style={{ display:"none" }} />
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>Target body</span>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>Target body</span>
               <ImageDropzoneBox icon={<FullBodyIconSm />} label="Full body" previewSrc={bodySrc} aspect="portrait"
                 onClick={() => bodyInputRef.current?.click()} />
               <input ref={bodyInputRef} type="file" accept="image/*" onChange={handleBodyUpload} style={{ display:"none" }} />
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>Similarity</span>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>Similarity</span>
               <SimilarityControl value={threshold} onChange={setThreshold} height={32} />
             </div>
           </>
@@ -792,7 +792,7 @@ function LiveSearchSidebar({
 
         {tab === "VIP" && (
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>
+            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>
               {vipName ? `Selected: ${vipName}` : "Choose a VIP"}
             </span>
             <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} />
@@ -801,7 +801,7 @@ function LiveSearchSidebar({
 
         {tab === "Car" && (
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <span style={{ fontSize:"12px", fontWeight:700, color:"#324055" }}>License plate</span>
+            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>License plate</span>
             <div style={{ display:"flex", alignItems:"center", gap:"6px", height:"34px", padding:"0 10px",
               borderRadius:"8px", border:BORDER, backgroundColor:"white" }}>
               <LicensePlateIconSm />
@@ -810,7 +810,7 @@ function LiveSearchSidebar({
                 onChange={e => setLicensePlate(e.target.value)}
                 placeholder="SGA 1234 X"
                 style={{ flex:1, border:"none", outline:"none", background:"none", fontFamily:"monospace", fontSize:"12px",
-                  fontWeight:500, color:"#0e162a", letterSpacing:"-0.22px" }}
+                  fontWeight:500, color:"var(--gray-900)", letterSpacing:"-0.22px" }}
               />
             </div>
           </div>
@@ -818,10 +818,10 @@ function LiveSearchSidebar({
       </div>
 
       <div style={{ padding:"12px 16px 16px", display:"flex", gap:"8px", flexShrink:0 }}>
-        <button onClick={() => { reset(); setUploadedFace(null); setUploadedBody(null); }} aria-label="Reset" style={{ padding:"0 14px", height:"38px", borderRadius:"8px", border:"1px solid #ccd5e1", backgroundColor:"white", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <button onClick={() => { reset(); setUploadedFace(null); setUploadedBody(null); }} aria-label="Reset" style={{ padding:"0 14px", height:"38px", borderRadius:"8px", border:"1px solid var(--gray-300)", backgroundColor:"white", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
           <ResetIconSm />
         </button>
-        <button onClick={onSearch} style={{ flex:1, height:"38px", borderRadius:"8px", border:"none", backgroundColor:"#0e162a", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>
+        <button onClick={onSearch} style={{ flex:1, height:"38px", borderRadius:"8px", border:"none", backgroundColor:"var(--gray-900)", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>
           Search
         </button>
       </div>
@@ -1012,7 +1012,7 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
     : feed[openCam] ?? [];
 
   return (
-    <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"20px 24px 12px", backgroundColor:"#f1f5f9", boxSizing:"border-box" }}>
+    <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"20px 24px 12px", backgroundColor:"var(--gray-100)", boxSizing:"border-box" }}>
       <SlidingSearchPanel
         expanded={searchExpanded}
         onExpand={() => setSearchExpanded(true)}
@@ -1113,22 +1113,22 @@ function DateMonthCalendar({ year, month, tempStart, tempEnd, onPick, onPrev, on
     <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"224px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", height:"24px" }}>
         <button onClick={onPrev} disabled={!showPrev} style={{ width:"24px", height:"24px", display:"flex", alignItems:"center", justifyContent:"center",
-          background:"none", border:"none", cursor: showPrev ? "pointer" : "default", visibility: showPrev ? "visible" : "hidden", color:"#324055" }}>
+          background:"none", border:"none", cursor: showPrev ? "pointer" : "default", visibility: showPrev ? "visible" : "hidden", color:"var(--gray-700)" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
-        <span style={{ fontSize:"13px", fontWeight:700, color:"#0e162a" }}>{monthLabel}</span>
+        <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>{monthLabel}</span>
         <button onClick={onNext} disabled={!showNext} style={{ width:"24px", height:"24px", display:"flex", alignItems:"center", justifyContent:"center",
-          background:"none", border:"none", cursor: showNext ? "pointer" : "default", visibility: showNext ? "visible" : "hidden", color:"#324055" }}>
+          background:"none", border:"none", cursor: showNext ? "pointer" : "default", visibility: showNext ? "visible" : "hidden", color:"var(--gray-700)" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", justifyItems:"center" }}>
-        {WEEKDAY_LABELS.map(w => <span key={w} style={{ fontSize:"10px", color:"#94a3b8", height:"24px", display:"flex", alignItems:"center" }}>{w}</span>)}
+        {WEEKDAY_LABELS.map(w => <span key={w} style={{ fontSize:"10px", color:"var(--gray-400)", height:"24px", display:"flex", alignItems:"center" }}>{w}</span>)}
       </div>
       {/* Ring instead of a background swap for hover — a background would have to fight (and look
           different depending on) whichever state color is already showing (selected/in-range/
           plain), where an inset ring reads the same "you're pointing at this one" way regardless. */}
-      <style>{`.vca-daterange-day:hover { box-shadow: inset 0 0 0 1.5px #94a3b8; }`}</style>
+      <style>{`.vca-daterange-day:hover { box-shadow: inset 0 0 0 1.5px var(--gray-400); }`}</style>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", justifyItems:"center", rowGap:"2px" }}>
         {cells.map((d, i) => {
           if (!d) return <div key={i} style={{ width:"28px", height:"28px" }} />;
@@ -1138,9 +1138,9 @@ function DateMonthCalendar({ year, month, tempStart, tempEnd, onPick, onPrev, on
           const today = isSameDay(d, new Date());
           return (
             <button key={i} onClick={() => onPick(d)} className="vca-daterange-day" style={{
-              width:"28px", height:"28px", borderRadius:"50%", border: today && !isStart && !isEnd ? "1px solid #5a3dfb" : "none",
-              backgroundColor: isStart || isEnd ? "#5a3dfb" : inRange ? "#f0f0ff" : "transparent",
-              color: isStart || isEnd ? "white" : "#0e162a",
+              width:"28px", height:"28px", borderRadius:"50%", border: today && !isStart && !isEnd ? "1px solid var(--primary-400)" : "none",
+              backgroundColor: isStart || isEnd ? "var(--primary-400)" : inRange ? "var(--primary-100)" : "transparent",
+              color: isStart || isEnd ? "white" : "var(--gray-900)",
               fontSize:"12px", fontWeight: isStart || isEnd ? 700 : 500, cursor:"pointer",
               boxSizing:"border-box",
             }}>{d.getDate()}</button>
@@ -1192,14 +1192,14 @@ function DateRangePopover({ anchorRef, value, onApply, onClose }: {
           {/* Shared by every date filter in the app (Live Monitoring, Re-ID Analysis, RedFace) —
               this popover is the one place they all render QUICK_RANGES from, so a hover state
               added here shows up everywhere at once instead of needing to be repeated per screen. */}
-          <style>{`.vca-daterange-preset:hover { background-color:#f1f5f9 !important; }`}</style>
+          <style>{`.vca-daterange-preset:hover { background-color:var(--gray-100) !important; }`}</style>
           {QUICK_RANGES.map(q => (
             <button key={q.label} className="vca-daterange-preset" onClick={() => {
               const r = q.range();
               setTempStart(r.start); setTempEnd(r.end);
               if (r.start) { setViewYear(r.start.getFullYear()); setViewMonth(r.start.getMonth()); }
             }} style={{ textAlign:"left", padding:"8px", borderRadius:"8px", border:"none", backgroundColor:"transparent", cursor:"pointer",
-              fontSize:"13px", color:"#0e162a", fontWeight:600, transition:"background-color 0.15s" }}>
+              fontSize:"13px", color:"var(--gray-900)", fontWeight:600, transition:"background-color 0.15s" }}>
               {q.label}
             </button>
           ))}
@@ -1213,9 +1213,9 @@ function DateRangePopover({ anchorRef, value, onApply, onClose }: {
           </div>
           <div style={{ display:"flex", justifyContent:"flex-end", gap:"8px" }}>
             <button onClick={onClose} style={{ padding:"8px 16px", borderRadius:"8px", border:BORDER,
-              backgroundColor:"white", color:"#0e162a", fontSize:"13px", fontWeight:600, cursor:"pointer" }}>Cancel</button>
+              backgroundColor:"white", color:"var(--gray-900)", fontSize:"13px", fontWeight:600, cursor:"pointer" }}>Cancel</button>
             <button onClick={() => onApply({ start: tempStart, end: tempEnd })} style={{ padding:"8px 16px", borderRadius:"8px", border:"none",
-              backgroundColor:"#5a3dfb", color:"white", fontSize:"13px", fontWeight:600, cursor:"pointer" }}>Apply</button>
+              backgroundColor:"var(--primary-400)", color:"white", fontSize:"13px", fontWeight:600, cursor:"pointer" }}>Apply</button>
           </div>
         </div>
       </div>
@@ -1240,15 +1240,15 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
   // sit as one consistent "filter control" language instead of two different-looking pickers
   // side by side in the same form.
   const boxStyle: React.CSSProperties = compact
-    ? { flex:1, display:"flex", alignItems:"center", gap:"6px", height:"34px", padding:"0 8px", border: open ? "1px solid #8c85ff" : BORDER, borderRadius:"6px", backgroundColor:"white", cursor:"pointer" }
-    : { flex:1, display:"flex", alignItems:"center", gap:"8px", height:"36px", padding:"0 12px", border: open ? "1px solid #8c85ff" : BORDER, borderRadius:"8px", backgroundColor:"white", cursor:"pointer" };
+    ? { flex:1, display:"flex", alignItems:"center", gap:"6px", height:"34px", padding:"0 8px", border: open ? "1px solid var(--primary-300)" : BORDER, borderRadius:"6px", backgroundColor:"white", cursor:"pointer" }
+    : { flex:1, display:"flex", alignItems:"center", gap:"8px", height:"36px", padding:"0 12px", border: open ? "1px solid var(--primary-300)" : BORDER, borderRadius:"8px", backgroundColor:"white", cursor:"pointer" };
   const textStyle = (has: boolean): React.CSSProperties => ({
-    fontSize: compact ? "12px" : "13px", fontWeight:600, color: has ? "#5a3dfb" : "#94a3b8",
+    fontSize: compact ? "12px" : "13px", fontWeight:600, color: has ? "var(--primary-400)" : "var(--gray-400)",
   });
   // The collapsed emptyText state ("Last 7 days") is a REAL default already in effect on the
   // search, not an unfilled placeholder like "Start date" — so it shouldn't read in the same
   // muted placeholder gray as an actually-empty field. Dark, same as any other active value.
-  const emptyTextStyle: React.CSSProperties = { fontSize: compact ? "12px" : "13px", fontWeight:600, color:"#0e162a" };
+  const emptyTextStyle: React.CSSProperties = { fontSize: compact ? "12px" : "13px", fontWeight:600, color:"var(--gray-900)" };
 
   const startLabel = value.start ? fmtDate(value.start) : "Start date";
   const endLabel = value.end ? fmtDate(value.end) : "End date";
@@ -1264,7 +1264,7 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
             {showIcon && <CalendarIconSm size={compact ? 12 : 14} />}
             <span style={emptyTextStyle}>{isAllTime ? "All time" : emptyText}</span>
           </span>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#475469" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="var(--gray-600)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
       ) : mode === "split" ? (
         <>
@@ -1276,10 +1276,10 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
           <span style={{ display:"flex", alignItems:"center", gap: compact ? "6px" : "8px" }}>
             {showIcon && <CalendarIconSm size={compact ? 12 : 14} />}
             <span style={textStyle(!!value.start)}>{startLabel}</span>
-            <span style={{ color:"#94a3b8", fontSize: compact ? "10px" : "13px" }}>–</span>
+            <span style={{ color:"var(--gray-400)", fontSize: compact ? "10px" : "13px" }}>–</span>
             <span style={textStyle(!!value.end)}>{endLabel}</span>
           </span>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#475469" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="var(--gray-600)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
       )}
       {open && <DateRangePopover anchorRef={ref} value={value} onApply={(v) => { onApply(v); setOpen(false); }} onClose={() => setOpen(false)} />}
@@ -1310,11 +1310,11 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
           return (
             <button key={v.name} onClick={() => onSelect(i)} title={v.name} style={{
               display:"flex", alignItems:"center", gap:"6px", padding:"4px 12px 4px 4px", borderRadius:"999px",
-              backgroundColor: active ? "#f0f0ff" : "white",
-              border: active ? "1px solid #5a3dfb" : "1px solid #e2e8f0", cursor:"pointer", flexShrink:0,
+              backgroundColor: active ? "var(--primary-100)" : "white",
+              border: active ? "1px solid var(--primary-400)" : "1px solid var(--gray-200)", cursor:"pointer", flexShrink:0,
             }}>
               <img src={v.face} alt="" style={{ width:avatarSize, height:avatarSize, borderRadius:"50%", objectFit:"cover" }} />
-              <span style={{ fontSize, fontWeight:600, color:"#0e162a", whiteSpace:"nowrap" }}>{v.name}</span>
+              <span style={{ fontSize, fontWeight:600, color:"var(--gray-900)", whiteSpace:"nowrap" }}>{v.name}</span>
             </button>
           );
         })}
@@ -1333,14 +1333,14 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
           <SearchIconSm />
           <input
             value={query} onChange={e => setQuery(e.target.value)} placeholder="Search VIPs"
-            style={{ flex:1, border:"none", outline:"none", background:"none", fontSize:"12px", fontWeight:500, color:"#0e162a", minWidth:0 }}
+            style={{ flex:1, border:"none", outline:"none", background:"none", fontSize:"12px", fontWeight:500, color:"var(--gray-900)", minWidth:0 }}
           />
           {/* Picking a VIP doesn't clear this on its own — without a quick way to blank it out,
               searching for someone else means selecting the old query and retyping over it. */}
           {query && (
             <button onClick={() => setQuery("")} aria-label="Clear search" style={{
               display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-              width:"16px", height:"16px", borderRadius:"999px", border:"none", backgroundColor:"#cbd5e1", cursor:"pointer", padding:0,
+              width:"16px", height:"16px", borderRadius:"999px", border:"none", backgroundColor:"var(--gray-300)", cursor:"pointer", padding:0,
             }}>
               <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
                 <path d="M1 1L7 7M7 1L1 7" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
@@ -1348,14 +1348,14 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
             </button>
           )}
         </div>
-        <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"999px", padding:"2px", flexShrink:0 }}>
+        <div style={{ display:"flex", gap:"2px", backgroundColor:"var(--gray-100)", borderRadius:"999px", padding:"2px", flexShrink:0 }}>
           {([["reg","Registered"],["abc","A–Z"]] as const).map(([id, label]) => {
             const active = sortMode === id;
             return (
               <button key={id} onClick={() => setSortMode(id)} style={{
                 padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
                 backgroundColor: active ? "white" : "transparent",
-                color: active ? "#0e162a" : "#94a3b8", fontWeight: active ? 700 : 600, fontSize:"10px",
+                color: active ? "var(--gray-900)" : "var(--gray-400)", fontWeight: active ? 700 : 600, fontSize:"10px",
                 boxShadow: active ? "0 1px 3px rgba(14,22,42,0.12)" : "none",
               }}>{label}</button>
             );
@@ -1363,7 +1363,7 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
         </div>
       </div>
       {indexed.length === 0 ? (
-        <div style={{ padding:"16px 0", textAlign:"center", color:"#94a3b8", fontSize:"12px" }}>No VIPs match &quot;{query}&quot;</div>
+        <div style={{ padding:"16px 0", textAlign:"center", color:"var(--gray-400)", fontSize:"12px" }}>No VIPs match &quot;{query}&quot;</div>
       ) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(90px, 1fr))", gap:"8px", width:"100%" }}>
           {indexed.map(({ v, i }) => {
@@ -1371,11 +1371,11 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
             return (
               <button key={v.name} onClick={() => onSelect(i)} title={v.name} style={{
                 display:"flex", alignItems:"center", gap:"6px", padding:"5px 8px", borderRadius:"999px",
-                backgroundColor: active ? "#f0f0ff" : "white", minWidth:0, boxSizing:"border-box",
-                border: active ? "1px solid #5a3dfb" : "1px solid #e2e8f0", cursor:"pointer",
+                backgroundColor: active ? "var(--primary-100)" : "white", minWidth:0, boxSizing:"border-box",
+                border: active ? "1px solid var(--primary-400)" : "1px solid var(--gray-200)", cursor:"pointer",
               }}>
                 <img src={v.face} alt="" style={{ width:avatarSize, height:avatarSize, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
-                <span style={{ fontSize, fontWeight:600, color:"#0e162a", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", minWidth:0 }}>{v.name}</span>
+                <span style={{ fontSize, fontWeight:600, color:"var(--gray-900)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", minWidth:0 }}>{v.name}</span>
               </button>
             );
           })}
@@ -1411,7 +1411,7 @@ const SHOE_COLORS: { id:string; hex:string }[] = [
 ];
 // A light swatch needs its own outline to stay visible against the white filter-panel
 // background — a colored swatch never does.
-const LIGHT_SWATCH_HEXES = new Set(["#ffffff", "#e2e8f0"]);
+const LIGHT_SWATCH_HEXES = new Set(["var(--gray-0)", "var(--gray-200)"]);
 
 function ColorSwatch({ hex, active, onClick, size = 22 }: { hex:string; active:boolean; onClick:()=>void; size?:number }) {
   return (
@@ -1422,8 +1422,8 @@ function ColorSwatch({ hex, active, onClick, size = 22 }: { hex:string; active:b
         width:size, height:size, borderRadius:"50%", flexShrink:0, cursor:"pointer", padding:0,
         backgroundColor:hex, border:"none",
         boxShadow: active
-          ? "0 0 0 2px white, 0 0 0 4px #5a3dfb"
-          : LIGHT_SWATCH_HEXES.has(hex) ? "inset 0 0 0 1px #ccd5e1" : "none",
+          ? "0 0 0 2px white, 0 0 0 4px var(--primary-400)"
+          : LIGHT_SWATCH_HEXES.has(hex) ? "inset 0 0 0 1px var(--gray-300)" : "none",
       }}
     />
   );
@@ -1439,10 +1439,10 @@ function SimilaritySliderStyleTag() {
   return (
     <style>{`
       .vca-similarity-slider { -webkit-appearance:none; appearance:none; background:transparent; outline:none; border:none; }
-      .vca-similarity-slider::-webkit-slider-runnable-track { height:4px; border-radius:999px; background:#e2e8f0; border:none; }
-      .vca-similarity-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#5a3dfb; border:none; margin-top:-5px; cursor:pointer; }
-      .vca-similarity-slider::-moz-range-track { height:4px; border-radius:999px; background:#e2e8f0; border:none; }
-      .vca-similarity-slider::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:#5a3dfb; border:none; cursor:pointer; }
+      .vca-similarity-slider::-webkit-slider-runnable-track { height:4px; border-radius:999px; background:var(--gray-200); border:none; }
+      .vca-similarity-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--primary-400); border:none; margin-top:-5px; cursor:pointer; }
+      .vca-similarity-slider::-moz-range-track { height:4px; border-radius:999px; background:var(--gray-200); border:none; }
+      .vca-similarity-slider::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:var(--primary-400); border:none; cursor:pointer; }
     `}</style>
   );
 }
@@ -1450,14 +1450,14 @@ function SimilarityControl({ value, onChange, height = 36 }: { value:number; onC
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
       <SimilaritySliderStyleTag />
-      <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"999px", padding:"2px", height }}>
+      <div style={{ display:"flex", gap:"2px", backgroundColor:"var(--gray-100)", borderRadius:"999px", padding:"2px", height }}>
         {[60,70,80,90].map(v => {
           const active = value === v;
           return (
             <button key={v} onClick={() => onChange(v)} style={{
               flex:1, borderRadius:"999px", border:"none", cursor:"pointer",
               backgroundColor: active ? "white" : "transparent",
-              color: active ? "#5a3dfb" : "#94a3b8", fontWeight: active ? 700 : 600, fontSize:"12px",
+              color: active ? "var(--primary-400)" : "var(--gray-400)", fontWeight: active ? 700 : 600, fontSize:"12px",
             }}>{v}%</button>
           );
         })}
@@ -1469,7 +1469,7 @@ function SimilarityControl({ value, onChange, height = 36 }: { value:number; onC
           onChange={e => onChange(Number(e.target.value))}
           style={{ flex:1, cursor:"pointer" }}
         />
-        <span style={{ fontSize:"12px", fontWeight:700, color:"#5a3dfb", width:"32px", textAlign:"right", flexShrink:0 }}>{value}%</span>
+        <span style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)", width:"32px", textAlign:"right", flexShrink:0 }}>{value}%</span>
       </div>
     </div>
   );
@@ -1482,9 +1482,9 @@ function AttrChip({ label, active, onClick, size = "md" }: { label:string; activ
       padding: compact ? "5px 12px" : "6px 16px", borderRadius:"100px", cursor:"pointer",
       fontSize: compact ? "12px" : "13px", whiteSpace:"nowrap",
       fontWeight: active ? 700 : 600,
-      color: active ? "#5a3dfb" : "#324055",
-      backgroundColor: active ? "#f0f0ff" : "white",
-      border: active ? "1px solid #5a3dfb" : "1px solid #e2e8f0",
+      color: active ? "var(--primary-400)" : "var(--gray-700)",
+      backgroundColor: active ? "var(--primary-100)" : "white",
+      border: active ? "1px solid var(--primary-400)" : "1px solid var(--gray-200)",
     }}>{label}</button>
   );
 }
@@ -1495,11 +1495,11 @@ function AttrChip({ label, active, onClick, size = "md" }: { label:string; activ
 function FilterChip({ children, icon, avatar, onRemove }: { children:React.ReactNode; icon?:React.ReactNode; avatar?:string; onRemove?:()=>void }) {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:"6px", padding: avatar ? "4px 8px 4px 4px" : "6px 16px", borderRadius:"100px",
-      backgroundColor:"#f0f0ff", border:"1px solid #5a3dfb", fontSize:"12px", fontWeight:700, color:"#5a3dfb", whiteSpace:"nowrap", flexShrink:0 }}>
+      backgroundColor:"var(--primary-100)", border:"1px solid var(--primary-400)", fontSize:"12px", fontWeight:700, color:"var(--primary-400)", whiteSpace:"nowrap", flexShrink:0 }}>
       {avatar && <img src={avatar} alt="" style={{ width:22, height:22, borderRadius:"50%", objectFit:"cover" }} />}
       {icon}{children}
       {onRemove && (
-        <button onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", padding:"2px", display:"flex", color:"#5a3dfb" }}>
+        <button onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", padding:"2px", display:"flex", color:"var(--primary-400)" }}>
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
         </button>
       )}
@@ -1516,7 +1516,7 @@ function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_D
   return (
     <div onClick={onClick} style={{
       position:"relative", width:"100%", height:"259px",
-      borderRadius:"8px", overflow:"hidden", backgroundColor:"#0e162a", cursor:"pointer",
+      borderRadius:"8px", overflow:"hidden", backgroundColor:"var(--gray-900)", cursor:"pointer",
       transform:"translateZ(0)",
     }}>
       <img src={p.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
@@ -1539,7 +1539,7 @@ function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_D
           that one of its hits is already flagged. */}
       {p.status === "RedFace" && (
         <div style={{ position:"absolute", bottom:"60px", left:8, fontSize:"10px", fontWeight:800, color:"white",
-          backgroundColor:"#ef4444", padding:"1px 5px", borderRadius:"2px", letterSpacing:"0.3px" }}>
+          backgroundColor:"var(--danger-400)", padding:"1px 5px", borderRadius:"2px", letterSpacing:"0.3px" }}>
           REDFACE
         </div>
       )}
@@ -1547,15 +1547,15 @@ function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_D
         padding:"10px 11px 7px", boxSizing:"border-box", display:"flex", flexDirection:"column", gap:"2px" }}>
         <div style={{ display:"flex", alignItems:"baseline", gap:"6px" }}>
           {p.plate
-            ? <span style={{ fontSize:"12px", fontWeight:800, color:"#0e162a", fontFamily:"monospace", letterSpacing:"-0.24px" }}>{p.plate}</span>
+            ? <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)", fontFamily:"monospace", letterSpacing:"-0.24px" }}>{p.plate}</span>
             : <span style={{ fontSize:"12px", fontWeight:800, color:status.text, letterSpacing:"-0.24px" }}>{p.status}</span>}
           {matchReasons.length > 0 && (
-            <span title={`Matched on: ${matchReasons.join(", ")}`} style={{ fontSize:"10px", fontWeight:800, color:"#16a34a", cursor:"help" }}>
+            <span title={`Matched on: ${matchReasons.join(", ")}`} style={{ fontSize:"10px", fontWeight:800, color:"var(--success-400)", cursor:"help" }}>
               ✓{matchReasons.length}
             </span>
           )}
         </div>
-        <span style={{ fontSize:"10px", color:"#94a3b8", fontFamily:"monospace" }}>{cardTimestamp(p.date, p.time)}</span>
+        <span style={{ fontSize:"10px", color:"var(--gray-400)", fontFamily:"monospace" }}>{cardTimestamp(p.date, p.time)}</span>
       </div>
       {/* Crop of the same big photo (p.url), not p.face — that field cycles through an unrelated
           stock-photo pool, which would show a different person's face here than the body photo
@@ -1614,7 +1614,7 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
     <div style={{ position:"relative", flex:1, overflow:"hidden" }}>
-    <div ref={scrollRef} className="vca-hide-scrollbar" style={{ position:"absolute", inset:0, overflowY:"auto", backgroundColor:"#f8fafc" }}>
+    <div ref={scrollRef} className="vca-hide-scrollbar" style={{ position:"absolute", inset:0, overflowY:"auto", backgroundColor:"var(--gray-50)" }}>
       <div style={{ padding:"16px 24px", backgroundColor:"white", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:"12px" }}>
         <div className="vca-hide-scrollbar" style={{ display:"flex", alignItems:"center", gap:"8px", overflowX:"auto" }}>
           {target && (
@@ -1624,12 +1624,12 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
           )}
           {activeChips.map((c, i) => <FilterChip key={i}>{c}</FilterChip>)}
           <button onClick={onReset} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer",
-            fontSize:"13px", fontWeight:600, color:"#475469", flexShrink:0, padding:"0 4px" }}>
+            fontSize:"13px", fontWeight:600, color:"var(--gray-600)", flexShrink:0, padding:"0 4px" }}>
             <ResetIconSm /> Reset Filters
           </button>
         </div>
         <button onClick={onRefine} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer",
-          fontSize:"13px", fontWeight:700, color:"#0e162a", flexShrink:0 }}>
+          fontSize:"13px", fontWeight:700, color:"var(--gray-900)", flexShrink:0 }}>
           <SlidersIconSm size={14} /> Refine search
         </button>
       </div>
@@ -1637,22 +1637,22 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
       <div style={{ padding:"16px 24px 0" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px", flexWrap:"wrap", gap:"8px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-            <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Search results</span>
-            <span style={{ fontSize:"13px", fontWeight:600, color:"#64748a" }}>{results.length} matches</span>
-            <div style={{ width:"1px", height:"12px", backgroundColor:"#e2e8f0" }} />
-            <span style={{ fontSize:"13px", color:"#94a3b8" }}>
-              Showing targets above <span style={{ fontWeight:700, color:"#475469" }}>{threshold}%</span> similarity
+            <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>Search results</span>
+            <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-500)" }}>{results.length} matches</span>
+            <div style={{ width:"1px", height:"12px", backgroundColor:"var(--gray-200)" }} />
+            <span style={{ fontSize:"13px", color:"var(--gray-400)" }}>
+              Showing targets above <span style={{ fontWeight:700, color:"var(--gray-600)" }}>{threshold}%</span> similarity
             </span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
-            <span style={{ fontSize:"12px", color:"#94a3b8" }}>Results updated as of {refreshedAt.toLocaleTimeString("en-US", { hour12:false })}</span>
-            <button onClick={() => setRefreshedAt(new Date())} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:700, color:"#475469" }}>
+            <span style={{ fontSize:"12px", color:"var(--gray-400)" }}>Results updated as of {refreshedAt.toLocaleTimeString("en-US", { hour12:false })}</span>
+            <button onClick={() => setRefreshedAt(new Date())} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:700, color:"var(--gray-600)" }}>
               <RefreshIconSm /> Refresh
             </button>
           </div>
         </div>
         {results.length === 0 ? (
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"64px 0", color:"#94a3b8", fontSize:"13px", fontWeight:600 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"64px 0", color:"var(--gray-400)", fontSize:"13px", fontWeight:600 }}>
             No matches for the current filters.
           </div>
         ) : (
@@ -1689,9 +1689,9 @@ interface SearchFilterState {
 
 // ── Re-ID Analysis Tab ─────────────────────────────────────────
 const REID_STATUS_STYLE: Record<ReIDStatus, { text: string; border: string; glow?: string }> = {
-  VIP:     { text:"#5a3dfb", border:"#5a3dfb" },
-  Unknown: { text:"#64748a", border:"#64748a" },
-  RedFace: { text:"#ef4444", border:"#ef4444", glow:"0 0 0 2px #ef4444, 0 0 10px rgba(239,68,68,0.38)" },
+  VIP:     { text:"var(--primary-400)", border:"var(--primary-400)" },
+  Unknown: { text:"var(--gray-500)", border:"var(--gray-500)" },
+  RedFace: { text:"var(--danger-400)", border:"var(--danger-400)", glow:"0 0 0 2px var(--danger-400), 0 0 10px rgba(244, 63, 94,0.38)" },
 };
 
 const REID_STATUS_CYCLE: ReIDStatus[] = [
@@ -1955,17 +1955,17 @@ const CLUSTERS: ReidCluster[] = [
 function MetaField({ label, value }: { label:string; value:string }) {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
-      <span style={{ fontSize:"12px", fontWeight:600, color:"#94a3b8", letterSpacing:"-0.24px" }}>{label}:</span>
-      <span style={{ fontSize:"12px", fontWeight:700, color:"#475469", letterSpacing:"-0.24px" }}>{value}</span>
+      <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-400)", letterSpacing:"-0.24px" }}>{label}:</span>
+      <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-600)", letterSpacing:"-0.24px" }}>{value}</span>
     </div>
   );
 }
 function MetaDivider() {
-  return <div style={{ width:"1px", height:"8px", backgroundColor:"#e2e8f0", flexShrink:0 }} />;
+  return <div style={{ width:"1px", height:"8px", backgroundColor:"var(--gray-200)", flexShrink:0 }} />;
 }
 
 function ClusterMatchCard({ item, onClick }: { item: MatchItem; onClick?: () => void }) {
-  const badgeColor = item.similarity >= 85 ? "#334155" : item.similarity >= 80 ? "#f59e0b" : "#64748a";
+  const badgeColor = item.similarity >= 85 ? "var(--gray-700)" : item.similarity >= 80 ? "var(--warning-400)" : "var(--gray-500)";
   return (
     <div onClick={onClick} style={{ backgroundColor:"white", borderRadius:"8px", overflow:"hidden", width:"133px", flexShrink:0, display:"flex", flexDirection:"column", gap:"8px", cursor: onClick ? "pointer" : "default" }}>
       <div style={{ position:"relative", height:"160px", overflow:"hidden" }}>
@@ -1973,10 +1973,10 @@ function ClusterMatchCard({ item, onClick }: { item: MatchItem; onClick?: () => 
         <span style={{ position:"absolute", top:6, left:6, backgroundColor:badgeColor, color:"white", fontSize:"10px", fontWeight:600, padding:"2px 6px", borderRadius:"4px", letterSpacing:"-0.2px" }}>{item.similarity}%</span>
       </div>
       <div style={{ padding:"0 8px 8px", display:"flex", flexDirection:"column", gap:"2px" }}>
-        <span style={{ fontSize:"10px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.2px", fontFamily: item.plate ? "monospace" : undefined }}>
+        <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-900)", letterSpacing:"-0.2px", fontFamily: item.plate ? "monospace" : undefined }}>
           {item.plate ?? item.cam}
         </span>
-        <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8", letterSpacing:"-0.2px" }}>{cardTimestamp(item.date, item.time)}</span>
+        <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", letterSpacing:"-0.2px" }}>{cardTimestamp(item.date, item.time)}</span>
       </div>
     </div>
   );
@@ -1990,9 +1990,9 @@ function ClusterCard({ cluster, onNavigateTab, onMatchClick }: { cluster: ReidCl
           <img src={cluster.thumbnail} alt="" style={{ width:"48px", height:"48px", borderRadius:"8px", objectFit:"cover", flexShrink:0 }} />
           <div style={{ display:"flex", flexDirection:"column", gap:"4px", minWidth:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-              <span style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px", whiteSpace:"nowrap" }}>{cluster.title}</span>
+              <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px", whiteSpace:"nowrap" }}>{cluster.title}</span>
               {cluster.isVip && (
-                <span style={{ fontSize:"10px", fontWeight:800, color:"#5a3dfb", backgroundColor:"#ece9ff", padding:"2px 7px", borderRadius:"999px", letterSpacing:"-0.2px" }}>VIP</span>
+                <span style={{ fontSize:"10px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"var(--primary-100)", padding:"2px 7px", borderRadius:"999px", letterSpacing:"-0.2px" }}>VIP</span>
               )}
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
@@ -2006,9 +2006,9 @@ function ClusterCard({ cluster, onNavigateTab, onMatchClick }: { cluster: ReidCl
           </div>
         </div>
         <button onClick={() => onNavigateTab?.(cluster.action as DataTab)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px", borderRadius:"8px",
-          backgroundColor:"#f1f5f9", border:"none", cursor:"pointer", flexShrink:0 }}>
+          backgroundColor:"var(--gray-100)", border:"none", cursor:"pointer", flexShrink:0 }}>
           <RedFaceIconSm />
-          <span style={{ fontSize:"13px", fontWeight:600, color:"#475469", letterSpacing:"-0.26px", whiteSpace:"nowrap" }}>{cluster.action}</span>
+          <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-600)", letterSpacing:"-0.26px", whiteSpace:"nowrap" }}>{cluster.action}</span>
         </button>
       </div>
       <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"12px", overflowX:"auto" }}>
@@ -2142,9 +2142,9 @@ function StarIconSm({ size = 12 }: { size?: number }) {
 }
 // Color/size match DefaultFaceIconSm/FullBodyIconSm (the "Search by image" icons directly above
 // this in RedFace's target picker) so the filter icons below read as the same icon language —
-// size defaults to that same #94A3B8 muted tone; callers pass a bigger size where they sit near
+// size defaults to that same var(--gray-400) muted tone; callers pass a bigger size where they sit near
 // those larger icons.
-function CalendarIconSm({ size = 14, color = "#94A3B8" }: { size?: number; color?: string }) {
+function CalendarIconSm({ size = 14, color = "var(--gray-400)" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="21 14 14 14" fill="none">
       <path d="M31.2 14.5107C31.2495 14.5109 31.2897 14.5511 31.2898 14.6006V15.5771H33.3328C33.9713 15.5771 34.4888 16.0949 34.489 16.7334V26.333C34.489 26.9717 33.9715 27.4893 33.3328 27.4893H22.6667C22.0281 27.4891 21.5105 26.9716 21.5105 26.333V16.7334C21.5107 16.095 22.0283 15.5773 22.6667 15.5771H24.7107V14.6006C24.7107 14.551 24.7509 14.5107 24.8005 14.5107C24.85 14.5109 24.8903 14.5511 24.8904 14.6006V15.5771H31.1101V14.6006C31.1102 14.551 31.1503 14.5107 31.2 14.5107ZM21.6902 26.333C21.6902 26.8722 22.1275 27.3094 22.6667 27.3096H33.3328C33.8721 27.3096 34.3093 26.8723 34.3093 26.333V18.957H21.6902V26.333ZM23.7332 25.1768C23.7828 25.1768 23.824 25.217 23.824 25.2666C23.8239 25.3162 23.7828 25.3564 23.7332 25.3564C23.6837 25.3562 23.6434 25.3161 23.6433 25.2666C23.6433 25.2171 23.6837 25.177 23.7332 25.1768ZM25.8669 25.1768C25.9165 25.1769 25.9568 25.217 25.9568 25.2666C25.9567 25.3162 25.9165 25.3564 25.8669 25.3564C25.8173 25.3564 25.7771 25.3162 25.7771 25.2666C25.7771 25.217 25.8173 25.1768 25.8669 25.1768ZM27.9998 25.1768C28.0494 25.1768 28.0896 25.217 28.0896 25.2666C28.0896 25.3162 28.0494 25.3564 27.9998 25.3564C27.9502 25.3563 27.91 25.3162 27.9099 25.2666C27.9099 25.217 27.9502 25.1769 27.9998 25.1768ZM30.1335 25.1768C30.183 25.177 30.2234 25.2171 30.2234 25.2666C30.2233 25.3161 30.183 25.3562 30.1335 25.3564C30.0839 25.3564 30.0428 25.3162 30.0427 25.2666C30.0427 25.217 30.0839 25.1768 30.1335 25.1768ZM23.7332 23.043C23.7828 23.043 23.824 23.0841 23.824 23.1338C23.8237 23.1833 23.7827 23.2236 23.7332 23.2236C23.6838 23.2234 23.6435 23.1831 23.6433 23.1338C23.6433 23.0843 23.6837 23.0432 23.7332 23.043ZM25.8669 23.043C25.9165 23.0431 25.9568 23.0842 25.9568 23.1338C25.9566 23.1832 25.9164 23.2235 25.8669 23.2236C25.8174 23.2236 25.7773 23.1833 25.7771 23.1338C25.7771 23.0841 25.8173 23.043 25.8669 23.043ZM27.9998 23.043C28.0494 23.043 28.0896 23.0841 28.0896 23.1338C28.0894 23.1833 28.0493 23.2236 27.9998 23.2236C27.9503 23.2235 27.9101 23.1832 27.9099 23.1338C27.9099 23.0842 27.9502 23.0431 27.9998 23.043ZM30.1335 23.043C30.183 23.0432 30.2234 23.0843 30.2234 23.1338C30.2232 23.1831 30.1829 23.2234 30.1335 23.2236C30.084 23.2236 30.043 23.1833 30.0427 23.1338C30.0427 23.0841 30.0839 23.043 30.1335 23.043ZM32.2664 23.043C32.316 23.043 32.3562 23.0842 32.3562 23.1338C32.356 23.1832 32.3158 23.2236 32.2664 23.2236C32.2169 23.2236 32.1768 23.1832 32.1765 23.1338C32.1765 23.0841 32.2167 23.043 32.2664 23.043ZM27.9998 20.9102C28.0494 20.9102 28.0895 20.9504 28.0896 21C28.0896 21.0497 28.0494 21.0898 27.9998 21.0898C27.9502 21.0897 27.9099 21.0496 27.9099 21C27.91 20.9505 27.9502 20.9103 27.9998 20.9102ZM30.1335 20.9102C30.183 20.9104 30.2233 20.9506 30.2234 21C30.2234 21.0495 30.183 21.0896 30.1335 21.0898C30.0839 21.0898 30.0427 21.0497 30.0427 21C30.0428 20.9504 30.0839 20.9102 30.1335 20.9102ZM32.2664 20.9102C32.3159 20.9102 32.3561 20.9505 32.3562 21C32.3562 21.0496 32.316 21.0898 32.2664 21.0898C32.2167 21.0898 32.1765 21.0496 32.1765 21C32.1766 20.9504 32.2168 20.9102 32.2664 20.9102ZM22.6667 15.7568C22.1276 15.757 21.6904 16.1943 21.6902 16.7334V18.7773H34.3093V16.7334C34.3091 16.1942 33.8719 15.7568 33.3328 15.7568H31.2898V16.7334C31.2898 16.783 31.2495 16.8241 31.2 16.8242C31.1503 16.8242 31.1101 16.783 31.1101 16.7334V15.7568H24.8904V16.7334C24.8904 16.783 24.85 16.824 24.8005 16.8242C24.7509 16.8242 24.7107 16.7831 24.7107 16.7334V15.7568H22.6667Z" fill={color} stroke={color} strokeWidth="0.8867"/>
@@ -2155,12 +2155,12 @@ function CalendarIconSm({ size = 14, color = "#94A3B8" }: { size?: number; color
 function LicensePlateIconSm() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M14 5.33333L12.6667 6.66667L11.6667 4.2C11.5724 3.94756 11.4038 3.72962 11.1831 3.5749C10.9625 3.42019 10.7001 3.33597 10.4307 3.33333H5.6C5.32834 3.32709 5.06125 3.40401 4.83451 3.55378C4.60778 3.70355 4.43221 3.91902 4.33133 4.17133L3.33333 6.66667L2 5.33333" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M4.66667 9.33333H4.67333" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M11.3333 9.33333H11.34" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M12.6667 6.66667H3.33333C2.59695 6.66667 2 7.26362 2 8V10.6667C2 11.403 2.59695 12 3.33333 12H12.6667C13.403 12 14 11.403 14 10.6667V8C14 7.26362 13.403 6.66667 12.6667 6.66667Z" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3.33333 12V13.3333" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M12.6667 12V13.3333" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14 5.33333L12.6667 6.66667L11.6667 4.2C11.5724 3.94756 11.4038 3.72962 11.1831 3.5749C10.9625 3.42019 10.7001 3.33597 10.4307 3.33333H5.6C5.32834 3.32709 5.06125 3.40401 4.83451 3.55378C4.60778 3.70355 4.43221 3.91902 4.33133 4.17133L3.33333 6.66667L2 5.33333" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M4.66667 9.33333H4.67333" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M11.3333 9.33333H11.34" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12.6667 6.66667H3.33333C2.59695 6.66667 2 7.26362 2 8V10.6667C2 11.403 2.59695 12 3.33333 12H12.6667C13.403 12 14 11.403 14 10.6667V8C14 7.26362 13.403 6.66667 12.6667 6.66667Z" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M3.33333 12V13.3333" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12.6667 12V13.3333" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -2175,14 +2175,14 @@ function ResetIconSm() {
 function DefaultFaceIconSm() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M19.3125 11.5C19.3125 7.46055 16.0395 4.1875 12 4.1875C7.96055 4.1875 4.6875 7.46055 4.6875 11.5C4.6875 15.5395 7.96055 18.8125 12 18.8125C16.0395 18.8125 19.3125 15.5395 19.3125 11.5ZM3 11.5C3 6.52891 7.02891 2.5 12 2.5C16.9711 2.5 21 6.52891 21 11.5C21 16.4711 16.9711 20.5 12 20.5C7.02891 20.5 3 16.4711 3 11.5ZM9.2332 13.7289C9.76055 14.2773 10.6781 14.875 12 14.875C13.3219 14.875 14.2395 14.2773 14.7668 13.7289C15.0902 13.3914 15.6246 13.3809 15.9586 13.7043C16.2926 14.0277 16.3066 14.5621 15.9832 14.8961C15.2062 15.7047 13.8738 16.5625 12 16.5625C10.1262 16.5625 8.79375 15.7047 8.0168 14.8961C7.69336 14.5586 7.70391 14.0242 8.04141 13.7043C8.37891 13.3844 8.91328 13.3914 9.2332 13.7289ZM8.0625 9.8125C8.0625 9.19023 8.56523 8.6875 9.1875 8.6875C9.80977 8.6875 10.3125 9.19023 10.3125 9.8125C10.3125 10.4348 9.80977 10.9375 9.1875 10.9375C8.56523 10.9375 8.0625 10.4348 8.0625 9.8125ZM14.8125 8.6875C15.4348 8.6875 15.9375 9.19023 15.9375 9.8125C15.9375 10.4348 15.4348 10.9375 14.8125 10.9375C14.1902 10.9375 13.6875 10.4348 13.6875 9.8125C13.6875 9.19023 14.1902 8.6875 14.8125 8.6875Z" fill="#94A3B8"/>
+      <path d="M19.3125 11.5C19.3125 7.46055 16.0395 4.1875 12 4.1875C7.96055 4.1875 4.6875 7.46055 4.6875 11.5C4.6875 15.5395 7.96055 18.8125 12 18.8125C16.0395 18.8125 19.3125 15.5395 19.3125 11.5ZM3 11.5C3 6.52891 7.02891 2.5 12 2.5C16.9711 2.5 21 6.52891 21 11.5C21 16.4711 16.9711 20.5 12 20.5C7.02891 20.5 3 16.4711 3 11.5ZM9.2332 13.7289C9.76055 14.2773 10.6781 14.875 12 14.875C13.3219 14.875 14.2395 14.2773 14.7668 13.7289C15.0902 13.3914 15.6246 13.3809 15.9586 13.7043C16.2926 14.0277 16.3066 14.5621 15.9832 14.8961C15.2062 15.7047 13.8738 16.5625 12 16.5625C10.1262 16.5625 8.79375 15.7047 8.0168 14.8961C7.69336 14.5586 7.70391 14.0242 8.04141 13.7043C8.37891 13.3844 8.91328 13.3914 9.2332 13.7289ZM8.0625 9.8125C8.0625 9.19023 8.56523 8.6875 9.1875 8.6875C9.80977 8.6875 10.3125 9.19023 10.3125 9.8125C10.3125 10.4348 9.80977 10.9375 9.1875 10.9375C8.56523 10.9375 8.0625 10.4348 8.0625 9.8125ZM14.8125 8.6875C15.4348 8.6875 15.9375 9.19023 15.9375 9.8125C15.9375 10.4348 15.4348 10.9375 14.8125 10.9375C14.1902 10.9375 13.6875 10.4348 13.6875 9.8125C13.6875 9.19023 14.1902 8.6875 14.8125 8.6875Z" fill="var(--gray-400)"/>
     </svg>
   );
 }
 function FullBodyIconSm() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M14.4001 4.80039C14.4001 3.47664 13.3239 2.40039 12.0001 2.40039C10.6764 2.40039 9.60014 3.47664 9.60014 4.80039C9.60014 6.12414 10.6764 7.20039 12.0001 7.20039C13.3239 7.20039 14.4001 6.12414 14.4001 4.80039ZM10.5339 8.74914C9.64514 8.43414 8.86514 7.83789 8.32889 7.03164L7.59764 5.93289C7.23014 5.38164 6.48764 5.23539 5.93639 5.60289C5.38514 5.97039 5.23514 6.71289 5.60264 7.26789L6.33389 8.36289C7.01264 9.37914 7.93889 10.1779 9.00014 10.7029V20.4004C9.00014 21.0641 9.53639 21.6004 10.2001 21.6004C10.8639 21.6004 11.4001 21.0641 11.4001 20.4004V16.8004H12.6001V20.4004C12.6001 21.0641 13.1364 21.6004 13.8001 21.6004C14.4639 21.6004 15.0001 21.0641 15.0001 20.4004V10.7104C16.0914 10.1779 17.0401 9.35289 17.7264 8.30289L18.4089 7.25664C18.7689 6.70164 18.6114 5.95914 18.0564 5.59539C17.5014 5.23164 16.7589 5.38914 16.3951 5.94789L15.7126 6.99039C14.8951 8.24289 13.5039 9.00039 12.0076 9.00039C11.5351 9.00039 11.0739 8.92539 10.6351 8.78289C10.6014 8.77164 10.5676 8.75664 10.5339 8.74914Z" fill="white" stroke="#94A3B8"/>
+      <path d="M14.4001 4.80039C14.4001 3.47664 13.3239 2.40039 12.0001 2.40039C10.6764 2.40039 9.60014 3.47664 9.60014 4.80039C9.60014 6.12414 10.6764 7.20039 12.0001 7.20039C13.3239 7.20039 14.4001 6.12414 14.4001 4.80039ZM10.5339 8.74914C9.64514 8.43414 8.86514 7.83789 8.32889 7.03164L7.59764 5.93289C7.23014 5.38164 6.48764 5.23539 5.93639 5.60289C5.38514 5.97039 5.23514 6.71289 5.60264 7.26789L6.33389 8.36289C7.01264 9.37914 7.93889 10.1779 9.00014 10.7029V20.4004C9.00014 21.0641 9.53639 21.6004 10.2001 21.6004C10.8639 21.6004 11.4001 21.0641 11.4001 20.4004V16.8004H12.6001V20.4004C12.6001 21.0641 13.1364 21.6004 13.8001 21.6004C14.4639 21.6004 15.0001 21.0641 15.0001 20.4004V10.7104C16.0914 10.1779 17.0401 9.35289 17.7264 8.30289L18.4089 7.25664C18.7689 6.70164 18.6114 5.95914 18.0564 5.59539C17.5014 5.23164 16.7589 5.38914 16.3951 5.94789L15.7126 6.99039C14.8951 8.24289 13.5039 9.00039 12.0076 9.00039C11.5351 9.00039 11.0739 8.92539 10.6351 8.78289C10.6014 8.77164 10.5676 8.75664 10.5339 8.74914Z" fill="white" stroke="var(--gray-400)"/>
     </svg>
   );
 }
@@ -2201,8 +2201,8 @@ function ImageDropzoneHoverStyleTag() {
   return (
     <style>{`
       .vca-image-dropzone-clickable { cursor:pointer; transition:border-color 0.15s, background-color 0.15s; }
-      .vca-image-dropzone-clickable:hover { border-color:#5a3dfb !important; background-color:#f8f7ff !important; }
-      .vca-image-dropzone-clickable:hover .vca-dropzone-label { color:#5a3dfb !important; }
+      .vca-image-dropzone-clickable:hover { border-color:var(--primary-400) !important; background-color:var(--primary-50) !important; }
+      .vca-image-dropzone-clickable:hover .vca-dropzone-label { color:var(--primary-400) !important; }
       .vca-image-dropzone-clickable:hover .vca-dropzone-hint { opacity:1 !important; }
     `}</style>
   );
@@ -2223,15 +2223,15 @@ function ImageDropzoneBox({ icon, label, previewSrc, onClick, aspect }: {
   return (
     <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       className={onClick ? "vca-image-dropzone-clickable" : undefined} style={{
-      ...sizeStyle, borderRadius:"8px", border:"1px dashed #ccd5e1", backgroundColor:"white",
+      ...sizeStyle, borderRadius:"8px", border:"1px dashed var(--gray-300)", backgroundColor:"white",
       display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"12px", overflow:"hidden", position:"relative",
       padding:"20px 12px", boxSizing:"border-box" }}>
       {onClick && <ImageDropzoneHoverStyleTag />}
       {previewSrc && <img src={previewSrc} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.15 }} />}
       <div style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
         {icon}
-        <span className="vca-dropzone-label" style={{ fontSize:"11px", color:"#94a3b8" }}>{label}</span>
-        {onClick && hovered && <span style={{ fontSize:"10px", fontWeight:700, color:"#5a3dfb" }}>{previewSrc ? "Click to change" : "Click to upload"}</span>}
+        <span className="vca-dropzone-label" style={{ fontSize:"11px", color:"var(--gray-400)" }}>{label}</span>
+        {onClick && hovered && <span style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)" }}>{previewSrc ? "Click to change" : "Click to upload"}</span>}
       </div>
     </div>
   );
@@ -2268,16 +2268,16 @@ function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: st
     <div style={{ position:"relative", width:"152px" }}>
       <button onClick={() => setOpen(o => !o)} style={{
         display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
-        padding:"8px 12px", borderRadius:"8px", backgroundColor:"white", border:"1px solid #5a3dfb",
+        padding:"8px 12px", borderRadius:"8px", backgroundColor:"white", border:"1px solid var(--primary-400)",
         cursor:"pointer",
       }}>
-        <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"14px", fontWeight:700, color:"#5a3dfb",
+        <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"14px", fontWeight:700, color:"var(--primary-400)",
           minWidth:0, overflow:"hidden" }}>
           <CameraGlyph />
           <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label}</span>
         </span>
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink:0, transform: open?"rotate(180deg)":"none", transition:"transform 0.15s" }}>
-          <path d="M4 6l4 4 4-4" stroke="#5a3dfb" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M4 6l4 4 4-4" stroke="var(--primary-400)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
       {open && (
@@ -2285,17 +2285,17 @@ function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: st
           border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden" }}>
           <button onClick={() => { onChange(""); setOpen(false); }} style={{
             display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
-            backgroundColor: !value ? "#f0f0ff" : "white",
-            fontSize:"13px", fontWeight: !value ? 700:500, color: !value ? "#5a3dfb":"#334155",
+            backgroundColor: !value ? "var(--primary-100)" : "white",
+            fontSize:"13px", fontWeight: !value ? 700:500, color: !value ? "var(--primary-400)":"var(--gray-700)",
           }}>
             All Cameras
           </button>
-          <div style={{ height:"1px", backgroundColor:"#e2e8f0" }} />
+          <div style={{ height:"1px", backgroundColor:"var(--gray-200)" }} />
           {CAMERA_OPTIONS.map(code => (
             <button key={code} onClick={() => { onChange(code); setOpen(false); }} style={{
               display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
-              backgroundColor: code===value ? "#f0f0ff" : "white",
-              fontSize:"13px", fontWeight: code===value ? 700:500, color: code===value ? "#5a3dfb":"#334155",
+              backgroundColor: code===value ? "var(--primary-100)" : "white",
+              fontSize:"13px", fontWeight: code===value ? 700:500, color: code===value ? "var(--primary-400)":"var(--gray-700)",
             }}>
               {code}
             </button>
@@ -2479,7 +2479,7 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
   const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"20px 24px 12px", backgroundColor:"#f1f5f9", boxSizing:"border-box" }}>
+    <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"20px 24px 12px", backgroundColor:"var(--gray-100)", boxSizing:"border-box" }}>
       <SlidingSearchPanel
         expanded={expanded}
         onExpand={() => setExpanded(true)}
@@ -2506,7 +2506,7 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
         {clusters.length > 0
           ? clusters.map(c => <ClusterCard key={c.id} cluster={c} onNavigateTab={onNavigateTab} onMatchClick={setDetailId} />)
           : (
-            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8", fontSize:"13px", fontWeight:600 }}>
+            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)", fontSize:"13px", fontWeight:600 }}>
               No matches for the current filters.
             </div>
           )
@@ -2534,9 +2534,9 @@ function UserCogIconSm() {
 function XCircleIconSm() {
   return (
     <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
-      <rect width="37.0607" height="37.0607" rx="8" fill="#F1F5F9"/>
-      <path fillRule="evenodd" clipRule="evenodd" d="M12 24L24 12L25.0607 13.0607L13.0607 25.0607L12 24Z" fill="#334155"/>
-      <path fillRule="evenodd" clipRule="evenodd" d="M13.0607 12L25.0607 24L24 25.0607L12 13.0607L13.0607 12Z" fill="#334155"/>
+      <rect width="37.0607" height="37.0607" rx="8" fill="var(--gray-100)"/>
+      <path fillRule="evenodd" clipRule="evenodd" d="M12 24L24 12L25.0607 13.0607L13.0607 25.0607L12 24Z" fill="var(--gray-700)"/>
+      <path fillRule="evenodd" clipRule="evenodd" d="M13.0607 12L25.0607 24L24 25.0607L12 13.0607L13.0607 12Z" fill="var(--gray-700)"/>
     </svg>
   );
 }
@@ -2565,27 +2565,27 @@ function CandidateCard({ c, selected, onClick }:
   return (
     <div onClick={onClick} style={{
       position:"relative", width:"144px", backgroundColor:"white",
-      border: selected ? "1px solid #5a3dfb" : "1px solid #e2e8f0",
+      border: selected ? "1px solid var(--primary-400)" : "1px solid var(--gray-200)",
       borderRadius:"10px", padding:"8px", cursor:"pointer", display:"flex", flexDirection:"column", gap:"8px",
       boxShadow: selected ? "0 4px 8px rgba(90,61,251,0.11)" : "none",
     }}>
       <div style={{ position:"relative", width:"128px", height:"133px", borderRadius:"6px", overflow:"hidden" }}>
         <img src={c.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-        <span style={{ position:"absolute", top:6, right:6, fontSize:"10px", fontWeight:600, color:"#0e162a",
+        <span style={{ position:"absolute", top:6, right:6, fontSize:"10px", fontWeight:600, color:"var(--gray-900)",
           backgroundColor:"rgba(255,255,255,0.8)", padding:"2px 6px", borderRadius:"4px" }}>{c.similarity}%</span>
         <span style={{ position:"absolute", bottom:6, left:6, fontSize:"10px", fontWeight:600, color:"white",
           fontFamily: c.plate ? "monospace" : undefined,
           backgroundColor:"rgba(14,22,42,0.5)", border:"1px solid white", padding:"2px 6px", borderRadius:"4px" }}>{c.plate ?? c.cam}</span>
         {selected && (
           <span style={{ position:"absolute", top:6, left:6, display:"flex", alignItems:"center", gap:"3px",
-            backgroundColor:"#5a3dfb", color:"white", fontSize:"10px", fontWeight:800, padding:"2px 6px", borderRadius:"4px" }}>
+            backgroundColor:"var(--primary-400)", color:"white", fontSize:"10px", fontWeight:800, padding:"2px 6px", borderRadius:"4px" }}>
             <CheckIconSm /> Selected
           </span>
         )}
       </div>
       <div>
-        <p style={{ fontSize:"12px", fontWeight:700, color:"#0e162a", margin:0 }}>Target #TS{String(c.id).padStart(6,"0")}</p>
-        <p style={{ fontSize:"10px", color:"#324055", margin:0 }}>today {c.time}</p>
+        <p style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", margin:0 }}>Target #TS{String(c.id).padStart(6,"0")}</p>
+        <p style={{ fontSize:"10px", color:"var(--gray-700)", margin:0 }}>today {c.time}</p>
       </div>
     </div>
   );
@@ -2702,18 +2702,18 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
     || !!dateRange.start || !!dateRange.end || licensePlate.trim() !== "" || threshold !== 70;
 
   return (
-    <div style={{ backgroundColor:"white", border:BORDER, borderRadius:"16px", boxShadow:"0 12px 24px rgba(15,23,42,0.1)",
+    <div style={{ backgroundColor:"white", border:BORDER, borderRadius:"16px", boxShadow:"0 12px 24px rgba(14, 22, 42,0.1)",
       width:"1092px", maxWidth:"100%", display:"flex", flexDirection:"column", maxHeight:"92vh", overflow:"hidden" }}>
 
       <div style={{ padding:"16px 24px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-          <div style={{ width:"34px", height:"34px", borderRadius:"8px", backgroundColor:"#f0f0ff",
-            display:"flex", alignItems:"center", justifyContent:"center", color:"#5a3dfb", flexShrink:0 }}>
+          <div style={{ width:"34px", height:"34px", borderRadius:"8px", backgroundColor:"var(--primary-100)",
+            display:"flex", alignItems:"center", justifyContent:"center", color:"var(--primary-400)", flexShrink:0 }}>
             <UserCogIconSm />
           </div>
           <div>
-            <p style={{ fontSize:"16px", fontWeight:800, color:"#1d293b", margin:0, letterSpacing:"-0.32px" }}>Select primary target</p>
-            <p style={{ fontSize:"13px", fontWeight:600, color:"#64748a", margin:0 }}>Search and select a new target to rebuild RedFace relationship graph</p>
+            <p style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-800)", margin:0, letterSpacing:"-0.32px" }}>Select primary target</p>
+            <p style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-500)", margin:0 }}>Search and select a new target to rebuild RedFace relationship graph</p>
           </div>
         </div>
         <button onClick={onCancel} style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex", flexShrink:0 }}>
@@ -2732,22 +2732,22 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
             empty space is put to use widening this panel instead (VIP/filter grids get more room
             per row). Once a target or filter is actually set, results are the thing worth
             focusing on, so this narrows back down and gives that space back to them. */}
-        <div style={{ width: hasAnyFilter ? "340px" : "480px", flexShrink:0, backgroundColor:"#f8fafc", borderRight:BORDER,
+        <div style={{ width: hasAnyFilter ? "340px" : "480px", flexShrink:0, backgroundColor:"var(--gray-50)", borderRight:BORDER,
           display:"flex", flexDirection:"column", overflow:"hidden", transition:"width 0.25s ease" }}>
         <div className="vca-hide-scrollbar" style={{ flex:1, minHeight:0,
           padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"16px" }}>
 
-          {/* Same fix as Smart Search's toggle: #f1f5f9 on this panel's own #f8fafc background is
+          {/* Same fix as Smart Search's toggle: var(--gray-100) on this panel's own var(--gray-50) background is
               two near-identical light grays, so the whole well (and VEHICLE's inactive state)
               barely registered against the page at all. */}
-          <div style={{ display:"flex", backgroundColor:"#e2e8f0", border:"1px solid #ccd5e1", borderRadius:"10px", padding:"1px", width:"100%" }}>
+          <div style={{ display:"flex", backgroundColor:"var(--gray-200)", border:"1px solid var(--gray-300)", borderRadius:"10px", padding:"1px", width:"100%" }}>
             {(["PERSON","VEHICLE"] as const).map(t => {
               const active = searchType === t;
               return (
                 <button key={t} onClick={() => setSearchType(t)} style={{
                   flex:1, borderRadius:"9px", border:"none", cursor:"pointer",
                   backgroundColor: active ? "white" : "transparent",
-                  color: active ? "#5a3dfb" : "#475469", fontWeight: active ? 700 : 600,
+                  color: active ? "var(--primary-400)" : "var(--gray-600)", fontWeight: active ? 700 : 600,
                   fontSize:"13px", letterSpacing:"-0.2px", padding:"6px 0",
                   display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
                 }}>
@@ -2760,22 +2760,22 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
           {!isVehicle && (
             <>
               <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:"4px", color:"#324055" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"4px", color:"var(--gray-700)" }}>
                   <HistoryIconSm />
-                  <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Recent targets</span>
+                  <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Recent targets</span>
                 </div>
                 <div style={{ display:"flex", gap:"8px" }}>
                   {RECENT_TARGETS_EN.slice(0, 2).map((t, i) => (
                     <button key={i} onClick={() => selectRecentTarget(i)} style={{
                       flex:1, display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"8px", cursor:"pointer",
                       backgroundColor:"white",
-                      border: selectedTarget === i ? "1px solid #5a3dfb" : "1px solid #e2e8f0",
+                      border: selectedTarget === i ? "1px solid var(--primary-400)" : "1px solid var(--gray-200)",
                       boxShadow: selectedTarget === i ? "0 2px 2px rgba(90,61,251,0.1)" : "none",
                     }}>
                       <img src={t.face} alt="" style={{ width:"32px", height:"32px", borderRadius:"4px", objectFit:"cover" }} />
                       <div style={{ textAlign:"left" }}>
-                        <p style={{ fontSize:"12px", fontWeight:700, color:"#0e162a", margin:0 }}>{t.label}</p>
-                        <p style={{ fontSize:"10px", color:"#94a3b8", margin:0 }}>{t.time}</p>
+                        <p style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", margin:0 }}>{t.label}</p>
+                        <p style={{ fontSize:"10px", color:"var(--gray-400)", margin:0 }}>{t.time}</p>
                       </div>
                     </button>
                   ))}
@@ -2783,23 +2783,23 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
               </div>
 
               <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:"4px", color:"#324055" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"4px", color:"var(--gray-700)" }}>
                   <StarIconSm />
-                  <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>VIP quick select</span>
+                  <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>VIP quick select</span>
                 </div>
                 <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} compact />
               </div>
 
-              <div style={{ height:"1px", backgroundColor:"#e2e8f0" }} />
+              <div style={{ height:"1px", backgroundColor:"var(--gray-200)" }} />
 
               <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-                <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Search by image</span>
+                <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Search by image</span>
                 <ImageDropzoneHoverStyleTag />
                 <div style={{ display:"flex", gap:"10px" }}>
                   <div onClick={() => faceInputRef.current?.click()} className="vca-image-dropzone-clickable" style={hasFace
-                    ? { flex:1, height:"84px", borderRadius:"8px", border:"1px solid #8c85ff", backgroundColor:"#f0f0ff", overflow:"hidden", position:"relative", cursor:"pointer" }
-                    : { flex:1, height:"84px", borderRadius:"8px", border:"1px dashed #ccd5e1", backgroundColor:"white", cursor:"pointer",
-                        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px", color:"#94a3b8" }
+                    ? { flex:1, height:"84px", borderRadius:"8px", border:"1px solid var(--primary-300)", backgroundColor:"var(--primary-100)", overflow:"hidden", position:"relative", cursor:"pointer" }
+                    : { flex:1, height:"84px", borderRadius:"8px", border:"1px dashed var(--gray-300)", backgroundColor:"white", cursor:"pointer",
+                        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px", color:"var(--gray-400)" }
                   }>
                     {hasFace ? (
                       <>
@@ -2813,16 +2813,16 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                     ) : (
                       <>
                         <DefaultFaceIconSm />
-                        <span className="vca-dropzone-label" style={{ fontSize:"10px", color:"#94a3b8" }}>Face</span>
-                        <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"#5a3dfb", opacity:0 }}>Click to upload</span>
+                        <span className="vca-dropzone-label" style={{ fontSize:"10px", color:"var(--gray-400)" }}>Face</span>
+                        <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)", opacity:0 }}>Click to upload</span>
                       </>
                     )}
                     <input ref={faceInputRef} type="file" accept="image/*" onChange={handleFaceUpload} style={{ display:"none" }} />
                   </div>
                   <div onClick={() => bodyInputRef.current?.click()} className="vca-image-dropzone-clickable" style={hasBody
-                    ? { flex:1, height:"84px", borderRadius:"8px", border:"1px solid #8c85ff", backgroundColor:"#f0f0ff", overflow:"hidden", position:"relative", cursor:"pointer" }
-                    : { flex:1, height:"84px", borderRadius:"8px", border:"1px dashed #ccd5e1", backgroundColor:"white", cursor:"pointer",
-                        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px", color:"#94a3b8" }
+                    ? { flex:1, height:"84px", borderRadius:"8px", border:"1px solid var(--primary-300)", backgroundColor:"var(--primary-100)", overflow:"hidden", position:"relative", cursor:"pointer" }
+                    : { flex:1, height:"84px", borderRadius:"8px", border:"1px dashed var(--gray-300)", backgroundColor:"white", cursor:"pointer",
+                        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px", color:"var(--gray-400)" }
                   }>
                     {hasBody ? (
                       <>
@@ -2836,8 +2836,8 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                     ) : (
                       <>
                         <FullBodyIconSm />
-                        <span className="vca-dropzone-label" style={{ fontSize:"10px", color:"#94a3b8" }}>Full body</span>
-                        <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"#5a3dfb", opacity:0 }}>Click to upload</span>
+                        <span className="vca-dropzone-label" style={{ fontSize:"10px", color:"var(--gray-400)" }}>Full body</span>
+                        <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)", opacity:0 }}>Click to upload</span>
                       </>
                     )}
                     <input ref={bodyInputRef} type="file" accept="image/*" onChange={handleBodyUpload} style={{ display:"none" }} />
@@ -2848,13 +2848,13 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
           )}
 
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Date range</span>
+            <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Date range</span>
             <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="split" size="sm" emptyText="Last 7 days" />
           </div>
 
           {isVehicle && (
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>License plate</span>
+              <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>License plate</span>
               <div style={{ display:"flex", alignItems:"center", gap:"6px", height:"34px", padding:"0 10px",
                 borderRadius:"8px", border:BORDER, backgroundColor:"white" }}>
                 <LicensePlateIconSm />
@@ -2863,14 +2863,14 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                   onChange={e => setLicensePlate(e.target.value)}
                   placeholder="SGA 1234 X"
                   style={{ flex:1, border:"none", outline:"none", fontFamily:"monospace", fontSize:"12px",
-                    fontWeight:500, color:"#0e162a", letterSpacing:"-0.22px" }}
+                    fontWeight:500, color:"var(--gray-900)", letterSpacing:"-0.22px" }}
                 />
               </div>
             </div>
           )}
 
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Similarity</span>
+            <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Similarity</span>
             <SimilarityControl value={threshold} onChange={setThreshold} height={34} />
           </div>
 
@@ -2878,45 +2878,45 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
             <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
               <button onClick={() => setAttrOpen(o => !o)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
                 width:"100%", background:"none", border:"none", padding:"0 8px 0 0", cursor:"pointer" }}>
-                <span style={{ fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Filter</span>
-                <span style={{ display:"flex", color:"#94a3b8", transform: attrOpen ? "rotate(180deg)" : "none" }}>
+                <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Filter</span>
+                <span style={{ display:"flex", color:"var(--gray-400)", transform: attrOpen ? "rotate(180deg)" : "none" }}>
                   <ChevronDownIconSm />
                 </span>
               </button>
               {attrOpen && (
                 <>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Gender</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Gender</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {GENDER_CHIPS.map(g => <AttrChip key={g} label={g} active={gender===g} onClick={() => setGender(gender===g ? "" : g)} size="sm" />)}
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Apparel</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Apparel</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {APPAREL_CHIPS.map(a => <AttrChip key={a} label={a} active={apparel.includes(a)} onClick={() => toggleApparel(a)} size="sm" />)}
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Props</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Props</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {PROPS_CHIPS.map(p => <AttrChip key={p} label={p} active={props.includes(p)} onClick={() => toggleProps(p)} size="sm" />)}
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Top color</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Top color</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {APPAREL_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={topColors.includes(c.id)} onClick={() => toggleTopColor(c.id)} size={18} />)}
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Bottom color</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Bottom color</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {APPAREL_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={bottomColors.includes(c.id)} onClick={() => toggleBottomColor(c.id)} size={18} />)}
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Shoes color</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Shoes color</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {SHOE_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={shoesColors.includes(c.id)} onClick={() => toggleShoesColor(c.id)} size={18} />)}
                     </div>
@@ -2931,21 +2931,21 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
         <div style={{ flex:1, padding:"20px", display:"flex", flexDirection:"column", gap:"16px", overflow:"hidden" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-              <span style={{ fontSize:"13px", fontWeight:700, color:"#1d293b" }}>Search results</span>
-              <span style={{ fontSize:"10px", fontWeight:800, color:"#5a3dfb", backgroundColor:"#f0f0ff", padding:"2px 6px", borderRadius:"4px" }}>{candidates.length}</span>
+              <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-800)" }}>Search results</span>
+              <span style={{ fontSize:"10px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"var(--primary-100)", padding:"2px 6px", borderRadius:"4px" }}>{candidates.length}</span>
             </div>
             {/* A muted, easy-to-miss line read as an afterthought — once candidates actually
                 exist, picking one is the ONE thing left to do, so it gets a filled, colored
                 callout instead until a card's actually clicked. */}
             {candidates.length > 0 && selectedCandidate === null && (
-              <span style={{ fontSize:"12px", fontWeight:700, color:"#5a3dfb", backgroundColor:"#f0f0ff", padding:"4px 10px", borderRadius:"999px" }}>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)", backgroundColor:"var(--primary-100)", padding:"4px 10px", borderRadius:"999px" }}>
                 ↓ Click a candidate below to select
               </span>
             )}
           </div>
           <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto" }}>
             {candidates.length === 0 ? (
-              <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", color:"#94a3b8" }}>
+              <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", color:"var(--gray-400)" }}>
                 <SearchIconSm />
                 <span style={{ fontSize:"13px", fontWeight:600 }}>
                   {hasAnyFilter ? "No candidates match the current filters" : "← Choose a target or set a filter to see candidates"}
@@ -2963,13 +2963,13 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
       </div>
 
       <div style={{ padding:"16px 24px", borderTop:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-        <button onClick={reset} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"#0e162a" }}>
+        <button onClick={reset} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>
           <ResetIconSm /> Reset Filters
         </button>
         <div style={{ display:"flex", gap:"8px" }}>
-          <button onClick={onCancel} style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid #ccd5e1", backgroundColor:"white", fontSize:"13px", fontWeight:700, color:"#475469", cursor:"pointer" }}>Cancel</button>
+          <button onClick={onCancel} style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid var(--gray-300)", backgroundColor:"white", fontSize:"13px", fontWeight:700, color:"var(--gray-600)", cursor:"pointer" }}>Cancel</button>
           <button disabled={!selectedObj} onClick={() => selectedObj && onConfirm(selectedObj)} style={{ padding:"8px 12px", borderRadius:"8px", border:"none",
-            backgroundColor: selectedObj ? "#5a3dfb" : "#c4b5fd", color:"white", fontSize:"13px", fontWeight:700,
+            backgroundColor: selectedObj ? "var(--primary-400)" : "var(--primary-200)", color:"white", fontSize:"13px", fontWeight:700,
             cursor: selectedObj ? "pointer" : "default" }}>
             Set as Primary Target
           </button>
@@ -3026,12 +3026,12 @@ type TierMeta = {
 type PyramidRow = { key:string; weight:number; nodes:RedfaceNode[]; meta: TierMeta|null };
 
 const PYRAMID_TIER_META: Record<"tier1"|"tier2"|"tier3", TierMeta> = {
-  tier1: { weight:2.2, bg:"#fff1f2", labelBg:"#ffe4e6", labelColor:"#f43f5e", label:"TIER 1 · RED ZONE", sublabel:">100 CO-OCCURRENCES",
-    nodeSize:52, nodeBorder:3, nodeColor:"#f43f5e", step:16, lineWidth:1.4, dashFlow:true, lineOpacity:0.85 },
-  tier2: { weight:2.6, bg:"#fffbeb", labelBg:"#fef3c7", labelColor:"#ea580c", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-OCCURRENCES",
-    nodeSize:52, nodeBorder:2, nodeColor:"#f59e0b", step:11, lineWidth:1, dashed:true, lineOpacity:0.7 },
-  tier3: { weight:3.4, bg:"#f8fafc", labelBg:"#e2e8f0", labelColor:"#475469", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-OCCURRENCES",
-    nodeSize:42, nodeBorder:2, nodeColor:"#94a3b8", step:6.5, lineWidth:0.6, lineOpacity:0.45, stagger:true },
+  tier1: { weight:2.2, bg:"var(--danger-100)", labelBg:"var(--danger-100)", labelColor:"var(--danger-400)", label:"TIER 1 · RED ZONE", sublabel:">100 CO-OCCURRENCES",
+    nodeSize:52, nodeBorder:3, nodeColor:"var(--danger-400)", step:16, lineWidth:1.4, dashFlow:true, lineOpacity:0.85 },
+  tier2: { weight:2.6, bg:"var(--warning-100)", labelBg:"var(--warning-200)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-OCCURRENCES",
+    nodeSize:52, nodeBorder:2, nodeColor:"var(--warning-400)", step:11, lineWidth:1, dashed:true, lineOpacity:0.7 },
+  tier3: { weight:3.4, bg:"var(--gray-50)", labelBg:"var(--gray-200)", labelColor:"var(--gray-600)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-OCCURRENCES",
+    nodeSize:42, nodeBorder:2, nodeColor:"var(--gray-400)", step:6.5, lineWidth:0.6, lineOpacity:0.45, stagger:true },
 };
 
 function xAt(i: number, count: number, step: number) {
@@ -3068,7 +3068,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
       <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column" }}>
         {positioned.map(r => (
           <div key={r.key} style={{ flexGrow:r.weight, flexShrink:0, position:"relative",
-            backgroundColor: r.meta?.bg ?? "#f0f0ff", borderBottom: r.key !== tierRows[tierRows.length-1]?.key ? "1px solid rgba(15,23,42,0.05)" : "none",
+            backgroundColor: r.meta?.bg ?? "var(--primary-100)", borderBottom: r.key !== tierRows[tierRows.length-1]?.key ? "1px solid rgba(14, 22, 42,0.05)" : "none",
             display:"flex", alignItems:"flex-start", justifyContent:"space-between", padding:"24px 24px 0", boxSizing:"border-box" }}>
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
               backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.8)", color: r.meta?.labelColor ?? "#818cf8",
@@ -3101,11 +3101,11 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
       {primaryTarget && (
         <div style={{ position:"absolute", left:"50%", top:`${apexRow.center}%`, transform:"translate(-50%,-50%)",
           display:"flex", flexDirection:"column", alignItems:"center", gap:"4px", zIndex:5 }}>
-          <div className="redface-avatar-hover" style={{ width:64, height:64, borderRadius:"12px", border:"3px solid #5a3dfb", backgroundColor:"white",
+          <div className="redface-avatar-hover" style={{ width:64, height:64, borderRadius:"12px", border:"3px solid var(--primary-400)", backgroundColor:"white",
             boxSizing:"border-box", boxShadow:"0 8px 20px rgba(90,61,251,0.25)" }}>
             <img src={primaryTarget.face} alt="" style={{ width:"100%", height:"100%", borderRadius:"9px", objectFit:"cover", display:"block" }} />
           </div>
-          <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"#5a3dfb", padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.4px" }}>PRIMARY</span>
+          <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.4px" }}>PRIMARY</span>
         </div>
       )}
 
@@ -3123,7 +3123,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
             display:"flex", flexDirection:"column", alignItems:"center", gap:"4px", zIndex: r.key === "tier1" ? 4 : r.key === "tier2" ? 3 : 2 }}>
             <div className="redface-avatar-hover" onClick={() => onNodeClick(r.key, n)} style={{ position:"relative", width:r.meta!.nodeSize, height:r.meta!.nodeSize, borderRadius:"10px",
               border:`${r.meta!.nodeBorder}px solid ${r.meta!.nodeColor}`, backgroundColor:"white", boxSizing:"border-box",
-              boxShadow: n.id === selectedNodeId ? "0 0 0 3px rgba(90,61,251,0.45), 0 2px 8px rgba(15,23,42,0.15)" : "0 2px 8px rgba(15,23,42,0.15)" }}>
+              boxShadow: n.id === selectedNodeId ? "0 0 0 3px rgba(90,61,251,0.45), 0 2px 8px rgba(14, 22, 42,0.15)" : "0 2px 8px rgba(14, 22, 42,0.15)" }}>
               <img src={n.face} alt="" style={{ width:"100%", height:"100%", borderRadius:`${10 - r.meta!.nodeBorder}px`, objectFit:"cover", display:"block" }} />
             </div>
             <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor:r.meta!.nodeColor, padding:"3px 7px", borderRadius:"999px" }}>{n.count}</span>
@@ -3209,8 +3209,8 @@ function buildCooccurEvents(node: RedfaceNode): CooccurEvent[] {
 
 function gapLabel(gapSec: number): { text:string; color:string } {
   return gapSec <= 3
-    ? { text:`${gapSec}s gap · Walking together`, color:"#16a34a" }
-    : { text:`${gapSec}s gap · Trailing`, color:"#ea580c" };
+    ? { text:`${gapSec}s gap · Walking together`, color:"var(--success-400)" }
+    : { text:`${gapSec}s gap · Trailing`, color:"var(--warning-500)" };
 }
 
 function groupCooccurEvents(events: CooccurEvent[]) {
@@ -3253,9 +3253,9 @@ function companionAnalytics(events: CooccurEvent[]) {
 }
 
 const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string }> = {
-  VIP: { bg:"#f0f0ff", text:"#5a3dfb" },
-  Suspect: { bg:"#fef3c7", text:"#ea580c" },
-  Unknown: { bg:"#f1f5f9", text:"#64748a" },
+  VIP: { bg:"var(--primary-100)", text:"var(--primary-400)" },
+  Suspect: { bg:"var(--warning-200)", text:"var(--warning-500)" },
+  Unknown: { bg:"var(--gray-100)", text:"var(--gray-500)" },
 };
 
 function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchToPrimary }: {
@@ -3284,80 +3284,80 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
 
       {/* ── Section 1: header, profile comparison, badges, actions ── */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <span title="Primary Target와 선택한 연관자가 함께 감지된 증거(시간·장소)를 보여줌" style={{ fontSize:"16px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</span>
-        <button onClick={onClose} title="Close" style={{ display:"flex", background:"none", border:"none", cursor:"pointer", color:"#94a3b8", padding:"2px" }}>
+        <span title="Primary Target와 선택한 연관자가 함께 감지된 증거(시간·장소)를 보여줌" style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</span>
+        <button onClick={onClose} title="Close" style={{ display:"flex", background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", padding:"2px" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
         </button>
       </div>
 
-      <div style={{ border:BORDER, borderRadius:"8px", backgroundColor:"#f8fafc", padding:"16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div style={{ border:BORDER, borderRadius:"8px", backgroundColor:"var(--gray-50)", padding:"16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", width:"96px" }}>
-          <img src={primary.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid #f43f5e" }} />
-          <span style={{ fontSize:"12px", fontWeight:800, color:"#0e162a" }}>{primaryId}</span>
-          <span style={{ fontSize:"9px", fontWeight:800, color:"white", backgroundColor:"#f43f5e", padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>PRIMARY</span>
+          <img src={primary.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid var(--danger-400)" }} />
+          <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)" }}>{primaryId}</span>
+          <span style={{ fontSize:"9px", fontWeight:800, color:"white", backgroundColor:"var(--danger-400)", padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>PRIMARY</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
-          <span style={{ fontSize:"10px", fontWeight:800, color:"#f43f5e", letterSpacing:"0.4px" }}>{meta.label}</span>
-          <div style={{ width:"32px", height:"32px", borderRadius:"50%", backgroundColor:"#ffeaea", display:"flex", alignItems:"center", justifyContent:"center", color:"#f43f5e" }}>
+          <span style={{ fontSize:"10px", fontWeight:800, color:"var(--danger-400)", letterSpacing:"0.4px" }}>{meta.label}</span>
+          <div style={{ width:"32px", height:"32px", borderRadius:"50%", backgroundColor:"var(--danger-100)", display:"flex", alignItems:"center", justifyContent:"center", color:"var(--danger-400)" }}>
             <LinkChainIconSm size={19} />
           </div>
-          <span style={{ fontSize:"10px", color:"#64748a", whiteSpace:"nowrap" }}>{meta.correlation}</span>
+          <span style={{ fontSize:"10px", color:"var(--gray-500)", whiteSpace:"nowrap" }}>{meta.correlation}</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", width:"96px" }}>
-          <img src={node.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid #ef4444" }} />
-          <span style={{ fontSize:"12px", fontWeight:800, color:"#0e162a" }}>{assocId(node)}</span>
+          <img src={node.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid var(--danger-400)" }} />
+          <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)" }}>{assocId(node)}</span>
           <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg, padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{node.status.toUpperCase()}</span>
         </div>
       </div>
 
       <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
         <span style={{ fontSize:"10px", fontWeight:800, color:badge.text, backgroundColor:badge.bg, padding:"3px 9px", borderRadius:"999px" }}>{badge.label}</span>
-        <span style={{ fontSize:"10px", fontWeight:800, color:"#475469", backgroundColor:"#f1f5f9", padding:"3px 9px", borderRadius:"999px" }}>{node.count} events</span>
-        <span style={{ fontSize:"10px", fontWeight:800, color:"#475469", backgroundColor:"#f1f5f9", padding:"3px 9px", borderRadius:"999px" }}>Last seen {lastSeen.date}</span>
+        <span style={{ fontSize:"10px", fontWeight:800, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"3px 9px", borderRadius:"999px" }}>{node.count} events</span>
+        <span style={{ fontSize:"10px", fontWeight:800, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"3px 9px", borderRadius:"999px" }}>Last seen {lastSeen.date}</span>
       </div>
 
       <div style={{ display:"flex", gap:"8px" }}>
         <button onClick={onExclude} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
           padding:"9px 8px", borderRadius:"6px", border:"1px solid #fecdd3", cursor:"pointer",
-          backgroundColor:"white", color:"#e11d48", fontSize:"11px", fontWeight:700 }}>
+          backgroundColor:"white", color:"var(--danger-400)", fontSize:"11px", fontWeight:700 }}>
           <XCircleSmallIconSm /> Exclude false positive
         </button>
         <button onClick={onSwitchToPrimary} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
-          padding:"9px 8px", borderRadius:"6px", border:"1px solid #ded9ff", cursor:"pointer",
-          backgroundColor:"white", color:"#5a3dfb", fontSize:"11px", fontWeight:700 }}>
+          padding:"9px 8px", borderRadius:"6px", border:"1px solid var(--primary-200)", cursor:"pointer",
+          backgroundColor:"white", color:"var(--primary-400)", fontSize:"11px", fontWeight:700 }}>
           <SwapIconSm /> Make primary
         </button>
       </div>
 
       {/* ── Section 2: relationship analytics ── */}
-      <div style={{ display:"flex", flexDirection:"column", gap:"10px", border:BORDER, borderRadius:"8px", padding:"14px", backgroundColor:"#f8fafc" }}>
-        <span title="함께 감지된 시간 간격, 주요 장소, 시간대 패턴을 종합한 관계 분석" style={{ fontSize:"13px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
-        <div style={{ display:"flex", alignItems:"flex-start", gap:"8px", backgroundColor:"#f0f0ff", border:"1px solid #ded9ff", borderRadius:"8px", padding:"10px 12px" }}>
-          <span style={{ color:"#5a3dfb", flexShrink:0, marginTop:"1px" }}><LinkChainIconSm /></span>
-          <span style={{ fontSize:"12px", color:"#324055", lineHeight:1.5 }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:"10px", border:BORDER, borderRadius:"8px", padding:"14px", backgroundColor:"var(--gray-50)" }}>
+        <span title="함께 감지된 시간 간격, 주요 장소, 시간대 패턴을 종합한 관계 분석" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
+        <div style={{ display:"flex", alignItems:"flex-start", gap:"8px", backgroundColor:"var(--primary-100)", border:"1px solid var(--primary-200)", borderRadius:"8px", padding:"10px 12px" }}>
+          <span style={{ color:"var(--primary-400)", flexShrink:0, marginTop:"1px" }}><LinkChainIconSm /></span>
+          <span style={{ fontSize:"12px", color:"var(--gray-700)", lineHeight:1.5 }}>
             Avg. <strong>{avgGapSec}s</strong> gap between passes → <strong>{probability}%</strong> companion probability. {interpretation}.
           </span>
         </div>
         <div style={{ display:"flex", gap:"10px" }}>
           <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"10px 12px", backgroundColor:"white" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"#94a3b8", display:"flex", alignItems:"center", gap:"4px" }}><MapPinIconSm /> Top location</p>
-            <p style={{ margin:"4px 0 0", fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{topGroup.location}</p>
-            <p style={{ margin:"1px 0 0", fontSize:"10px", color:"#64748a" }}>{topGroup.events.length} of {events.length} sampled events</p>
+            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)", display:"flex", alignItems:"center", gap:"4px" }}><MapPinIconSm /> Top location</p>
+            <p style={{ margin:"4px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{topGroup.location}</p>
+            <p style={{ margin:"1px 0 0", fontSize:"10px", color:"var(--gray-500)" }}>{topGroup.events.length} of {events.length} sampled events</p>
           </div>
           <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"10px 12px", backgroundColor:"white" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"#94a3b8" }}>Time-of-day pattern</p>
-            <p style={{ margin:"4px 0 0", fontSize:"12px", fontWeight:700, color:"#0e162a", textTransform:"capitalize" }}>{bucket}</p>
-            <p style={{ margin:"1px 0 0", fontSize:"10px", color:"#64748a" }}>{pct}% of sampled events</p>
+            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Time-of-day pattern</p>
+            <p style={{ margin:"4px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize" }}>{bucket}</p>
+            <p style={{ margin:"1px 0 0", fontSize:"10px", color:"var(--gray-500)" }}>{pct}% of sampled events</p>
           </div>
         </div>
         <div style={{ display:"flex", justifyContent:"space-between" }}>
           <div>
-            <p style={{ margin:0, fontSize:"10px", color:"#94a3b8" }}>First seen</p>
-            <p style={{ margin:"2px 0 0", fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{firstSeen.date} {firstSeen.time}</p>
+            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>First seen</p>
+            <p style={{ margin:"2px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{firstSeen.date} {firstSeen.time}</p>
           </div>
           <div style={{ textAlign:"right" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"#94a3b8" }}>Last seen</p>
-            <p style={{ margin:"2px 0 0", fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{lastSeen.date} {lastSeen.time}</p>
+            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Last seen</p>
+            <p style={{ margin:"2px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{lastSeen.date} {lastSeen.time}</p>
           </div>
         </div>
       </div>
@@ -3366,8 +3366,8 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
       {/* ── Section 4: accordion timeline ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
-          <span title="최신 감지 순으로 정렬된 동시 포착 이벤트 목록" style={{ fontSize:"13px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.26px", cursor:"help" }}>Event timeline</span>
-          <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8", whiteSpace:"nowrap" }}>Showing {events.length} most recent of {node.count}</span>
+          <span title="최신 감지 순으로 정렬된 동시 포착 이벤트 목록" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Event timeline</span>
+          <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>Showing {events.length} most recent of {node.count}</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
           {newestFirst.map((e, i) => {
@@ -3376,19 +3376,19 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
             return (
               <div key={i} style={{ border:BORDER, borderRadius:"8px", overflow:"hidden" }}>
                 <button onClick={() => setExpandedIdx(open ? null : i)} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
-                  gap:"8px", padding:"9px 12px", background: open ? "#f8fafc" : "white", border:"none", cursor:"pointer" }}>
+                  gap:"8px", padding:"9px 12px", background: open ? "var(--gray-50)" : "white", border:"none", cursor:"pointer" }}>
                   <span style={{ display:"flex", alignItems:"center", gap:"8px", minWidth:0 }}>
-                    <span style={{ fontSize:"11px", fontWeight:700, color:"#0e162a", whiteSpace:"nowrap" }}>{e.date} {e.time}</span>
-                    <span style={{ fontSize:"10px", color:"#94a3b8", whiteSpace:"nowrap" }}>{e.camCode}</span>
+                    <span style={{ fontSize:"11px", fontWeight:700, color:"var(--gray-900)", whiteSpace:"nowrap" }}>{e.date} {e.time}</span>
+                    <span style={{ fontSize:"10px", color:"var(--gray-400)", whiteSpace:"nowrap" }}>{e.camCode}</span>
                   </span>
                   <span style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
                     <span style={{ fontSize:"10px", fontWeight:700, color:gap.color, whiteSpace:"nowrap" }}>{gap.text}</span>
-                    <span style={{ display:"flex", color:"#94a3b8", transform: open ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}><ChevronDownIconSm /></span>
+                    <span style={{ display:"flex", color:"var(--gray-400)", transform: open ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}><ChevronDownIconSm /></span>
                   </span>
                 </button>
                 {open && (
                   <div style={{ padding:"0 12px 12px", display:"flex", flexDirection:"column", gap:"8px" }}>
-                    <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"#324055" }}>
+                    <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-700)" }}>
                       <CameraGlyph size={12} /> {e.location} — {assocId(node)} detected {e.gapSec}s {e.gapSec <= 3 ? "after" : "behind"} Primary at this camera
                     </span>
                     {e.gapSec <= 3 ? (
@@ -3396,17 +3396,17 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
                       // so this is one capture with both people in it, not two. Primary shows as a
                       // small avatar overlaid on the associate's capture rather than its own
                       // equal-sized image alongside it.
-                      <div style={{ borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"#0e162a" }}>
+                      <div style={{ borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"var(--gray-900)" }}>
                         <img src={node.face} alt="" style={{ width:"100%", height:"96px", objectFit:"cover", display:"block" }} />
                         <span style={{ position:"absolute", top:4, left:4, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.6)", padding:"1px 5px", borderRadius:"3px" }}>{e.camCode} · {assocId(node)}</span>
-                        <img src={primary.face} alt="" title="Primary" style={{ position:"absolute", bottom:6, left:6, width:"28px", height:"28px", borderRadius:"50%", objectFit:"cover", border:"2px solid #f43f5e" }} />
+                        <img src={primary.face} alt="" title="Primary" style={{ position:"absolute", bottom:6, left:6, width:"28px", height:"28px", borderRadius:"50%", objectFit:"cover", border:"2px solid var(--danger-400)" }} />
                       </div>
                     ) : (
                       // Trailing (tens of seconds to minutes behind) — genuinely two different
                       // moments at this camera, so two separate frames, one per person.
                       <div style={{ display:"flex", gap:"8px" }}>
                         {[{ label:"Primary", face:primary.face }, { label:assocId(node), face:node.face }].map((shot, si) => (
-                          <div key={si} style={{ flex:1, borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"#0e162a" }}>
+                          <div key={si} style={{ flex:1, borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"var(--gray-900)" }}>
                             <img src={shot.face} alt="" style={{ width:"100%", height:"64px", objectFit:"cover", display:"block" }} />
                             <span style={{ position:"absolute", top:4, left:4, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.6)", padding:"1px 5px", borderRadius:"3px" }}>{shot.label}</span>
                           </div>
@@ -3425,12 +3425,12 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
 }
 
 const TIER_BADGE_META: Record<"tier1"|"tier2"|"tier3", { bg:string; text:string; label:string }> = {
-  tier1: { bg:"#ffeaea", text:"#f43f5e", label:"Tier 1 (red zone)" },
-  tier2: { bg:"#fef3c7", text:"#ea580c", label:"Tier 2 (orange zone)" },
-  tier3: { bg:"#f1f5f9", text:"#475469", label:"Tier 3 (slate zone)" },
+  tier1: { bg:"var(--danger-100)", text:"var(--danger-400)", label:"Tier 1 (red zone)" },
+  tier2: { bg:"var(--warning-200)", text:"var(--warning-500)", label:"Tier 2 (orange zone)" },
+  tier3: { bg:"var(--gray-100)", text:"var(--gray-600)", label:"Tier 3 (slate zone)" },
 };
 const COCAPTURE_COLOR: Record<"tier1"|"tier2"|"tier3", string> = {
-  tier1:"#f43f5e", tier2:"#64748a", tier3:"#64748a",
+  tier1:"var(--danger-400)", tier2:"var(--gray-500)", tier3:"var(--gray-500)",
 };
 
 function DataGridView({ rows, onInspect, selectedNodeId }: {
@@ -3440,8 +3440,8 @@ function DataGridView({ rows, onInspect, selectedNodeId }: {
 }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", width:"100%" }}>
-      <div style={{ backgroundColor:"#f8fafc", borderTop:"1px solid #f1f5f9", padding:"12px 20px",
-        display:"flex", gap:"8px", fontSize:"12px", fontWeight:800, color:"#475469" }}>
+      <div style={{ backgroundColor:"var(--gray-50)", borderTop:"1px solid var(--gray-100)", padding:"12px 20px",
+        display:"flex", gap:"8px", fontSize:"12px", fontWeight:800, color:"var(--gray-600)" }}>
         <span style={{ width:"50px", flexShrink:0 }}>Rank</span>
         <span style={{ flex:1 }}>Associate target</span>
         <span style={{ width:"180px", flexShrink:0 }}>Hierarchy tier &amp; zone</span>
@@ -3465,23 +3465,23 @@ function DataGridView({ rows, onInspect, selectedNodeId }: {
         const firstSeen = sortedByDate[0];
         const lastSeen = sortedByDate[sortedByDate.length - 1];
         return (
-          <div key={`${r.tier}-${r.node.id}`} style={{ backgroundColor: i === 0 ? "#f0f0ff" : "white", borderTop:BORDER,
+          <div key={`${r.tier}-${r.node.id}`} style={{ backgroundColor: i === 0 ? "var(--primary-100)" : "white", borderTop:BORDER,
             padding:"10px 20px", display:"flex", gap:"8px", alignItems:"center" }}>
-            <span style={{ width:"50px", flexShrink:0, fontSize:"12px", fontWeight:700, color:"#64748a" }}>{`#${String(i+1).padStart(2,"0")}`}</span>
+            <span style={{ width:"50px", flexShrink:0, fontSize:"12px", fontWeight:700, color:"var(--gray-500)" }}>{`#${String(i+1).padStart(2,"0")}`}</span>
             <div style={{ flex:1, display:"flex", alignItems:"center", gap:"10px", minWidth:0 }}>
               <img src={r.node.face} alt="" style={{ width:"28px", height:"28px", borderRadius:"999px", objectFit:"cover", flexShrink:0 }} />
-              <span style={{ fontSize:"13px", fontWeight:700, color:"#0e162a", whiteSpace:"nowrap" }}>{`Associate #${String(i+1).padStart(2,"0")}`}</span>
+              <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)", whiteSpace:"nowrap" }}>{`Associate #${String(i+1).padStart(2,"0")}`}</span>
             </div>
             <div style={{ width:"180px", flexShrink:0 }}>
               <span style={{ fontSize:"10px", fontWeight:800, color:badge.text, backgroundColor:badge.bg, padding:"2px 6px", borderRadius:"4px" }}>{badge.label}</span>
             </div>
             <span style={{ width:"110px", flexShrink:0, fontSize:"13px", fontWeight:700, color:COCAPTURE_COLOR[r.tier] }}>{r.node.count} Events</span>
-            <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#0e162a" }}>{`${topGroup.camCode} ${topGroup.location.split(" ")[0]} (${topGroup.events.length}x)`}</span>
-            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#64748a" }}>{firstSeen.date} {firstSeen.time}</span>
-            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#64748a" }}>{lastSeen.date} {lastSeen.time}</span>
+            <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>{`${topGroup.camCode} ${topGroup.location.split(" ")[0]} (${topGroup.events.length}x)`}</span>
+            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-500)" }}>{firstSeen.date} {firstSeen.time}</span>
+            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-500)" }}>{lastSeen.date} {lastSeen.time}</span>
             <div style={{ width:"80px", flexShrink:0, display:"flex", justifyContent:"center" }}>
               <button onClick={() => onInspect(r.tier, r.node)} style={{ padding:"4px 10px", borderRadius:"6px", border:"none",
-                backgroundColor: r.node.id === selectedNodeId ? "#5a3dfb" : "#0e162a", color:"white", cursor:"pointer",
+                backgroundColor: r.node.id === selectedNodeId ? "var(--primary-400)" : "var(--gray-900)", color:"white", cursor:"pointer",
                 fontSize:"12px", fontWeight:700 }}>
                 Inspect
               </button>
@@ -3581,9 +3581,9 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
   ];
 
   const tierRows = [
-    { on:tier1On, toggle:() => setTier1On(o => !o), bg:"#ffebee", text:"#f43f5e", label:"Tier 1 red zone (>100)", count:REDFACE_TIER1.filter(notExcluded).length, badgeBg:"#f43f5e" },
-    { on:tier2On, toggle:() => setTier2On(o => !o), bg:"#fffbeb", text:"#ea580c", label:"Tier 2 orange zone (10~99)", count:REDFACE_TIER2.filter(notExcluded).length, badgeBg:"#f59e0b" },
-    { on:tier3On, toggle:() => setTier3On(o => !o), bg:"#f1f5f9", text:"#324055", label:"Tier 3 slate zone (<10)", count:REDFACE_TIER3.filter(notExcluded).length, badgeBg:"#475569" },
+    { on:tier1On, toggle:() => setTier1On(o => !o), bg:"var(--danger-100)", text:"var(--danger-400)", label:"Tier 1 red zone (>100)", count:REDFACE_TIER1.filter(notExcluded).length, badgeBg:"var(--danger-400)" },
+    { on:tier2On, toggle:() => setTier2On(o => !o), bg:"var(--warning-100)", text:"var(--warning-500)", label:"Tier 2 orange zone (10~99)", count:REDFACE_TIER2.filter(notExcluded).length, badgeBg:"var(--warning-400)" },
+    { on:tier3On, toggle:() => setTier3On(o => !o), bg:"var(--gray-100)", text:"var(--gray-700)", label:"Tier 3 slate zone (<10)", count:REDFACE_TIER3.filter(notExcluded).length, badgeBg:"var(--gray-600)" },
   ];
 
   return (
@@ -3593,40 +3593,40 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
             <SlidersIconSm />
-            <span title="선택한 대상과 자주 함께 감지된 인물을 좁혀서 찾는 필터" style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px", cursor:"help" }}>Associate filter</span>
+            <span title="선택한 대상과 자주 함께 감지된 인물을 좁혀서 찾는 필터" style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px", cursor:"help" }}>Associate filter</span>
           </div>
-          <span style={{ fontSize:"12px", fontWeight:700, color:"#475469", backgroundColor:"#f1f5f9", padding:"2px 8px", borderRadius:"10px" }}>{totalVisible}/{totalAll}</span>
+          <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"2px 8px", borderRadius:"10px" }}>{totalVisible}/{totalAll}</span>
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", gap:"10px", width:"100%" }}>
-          <span title="Primary Target와 함께 감지된 횟수(co-occurrence)를 구간별로 나눈 등급" style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px", cursor:"help" }}>Zone tiers</span>
+          <span title="Primary Target와 함께 감지된 횟수(co-occurrence)를 구간별로 나눈 등급" style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.28px", cursor:"help" }}>Zone tiers</span>
           <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
             {tierRows.map(row => (
               <button key={row.label} onClick={row.toggle} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
                 padding:"8px", borderRadius:"6px", backgroundColor: row.on ? row.bg : "white", border: row.on ? "none" : BORDER, cursor:"pointer", width:"100%" }}>
                 <span style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                  <span style={{ color: row.on ? row.text : "#cbd5e1", display:"flex" }}><CheckSquareIconSm /></span>
-                  <span style={{ fontSize:"12px", fontWeight:700, color: row.on ? row.text : "#94a3b8", letterSpacing:"-0.24px" }}>{row.label}</span>
+                  <span style={{ color: row.on ? row.text : "var(--gray-300)", display:"flex" }}><CheckSquareIconSm /></span>
+                  <span style={{ fontSize:"12px", fontWeight:700, color: row.on ? row.text : "var(--gray-400)", letterSpacing:"-0.24px" }}>{row.label}</span>
                 </span>
-                <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor: row.on ? row.badgeBg : "#cbd5e1", padding:"2px 6px", borderRadius:"10px" }}>{row.count}</span>
+                <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor: row.on ? row.badgeBg : "var(--gray-300)", padding:"2px 6px", borderRadius:"10px" }}>{row.count}</span>
               </button>
             ))}
           </div>
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", gap:"10px", width:"100%" }}>
-          <span title="Primary Target와 같은 시간대에 같은 카메라에 함께 잡힌 횟수 — 이 값 이상인 인물만 표시" style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px", cursor:"help" }}>Min. co-occurrences</span>
+          <span title="Primary Target와 같은 시간대에 같은 카메라에 함께 잡힌 횟수 — 이 값 이상인 인물만 표시" style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.28px", cursor:"help" }}>Min. co-occurrences</span>
           {/* Same fixed-choice pattern as Min Similarity — a free 1-150 drag slider with no step
               made landing on a specific number close to impossible; these five map directly to the
               tier cutoffs above (Tier 3 <10, Tier 2 10-99, Tier 1 >100). */}
-          <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"999px", padding:"2px", height:"34px" }}>
+          <div style={{ display:"flex", gap:"2px", backgroundColor:"var(--gray-100)", borderRadius:"999px", padding:"2px", height:"34px" }}>
             {[1,10,50,100,150].map(v => {
               const active = minHits === v;
               return (
                 <button key={v} onClick={() => setMinHits(v)} style={{
                   flex:1, borderRadius:"999px", border:"none", cursor:"pointer",
                   backgroundColor: active ? "white" : "transparent",
-                  color: active ? "#5a3dfb" : "#94a3b8", fontWeight: active ? 700 : 600, fontSize:"12px",
+                  color: active ? "var(--primary-400)" : "var(--gray-400)", fontWeight: active ? 700 : 600, fontSize:"12px",
                 }}>{v}</button>
               );
             })}
@@ -3634,15 +3634,15 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", gap:"10px", width:"100%" }}>
-          <span title="함께 감지된 날짜가 이 기간에 포함되는 연관자만 표시" style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px", cursor:"help" }}>Date range</span>
+          <span title="함께 감지된 날짜가 이 기간에 포함되는 연관자만 표시" style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.28px", cursor:"help" }}>Date range</span>
           <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" size="sm" emptyText="All time" />
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%", position:"relative" }}>
-          <span style={{ fontSize:"14px", fontWeight:700, color:"#324055", letterSpacing:"-0.28px" }}>Sort associates by</span>
+          <span style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.28px" }}>Sort associates by</span>
           <button onClick={() => setSortOpen(o => !o)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
             border:BORDER, borderRadius:"6px", padding:"10px 12px", width:"100%", backgroundColor:"white", cursor:"pointer" }}>
-            <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a", lineHeight:1.4 }}><SortOptionLabel label={SORT_OPTIONS.find(o => o.id === sortDir)!.label} /></span>
+            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", lineHeight:1.4 }}><SortOptionLabel label={SORT_OPTIONS.find(o => o.id === sortDir)!.label} /></span>
             <span style={{ display:"flex", flexShrink:0, transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}><ChevronDownIconSm /></span>
           </button>
           {sortOpen && (
@@ -3651,8 +3651,8 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
               {SORT_OPTIONS.map(opt => (
                 <button key={opt.id} onClick={() => { setSortDir(opt.id); setSortOpen(false); }} style={{
                   display:"block", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
-                  backgroundColor: sortDir === opt.id ? "#f0f0ff" : "white",
-                  fontSize:"12px", fontWeight: sortDir === opt.id ? 700 : 500, color: sortDir === opt.id ? "#5a3dfb" : "#334155", lineHeight:1.4,
+                  backgroundColor: sortDir === opt.id ? "var(--primary-100)" : "white",
+                  fontSize:"12px", fontWeight: sortDir === opt.id ? 700 : 500, color: sortDir === opt.id ? "var(--primary-400)" : "var(--gray-700)", lineHeight:1.4,
                 }}>
                   <SortOptionLabel label={opt.label} />
                 </button>
@@ -3663,7 +3663,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
 
         <div style={{ display:"flex", flexDirection:"column", width:"100%", paddingTop:"4px" }}>
           <button onClick={reset} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
-            padding:"10px", borderRadius:"6px", border:BORDER, backgroundColor:"white", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"#475469" }}>
+            padding:"10px", borderRadius:"6px", border:BORDER, backgroundColor:"white", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"var(--gray-600)" }}>
             <ResetIconSm /> Reset Filters
           </button>
         </div>
@@ -3674,25 +3674,25 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
             {primaryTarget && (
               <>
-                <img src={primaryTarget.face} alt="" style={{ width:"44px", height:"44px", borderRadius:"6px", objectFit:"cover", border:"2px solid #5a3dfb" }} />
+                <img src={primaryTarget.face} alt="" style={{ width:"44px", height:"44px", borderRadius:"6px", objectFit:"cover", border:"2px solid var(--primary-400)" }} />
                 <div>
-                  <span title="지금 기준으로 삼고 있는 인물 — 이 사람과 자주 함께 감지된 연관자를 찾음" style={{ display:"inline-flex", fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"#5a3dfb", padding:"2px 6px", borderRadius:"4px", letterSpacing:"-0.2px", cursor:"help" }}>PRIMARY TARGET</span>
-                  <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", margin:"4px 0 0", letterSpacing:"-0.28px" }}>{primaryTarget.name}</p>
+                  <span title="지금 기준으로 삼고 있는 인물 — 이 사람과 자주 함께 감지된 연관자를 찾음" style={{ display:"inline-flex", fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"2px 6px", borderRadius:"4px", letterSpacing:"-0.2px", cursor:"help" }}>PRIMARY TARGET</span>
+                  <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", margin:"4px 0 0", letterSpacing:"-0.28px" }}>{primaryTarget.name}</p>
                 </div>
                 <button onClick={onSwitchTarget} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 12px",
-                  borderRadius:"6px", backgroundColor:"#f1f5f9", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"#475469" }}>
+                  borderRadius:"6px", backgroundColor:"var(--gray-100)", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"var(--gray-600)" }}>
                   <SwapIconSm /> Switch Primary Target
                 </button>
               </>
             )}
           </div>
-          <div style={{ display:"flex", gap:"2px", backgroundColor:"#f1f5f9", borderRadius:"8px", padding:"4px" }}>
+          <div style={{ display:"flex", gap:"2px", backgroundColor:"var(--gray-100)", borderRadius:"8px", padding:"4px" }}>
             {(["pyramid","grid"] as const).map(v => {
               const active = view === v;
               return (
                 <button key={v} onClick={() => setView(v)} title={v === "pyramid" ? "연관자를 등급별 시각 배치로 보기" : "연관자를 표 형태 목록으로 보기"} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px",
                   borderRadius:"6px", border:"none", cursor:"pointer",
-                  backgroundColor: active ? "white" : "transparent", color: active ? "#0f172a" : "#64748a",
+                  backgroundColor: active ? "white" : "transparent", color: active ? "var(--gray-900)" : "var(--gray-500)",
                   fontSize:"12px", fontWeight: active ? 700 : 600 }}>
                   {v === "pyramid" ? <LayersIconSm/> : <TableIconSm/>} {v === "pyramid" ? "Pyramid & zone" : "Data grid"}
                 </button>
@@ -3707,7 +3707,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
               selectedNodeId={selectedNode?.node.id ?? null}
               onNodeClick={toggleSelectedNode} />
           ) : (
-            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8", fontSize:"13px", fontWeight:600 }}>
+            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)", fontSize:"13px", fontWeight:600 }}>
               No tiers selected
             </div>
           )
@@ -3715,7 +3715,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
           hasVisibleTier ? (
             <DataGridView rows={gridRows} selectedNodeId={selectedNode?.node.id ?? null} onInspect={toggleSelectedNode} />
           ) : (
-            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8", fontSize:"13px", fontWeight:600 }}>
+            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)", fontSize:"13px", fontWeight:600 }}>
               No tiers selected
             </div>
           )
@@ -3773,7 +3773,7 @@ function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_
   }, [seedCard, onSeedConsumed]);
 
   return (
-    <div style={{ flex:1, display:"flex", flexDirection:"column", position:"relative", backgroundColor:"#f8fafc", overflow:"hidden" }}>
+    <div style={{ flex:1, display:"flex", flexDirection:"column", position:"relative", backgroundColor:"var(--gray-50)", overflow:"hidden" }}>
       {/* Renders even before a target is picked — this is the "before search" landing state
           (empty zone bands, filter sidebar, no primary-target header) that sits behind the blur
           while the picker is open, instead of a bare empty page. */}
@@ -3790,7 +3790,7 @@ function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_
         <div
           onClick={e => { if (e.target === e.currentTarget && primaryTarget) setPickerOpen(false); }}
           style={{ position:"absolute", inset:0, zIndex:50, overflow:"auto",
-            backdropFilter:"blur(9px)", backgroundColor:"rgba(205,205,205,0.4)" }}
+            backdropFilter:"blur(9px)", backgroundColor:"rgba(14, 22, 42,0.4)" }}
         >
           <div style={{ minHeight:"100%", boxSizing:"border-box", display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"24px", paddingTop:"6vh" }}>
             <PrimaryTargetPickerModal onConfirm={handleConfirm} onCancel={() => primaryTarget && setPickerOpen(false)} />
@@ -3885,7 +3885,7 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
   }
 
   return (
-    <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", backgroundColor:"#f8fafc" }}>
+    <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", backgroundColor:"var(--gray-50)" }}>
 
       {/* Sub-nav tabs */}
       <div style={{ backgroundColor:"white", borderBottom:BORDER, display:"flex", alignItems:"center", padding:"0 20px", height:"46px", flexShrink:0 }}>
@@ -3894,8 +3894,8 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
           return (
             <button key={tab} onClick={() => setActiveTab(tab)} title={DATA_TAB_TOOLTIPS[tab]} style={{ height:"100%", padding:"0 18px", background:"none", border:"none", cursor:"pointer",
               display:"flex", alignItems:"center", gap:"6px",
-              borderBottom: active?"2px solid #0e162a":"2px solid transparent",
-              color: active?"#0e162a":"#64748a",
+              borderBottom: active?"2px solid var(--gray-900)":"2px solid transparent",
+              color: active?"var(--gray-900)":"var(--gray-500)",
               fontWeight: 600,
               fontSize:"13px", letterSpacing:"-0.26px", transition:"color 0.15s" }}>
               {TAB_ICONS[tab]}

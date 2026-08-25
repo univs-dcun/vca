@@ -33,16 +33,16 @@ export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType 
     <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 24px" }}>
       <span style={{
         display: "flex", alignItems: "center", gap: "6px",
-        border: "1px solid #c7c4ff", backgroundColor: "white", borderRadius: "13px",
-        padding: "6px 14px", fontSize: "10px", fontWeight: 600, color: "#5a3dfb",
+        border: "1px solid var(--primary-200)", backgroundColor: "white", borderRadius: "13px",
+        padding: "6px 14px", fontSize: "10px", fontWeight: 600, color: "var(--primary-400)",
       }}>
         ● New Project Setup
       </span>
 
-      <p style={{ fontSize: "26px", fontWeight: 800, color: "#0e162a", marginTop: "18px", textAlign: "center" }}>
+      <p style={{ fontSize: "26px", fontWeight: 800, color: "var(--gray-900)", marginTop: "18px", textAlign: "center" }}>
         Set Up Your New AI Monitoring Project
       </p>
-      <p style={{ fontSize: "13px", color: "#64748a", marginTop: "6px", textAlign: "center", maxWidth: "560px" }}>
+      <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "6px", textAlign: "center", maxWidth: "560px" }}>
         Welcome to the UniverseAI console. To get started, choose a solution template and fill in your project details.
       </p>
 
@@ -51,7 +51,7 @@ export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType 
         width: "640px", maxWidth: "100%", boxSizing: "border-box", padding: "27px 32px 32px",
         marginTop: "28px",
       }}>
-        <p style={{ fontSize: "12px", fontWeight: 700, color: "#475469", marginBottom: "12px" }}>1. Choose a Solution Template</p>
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", marginBottom: "12px" }}>1. Choose a Solution Template</p>
         <div style={{ display: "flex", gap: "16px" }}>
           {TEMPLATES.map(t => {
             const selected = selectedType === t.type;
@@ -61,8 +61,8 @@ export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType 
                 onClick={() => setSelectedType(t.type)}
                 style={{
                   position: "relative", flex: 1, textAlign: "left", cursor: "pointer",
-                  border: selected ? "1px solid #5a3dfb" : BORDER,
-                  backgroundColor: selected ? "#fafaff" : "white",
+                  border: selected ? "1px solid var(--primary-400)" : BORDER,
+                  backgroundColor: selected ? "var(--primary-50)" : "white",
                   borderRadius: "14px", padding: "10px 15px 14px", minHeight: "110px",
                 }}
               >
@@ -70,7 +70,7 @@ export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType 
                   <span style={{
                     position: "absolute", top: "-8px", right: "-8px",
                     width: "24px", height: "24px", borderRadius: "50%",
-                    backgroundColor: "#5a3dfb", display: "flex", alignItems: "center", justifyContent: "center",
+                    backgroundColor: "var(--primary-400)", display: "flex", alignItems: "center", justifyContent: "center",
                     boxShadow: "0 2px 4px rgba(90,61,251,0.3)",
                   }}>
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -78,19 +78,19 @@ export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType 
                     </svg>
                   </span>
                 )}
-                <div style={{ width: "60px", height: "60px", borderRadius: "10px", overflow: "hidden", backgroundColor: "#f8fafc" }}>
+                <div style={{ width: "60px", height: "60px", borderRadius: "10px", overflow: "hidden", backgroundColor: "var(--gray-50)" }}>
                   <img src={t.icon} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </div>
-                <p style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", marginTop: "10px" }}>{t.title}</p>
-                <p style={{ fontSize: "12px", fontWeight: 600, color: "#64748a", marginTop: "4px", lineHeight: "16px" }}>{t.description}</p>
+                <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)", marginTop: "10px" }}>{t.title}</p>
+                <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-500)", marginTop: "4px", lineHeight: "16px" }}>{t.description}</p>
               </button>
             );
           })}
         </div>
 
-        <div style={{ height: "1px", backgroundColor: "#f1f5f9", margin: "16px 0" }} />
+        <div style={{ height: "1px", backgroundColor: "var(--gray-100)", margin: "16px 0" }} />
 
-        <p style={{ fontSize: "12px", fontWeight: 700, color: "#475469", marginBottom: "8px" }}>2. Project Name</p>
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", marginBottom: "8px" }}>2. Project Name</p>
         <input
           value={name}
           onChange={e => setName(e.target.value)}
@@ -102,7 +102,7 @@ export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType 
           }}
         />
 
-        <p style={{ fontSize: "12px", fontWeight: 700, color: "#475469", marginBottom: "8px" }}>3. Video Channel Stream (RTSP)</p>
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", marginBottom: "8px" }}>3. Video Channel Stream (RTSP)</p>
         <div style={{ display: "flex", gap: "16px" }}>
           <input
             value={rtspUrl}
@@ -116,7 +116,7 @@ export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType 
           />
           <span style={{
             display: "flex", alignItems: "center", justifyContent: "center",
-            width: "84px", height: "44px", borderRadius: "10px", backgroundColor: "#0e162a",
+            width: "84px", height: "44px", borderRadius: "10px", backgroundColor: "var(--gray-900)",
             color: "white", fontSize: "10px", fontWeight: 600, flexShrink: 0,
           }}>
             RTSP 1CH
@@ -128,7 +128,7 @@ export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType 
           disabled={!name.trim()}
           style={{
             width: "100%", height: "52px", marginTop: "16px", borderRadius: "999px", border: "none",
-            backgroundColor: "#5a3dfb", color: "white", fontSize: "14px", fontWeight: 700,
+            backgroundColor: "var(--primary-400)", color: "white", fontSize: "14px", fontWeight: 700,
             cursor: name.trim() ? "pointer" : "not-allowed", opacity: name.trim() ? 1 : 0.5,
           }}
         >
@@ -136,7 +136,7 @@ export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType 
         </button>
       </div>
 
-      <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "24px", textAlign: "center" }}>
+      <p style={{ fontSize: "12px", color: "var(--gray-400)", marginTop: "24px", textAlign: "center" }}>
         // You&apos;ll be redirected to the monitoring dashboard automatically after deployment
       </p>
     </div>

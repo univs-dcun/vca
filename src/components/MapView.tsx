@@ -19,7 +19,7 @@ function escapeAttr(s: string): string {
 // as the old 100+-count zone alert), shown at every location with an actual live/tracked
 // detection. Replaces the old always-on, hardcoded zone-count pills so the default map only
 // ever shows where something was really just found.
-const VIP_PING_COLOR = "#5a3dfb";
+const VIP_PING_COLOR = "var(--primary-400)";
 
 // Both camera-dot variants below share a bigger invisible "vca-camera-dot-hit" box around the
 // actual small visible dot ("vca-camera-dot-visual") — a 10px circle is a tiny target to hit
@@ -42,7 +42,7 @@ function recentPingHtml(color: string): string {
 function quietCameraDotHtml(): string {
   return `
     <div class="vca-camera-dot-hit" style="position:relative;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;transform:translateX(-50%) translateY(-50%)">
-      <div class="vca-camera-dot-visual" style="position:relative;width:10px;height:10px;border-radius:50%;background:#475469;border:1.5px solid white;transition:transform 0.15s ease"></div>
+      <div class="vca-camera-dot-visual" style="position:relative;width:10px;height:10px;border-radius:50%;background:var(--gray-600);border:1.5px solid white;transition:transform 0.15s ease"></div>
     </div>`;
 }
 
@@ -56,12 +56,12 @@ function cameraDotTooltipHtml(cam: Camera): string {
   return `
     <div style="font-family:'SUIT',system-ui,sans-serif;padding:8px 10px;display:flex;flex-direction:column;gap:3px;min-width:120px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="font-size:12px;font-weight:800;color:#0e162a;letter-spacing:-0.24px;white-space:nowrap">${cam.name}</span>
-        <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:999px;flex-shrink:0;color:${isLive ? "#16a34a" : "#f43f5e"};background:${isLive ? "rgba(34,197,94,0.12)" : "rgba(244,63,94,0.12)"}">
+        <span style="font-size:12px;font-weight:800;color:var(--gray-900);letter-spacing:-0.24px;white-space:nowrap">${cam.name}</span>
+        <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:999px;flex-shrink:0;color:${isLive ? "var(--success-400)" : "var(--danger-400)"};background:${isLive ? "rgba(22, 163, 74,0.12)" : "rgba(244,63,94,0.12)"}">
           ${isLive ? "LIVE" : "OFFLINE"}
         </span>
       </div>
-      <span style="font-size:10px;font-weight:600;color:#64748a;white-space:nowrap">${cam.zone || cam.location}</span>
+      <span style="font-size:10px;font-weight:600;color:var(--gray-500);white-space:nowrap">${cam.zone || cam.location}</span>
     </div>`;
 }
 
@@ -79,19 +79,19 @@ function districtPillHtml(label: string, count: number, hasOnlineCamera: boolean
   // Dashed = this district's camera(s) are offline, not "no camera was ever installed here".
   const isDashed = !hasOnlineCamera;
   let bg: string, textColor: string, border: string;
-  if (isAlert)      { bg = "#f43f5e"; textColor = "white";   border = ""; }
-  else if (isDark)  { bg = "#0e162a"; textColor = "white";   border = ""; }
+  if (isAlert)      { bg = "var(--danger-400)"; textColor = "white";   border = ""; }
+  else if (isDark)  { bg = "var(--gray-900)"; textColor = "white";   border = ""; }
   // Offline cameras aren't as urgent a signal as a real, nonzero VIP count — purple is reserved
   // for things that actually need attention, so this stays a neutral gray instead.
-  else if (isDashed){ bg = "white";   textColor = "#64748a"; border = "border:1.5px dashed #ccd5e1;"; }
-  else              { bg = "white";   textColor = "#334155"; border = "border:1.5px solid #5a3dfb;"; }
+  else if (isDashed){ bg = "white";   textColor = "var(--gray-500)"; border = "border:1.5px dashed var(--gray-300);"; }
+  else              { bg = "white";   textColor = "var(--gray-700)"; border = "border:1.5px solid var(--primary-400);"; }
   const camSvg = isDashed
     ? `<svg width="14" height="14" viewBox="0 0 18 18" fill="none" style="flex-shrink:0">
         <path d="M7.99512 4.5H10.5001C10.8979 4.5 11.2795 4.65804 11.5608 4.93934C11.8421 5.22064 12.0001 5.60218 12.0001 6V7.875L15.9361 5.5785C15.9931 5.54524 16.0579 5.52762 16.1238 5.52739C16.1898 5.52717 16.2547 5.54436 16.3119 5.57722C16.3691 5.61009 16.4167 5.65747 16.4497 5.71459C16.4827 5.7717 16.5001 5.83652 16.5001 5.9025V12.0495"
-              stroke="#64748A" stroke-linecap="round" stroke-linejoin="round"/>
+              stroke="var(--gray-500)" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M12 12C12 12.3978 11.842 12.7794 11.5607 13.0607C11.2794 13.342 10.8978 13.5 10.5 13.5H3C2.60218 13.5 2.22064 13.342 1.93934 13.0607C1.65804 12.7794 1.5 12.3978 1.5 12V6C1.5 5.60218 1.65804 5.22064 1.93934 4.93934C2.22064 4.65804 2.60218 4.5 3 4.5H4.5"
-              stroke="#64748A" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M1.5 1.5L16.5 16.5" stroke="#64748A" stroke-linecap="round" stroke-linejoin="round"/>
+              stroke="var(--gray-500)" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M1.5 1.5L16.5 16.5" stroke="var(--gray-500)" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>`
     : "";
   // Offline pills don't show the raw count — a number sitting next to an "offline" signal read as
@@ -99,7 +99,7 @@ function districtPillHtml(label: string, count: number, hasOnlineCamera: boolean
   // after the district name rather than before it.
   const labelHtml = isDashed ? label : (count > 0 ? `${label}&nbsp;&nbsp;${count}` : label);
   const fw = isDark || isAlert ? 700 : 600;
-  const shadow = isDark || isAlert ? "0 2px 10px rgba(0,0,0,0.2)" : "0 2px 6px rgba(0,0,0,0.08)";
+  const shadow = isDark || isAlert ? "0 2px 10px rgba(14, 22, 42,0.2)" : "0 2px 6px rgba(14, 22, 42,0.08)";
   return `<div style="transform:translateX(-50%) translateY(-50%);display:inline-flex;align-items:center;
       gap:5px;background:${bg};${border}border-radius:999px;padding:5px 12px;
       font-family:'SUIT',system-ui,sans-serif;font-size:12px;font-weight:${fw};
@@ -108,12 +108,12 @@ function districtPillHtml(label: string, count: number, hasOnlineCamera: boolean
 }
 
 function getPopupHTML(event: LiveEvent): string {
-  const typeColor = event.type === "VIP" ? "#8b5cf6" : "#6d9300";
-  const typeBg = event.type === "VIP" ? "#f6f6fe" : "#f6f9ec";
+  const typeColor = event.type === "VIP" ? "var(--primary-400)" : "var(--type-tracking)";
+  const typeBg = event.type === "VIP" ? "var(--primary-50)" : "#f6f9ec";
   const photoUrl = getFacePhoto(event.id);
   const vipBadge = event.type === "VIP"
-    ? `<div style="background:#f6f6fe;border-radius:10px;padding:2px 8px;display:flex;align-items:center;gap:3px;flex-shrink:0">
-         <span style="font-size:9px;font-weight:700;color:#8b5cf6">VIP</span>
+    ? `<div style="background:var(--primary-50);border-radius:10px;padding:2px 8px;display:flex;align-items:center;gap:3px;flex-shrink:0">
+         <span style="font-size:9px;font-weight:700;color:var(--primary-400)">VIP</span>
        </div>`
     : `<div style="background:${typeBg};border-radius:10px;padding:2px 8px;flex-shrink:0">
          <span style="font-size:9px;font-weight:700;color:${typeColor}">${event.type.toUpperCase()}</span>
@@ -124,46 +124,46 @@ function getPopupHTML(event: LiveEvent): string {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;padding-right:18px;gap:8px">
         <div style="display:flex;align-items:flex-start;gap:5px;min-width:0">
           <svg width="14" height="14" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;margin-top:1px">
-            <path d="M12.5625 9.00781H15.2865C15.4143 9.00788 15.5399 9.0406 15.6515 9.10287C15.7631 9.16514 15.857 9.25489 15.9241 9.36361C15.9913 9.47233 16.0296 9.5964 16.0353 9.72407C16.0411 9.85173 16.0141 9.97875 15.957 10.0931L14.4315 13.1448C14.3737 13.2605 14.2869 13.3592 14.1796 13.4314C14.0724 13.5036 13.9483 13.5469 13.8194 13.557C13.6905 13.5671 13.5612 13.5437 13.444 13.4891C13.3268 13.4345 13.2257 13.3505 13.1505 13.2453L11.5575 11.0178" stroke="#475469" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M12.8295 6.79756C13.0073 6.88655 13.1424 7.04246 13.2053 7.23105C13.2681 7.41964 13.2536 7.62547 13.1647 7.80331L10.8352 12.4616C10.7912 12.5497 10.7302 12.6282 10.6558 12.6928C10.5813 12.7573 10.4949 12.8066 10.4015 12.8377C10.308 12.8688 10.2093 12.8812 10.111 12.8742C10.0128 12.8672 9.91685 12.8409 9.82875 12.7968L2.7075 9.23281C2.19025 8.97227 1.79727 8.51745 1.61454 7.96786C1.43181 7.41828 1.47423 6.8187 1.7325 6.30031L2.7675 4.20781C2.8965 3.95073 3.07488 3.72157 3.29245 3.53344C3.51003 3.3453 3.76253 3.20187 4.03554 3.11133C4.30855 3.02079 4.59673 2.98491 4.8836 3.00576C5.17048 3.0266 5.45044 3.10376 5.7075 3.23281L12.8295 6.79756Z" stroke="#475469" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M1.5 14.2578H4.32C4.59955 14.2598 4.87408 14.1835 5.11261 14.0378C5.35115 13.892 5.54421 13.6825 5.67 13.4328L6.75 11.2578" stroke="#475469" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M1.5 15.7578V12.7578" stroke="#475469" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M5.25 7H5.25729" stroke="#475469" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12.5625 9.00781H15.2865C15.4143 9.00788 15.5399 9.0406 15.6515 9.10287C15.7631 9.16514 15.857 9.25489 15.9241 9.36361C15.9913 9.47233 16.0296 9.5964 16.0353 9.72407C16.0411 9.85173 16.0141 9.97875 15.957 10.0931L14.4315 13.1448C14.3737 13.2605 14.2869 13.3592 14.1796 13.4314C14.0724 13.5036 13.9483 13.5469 13.8194 13.557C13.6905 13.5671 13.5612 13.5437 13.444 13.4891C13.3268 13.4345 13.2257 13.3505 13.1505 13.2453L11.5575 11.0178" stroke="var(--gray-600)" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12.8295 6.79756C13.0073 6.88655 13.1424 7.04246 13.2053 7.23105C13.2681 7.41964 13.2536 7.62547 13.1647 7.80331L10.8352 12.4616C10.7912 12.5497 10.7302 12.6282 10.6558 12.6928C10.5813 12.7573 10.4949 12.8066 10.4015 12.8377C10.308 12.8688 10.2093 12.8812 10.111 12.8742C10.0128 12.8672 9.91685 12.8409 9.82875 12.7968L2.7075 9.23281C2.19025 8.97227 1.79727 8.51745 1.61454 7.96786C1.43181 7.41828 1.47423 6.8187 1.7325 6.30031L2.7675 4.20781C2.8965 3.95073 3.07488 3.72157 3.29245 3.53344C3.51003 3.3453 3.76253 3.20187 4.03554 3.11133C4.30855 3.02079 4.59673 2.98491 4.8836 3.00576C5.17048 3.0266 5.45044 3.10376 5.7075 3.23281L12.8295 6.79756Z" stroke="var(--gray-600)" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M1.5 14.2578H4.32C4.59955 14.2598 4.87408 14.1835 5.11261 14.0378C5.35115 13.892 5.54421 13.6825 5.67 13.4328L6.75 11.2578" stroke="var(--gray-600)" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M1.5 15.7578V12.7578" stroke="var(--gray-600)" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5.25 7H5.25729" stroke="var(--gray-600)" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span style="font-size:12px;font-weight:800;color:#0e162a;letter-spacing:-0.24px;line-height:1.3">${event.location}${event.cameraLabel ? ` · ${event.cameraLabel}` : ""}</span>
+          <span style="font-size:12px;font-weight:800;color:var(--gray-900);letter-spacing:-0.24px;line-height:1.3">${event.location}${event.cameraLabel ? ` · ${event.cameraLabel}` : ""}</span>
         </div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;margin-top:1px">
-          <div style="width:6px;height:6px;background:#22c55e;border-radius:50%"></div>
-          <span style="font-size:11px;color:#64748a;letter-spacing:-0.22px">${formatTimeAgo(event.timestamp)}</span>
+          <div style="width:6px;height:6px;background:var(--success-400);border-radius:50%"></div>
+          <span style="font-size:11px;color:var(--gray-500);letter-spacing:-0.22px">${formatTimeAgo(event.timestamp)}</span>
         </div>
       </div>
 
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
         ${vipBadge}
-        <span style="font-size:13px;font-weight:700;color:#0e162a;letter-spacing:-0.26px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${event.name}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--gray-900);letter-spacing:-0.26px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${event.name}</span>
       </div>
 
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
         <div style="text-align:center">
-          <div style="width:60px;height:60px;border-radius:8px;background:#f1f5f9;overflow:hidden">
+          <div style="width:60px;height:60px;border-radius:8px;background:var(--gray-100);overflow:hidden">
             <img src="${photoUrl}" style="width:100%;height:100%;object-fit:cover;display:block" alt="" />
           </div>
-          <span style="font-size:10px;color:#94a3b8;display:block;margin-top:4px;letter-spacing:-0.2px">Captured</span>
+          <span style="font-size:10px;color:var(--gray-400);display:block;margin-top:4px;letter-spacing:-0.2px">Captured</span>
         </div>
         <div style="display:flex;flex-direction:column;align-items:center;gap:3px;margin-top:20px">
-          <div style="width:44px;border-top:1.5px dashed #cbd5e1"></div>
-          <span style="font-size:11px;font-weight:700;color:#64748a;letter-spacing:-0.22px">${event.confidence}%</span>
-          <div style="width:44px;border-top:1.5px dashed #cbd5e1"></div>
+          <div style="width:44px;border-top:1.5px dashed var(--gray-300)"></div>
+          <span style="font-size:11px;font-weight:700;color:var(--gray-500);letter-spacing:-0.22px">${event.confidence}%</span>
+          <div style="width:44px;border-top:1.5px dashed var(--gray-300)"></div>
         </div>
         <div style="text-align:center">
-          <div style="width:60px;height:60px;border-radius:8px;background:#dde8ff;display:flex;align-items:center;justify-content:center">
+          <div style="width:60px;height:60px;border-radius:8px;background:var(--info-200);display:flex;align-items:center;justify-content:center">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="#818cf8" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7" r="4" stroke="#818cf8" stroke-width="2"/></svg>
           </div>
-          <span style="font-size:10px;color:#94a3b8;display:block;margin-top:4px;letter-spacing:-0.2px">Registered</span>
+          <span style="font-size:10px;color:var(--gray-400);display:block;margin-top:4px;letter-spacing:-0.2px">Registered</span>
         </div>
       </div>
 
-      <div style="background:#0e162a;border-radius:8px;height:96px;overflow:hidden;position:relative">
+      <div style="background:var(--gray-900);border-radius:8px;height:96px;overflow:hidden;position:relative">
         <img src="${photoUrl}" style="width:100%;height:100%;object-fit:cover;display:block" alt="" />
         <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(14,22,42,0.8), rgba(14,22,42,0) 55%)"></div>
         <span style="position:absolute;bottom:8px;left:10px;font-size:9px;color:rgba(255,255,255,0.85);font-weight:700;letter-spacing:0.5px">CAPTURED FRAME</span>
@@ -171,7 +171,7 @@ function getPopupHTML(event: LiveEvent): string {
 
       <button onclick="window.__vcaGoAnalyzeFrame && window.__vcaGoAnalyzeFrame('${escapeAttr(event.location)}')"
         style="margin-top:10px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;
-        background:#0e162a;color:white;border:none;border-radius:6px;padding:8px 0;
+        background:var(--gray-900);color:white;border:none;border-radius:6px;padding:8px 0;
         font-family:'SUIT',system-ui,sans-serif;font-size:11px;font-weight:700;cursor:pointer">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 3.5L8.5 6L4.5 8.5V3.5Z" fill="white"/></svg>
         Analyze Frame
@@ -181,7 +181,7 @@ function getPopupHTML(event: LiveEvent): string {
 }
 
 function getMarkerHTML(type: string, photoUrl: string): string {
-  const color = type === "VIP" ? "#5a3dfb" : "#6d9300";
+  const color = type === "VIP" ? "var(--primary-400)" : "var(--type-tracking)";
   // VIP arrivals get a flashing glow around the pin so they're easy to spot on the map at a
   // glance — other event types keep the plain static halo.
   const flashClass = type === "VIP" ? "vca-vip-flash" : "";
@@ -189,7 +189,7 @@ function getMarkerHTML(type: string, photoUrl: string): string {
     <div style="width:42px;height:56px;position:relative;display:flex;flex-direction:column;align-items:center">
       <div class="${flashClass}" style="position:absolute;left:50%;bottom:0;width:92px;height:92px;border-radius:50%;background:${color}14;transform:translate(-50%,50%);z-index:0"></div>
       <div class="${flashClass}" style="position:absolute;left:50%;bottom:0;width:60px;height:60px;border-radius:50%;background:${color}26;transform:translate(-50%,50%);z-index:0"></div>
-      <div style="width:40px;height:40px;border-radius:50%;border:2.5px solid ${color};background:#f1f5f9;overflow:hidden;position:relative;z-index:2">
+      <div style="width:40px;height:40px;border-radius:50%;border:2.5px solid ${color};background:var(--gray-100);overflow:hidden;position:relative;z-index:2">
         <img src="${photoUrl}" style="width:100%;height:100%;object-fit:cover;display:block" alt="" />
       </div>
       <div style="width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:18px solid ${color};margin-top:-12px;z-index:1"></div>
@@ -213,23 +213,23 @@ function getDevicePopupHTML(device: Device, zoneName: string): string {
   return `
     <div style="font-family:'SUIT',system-ui,sans-serif;width:200px;padding:12px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-right:18px;gap:8px">
-        <span style="font-size:13px;font-weight:800;color:#0e162a;letter-spacing:-0.26px">${device.name}</span>
-        <span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;color:${isLive ? "#16a34a" : "#f43f5e"};background:${isLive ? "rgba(34,197,94,0.12)" : "rgba(244,63,94,0.12)"};flex-shrink:0">
+        <span style="font-size:13px;font-weight:800;color:var(--gray-900);letter-spacing:-0.26px">${device.name}</span>
+        <span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;color:${isLive ? "var(--success-400)" : "var(--danger-400)"};background:${isLive ? "rgba(22, 163, 74,0.12)" : "rgba(244,63,94,0.12)"};flex-shrink:0">
           ${isLive ? "LIVE" : "OUT"}
         </span>
       </div>
       <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6.3 10.9C7.23 10.1 10 7.5 10 5c0-2.21-1.79-4-4-4S2 2.79 2 5c0 2.5 2.77 5.1 3.7 5.9.09.06.19.1.3.1s.21-.04.3-.1Z" stroke="#64748a" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="5" r="1.5" stroke="#64748a"/></svg>
-        <span style="font-size:11px;font-weight:600;color:#475469">${zoneName}</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6.3 10.9C7.23 10.1 10 7.5 10 5c0-2.21-1.79-4-4-4S2 2.79 2 5c0 2.5 2.77 5.1 3.7 5.9.09.06.19.1.3.1s.21-.04.3-.1Z" stroke="var(--gray-500)" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="5" r="1.5" stroke="var(--gray-500)"/></svg>
+        <span style="font-size:11px;font-weight:600;color:var(--gray-600)">${zoneName}</span>
       </div>
       ${!isLive ? `
       <div style="display:flex;align-items:center;gap:5px">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#f43f5e" stroke-linecap="round"/><path d="M6 3v3l2 1.5" stroke="#f43f5e" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span style="font-size:11px;font-weight:600;color:#f43f5e">Out since ${device.lastSeen}</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="var(--danger-400)" stroke-linecap="round"/><path d="M6 3v3l2 1.5" stroke="var(--danger-400)" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span style="font-size:11px;font-weight:600;color:var(--danger-400)">Out since ${device.lastSeen}</span>
       </div>` : `
       <button onclick="window.__vcaGoLiveCam && window.__vcaGoLiveCam('${escapeAttr(zoneName)}')"
         style="margin-top:8px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;
-        background:#0e162a;color:white;border:none;border-radius:6px;padding:7px 0;
+        background:var(--gray-900);color:white;border:none;border-radius:6px;padding:7px 0;
         font-family:'SUIT',system-ui,sans-serif;font-size:11px;font-weight:700;cursor:pointer">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 3.5L8.5 6L4.5 8.5V3.5Z" fill="white"/></svg>
         View Live in Best Frame
@@ -239,14 +239,14 @@ function getDevicePopupHTML(device: Device, zoneName: string): string {
 }
 
 function getDeviceMarkerHTML(name: string, isLive: boolean): string {
-  const color = isLive ? "#22c55e" : "#f43f5e";
+  const color = isLive ? "var(--success-400)" : "var(--danger-400)";
   return `
     <div style="display:flex;flex-direction:column;align-items:center">
-      <div style="display:flex;align-items:center;gap:5px;background:#0e162a;border-radius:999px;padding:5px 10px;box-shadow:0 2px 10px rgba(0,0,0,0.2);white-space:nowrap">
+      <div style="display:flex;align-items:center;gap:5px;background:var(--gray-900);border-radius:999px;padding:5px 10px;box-shadow:0 2px 10px rgba(14, 22, 42,0.2);white-space:nowrap">
         <div style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0"></div>
         <span style="font-family:'SUIT',system-ui,sans-serif;font-size:11px;font-weight:800;color:white;letter-spacing:-0.2px">${name}</span>
       </div>
-      <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid #0e162a;margin-top:-1px"></div>
+      <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid var(--gray-900);margin-top:-1px"></div>
     </div>
   `;
 }
@@ -561,7 +561,7 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
         map.flyTo([nodes[nodes.length - 1].lat, nodes[nodes.length - 1].lng], 14, { duration: 0.8, easeLinearity: 0.5 });
 
         const line = L.polyline(nodes.map(n => [n.lat, n.lng]), {
-          color: "#5a3dfb", weight: 3, opacity: 1, lineJoin: "round", className: "vca-route-line",
+          color: "var(--primary-400)", weight: 3, opacity: 1, lineJoin: "round", className: "vca-route-line",
         }).addTo(map);
         trackingRouteLayersRef.current.push(line);
 
@@ -573,7 +573,7 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
           const arrowLng = a.lng + (b.lng - a.lng) * t;
           const bearing = (Math.atan2(b.lng - a.lng, b.lat - a.lat) * 180) / Math.PI;
           const arrowIcon = L.divIcon({
-            html: `<svg width="14" height="14" viewBox="0 0 14 14" style="display:block;transform:rotate(${bearing}deg)"><path d="M7 1L12.5 12H1.5Z" fill="#5a3dfb"/></svg>`,
+            html: `<svg width="14" height="14" viewBox="0 0 14 14" style="display:block;transform:rotate(${bearing}deg)"><path d="M7 1L12.5 12H1.5Z" fill="var(--primary-400)"/></svg>`,
             iconSize: [14, 14], iconAnchor: [7, 7], className: "",
           });
           const arrowMarker = L.marker([arrowLat, arrowLng], { icon: arrowIcon, interactive: false }).addTo(map);
@@ -587,41 +587,41 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
           const size = isLast ? 44 : 36;
 
           const circleHtml = isLast
-            ? `<div style="width:${size}px;height:${size}px;border-radius:50%;background:#5a3dfb;display:flex;align-items:center;justify-content:center;
+            ? `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--primary-400);display:flex;align-items:center;justify-content:center;
                           font-family:'SUIT',sans-serif;font-size:14px;font-weight:700;color:white;box-shadow:0 0 0 10px rgba(90,61,251,0.15)">${num}</div>`
-            : `<div style="width:${size}px;height:${size}px;border-radius:50%;background:white;border:2px solid #5a3dfb;display:flex;align-items:center;justify-content:center;
-                          font-family:'SUIT',sans-serif;font-size:13px;font-weight:700;color:#5a3dfb;box-shadow:0 2px 6px rgba(0,0,0,0.12)">${num}</div>`;
+            : `<div style="width:${size}px;height:${size}px;border-radius:50%;background:white;border:2px solid var(--primary-400);display:flex;align-items:center;justify-content:center;
+                          font-family:'SUIT',sans-serif;font-size:13px;font-weight:700;color:var(--primary-400);box-shadow:0 2px 6px rgba(14, 22, 42,0.12)">${num}</div>`;
 
           const tailCenterY = size / 2;
           const tailHtml = isLast
-            ? routeBubbleTailHtml(tailCenterY, "#5a3dfb", "#5a3dfb")
-            : routeBubbleTailHtml(tailCenterY, "white", "#e2e8f0");
+            ? routeBubbleTailHtml(tailCenterY, "var(--primary-400)", "var(--primary-400)")
+            : routeBubbleTailHtml(tailCenterY, "white", "var(--gray-200)");
 
           const cardHtml = isLast
             ? `<div style="position:relative;font-family:'SUIT',sans-serif;filter:drop-shadow(0 4px 10px rgba(90,61,251,0.25))">
                  ${tailHtml}
-                 <div style="position:relative;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1.5px solid #5a3dfb">
-                   <div style="background:#5a3dfb;color:white;font-size:11px;font-weight:800;padding:6px 12px;display:flex;align-items:center;gap:4px;white-space:nowrap">
+                 <div style="position:relative;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1.5px solid var(--primary-400)">
+                   <div style="background:var(--primary-400);color:white;font-size:11px;font-weight:800;padding:6px 12px;display:flex;align-items:center;gap:4px;white-space:nowrap">
                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M6 0.5L1.5 6.5H5L4.5 10.5L9.5 4.5H6L6 0.5Z" fill="white"/></svg>
                      LAST SEEN
                    </div>
                    <div style="background:white;padding:8px 12px 10px;white-space:nowrap">
-                     <div style="font-size:15px;font-weight:800;color:#0e162a">${node.label}</div>
-                     <div style="font-size:13px;color:#64748a;margin-top:2px">${node.time}</div>
+                     <div style="font-size:15px;font-weight:800;color:var(--gray-900)">${node.label}</div>
+                     <div style="font-size:13px;color:var(--gray-500);margin-top:2px">${node.time}</div>
                      <div onclick="window.__vcaGoRedmapTrace && window.__vcaGoRedmapTrace('${escapeAttr(selectedEvent.name)}')"
-                       style="margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:4px;
-                       font-size:12px;font-weight:700;color:#5a3dfb;cursor:pointer">
+                       style="margin-top:6px;padding-top:6px;border-top:1px solid var(--gray-100);display:flex;align-items:center;gap:4px;
+                       font-size:12px;font-weight:700;color:var(--primary-400);cursor:pointer">
                        View Full Trace on Redmap
-                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2L7 5L3 8" stroke="#5a3dfb" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2L7 5L3 8" stroke="var(--primary-400)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                      </div>
                    </div>
                  </div>
                </div>`
-            : `<div style="position:relative;background:white;border:1px solid #e2e8f0;border-radius:16px;padding:10px 14px;white-space:nowrap;
-                          font-family:'SUIT',sans-serif;box-shadow:0 4px 10px rgba(0,0,0,0.08)">
+            : `<div style="position:relative;background:white;border:1px solid var(--gray-200);border-radius:16px;padding:10px 14px;white-space:nowrap;
+                          font-family:'SUIT',sans-serif;box-shadow:0 4px 10px rgba(14, 22, 42,0.08)">
                  ${tailHtml}
-                 <div style="font-size:15px;font-weight:800;color:#0e162a">${node.label}</div>
-                 <div style="font-size:13px;color:#64748a;margin-top:2px">${node.time}</div>
+                 <div style="font-size:15px;font-weight:800;color:var(--gray-900)">${node.label}</div>
+                 <div style="font-size:13px;color:var(--gray-500);margin-top:2px">${node.time}</div>
                </div>`;
 
           const html = `<div style="display:inline-flex;align-items:flex-start;gap:10px">${circleHtml}${cardHtml}</div>`;
@@ -717,7 +717,7 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
         position: "relative",
         // Matches SkeletonDashboard's MapSkeleton background — avoids a flash of blank white
         // during the brief window between mount and Leaflet's async init finishing.
-        backgroundColor: "#f1f5f9",
+        backgroundColor: "var(--gray-100)",
       }}
     />
   );

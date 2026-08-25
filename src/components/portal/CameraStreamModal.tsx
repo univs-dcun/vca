@@ -6,9 +6,9 @@ import { useToast } from "../Toast";
 import { BORDER } from "./PortalShared";
 
 const AI_OVERLAY_COLORS: Record<string, string> = {
-  "Re-ID Analysis": "#16a34a",
-  "License Plate Recognition": "#5a3dfb",
-  "Intrusion Detection": "#ea580c",
+  "Re-ID Analysis": "var(--success-400)",
+  "License Plate Recognition": "var(--primary-400)",
+  "Intrusion Detection": "var(--warning-500)",
 };
 
 export default function CameraStreamModal({ camera, onClose }: { camera: Camera; onClose: () => void }) {
@@ -32,24 +32,24 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
       <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "640px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
         <div style={{ padding: "16px 20px", borderBottom: BORDER, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: online ? "#16a34a" : "#94a3b8", flexShrink: 0 }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: online ? "var(--success-400)" : "var(--gray-400)", flexShrink: 0 }} />
             <div>
-              <p style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a" }}>{camera.name}</p>
-              <p style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "monospace" }}>{camera.code}</p>
+              <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{camera.name}</p>
+              <p style={{ fontSize: "10px", color: "var(--gray-400)", fontFamily: "monospace" }}>{camera.code}</p>
             </div>
           </div>
-          <button onClick={onClose} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}>
+          <button onClick={onClose} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
 
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Preview */}
-          <div style={{ position: "relative", borderRadius: "12px", overflow: "hidden", aspectRatio: "16 / 9", backgroundColor: "#0e162a" }}>
+          <div style={{ position: "relative", borderRadius: "12px", overflow: "hidden", aspectRatio: "16 / 9", backgroundColor: "var(--gray-900)" }}>
             <img src={camera.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: online ? 1 : 0.4 }} />
             {online && (
               <div style={{ position: "absolute", top: "10px", left: "10px", display: "flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(14,22,42,0.7)", padding: "4px 10px", borderRadius: "999px" }}>
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#16a34a" }} />
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--success-400)" }} />
                 <span style={{ fontSize: "10px", fontWeight: 600, color: "white" }}>LIVE</span>
               </div>
             )}
@@ -77,27 +77,27 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
               ["Protocol", camera.protocol ?? "TCP"],
               ["Coordinates", camera.lat && camera.lng ? `${camera.lat}, ${camera.lng}` : "—"],
             ].map(([label, value]) => (
-              <div key={label} style={{ padding: "8px 10px", borderRadius: "10px", backgroundColor: "#f8fafc", border: BORDER }}>
-                <p style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 600 }}>{label}</p>
-                <p style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a", marginTop: "2px" }}>{value}</p>
+              <div key={label} style={{ padding: "8px 10px", borderRadius: "10px", backgroundColor: "var(--gray-50)", border: BORDER }}>
+                <p style={{ fontSize: "10px", color: "var(--gray-400)", fontWeight: 600 }}>{label}</p>
+                <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", marginTop: "2px" }}>{value}</p>
               </div>
             ))}
           </div>
 
-          <div style={{ padding: "8px 10px", borderRadius: "10px", backgroundColor: "#f8fafc", border: BORDER }}>
-            <p style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 600 }}>RTSP Stream URL</p>
-            <p style={{ fontSize: "10px", fontWeight: 600, color: "#475469", fontFamily: "monospace", marginTop: "2px", wordBreak: "break-all" }}>{camera.rtspUrl}</p>
+          <div style={{ padding: "8px 10px", borderRadius: "10px", backgroundColor: "var(--gray-50)", border: BORDER }}>
+            <p style={{ fontSize: "10px", color: "var(--gray-400)", fontWeight: 600 }}>RTSP Stream URL</p>
+            <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-600)", fontFamily: "monospace", marginTop: "2px", wordBreak: "break-all" }}>{camera.rtspUrl}</p>
           </div>
 
           {/* AI features */}
           <div>
-            <p style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a", marginBottom: "8px" }}>Mapped AI Engines</p>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", marginBottom: "8px" }}>Mapped AI Engines</p>
             {aiFeatures.length === 0 ? (
-              <p style={{ fontSize: "12px", color: "#94a3b8" }}>No AI engines mapped to this camera yet.</p>
+              <p style={{ fontSize: "12px", color: "var(--gray-400)" }}>No AI engines mapped to this camera yet.</p>
             ) : (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                 {aiFeatures.map(f => (
-                  <span key={f} style={{ fontSize: "10px", fontWeight: 600, color: "#5a3dfb", backgroundColor: "#f0f0ff", padding: "4px 10px", borderRadius: "999px" }}>{f}</span>
+                  <span key={f} style={{ fontSize: "10px", fontWeight: 600, color: "var(--primary-400)", backgroundColor: "var(--primary-100)", padding: "4px 10px", borderRadius: "999px" }}>{f}</span>
                 ))}
               </div>
             )}
@@ -105,15 +105,15 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
 
           {/* Recent activity — real detection events tied to this camera */}
           <div>
-            <p style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a", marginBottom: "8px" }}>Recent Activity</p>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", marginBottom: "8px" }}>Recent Activity</p>
             {recentEvents.length === 0 ? (
-              <p style={{ fontSize: "12px", color: "#94a3b8" }}>No recent detections at this camera.</p>
+              <p style={{ fontSize: "12px", color: "var(--gray-400)" }}>No recent detections at this camera.</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 {recentEvents.map(e => (
-                  <div key={e.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: "10px", backgroundColor: "#f8fafc", border: BORDER }}>
-                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a" }}>{e.personName ?? e.type}</span>
-                    <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "monospace" }}>{new Date(e.timestamp).toLocaleString()}</span>
+                  <div key={e.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: "10px", backgroundColor: "var(--gray-50)", border: BORDER }}>
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)" }}>{e.personName ?? e.type}</span>
+                    <span style={{ fontSize: "10px", color: "var(--gray-400)", fontFamily: "monospace" }}>{new Date(e.timestamp).toLocaleString()}</span>
                   </div>
                 ))}
               </div>
@@ -122,10 +122,10 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
         </div>
 
         <div style={{ padding: "16px 20px", borderTop: BORDER, display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-          <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "#475469", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             Close
           </button>
-          <button onClick={reconnect} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", borderRadius: "999px", border: "none", backgroundColor: "#0e162a", color: "white", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={reconnect} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", borderRadius: "999px", border: "none", backgroundColor: "var(--gray-900)", color: "white", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M12.25 7A5.25 5.25 0 1 1 10.5 3.15M12.25 1.75V4.67h-2.92" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             Reconnect
           </button>

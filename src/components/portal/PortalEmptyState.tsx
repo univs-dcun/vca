@@ -20,8 +20,8 @@ function GalleryCard({ label, file, height }: { label: string; file: string; hei
       backgroundColor: "white", border: BORDER, borderRadius: "14px", overflow: "hidden",
       breakInside: "avoid", marginBottom: "16px",
     }}>
-      <p style={{ fontSize: "12px", fontWeight: 700, color: "#475469", textAlign: "center", padding: "10px 12px 8px" }}>{label}</p>
-      <div style={{ height: `${height}px`, backgroundColor: "#f1f5f9" }}>
+      <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", textAlign: "center", padding: "10px 12px 8px" }}>{label}</p>
+      <div style={{ height: `${height}px`, backgroundColor: "var(--gray-100)" }}>
         <img
           src={`/portal/gallery/${file}`}
           alt={label}
@@ -41,18 +41,18 @@ export default function PortalEmptyState({ onNewProject }: PortalEmptyStateProps
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "48px", alignItems: "center" }}>
       <div>
-        <p style={{ fontSize: "12px", fontWeight: 700, color: "#5a3dfb", marginBottom: "12px" }}>Projects</p>
-        <p style={{ fontSize: "26px", fontWeight: 800, color: "#0e162a", lineHeight: "40px" }}>
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary-400)", marginBottom: "12px" }}>Projects</p>
+        <p style={{ fontSize: "26px", fontWeight: 800, color: "var(--gray-900)", lineHeight: "40px" }}>
           Deploy AI Monitoring for Any Environment
         </p>
-        <p style={{ fontSize: "14px", color: "#64748a", marginTop: "12px", lineHeight: "22px" }}>
+        <p style={{ fontSize: "14px", color: "var(--gray-500)", marginTop: "12px", lineHeight: "22px" }}>
           Create your first project, connect a camera stream, and start monitoring in minutes.
         </p>
         <button onClick={onNewProject}
           style={{
             display: "flex", alignItems: "center", gap: "6px", marginTop: "24px",
             padding: "12px 20px", borderRadius: "999px", border: "none",
-            backgroundColor: "#5a3dfb", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+            backgroundColor: "var(--primary-400)", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer",
           }}>
           <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 2.9V11.1M2.9 7H11.1" stroke="white" strokeWidth="1.4" strokeLinecap="round"/></svg>
           New Project

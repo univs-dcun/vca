@@ -45,7 +45,7 @@ function smoothPath(points: { x: number; y: number }[]): string {
 function ChevronDownIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
-      <path d="M4 6L8 10L12 6" stroke="#475469" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M4 6L8 10L12 6" stroke="var(--gray-600)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -54,11 +54,11 @@ function ChevronDownIcon() {
 function CameraIconFigma() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M13.9583 10H16.985C17.127 10.0001 17.2666 10.0364 17.3906 10.1056C17.5146 10.1748 17.6189 10.2745 17.6935 10.3953C17.7681 10.5161 17.8107 10.654 17.817 10.7958C17.8234 10.9377 17.7935 11.0788 17.73 11.2058L16.035 14.5967C15.9707 14.7252 15.8743 14.8348 15.7552 14.9151C15.636 14.9953 15.4981 15.0434 15.3549 15.0546C15.2117 15.0659 15.068 15.0399 14.9377 14.9792C14.8075 14.9185 14.6952 14.8252 14.6117 14.7083L12.8417 12.2333" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M14.255 7.54373C14.4525 7.6426 14.6027 7.81584 14.6726 8.02539C14.7424 8.23493 14.7262 8.46363 14.6275 8.66123L12.0392 13.8371C11.9902 13.935 11.9225 14.0223 11.8398 14.094C11.7571 14.1657 11.661 14.2204 11.5572 14.255C11.4533 14.2896 11.3437 14.3034 11.2345 14.2956C11.1253 14.2878 11.0187 14.2586 10.9209 14.2096L3.00836 10.2496C2.43364 9.96007 1.99699 9.45471 1.79396 8.84407C1.59093 8.23342 1.63806 7.56722 1.92503 6.99123L3.07503 4.66623C3.21836 4.38058 3.41656 4.12597 3.65831 3.91693C3.90006 3.70788 4.18061 3.54851 4.48396 3.44791C4.78731 3.34731 5.1075 3.30746 5.42625 3.33062C5.74501 3.35378 6.05608 3.4395 6.34169 3.5829L14.255 7.54373Z" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M1.66667 15.8333H4.8C5.11061 15.8355 5.41564 15.7508 5.68068 15.5888C5.94573 15.4269 6.16023 15.1941 6.3 14.9167L7.5 12.5" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M1.66675 17.4993V14.166" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M5.83333 7.5H5.84063" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M13.9583 10H16.985C17.127 10.0001 17.2666 10.0364 17.3906 10.1056C17.5146 10.1748 17.6189 10.2745 17.6935 10.3953C17.7681 10.5161 17.8107 10.654 17.817 10.7958C17.8234 10.9377 17.7935 11.0788 17.73 11.2058L16.035 14.5967C15.9707 14.7252 15.8743 14.8348 15.7552 14.9151C15.636 14.9953 15.4981 15.0434 15.3549 15.0546C15.2117 15.0659 15.068 15.0399 14.9377 14.9792C14.8075 14.9185 14.6952 14.8252 14.6117 14.7083L12.8417 12.2333" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14.255 7.54373C14.4525 7.6426 14.6027 7.81584 14.6726 8.02539C14.7424 8.23493 14.7262 8.46363 14.6275 8.66123L12.0392 13.8371C11.9902 13.935 11.9225 14.0223 11.8398 14.094C11.7571 14.1657 11.661 14.2204 11.5572 14.255C11.4533 14.2896 11.3437 14.3034 11.2345 14.2956C11.1253 14.2878 11.0187 14.2586 10.9209 14.2096L3.00836 10.2496C2.43364 9.96007 1.99699 9.45471 1.79396 8.84407C1.59093 8.23342 1.63806 7.56722 1.92503 6.99123L3.07503 4.66623C3.21836 4.38058 3.41656 4.12597 3.65831 3.91693C3.90006 3.70788 4.18061 3.54851 4.48396 3.44791C4.78731 3.34731 5.1075 3.30746 5.42625 3.33062C5.74501 3.35378 6.05608 3.4395 6.34169 3.5829L14.255 7.54373Z" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1.66667 15.8333H4.8C5.11061 15.8355 5.41564 15.7508 5.68068 15.5888C5.94573 15.4269 6.16023 15.1941 6.3 14.9167L7.5 12.5" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1.66675 17.4993V14.166" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5.83333 7.5H5.84063" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -66,7 +66,7 @@ function CameraIconFigma() {
 function ChevronRightIconFigma({ rotate }: { rotate: number }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ transform: `rotate(${rotate}deg)`, transition: "transform 0.15s" }}>
-      <path d="M6 12L10 8L6 4" stroke="#475469" strokeLinecap="round"/>
+      <path d="M6 12L10 8L6 4" stroke="var(--gray-600)" strokeLinecap="round"/>
     </svg>
   );
 }
@@ -191,7 +191,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", cursor: onHide ? "pointer" : "default" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
-          <span style={{ fontSize: "16px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.32px", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.32px", whiteSpace: "nowrap" }}>
             VIP detections today
           </span>
 
@@ -208,7 +208,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
               <span style={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden" }}>
                 <CameraIconFigma />
                 <span style={{
-                  fontSize: "14px", fontWeight: 600, color: "#1D293B", letterSpacing: "-0.28px",
+                  fontSize: "14px", fontWeight: 600, color: "var(--gray-800)", letterSpacing: "-0.28px",
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}>
                   {selectedCameraLabel}
@@ -220,7 +220,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
             {cameraPickerOpen && (
               <div style={{
                 position: "absolute", top: "calc(100% + 4px)", left: 0, width: "160px", backgroundColor: "white",
-                border: "1px solid #E2E8F0", borderRadius: "8px", boxShadow: "0 8px 20px rgba(14,22,42,0.12)",
+                border: "1px solid var(--gray-200)", borderRadius: "8px", boxShadow: "0 8px 20px rgba(14,22,42,0.12)",
                 zIndex: 10, overflow: "hidden",
               }}>
                 {([{ id: null as CameraFilter, name: ALL_CAMERAS_LABEL }, ...cameras.map(c => ({ id: c.id as CameraFilter, name: c.name }))]).map(opt => (
@@ -229,9 +229,9 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
                     onClick={() => { setSelectedCameraId(opt.id); setCameraPickerOpen(false); }}
                     style={{
                       display: "block", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", cursor: "pointer",
-                      backgroundColor: opt.id === selectedCameraId ? "#f0f0ff" : "white",
+                      backgroundColor: opt.id === selectedCameraId ? "var(--primary-100)" : "white",
                       fontSize: "13px", fontWeight: opt.id === selectedCameraId ? 700 : 500,
-                      color: opt.id === selectedCameraId ? "#5a3dfb" : "#334155",
+                      color: opt.id === selectedCameraId ? "var(--primary-400)" : "var(--gray-700)",
                     }}
                   >
                     {opt.name}
@@ -259,7 +259,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
       <div style={{ display: "flex", gap: "8px" }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: `${CHART_HEIGHT}px`, paddingBottom: "1px" }}>
           {[...yTicks].reverse().map((tick, i) => (
-            <span key={i} style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8", lineHeight: 1 }}>{tick}</span>
+            <span key={i} style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)", lineHeight: 1 }}>{tick}</span>
           ))}
         </div>
 
@@ -290,7 +290,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
             </g>
 
             {yTicks.map((tick, i) => (
-              <line key={i} x1={0} y1={yForCount(tick)} x2={width} y2={yForCount(tick)} stroke="#e2e8f0" strokeWidth={1} />
+              <line key={i} x1={0} y1={yForCount(tick)} x2={width} y2={yForCount(tick)} stroke="var(--gray-200)" strokeWidth={1} />
             ))}
 
             {/* Baseline volume bars — one per hour, the exact real count (capped visually to 30%
@@ -301,7 +301,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
               const x = xForHour(hour, width) - barWidth / 2;
               const barHeight = Math.max(2, (count / yMax) * CHART_HEIGHT * 0.3);
               return (
-                <rect key={hour} x={x} y={CHART_HEIGHT - barHeight} width={barWidth} height={barHeight} rx={1} fill="#ccd5e1" />
+                <rect key={hour} x={x} y={CHART_HEIGHT - barHeight} width={barWidth} height={barHeight} rx={1} fill="var(--gray-300)" />
               );
             })}
 
@@ -318,7 +318,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
 
       <div style={{ display: "flex", justifyContent: "space-between", paddingLeft: "24px" }}>
         {HOUR_TICKS.map(hour => (
-          <span key={hour} style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8" }}>
+          <span key={hour} style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>
             {hourLabel(hour)}
           </span>
         ))}

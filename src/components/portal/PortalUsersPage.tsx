@@ -30,39 +30,39 @@ function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: stri
       style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
       <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
         <div style={{ padding: "16px 20px", borderBottom: BORDER, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <p style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a" }}>Invite User</p>
-          <button onClick={onClose} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}>
+          <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>Invite User</p>
+          <button onClick={onClose} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", maxHeight: "60vh", overflowY: "auto" }}>
           <div>
-            <label style={{ fontSize: "12px", fontWeight: 700, color: "#475469", display: "block", marginBottom: "6px" }}>Name</label>
+            <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Name</label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Full name"
               style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: "10px", border: BORDER, fontSize: "13px", fontFamily: "inherit" }} />
           </div>
           <div>
-            <label style={{ fontSize: "12px", fontWeight: 700, color: "#475469", display: "block", marginBottom: "6px" }}>Email</label>
+            <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Email</label>
             <input value={email} onChange={e => setEmail(e.target.value)} placeholder="name@univs.ai" type="email"
               style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: "10px", border: BORDER, fontSize: "13px", fontFamily: "inherit" }} />
           </div>
           <div>
-            <label style={{ fontSize: "12px", fontWeight: 700, color: "#475469", display: "block", marginBottom: "6px" }}>Organization</label>
+            <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Organization</label>
             <select value={orgId} onChange={e => setOrgId(e.target.value)}
               style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: "10px", border: BORDER, fontSize: "13px", fontFamily: "inherit", backgroundColor: "white" }}>
               {organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
           </div>
           <div>
-            <label style={{ fontSize: "12px", fontWeight: 700, color: "#475469", display: "block", marginBottom: "6px" }}>Permission level</label>
+            <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Permission level</label>
             <div style={{ display: "flex", gap: "8px" }}>
               {(["admin", "operator"] as PortalPermission[]).map(perm => (
                 <button key={perm} onClick={() => setPermission(perm)}
                   style={{
                     flex: 1, padding: "10px 12px", borderRadius: "10px", cursor: "pointer", textTransform: "capitalize",
-                    border: permission === perm ? "1px solid #5a3dfb" : BORDER,
-                    backgroundColor: permission === perm ? "#f0f0ff" : "white",
-                    color: permission === perm ? "#5a3dfb" : "#475469",
+                    border: permission === perm ? "1px solid var(--primary-400)" : BORDER,
+                    backgroundColor: permission === perm ? "var(--primary-100)" : "white",
+                    color: permission === perm ? "var(--primary-400)" : "var(--gray-600)",
                     fontSize: "13px", fontWeight: 700,
                   }}>
                   {perm}
@@ -71,7 +71,7 @@ function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: stri
             </div>
           </div>
           <div>
-            <label style={{ fontSize: "12px", fontWeight: 700, color: "#475469", display: "block", marginBottom: "6px" }}>Projects</label>
+            <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Projects</label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
               {projects.map(p => {
                 const active = projectIds.includes(p.id);
@@ -79,9 +79,9 @@ function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: stri
                   <button key={p.id} onClick={() => toggleProject(p.id)}
                     style={{
                       padding: "6px 10px", borderRadius: "999px", cursor: "pointer",
-                      border: active ? "1px solid #5a3dfb" : BORDER,
-                      backgroundColor: active ? "#f0f0ff" : "white",
-                      color: active ? "#5a3dfb" : "#475469",
+                      border: active ? "1px solid var(--primary-400)" : BORDER,
+                      backgroundColor: active ? "var(--primary-100)" : "white",
+                      color: active ? "var(--primary-400)" : "var(--gray-600)",
                       fontSize: "12px", fontWeight: 700,
                     }}>
                     {p.name}
@@ -92,11 +92,11 @@ function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: stri
           </div>
         </div>
         <div style={{ padding: "16px 20px", borderTop: BORDER, display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-          <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "#475469", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             Cancel
           </button>
           <button onClick={submit} disabled={!name.trim() || !email.trim()}
-            style={{ padding: "9px 16px", borderRadius: "999px", border: "none", backgroundColor: "#5a3dfb", color: "white", fontSize: "13px", fontWeight: 700, cursor: (name.trim() && email.trim()) ? "pointer" : "not-allowed", opacity: (name.trim() && email.trim()) ? 1 : 0.5 }}>
+            style={{ padding: "9px 16px", borderRadius: "999px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "13px", fontWeight: 700, cursor: (name.trim() && email.trim()) ? "pointer" : "not-allowed", opacity: (name.trim() && email.trim()) ? 1 : 0.5 }}>
             Send Invite
           </button>
         </div>
@@ -110,8 +110,8 @@ function StatusBadge({ status }: { status: "active" | "invited" }) {
   return (
     <span style={{
       fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "999px", textTransform: "capitalize",
-      backgroundColor: isActive ? "#f1f5f9" : "#fef3c7",
-      color: isActive ? "#16a34a" : "#ea580c",
+      backgroundColor: isActive ? "var(--gray-100)" : "var(--warning-200)",
+      color: isActive ? "var(--success-400)" : "var(--warning-500)",
     }}>
       {status}
     </span>
@@ -140,44 +140,44 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
     <div>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px" }}>
         <div>
-          <p style={{ fontSize: "20px", fontWeight: 800, color: "#0e162a" }}>Users &amp; Permissions</p>
-          <p style={{ fontSize: "13px", color: "#64748a", marginTop: "4px" }}>
-            {currentProject ? <>Showing users with access to <strong style={{ color: "#475469" }}>{currentProject.name}</strong>.</> : "Grant Portal (admin) or app (operator) access and scope users to projects."}
+          <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)" }}>Users &amp; Permissions</p>
+          <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "4px" }}>
+            {currentProject ? <>Showing users with access to <strong style={{ color: "var(--gray-600)" }}>{currentProject.name}</strong>.</> : "Grant Portal (admin) or app (operator) access and scope users to projects."}
           </p>
         </div>
         <button onClick={() => setShowInvite(true)}
-          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "999px", border: "none", backgroundColor: "#5a3dfb", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "999px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
           <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 2.9V11.1M2.9 7H11.1" stroke="white" strokeWidth="1.4" strokeLinecap="round"/></svg>
           Invite User
         </button>
       </div>
 
       <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1.2fr 1.6fr 1fr 0.8fr 40px", padding: "10px 16px", backgroundColor: "#f8fafc", borderBottom: BORDER }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1.2fr 1.6fr 1fr 0.8fr 40px", padding: "10px 16px", backgroundColor: "var(--gray-50)", borderBottom: BORDER }}>
           {["User", "Organization", "Projects", "Permission", "Status", ""].map(h => (
-            <span key={h} style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.4px" }}>{h.toUpperCase()}</span>
+            <span key={h} style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)", letterSpacing: "0.4px" }}>{h.toUpperCase()}</span>
           ))}
         </div>
         {scopedUsers.length === 0 && (
           <div style={{ padding: "32px 16px", textAlign: "center" }}>
-            <p style={{ fontSize: "13px", color: "#94a3b8" }}>No users have access to this project yet.</p>
+            <p style={{ fontSize: "13px", color: "var(--gray-400)" }}>No users have access to this project yet.</p>
           </div>
         )}
         {scopedUsers.map(u => (
           <div key={u.id} style={{ display: "grid", gridTemplateColumns: "1.6fr 1.2fr 1.6fr 1fr 0.8fr 40px", padding: "12px 16px", alignItems: "center", borderBottom: BORDER }}>
             <div>
-              <p style={{ fontSize: "13px", fontWeight: 700, color: "#0e162a" }}>{u.name}</p>
-              <p style={{ fontSize: "10px", color: "#94a3b8" }}>{u.email}</p>
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{u.name}</p>
+              <p style={{ fontSize: "10px", color: "var(--gray-400)" }}>{u.email}</p>
             </div>
-            <span style={{ fontSize: "12px", color: "#475469" }}>{orgName(u.orgId)}</span>
+            <span style={{ fontSize: "12px", color: "var(--gray-600)" }}>{orgName(u.orgId)}</span>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
               {u.projectIds.length === 0
-                ? <span style={{ fontSize: "10px", color: "#ccd5e1" }}>—</span>
+                ? <span style={{ fontSize: "10px", color: "var(--gray-300)" }}>—</span>
                 : u.projectIds.map(pid => (
                   <span key={pid} style={{
                     fontSize: "10px", fontWeight: 600, padding: "2px 7px", borderRadius: "999px",
-                    color: pid === projectId ? "#5a3dfb" : "#475469",
-                    backgroundColor: pid === projectId ? "#f0f0ff" : "#f1f5f9",
+                    color: pid === projectId ? "var(--primary-400)" : "var(--gray-600)",
+                    backgroundColor: pid === projectId ? "var(--primary-100)" : "var(--gray-100)",
                   }}>
                     {projectName(pid)}
                   </span>
@@ -189,7 +189,7 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
               style={{
                 width: "fit-content", padding: "5px 8px", borderRadius: "8px", border: BORDER,
                 fontSize: "12px", fontWeight: 700, fontFamily: "inherit", backgroundColor: "white",
-                color: u.permission === "admin" ? "#5a3dfb" : "#475469", textTransform: "capitalize", cursor: "pointer",
+                color: u.permission === "admin" ? "var(--primary-400)" : "var(--gray-600)", textTransform: "capitalize", cursor: "pointer",
               }}>
               <option value="admin">Admin</option>
               <option value="operator">Operator</option>
@@ -198,7 +198,7 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
             <button
               onClick={() => removePortalUser(u.id)}
               title="Remove user"
-              style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex", padding: "4px", justifySelf: "end" }}>
+              style={{ border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex", padding: "4px", justifySelf: "end" }}>
               <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
                 <path d="M2.91663 4.08333H11.0833M5.83329 6.41667V9.33333M8.16663 6.41667V9.33333M3.49996 4.08333L4.08329 10.9167C4.08329 11.2261 4.20621 11.5228 4.42501 11.7416C4.6438 11.9604 4.9405 12.0833 5.24996 12.0833H8.74996C9.05942 12.0833 9.35612 11.9604 9.57491 11.7416C9.79371 11.5228 9.91663 11.2261 9.91663 10.9167L10.5 4.08333M5.24996 4.08333V2.33333C5.24996 2.17862 5.31142 2.03025 5.42082 1.92085C5.53022 1.81146 5.67858 1.75 5.83329 1.75H8.16663C8.32134 1.75 8.4697 1.81146 8.5791 1.92085C8.68849 2.03025 8.74996 2.17862 8.74996 2.33333V4.08333" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>

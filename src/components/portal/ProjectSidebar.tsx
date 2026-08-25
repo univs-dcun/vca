@@ -79,7 +79,7 @@ export default function ProjectSidebar({ tab, onTabChange, collapsed, admin }: P
         width: collapsed ? "60px" : "212px",
         flexShrink: 0,
         display: "flex", flexDirection: "column",
-        backgroundColor: "#f8fafc",
+        backgroundColor: "var(--gray-50)",
         padding: collapsed ? "16px 8px" : "16px 12px",
         overflowY: "auto",
         transition: "width .15s ease",
@@ -87,7 +87,7 @@ export default function ProjectSidebar({ tab, onTabChange, collapsed, admin }: P
     >
       <style>{`
         .portal-navitem{transition:background-color .12s}
-        .portal-navitem:hover{background-color:#f1f5f9}
+        .portal-navitem:hover{background-color:var(--gray-100)}
       `}</style>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "4px" }}>
         {PROJECT_TABS.map(t => {
@@ -104,13 +104,13 @@ export default function ProjectSidebar({ tab, onTabChange, collapsed, admin }: P
                 justifyContent: collapsed ? "center" : "flex-start",
                 border: "none", cursor: "pointer", borderRadius: "12px",
                 padding: collapsed ? "12px 0" : "11px 14px",
-                backgroundColor: active ? "#0e162a" : undefined,
-                color: active ? "white" : "#475469",
+                backgroundColor: active ? "var(--gray-900)" : undefined,
+                color: active ? "white" : "var(--gray-600)",
                 fontSize: "13px", fontWeight: active ? 700 : 600,
                 whiteSpace: "nowrap", width: "100%",
               }}
             >
-              <span style={{ display: "flex", flexShrink: 0 }}><Icon color={active ? "white" : "#475469"} /></span>
+              <span style={{ display: "flex", flexShrink: 0 }}><Icon color={active ? "white" : "var(--gray-600)"} /></span>
               {!collapsed && t.label}
             </button>
           );
@@ -120,20 +120,20 @@ export default function ProjectSidebar({ tab, onTabChange, collapsed, admin }: P
       {admin && (
         <div style={{
           display: "flex", alignItems: "center", gap: "10px",
-          borderTop: "1px solid #e2e8f0", paddingTop: "14px", marginTop: "8px",
+          borderTop: "1px solid var(--gray-200)", paddingTop: "14px", marginTop: "8px",
           justifyContent: collapsed ? "center" : "flex-start",
         }}>
           <span style={{
             display: "flex", alignItems: "center", justifyContent: "center",
             width: "28px", height: "28px", borderRadius: "50%", flexShrink: 0,
-            backgroundColor: "#f0f0ff", color: "#5a3dfb", fontSize: "12px", fontWeight: 700,
+            backgroundColor: "var(--primary-100)", color: "var(--primary-400)", fontSize: "12px", fontWeight: 700,
           }}>
             {admin.name.charAt(0).toUpperCase()}
           </span>
           {!collapsed && (
             <div style={{ overflow: "hidden" }}>
-              <div style={{ fontSize: "13px", fontWeight: 700, color: "#0e162a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{admin.name}</div>
-              <div style={{ fontSize: "10px", color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{admin.email}</div>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{admin.name}</div>
+              <div style={{ fontSize: "10px", color: "var(--gray-400)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{admin.email}</div>
             </div>
           )}
         </div>

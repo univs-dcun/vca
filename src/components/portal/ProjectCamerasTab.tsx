@@ -38,7 +38,7 @@ function CameraFormModal({
 
   const field = (key: "name" | "code" | "rtspUrl" | "location" | "zone", label: string, placeholder: string) => (
     <div>
-      <label style={{ fontSize: "12px", fontWeight: 700, color: "#475469", display: "block", marginBottom: "6px" }}>{label}</label>
+      <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>{label}</label>
       <input
         value={form[key]}
         onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
@@ -66,8 +66,8 @@ function CameraFormModal({
       style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
       <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "460px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
         <div style={{ padding: "16px 20px", borderBottom: BORDER, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <p style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a" }}>{title}</p>
-          <button onClick={onClose} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}>
+          <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{title}</p>
+          <button onClick={onClose} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
@@ -78,11 +78,11 @@ function CameraFormModal({
 
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <label style={{ fontSize: "12px", fontWeight: 700, color: "#475469" }}>Transport Protocol</label>
+              <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)" }}>Transport Protocol</label>
               <div style={{ display: "flex", gap: "12px" }}>
                 {(["TCP", "UDP"] as const).map(p => (
-                  <label key={p} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "12px", color: "#475469" }}>
-                    <input type="radio" checked={form.protocol === p} onChange={() => setForm(f => ({ ...f, protocol: p }))} style={{ accentColor: "#5a3dfb" }} />
+                  <label key={p} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "12px", color: "var(--gray-600)" }}>
+                    <input type="radio" checked={form.protocol === p} onChange={() => setForm(f => ({ ...f, protocol: p }))} style={{ accentColor: "var(--primary-400)" }} />
                     {p}
                   </label>
                 ))}
@@ -93,11 +93,11 @@ function CameraFormModal({
           <button type="button" onClick={testConnection} disabled={!form.rtspUrl.trim() || testing}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-              padding: "10px", borderRadius: "10px", border: BORDER, backgroundColor: "#f8fafc",
-              color: "#5a3dfb", fontSize: "12px", fontWeight: 700,
+              padding: "10px", borderRadius: "10px", border: BORDER, backgroundColor: "var(--gray-50)",
+              color: "var(--primary-400)", fontSize: "12px", fontWeight: 700,
               cursor: form.rtspUrl.trim() && !testing ? "pointer" : "not-allowed", opacity: form.rtspUrl.trim() ? 1 : 0.5,
             }}>
-            <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M9.33 1.75a1.24 1.24 0 0 1 1.75 1.75L4.67 10.08 2 10.75l.67-2.67 6.66-6.33z" stroke="#5a3dfb" strokeWidth="1.1" strokeLinejoin="round"/></svg>
+            <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M9.33 1.75a1.24 1.24 0 0 1 1.75 1.75L4.67 10.08 2 10.75l.67-2.67 6.66-6.33z" stroke="var(--primary-400)" strokeWidth="1.1" strokeLinejoin="round"/></svg>
             {testing ? "Testing…" : "Test RTSP Connection"}
           </button>
 
@@ -105,7 +105,7 @@ function CameraFormModal({
           {field("zone", "Zone", "e.g. Novena")}
 
           <div>
-            <label style={{ fontSize: "12px", fontWeight: 700, color: "#475469", display: "block", marginBottom: "8px" }}>AI Analysis Engines</label>
+            <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "8px" }}>AI Analysis Engines</label>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
               {AI_FEATURES.map(f => {
                 const active = form.aiFeatures.includes(f);
@@ -113,9 +113,9 @@ function CameraFormModal({
                   <button key={f} type="button" onClick={() => toggleFeature(f)}
                     style={{
                       padding: "10px 6px", borderRadius: "10px", cursor: "pointer", textAlign: "center",
-                      border: active ? "1px solid #5a3dfb" : BORDER,
-                      backgroundColor: active ? "#f0f0ff" : "#f8fafc",
-                      color: active ? "#5a3dfb" : "#475469",
+                      border: active ? "1px solid var(--primary-400)" : BORDER,
+                      backgroundColor: active ? "var(--primary-100)" : "var(--gray-50)",
+                      color: active ? "var(--primary-400)" : "var(--gray-600)",
                       fontSize: "10px", fontWeight: 600,
                     }}>
                     {f}
@@ -126,11 +126,11 @@ function CameraFormModal({
           </div>
         </div>
         <div style={{ padding: "16px 20px", borderTop: BORDER, display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-          <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "#475469", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             Cancel
           </button>
           <button onClick={() => valid && onSubmit(form)} disabled={!valid}
-            style={{ padding: "9px 16px", borderRadius: "999px", border: "none", backgroundColor: "#5a3dfb", color: "white", fontSize: "13px", fontWeight: 700, cursor: valid ? "pointer" : "not-allowed", opacity: valid ? 1 : 0.5 }}>
+            style={{ padding: "9px 16px", borderRadius: "999px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "13px", fontWeight: 700, cursor: valid ? "pointer" : "not-allowed", opacity: valid ? 1 : 0.5 }}>
             Save
           </button>
         </div>
@@ -154,23 +154,23 @@ function ConfirmStatusModal({
       style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
       <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "380px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
         <div style={{ padding: "20px" }}>
-          <p style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a" }}>
+          <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>
             {goingOffline ? "Mark camera offline?" : "Reconnect camera?"}
           </p>
-          <p style={{ fontSize: "13px", color: "#64748a", marginTop: "8px" }}>
+          <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "8px" }}>
             {goingOffline
               ? `${camera.name} will show as offline for everyone monitoring this project — make sure the stream is actually down before confirming.`
               : `This attempts to reconnect ${camera.name} and marks it online. It doesn't verify the actual hardware, so if it's really still down, someone will need to mark it offline again.`}
           </p>
         </div>
         <div style={{ padding: "16px 20px", borderTop: BORDER, display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-          <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "#475469", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             Cancel
           </button>
           <button onClick={onConfirm}
             style={{
               padding: "9px 16px", borderRadius: "999px", border: "none",
-              backgroundColor: goingOffline ? "#f43f5e" : "#5a3dfb", color: "white",
+              backgroundColor: goingOffline ? "var(--danger-400)" : "var(--primary-400)", color: "white",
               fontSize: "13px", fontWeight: 700, cursor: "pointer",
             }}>
             {goingOffline ? "Mark Offline" : "Reconnect"}
@@ -182,11 +182,11 @@ function ConfirmStatusModal({
 }
 
 function AiFeatureBadges({ features }: { features?: CameraAiFeature[] }) {
-  if (!features || features.length === 0) return <span style={{ fontSize: "10px", color: "#ccd5e1" }}>—</span>;
+  if (!features || features.length === 0) return <span style={{ fontSize: "10px", color: "var(--gray-300)" }}>—</span>;
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
       {features.map(f => (
-        <span key={f} style={{ fontSize: "10px", fontWeight: 600, color: "#5a3dfb", backgroundColor: "#f0f0ff", padding: "2px 6px", borderRadius: "999px" }}>{f}</span>
+        <span key={f} style={{ fontSize: "10px", fontWeight: 600, color: "var(--primary-400)", backgroundColor: "var(--primary-100)", padding: "2px 6px", borderRadius: "999px" }}>{f}</span>
       ))}
     </div>
   );
@@ -297,29 +297,29 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
 
   const filterSelectStyle: React.CSSProperties = {
     padding: "9px 10px", borderRadius: "10px", border: BORDER, fontSize: "12px", fontFamily: "inherit",
-    backgroundColor: "white", color: "#475469", cursor: "pointer",
+    backgroundColor: "white", color: "var(--gray-600)", cursor: "pointer",
   };
 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px" }}>
         <div>
-          <p style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a" }}>Cameras</p>
-          <p style={{ fontSize: "12px", color: "#64748a", marginTop: "4px" }}>Connect and manage this project&apos;s camera streams and AI engine mapping.</p>
+          <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>Cameras</p>
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "4px" }}>Connect and manage this project&apos;s camera streams and AI engine mapping.</p>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
           <button onClick={batchReconnect}
-            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "#475469", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-            <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M12.25 7A5.25 5.25 0 1 1 10.5 3.15M12.25 1.75V4.67h-2.92" stroke="#475469" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+            <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M12.25 7A5.25 5.25 0 1 1 10.5 3.15M12.25 1.75V4.67h-2.92" stroke="var(--gray-600)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             Reconnect All
           </button>
           <button onClick={exportCsv}
-            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "#475469", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-            <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 1.75V9.33M7 9.33 4.08 6.42M7 9.33 9.92 6.42M2.33 9.92v1.17c0 .64.53 1.16 1.17 1.16h7c.64 0 1.17-.52 1.17-1.16V9.92" stroke="#475469" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "999px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+            <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 1.75V9.33M7 9.33 4.08 6.42M7 9.33 9.92 6.42M2.33 9.92v1.17c0 .64.53 1.16 1.17 1.16h7c.64 0 1.17-.52 1.17-1.16V9.92" stroke="var(--gray-600)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             Export CSV
           </button>
           <button onClick={() => setShowAdd(true)}
-            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "999px", border: "none", backgroundColor: "#5a3dfb", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "999px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
             <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 2.9V11.1M2.9 7H11.1" stroke="white" strokeWidth="1.4" strokeLinecap="round"/></svg>
             Add Camera
           </button>
@@ -328,30 +328,30 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
 
       {/* Metrics */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
-        <div style={{ backgroundColor: "white", border: overLimit ? "1px solid #f43f5e" : BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-          <p style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8" }}>CHANNEL USAGE</p>
-          <p style={{ fontSize: "20px", fontWeight: 800, color: overLimit ? "#f43f5e" : "#0e162a", marginTop: "6px" }}>
+        <div style={{ backgroundColor: "white", border: overLimit ? "1px solid var(--danger-400)" : BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
+          <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>CHANNEL USAGE</p>
+          <p style={{ fontSize: "20px", fontWeight: 800, color: overLimit ? "var(--danger-400)" : "var(--gray-900)", marginTop: "6px" }}>
             {projectCameras.length}{limit ? ` / ${limit}` : ""}
           </p>
           {limit ? (
-            <div style={{ height: "4px", backgroundColor: "#f1f5f9", borderRadius: "2px", marginTop: "8px" }}>
-              <div style={{ height: "4px", width: `${Math.min(100, (projectCameras.length / limit) * 100)}%`, backgroundColor: overLimit ? "#f43f5e" : "#5a3dfb", borderRadius: "2px" }} />
+            <div style={{ height: "4px", backgroundColor: "var(--gray-100)", borderRadius: "2px", marginTop: "8px" }}>
+              <div style={{ height: "4px", width: `${Math.min(100, (projectCameras.length / limit) * 100)}%`, backgroundColor: overLimit ? "var(--danger-400)" : "var(--primary-400)", borderRadius: "2px" }} />
             </div>
-          ) : <p style={{ fontSize: "10px", color: "#94a3b8", marginTop: "8px" }}>No license limit set</p>}
+          ) : <p style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "8px" }}>No license limit set</p>}
         </div>
         <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-          <p style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8" }}>STREAM HEALTH</p>
-          <p style={{ fontSize: "20px", fontWeight: 800, color: "#16a34a", marginTop: "6px" }}>{onlineCount} <span style={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8" }}>online</span></p>
-          <p style={{ fontSize: "10px", color: "#94a3b8", marginTop: "8px" }}>{offlineCount} offline</p>
+          <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>STREAM HEALTH</p>
+          <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--success-400)", marginTop: "6px" }}>{onlineCount} <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)" }}>online</span></p>
+          <p style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "8px" }}>{offlineCount} offline</p>
         </div>
         <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-          <p style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8" }}>AI ENGINE COVERAGE</p>
-          <p style={{ fontSize: "20px", fontWeight: 800, color: "#0e162a", marginTop: "6px" }}>{aiMappedCount} <span style={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8" }}>/ {projectCameras.length} mapped</span></p>
+          <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>AI ENGINE COVERAGE</p>
+          <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)", marginTop: "6px" }}>{aiMappedCount} <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)" }}>/ {projectCameras.length} mapped</span></p>
         </div>
         <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-          <p style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8" }}>ZONE COVERAGE</p>
-          <p style={{ fontSize: "20px", fontWeight: 800, color: "#0e162a", marginTop: "6px" }}>{zones.length} <span style={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8" }}>zones</span></p>
-          <p style={{ fontSize: "10px", color: "#94a3b8", marginTop: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>ZONE COVERAGE</p>
+          <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)", marginTop: "6px" }}>{zones.length} <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)" }}>zones</span></p>
+          <p style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {zoneCounts.slice(0, 3).map(z => `${z.zone} (${z.count})`).join(" · ") || "—"}
           </p>
         </div>
@@ -360,7 +360,7 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
       {/* Search & filters */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
         <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
-          <span style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", display: "flex" }}>
+          <span style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--gray-400)", display: "flex" }}>
             <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3"/><path d="M12 12L9.5 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
           </span>
           <input
@@ -383,13 +383,13 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
           <option value="ALL">All AI Engines</option>
           {AI_FEATURES.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
-        <div style={{ display: "flex", backgroundColor: "#f8fafc", border: BORDER, borderRadius: "10px", padding: "3px" }}>
+        <div style={{ display: "flex", backgroundColor: "var(--gray-50)", border: BORDER, borderRadius: "10px", padding: "3px" }}>
           {(["table", "grid"] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
               style={{
                 padding: "6px 10px", borderRadius: "8px", border: "none", cursor: "pointer",
                 backgroundColor: view === v ? "white" : "transparent", boxShadow: view === v ? PANEL_SHADOW : "none",
-                fontSize: "12px", fontWeight: 700, color: view === v ? "#0e162a" : "#94a3b8",
+                fontSize: "12px", fontWeight: 700, color: view === v ? "var(--gray-900)" : "var(--gray-400)",
               }}>
               {v === "table" ? "Table" : "Grid"}
             </button>
@@ -399,40 +399,40 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
 
       {visibleCameras.length === 0 ? (
         <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", padding: "32px", textAlign: "center" }}>
-          <p style={{ fontSize: "13px", color: "#94a3b8" }}>
+          <p style={{ fontSize: "13px", color: "var(--gray-400)" }}>
             {projectCameras.length === 0 ? "No cameras connected to this project yet." : "No cameras match these filters."}
           </p>
         </div>
       ) : view === "table" ? (
         <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "56px 1.3fr 0.8fr 1.3fr 1.2fr 0.8fr 70px", padding: "10px 16px", backgroundColor: "#f8fafc", borderBottom: BORDER }}>
+          <div style={{ display: "grid", gridTemplateColumns: "56px 1.3fr 0.8fr 1.3fr 1.2fr 0.8fr 70px", padding: "10px 16px", backgroundColor: "var(--gray-50)", borderBottom: BORDER }}>
             {["", "Camera", "Zone", "RTSP Stream", "AI Engines", "Status", ""].map(h => (
-              <span key={h} style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.4px" }}>{h.toUpperCase()}</span>
+              <span key={h} style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)", letterSpacing: "0.4px" }}>{h.toUpperCase()}</span>
             ))}
           </div>
           {visibleCameras.map(cam => {
             const online = cam.status === "online";
             return (
               <div key={cam.id} style={{ display: "grid", gridTemplateColumns: "56px 1.3fr 0.8fr 1.3fr 1.2fr 0.8fr 70px", padding: "10px 16px", alignItems: "center", borderBottom: BORDER }}>
-                <button onClick={() => setInspectingCameraId(cam.id)} style={{ width: "40px", height: "40px", borderRadius: "8px", overflow: "hidden", backgroundColor: "#f1f5f9", border: "none", cursor: "pointer", padding: 0 }}>
+                <button onClick={() => setInspectingCameraId(cam.id)} style={{ width: "40px", height: "40px", borderRadius: "8px", overflow: "hidden", backgroundColor: "var(--gray-100)", border: "none", cursor: "pointer", padding: 0 }}>
                   <img src={cam.thumbnail || DEFAULT_THUMBNAIL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </button>
                 <div>
-                  <p style={{ fontSize: "13px", fontWeight: 700, color: "#0e162a" }}>{cam.name}</p>
-                  <p style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "monospace" }}>{cam.code}</p>
+                  <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{cam.name}</p>
+                  <p style={{ fontSize: "10px", color: "var(--gray-400)", fontFamily: "monospace" }}>{cam.code}</p>
                 </div>
-                <span style={{ fontSize: "12px", color: "#475469" }}>{cam.zone}</span>
-                <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cam.rtspUrl}</span>
+                <span style={{ fontSize: "12px", color: "var(--gray-600)" }}>{cam.zone}</span>
+                <span style={{ fontSize: "10px", color: "var(--gray-400)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cam.rtspUrl}</span>
                 <AiFeatureBadges features={cam.aiFeatures} />
                 <button onClick={() => setConfirmingStatusCam(cam)} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: online ? "#16a34a" : "#94a3b8", flexShrink: 0 }} />
-                  <span style={{ fontSize: "12px", fontWeight: 700, color: online ? "#16a34a" : "#94a3b8" }}>{online ? "Online" : "Offline"}</span>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: online ? "var(--success-400)" : "var(--gray-400)", flexShrink: 0 }} />
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: online ? "var(--success-400)" : "var(--gray-400)" }}>{online ? "Online" : "Offline"}</span>
                 </button>
                 <div style={{ display: "flex", gap: "8px", justifySelf: "end" }}>
-                  <button onClick={() => setEditingCamera(cam)} title="Edit camera" style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex", padding: "4px" }}>
+                  <button onClick={() => setEditingCamera(cam)} title="Edit camera" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex", padding: "4px" }}>
                     <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M9.33 1.67a1.18 1.18 0 0 1 1.67 1.67L4.67 9.67 2 10.33l.67-2.67 6.66-6z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
                   </button>
-                  <button onClick={() => handleDelete(cam)} title="Remove camera" style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex", padding: "4px" }}>
+                  <button onClick={() => handleDelete(cam)} title="Remove camera" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex", padding: "4px" }}>
                     <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
                       <path d="M2.91663 4.08333H11.0833M5.83329 6.41667V9.33333M8.16663 6.41667V9.33333M3.49996 4.08333L4.08329 10.9167C4.08329 11.2261 4.20621 11.5228 4.42501 11.7416C4.6438 11.9604 4.9405 12.0833 5.24996 12.0833H8.74996C9.05942 12.0833 9.35612 11.9604 9.57491 11.7416C9.79371 11.5228 9.91663 11.2261 9.91663 10.9167L10.5 4.08333M5.24996 4.08333V2.33333C5.24996 2.17862 5.31142 2.03025 5.42082 1.92085C5.53022 1.81146 5.67858 1.75 5.83329 1.75H8.16663C8.32134 1.75 8.4697 1.81146 8.5791 1.92085C8.68849 2.03025 8.74996 2.17862 8.74996 2.33333V4.08333" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
@@ -448,7 +448,7 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
             const online = cam.status === "online";
             return (
               <div key={cam.id} style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, overflow: "hidden" }}>
-                <button onClick={() => setInspectingCameraId(cam.id)} style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", border: "none", padding: 0, cursor: "pointer", display: "block", backgroundColor: "#0e162a" }}>
+                <button onClick={() => setInspectingCameraId(cam.id)} style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", border: "none", padding: 0, cursor: "pointer", display: "block", backgroundColor: "var(--gray-900)" }}>
                   <img src={cam.thumbnail || DEFAULT_THUMBNAIL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: online ? 1 : 0.4 }} />
                   <span style={{
                     position: "absolute", top: "8px", left: "8px", fontSize: "10px", fontWeight: 600, padding: "3px 7px", borderRadius: "999px",
@@ -459,17 +459,17 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
                 </button>
                 <div style={{ padding: "12px" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <p style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a", fontFamily: "monospace" }}>{cam.code}</p>
-                    <span style={{ fontSize: "10px", color: "#94a3b8" }}>{cam.zone}</span>
+                    <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", fontFamily: "monospace" }}>{cam.code}</p>
+                    <span style={{ fontSize: "10px", color: "var(--gray-400)" }}>{cam.zone}</span>
                   </div>
-                  <p style={{ fontSize: "12px", fontWeight: 600, color: "#475469", marginTop: "2px" }}>{cam.name}</p>
+                  <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", marginTop: "2px" }}>{cam.name}</p>
                   <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: BORDER, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <AiFeatureBadges features={cam.aiFeatures} />
                     <div style={{ display: "flex", gap: "4px" }}>
-                      <button onClick={() => setConfirmingStatusCam(cam)} title="Toggle status" style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex", padding: "2px" }}>
+                      <button onClick={() => setConfirmingStatusCam(cam)} title="Toggle status" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex", padding: "2px" }}>
                         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M12.25 7A5.25 5.25 0 1 1 10.5 3.15M12.25 1.75V4.67h-2.92" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                       </button>
-                      <button onClick={() => handleDelete(cam)} title="Remove camera" style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex", padding: "2px" }}>
+                      <button onClick={() => handleDelete(cam)} title="Remove camera" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex", padding: "2px" }}>
                         <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
                           <path d="M2.91663 4.08333H11.0833M5.83329 6.41667V9.33333M8.16663 6.41667V9.33333M3.49996 4.08333L4.08329 10.9167C4.08329 11.2261 4.20621 11.5228 4.42501 11.7416C4.6438 11.9604 4.9405 12.0833 5.24996 12.0833H8.74996C9.05942 12.0833 9.35612 11.9604 9.57491 11.7416C9.79371 11.5228 9.91663 11.2261 9.91663 10.9167L10.5 4.08333M5.24996 4.08333V2.33333C5.24996 2.17862 5.31142 2.03025 5.42082 1.92085C5.53022 1.81146 5.67858 1.75 5.83329 1.75H8.16663C8.32134 1.75 8.4697 1.81146 8.5791 1.92085C8.68849 2.03025 8.74996 2.17862 8.74996 2.33333V4.08333" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>

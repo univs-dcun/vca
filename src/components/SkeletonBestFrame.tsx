@@ -1,17 +1,17 @@
-function Bone({ w, h, color = "#e2e8f0", radius = "4px" }: { w: string; h: string; color?: string; radius?: string }) {
+function Bone({ w, h, color = "var(--gray-200)", radius = "4px" }: { w: string; h: string; color?: string; radius?: string }) {
   return <div className="vca-skeleton-pulse" style={{ width: w, height: h, backgroundColor: color, borderRadius: radius, flexShrink: 0 }} />;
 }
 
-function Circle({ size, color = "#cbd5e1" }: { size: string; color?: string }) {
+function Circle({ size, color = "var(--gray-300)" }: { size: string; color?: string }) {
   return <div className="vca-skeleton-pulse" style={{ width: size, height: size, borderRadius: "50%", backgroundColor: color, flexShrink: 0 }} />;
 }
 
 function CameraRowSkeleton({ nameW }: { nameW: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px" }}>
-      <Bone w="14px" h="14px" color="#e2e8f0" radius="3px" />
-      <Circle size="18px" color="#cbd5e1" />
-      <Bone w={nameW} h="12px" color="#e2e8f0" />
+      <Bone w="14px" h="14px" color="var(--gray-200)" radius="3px" />
+      <Circle size="18px" color="var(--gray-300)" />
+      <Bone w={nameW} h="12px" color="var(--gray-200)" />
     </div>
   );
 }
@@ -21,10 +21,10 @@ function SidebarSectionSkeleton({ labelW, rows }: { labelW: string; rows: string
     <div style={{ display: "flex", flexDirection: "column", gap: "2px", paddingBottom: "8px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <Bone w="10px" h="10px" color="#cbd5e1" radius="2px" />
-          <Bone w={labelW} h="12px" color="#cbd5e1" />
+          <Bone w="10px" h="10px" color="var(--gray-300)" radius="2px" />
+          <Bone w={labelW} h="12px" color="var(--gray-300)" />
         </div>
-        <Bone w="20px" h="14px" color="#f1f5f9" radius="8px" />
+        <Bone w="20px" h="14px" color="var(--gray-100)" radius="8px" />
       </div>
       {rows.map((w, i) => <CameraRowSkeleton key={i} nameW={w} />)}
     </div>
@@ -35,11 +35,11 @@ function SidebarSkeleton() {
   return (
     <div style={{ width: "240px", flexShrink: 0, backgroundColor: "white", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{ padding: "24px 12px 10px" }}>
-        <Bone w="110px" h="20px" color="#cbd5e1" />
+        <Bone w="110px" h="20px" color="var(--gray-300)" />
       </div>
       <div style={{ padding: "0 12px 10px" }}>
-        <div style={{ display: "flex", alignItems: "center", backgroundColor: "#f1f5f9", borderRadius: "8px", height: "36px", padding: "0 14px" }}>
-          <Bone w="70px" h="10px" color="#cbd5e1" />
+        <div style={{ display: "flex", alignItems: "center", backgroundColor: "var(--gray-100)", borderRadius: "8px", height: "36px", padding: "0 14px" }}>
+          <Bone w="70px" h="10px" color="var(--gray-300)" />
         </div>
       </div>
       <div style={{ flex: 1, overflow: "hidden" }}>
@@ -53,16 +53,16 @@ function SidebarSkeleton() {
 
 function FilterRowSkeleton() {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px 12px", flexShrink: 0, borderBottom: "1px solid #E2E8F0" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px 12px", flexShrink: 0, borderBottom: "1px solid var(--gray-200)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        <Bone w="90px" h="14px" color="#cbd5e1" />
-        <Bone w="46px" h="12px" color="#f1f5f9" />
+        <Bone w="90px" h="14px" color="var(--gray-300)" />
+        <Bone w="46px" h="12px" color="var(--gray-100)" />
       </div>
       <div style={{ display: "flex", gap: "6px" }}>
-        <Bone w="48px" h="28px" color="#f1f5f9" radius="999px" />
-        <Bone w="72px" h="28px" color="#f8fafc" radius="999px" />
-        <Bone w="82px" h="28px" color="#f8fafc" radius="999px" />
-        <Bone w="86px" h="28px" color="#f8fafc" radius="999px" />
+        <Bone w="48px" h="28px" color="var(--gray-100)" radius="999px" />
+        <Bone w="72px" h="28px" color="var(--gray-50)" radius="999px" />
+        <Bone w="82px" h="28px" color="var(--gray-50)" radius="999px" />
+        <Bone w="86px" h="28px" color="var(--gray-50)" radius="999px" />
       </div>
     </div>
   );
@@ -70,8 +70,8 @@ function FilterRowSkeleton() {
 
 function CameraTileSkeleton() {
   return (
-    <div style={{ backgroundColor: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <Bone w="36px" h="36px" color="#e2e8f0" radius="8px" />
+    <div style={{ backgroundColor: "var(--gray-50)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Bone w="36px" h="36px" color="var(--gray-200)" radius="8px" />
     </div>
   );
 }
@@ -81,7 +81,7 @@ function CameraGridSkeleton() {
   return (
     <div style={{
       display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gridTemplateRows: "repeat(4, minmax(0, 1fr))",
-      gap: "1px", backgroundColor: "#e2e8f0", flex: 1, minHeight: 0,
+      gap: "1px", backgroundColor: "var(--gray-200)", flex: 1, minHeight: 0,
     }}>
       {tiles.map((_, i) => <CameraTileSkeleton key={i} />)}
     </div>

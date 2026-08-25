@@ -22,7 +22,7 @@ export default function PortalProjectDetailPage({ projectId, tab }: PortalProjec
 
   const project = projects.find(p => p.id === projectId);
   if (!project) {
-    return <p style={{ fontSize: "13px", color: "#94a3b8" }}>Project not found.</p>;
+    return <p style={{ fontSize: "13px", color: "var(--gray-400)" }}>Project not found.</p>;
   }
 
   const meta = TYPE_META[project.type];
@@ -40,25 +40,25 @@ export default function PortalProjectDetailPage({ projectId, tab }: PortalProjec
             <span style={{ fontSize: "10px", fontWeight: 600, color: meta.color, backgroundColor: meta.bg, padding: "3px 8px", borderRadius: "999px" }}>
               {meta.label}
             </span>
-            <p style={{ fontSize: "20px", fontWeight: 800, color: "#0e162a", marginTop: "8px" }}>{project.name}</p>
-            <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>{orgName}</p>
+            <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)", marginTop: "8px" }}>{project.name}</p>
+            <p style={{ fontSize: "12px", color: "var(--gray-400)", marginTop: "2px" }}>{orgName}</p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
             <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-              <p style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8" }}>TOTAL CAMERAS</p>
-              <p style={{ fontSize: "24px", fontWeight: 800, color: "#0e162a", marginTop: "6px" }}>{projectCameras.length}</p>
+              <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>TOTAL CAMERAS</p>
+              <p style={{ fontSize: "24px", fontWeight: 800, color: "var(--gray-900)", marginTop: "6px" }}>{projectCameras.length}</p>
             </div>
             <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-              <p style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8" }}>ONLINE</p>
-              <p style={{ fontSize: "24px", fontWeight: 800, color: "#16a34a", marginTop: "6px" }}>{onlineCount} <span style={{ fontSize: "13px", fontWeight: 600, color: "#94a3b8" }}>/ {projectCameras.length}</span></p>
+              <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>ONLINE</p>
+              <p style={{ fontSize: "24px", fontWeight: 800, color: "var(--success-400)", marginTop: "6px" }}>{onlineCount} <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-400)" }}>/ {projectCameras.length}</span></p>
             </div>
             <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-              <p style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8" }}>VIPS REGISTERED</p>
-              <p style={{ fontSize: "24px", fontWeight: 800, color: "#0e162a", marginTop: "6px" }}>{vipCount}</p>
+              <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>VIPS REGISTERED</p>
+              <p style={{ fontSize: "24px", fontWeight: 800, color: "var(--gray-900)", marginTop: "6px" }}>{vipCount}</p>
             </div>
             <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-              <p style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8" }}>USERS WITH ACCESS</p>
-              <p style={{ fontSize: "24px", fontWeight: 800, color: "#0e162a", marginTop: "6px" }}>{userCount}</p>
+              <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>USERS WITH ACCESS</p>
+              <p style={{ fontSize: "24px", fontWeight: 800, color: "var(--gray-900)", marginTop: "6px" }}>{userCount}</p>
             </div>
           </div>
         </>

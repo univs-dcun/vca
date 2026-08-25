@@ -6,10 +6,10 @@ import type { DetType, Detection, CamData } from "@/types/detection";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { sgtDateKey } from "@/lib/time";
 
-const BORDER = "1px solid #E2E8F0";
+const BORDER = "1px solid var(--gray-200)";
 const STEP_BTN_STYLE: CSSProperties = {
-  padding:"6px 12px", borderRadius:"999px", border:"1px solid #ccd5e1", backgroundColor:"white",
-  color:"#334155", fontSize:"12px", fontWeight:700, cursor:"pointer", whiteSpace:"nowrap",
+  padding:"6px 12px", borderRadius:"999px", border:"1px solid var(--gray-300)", backgroundColor:"white",
+  color:"var(--gray-700)", fontSize:"12px", fontWeight:700, cursor:"pointer", whiteSpace:"nowrap",
 };
 
 export interface DetailProps {
@@ -24,7 +24,7 @@ export interface DetailProps {
   autoOpenDetail?: boolean;
 }
 
-const DET_COLOR: Record<DetType, string> = { VIP: "#5a3dfb", Vehicle: "#38bdf8", Unknown: "#976400" };
+const DET_COLOR: Record<DetType, string> = { VIP: "var(--primary-400)", Vehicle: "var(--type-vehicle)", Unknown: "var(--type-unknown)" };
 
 const AVATAR = [
   "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
@@ -117,7 +117,7 @@ function TypeIcon({ type, color, size = 11, active = false }: { type: DetType; c
   if (type === "Unknown") return (
     <svg width={size} height={size} viewBox="0 0 14 14" fill="none" style={{ flexShrink:0 }}>
       <g clipPath="url(#typeIconUnknownClip)">
-        <path d="M2.24582 5.02831C2.16068 4.64478 2.17375 4.24597 2.28383 3.86884C2.39391 3.49171 2.59743 3.14849 2.87551 2.87098C3.1536 2.59347 3.49725 2.39068 3.87461 2.28139C4.25197 2.1721 4.65081 2.15986 5.03416 2.24581C5.24515 1.91582 5.53583 1.64425 5.87938 1.45614C6.22293 1.26803 6.60831 1.16943 6.99999 1.16943C7.39167 1.16943 7.77705 1.26803 8.1206 1.45614C8.46415 1.64425 8.75483 1.91582 8.96582 2.24581C9.34975 2.15949 9.74928 2.17167 10.1272 2.28123C10.5052 2.39078 10.8493 2.59414 11.1276 2.8724C11.4058 3.15066 11.6092 3.49477 11.7187 3.87273C11.8283 4.25068 11.8405 4.65021 11.7542 5.03414C12.0841 5.24514 12.3557 5.53581 12.5438 5.87936C12.7319 6.22292 12.8305 6.60829 12.8305 6.99998C12.8305 7.39166 12.7319 7.77703 12.5438 8.12059C12.3557 8.46414 12.0841 8.75481 11.7542 8.96581C11.8401 9.34916 11.8279 9.748 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4025 10.5083 11.6061 10.1311 11.7161C9.754 11.8262 9.35518 11.8393 8.97166 11.7541C8.76093 12.0854 8.47004 12.3581 8.1259 12.5471C7.78176 12.736 7.39551 12.8351 7.00291 12.8351C6.61031 12.8351 6.22406 12.736 5.87992 12.5471C5.53578 12.3581 5.24488 12.0854 5.03416 11.7541C4.65081 11.8401 4.25197 11.8278 3.87461 11.7186C3.49725 11.6093 3.1536 11.4065 2.87551 11.129C2.59743 10.8515 2.39391 10.5082 2.28383 10.1311C2.17375 9.75398 2.16068 9.35517 2.24582 8.97164C1.9133 8.7612 1.6394 8.47008 1.4496 8.12535C1.25981 7.78062 1.16028 7.3935 1.16028 6.99998C1.16028 6.60645 1.25981 6.21933 1.4496 5.8746C1.6394 5.52987 1.9133 5.23875 2.24582 5.02831Z" fill={active ? "#FEF3C7" : "none"} stroke={active ? "#FEF3C7" : color} strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M2.24582 5.02831C2.16068 4.64478 2.17375 4.24597 2.28383 3.86884C2.39391 3.49171 2.59743 3.14849 2.87551 2.87098C3.1536 2.59347 3.49725 2.39068 3.87461 2.28139C4.25197 2.1721 4.65081 2.15986 5.03416 2.24581C5.24515 1.91582 5.53583 1.64425 5.87938 1.45614C6.22293 1.26803 6.60831 1.16943 6.99999 1.16943C7.39167 1.16943 7.77705 1.26803 8.1206 1.45614C8.46415 1.64425 8.75483 1.91582 8.96582 2.24581C9.34975 2.15949 9.74928 2.17167 10.1272 2.28123C10.5052 2.39078 10.8493 2.59414 11.1276 2.8724C11.4058 3.15066 11.6092 3.49477 11.7187 3.87273C11.8283 4.25068 11.8405 4.65021 11.7542 5.03414C12.0841 5.24514 12.3557 5.53581 12.5438 5.87936C12.7319 6.22292 12.8305 6.60829 12.8305 6.99998C12.8305 7.39166 12.7319 7.77703 12.5438 8.12059C12.3557 8.46414 12.0841 8.75481 11.7542 8.96581C11.8401 9.34916 11.8279 9.748 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4025 10.5083 11.6061 10.1311 11.7161C9.754 11.8262 9.35518 11.8393 8.97166 11.7541C8.76093 12.0854 8.47004 12.3581 8.1259 12.5471C7.78176 12.736 7.39551 12.8351 7.00291 12.8351C6.61031 12.8351 6.22406 12.736 5.87992 12.5471C5.53578 12.3581 5.24488 12.0854 5.03416 11.7541C4.65081 11.8401 4.25197 11.8278 3.87461 11.7186C3.49725 11.6093 3.1536 11.4065 2.87551 11.129C2.59743 10.8515 2.39391 10.5082 2.28383 10.1311C2.17375 9.75398 2.16068 9.35517 2.24582 8.97164C1.9133 8.7612 1.6394 8.47008 1.4496 8.12535C1.25981 7.78062 1.16028 7.3935 1.16028 6.99998C1.16028 6.60645 1.25981 6.21933 1.4496 5.8746C1.6394 5.52987 1.9133 5.23875 2.24582 5.02831Z" fill={active ? "var(--warning-200)" : "none"} stroke={active ? "var(--warning-200)" : color} strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M5.30249 5.25009C5.43963 4.86023 5.71033 4.53148 6.06663 4.32208C6.42293 4.11268 6.84185 4.03614 7.24918 4.106C7.65651 4.17587 8.02597 4.38764 8.29212 4.70381C8.55827 5.01998 8.70394 5.42014 8.70332 5.83342C8.70332 7.00009 6.95332 7.58342 6.95332 7.58342" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M7 9.91675H7.00583" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
       </g>
@@ -154,7 +154,7 @@ function AlertDot({ size = 15 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
       {/* White outline around the red triangle — against a busy/light photo background the red
           edge alone barely read as a shape. */}
-      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" fill="#EF4444" stroke="white" strokeWidth="2"/>
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" fill="var(--danger-400)" stroke="white" strokeWidth="2"/>
       <path d="M12 9v4" stroke="white" strokeWidth="2"/>
       <path d="M12 17h.01" stroke="white" strokeWidth="2"/>
     </svg>
@@ -169,7 +169,7 @@ function ReelFilterIcon({ type, color, active = false }: { type: DetType; color:
     return (
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink:0 }}>
         <g clipPath="url(#reelUnknownClip)">
-          <path d="M2.24582 5.02831C2.16068 4.64478 2.17375 4.24597 2.28383 3.86884C2.39391 3.49171 2.59743 3.14849 2.87551 2.87098C3.1536 2.59347 3.49725 2.39068 3.87461 2.28139C4.25197 2.1721 4.65081 2.15986 5.03416 2.24581C5.24515 1.91582 5.53583 1.64425 5.87938 1.45614C6.22293 1.26803 6.60831 1.16943 6.99999 1.16943C7.39167 1.16943 7.77705 1.26803 8.1206 1.45614C8.46415 1.64425 8.75483 1.91582 8.96582 2.24581C9.34975 2.15949 9.74928 2.17167 10.1272 2.28123C10.5052 2.39078 10.8493 2.59414 11.1276 2.8724C11.4058 3.15066 11.6092 3.49477 11.7187 3.87273C11.8283 4.25068 11.8405 4.65021 11.7542 5.03414C12.0841 5.24514 12.3557 5.53581 12.5438 5.87936C12.7319 6.22292 12.8305 6.60829 12.8305 6.99998C12.8305 7.39166 12.7319 7.77703 12.5438 8.12059C12.3557 8.46414 12.0841 8.75481 11.7542 8.96581C11.8401 9.34916 11.8279 9.748 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4025 10.5083 11.6061 10.1311 11.7161C9.754 11.8262 9.35518 11.8393 8.97166 11.7541C8.76093 12.0854 8.47004 12.3581 8.1259 12.5471C7.78176 12.736 7.39551 12.8351 7.00291 12.8351C6.61031 12.8351 6.22406 12.736 5.87992 12.5471C5.53578 12.3581 5.24488 12.0854 5.03416 11.7541C4.65081 11.8401 4.25197 11.8278 3.87461 11.7186C3.49725 11.6093 3.1536 11.4065 2.87551 11.129C2.59743 10.8515 2.39391 10.5082 2.28383 10.1311C2.17375 9.75398 2.16068 9.35517 2.24582 8.97164C1.9133 8.7612 1.6394 8.47008 1.4496 8.12535C1.25981 7.78062 1.16028 7.3935 1.16028 6.99998C1.16028 6.60645 1.25981 6.21933 1.4496 5.8746C1.6394 5.52987 1.9133 5.23875 2.24582 5.02831Z" fill={active ? "#FEF3C7" : "none"} stroke={active ? "#FEF3C7" : color} strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2.24582 5.02831C2.16068 4.64478 2.17375 4.24597 2.28383 3.86884C2.39391 3.49171 2.59743 3.14849 2.87551 2.87098C3.1536 2.59347 3.49725 2.39068 3.87461 2.28139C4.25197 2.1721 4.65081 2.15986 5.03416 2.24581C5.24515 1.91582 5.53583 1.64425 5.87938 1.45614C6.22293 1.26803 6.60831 1.16943 6.99999 1.16943C7.39167 1.16943 7.77705 1.26803 8.1206 1.45614C8.46415 1.64425 8.75483 1.91582 8.96582 2.24581C9.34975 2.15949 9.74928 2.17167 10.1272 2.28123C10.5052 2.39078 10.8493 2.59414 11.1276 2.8724C11.4058 3.15066 11.6092 3.49477 11.7187 3.87273C11.8283 4.25068 11.8405 4.65021 11.7542 5.03414C12.0841 5.24514 12.3557 5.53581 12.5438 5.87936C12.7319 6.22292 12.8305 6.60829 12.8305 6.99998C12.8305 7.39166 12.7319 7.77703 12.5438 8.12059C12.3557 8.46414 12.0841 8.75481 11.7542 8.96581C11.8401 9.34916 11.8279 9.748 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4025 10.5083 11.6061 10.1311 11.7161C9.754 11.8262 9.35518 11.8393 8.97166 11.7541C8.76093 12.0854 8.47004 12.3581 8.1259 12.5471C7.78176 12.736 7.39551 12.8351 7.00291 12.8351C6.61031 12.8351 6.22406 12.736 5.87992 12.5471C5.53578 12.3581 5.24488 12.0854 5.03416 11.7541C4.65081 11.8401 4.25197 11.8278 3.87461 11.7186C3.49725 11.6093 3.1536 11.4065 2.87551 11.129C2.59743 10.8515 2.39391 10.5082 2.28383 10.1311C2.17375 9.75398 2.16068 9.35517 2.24582 8.97164C1.9133 8.7612 1.6394 8.47008 1.4496 8.12535C1.25981 7.78062 1.16028 7.3935 1.16028 6.99998C1.16028 6.60645 1.25981 6.21933 1.4496 5.8746C1.6394 5.52987 1.9133 5.23875 2.24582 5.02831Z" fill={active ? "var(--warning-200)" : "none"} stroke={active ? "var(--warning-200)" : color} strokeLinecap="round" strokeLinejoin="round"/>
           <path d="M5.30249 5.25009C5.43963 4.86023 5.71033 4.53148 6.06663 4.32208C6.42293 4.11268 6.84185 4.03614 7.24918 4.106C7.65651 4.17587 8.02597 4.38764 8.29212 4.70381C8.55827 5.01998 8.70394 5.42014 8.70332 5.83342C8.70332 7.00009 6.95332 7.58342 6.95332 7.58342" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
           <path d="M7 9.91675H7.00583" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
         </g>
@@ -198,9 +198,9 @@ function ReelFilterBar({ filter, onChange }: { filter: ReelFilter; onChange: (f:
           return (
             <button key="All" onClick={() => onChange("All")} style={{
               padding:"6px 14px", borderRadius:"999px", cursor:"pointer",
-              border: active ? "1px solid #0e162a" : "1px solid #ccd5e1",
-              backgroundColor: active ? "#0e162a" : "white",
-              color: active ? "white" : "#324055", fontSize:"12px", fontWeight: active ? 700 : 600,
+              border: active ? "1px solid var(--gray-900)" : "1px solid var(--gray-300)",
+              backgroundColor: active ? "var(--gray-900)" : "white",
+              color: active ? "white" : "var(--gray-700)", fontSize:"12px", fontWeight: active ? 700 : 600,
             }}>All</button>
           );
         }
@@ -209,9 +209,9 @@ function ReelFilterBar({ filter, onChange }: { filter: ReelFilter; onChange: (f:
           <button key={f.id} onClick={() => onChange(f.id)} style={{
             display:"flex", alignItems:"center", gap:"5px",
             padding:"6px 10px", borderRadius:"999px", cursor:"pointer",
-            border: active ? `1px solid ${c}` : "1px solid #ccd5e1",
+            border: active ? `1px solid ${c}` : "1px solid var(--gray-300)",
             backgroundColor: active ? c : "white",
-            color: active ? "white" : "#324055", fontSize:"12px", fontWeight: active ? 700 : 600,
+            color: active ? "white" : "var(--gray-700)", fontSize:"12px", fontWeight: active ? 700 : 600,
           }}>
             <ReelFilterIcon type={f.id as DetType} color={c} active={active} />
             {f.label}
@@ -225,7 +225,7 @@ function ReelFilterBar({ filter, onChange }: { filter: ReelFilter; onChange: (f:
 /* ── Tag chip ─────────────────────────────────────────────────── */
 function Tag({ label }: { label: string }) {
   return (
-    <span style={{ backgroundColor:"#f1f5f9", borderRadius:"999px", padding:"3px 9px", fontSize:"12px", fontWeight:600, color:"#475569", whiteSpace:"nowrap" }}>
+    <span style={{ backgroundColor:"var(--gray-100)", borderRadius:"999px", padding:"3px 9px", fontSize:"12px", fontWeight:600, color:"var(--gray-600)", whiteSpace:"nowrap" }}>
       {label}
     </span>
   );
@@ -245,18 +245,18 @@ function AlsoCapturedCard({ det, index }: { det: Detection; index: number }) {
   const c = DET_COLOR[det.type];
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"5px", width:"64px", flexShrink:0 }}>
-      <div style={{ width:"100%", aspectRatio:"1/1", borderRadius:"6px", overflow:"hidden", backgroundColor:"#0e162a" }}>
+      <div style={{ width:"100%", aspectRatio:"1/1", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
         <img src={photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"50% 20%", display:"block", transform:"scale(1.8)", transformOrigin:"50% 20%" }} />
       </div>
-      <div style={{ width:"100%", aspectRatio:"1/2", borderRadius:"6px", overflow:"hidden", backgroundColor:"#0e162a" }}>
+      <div style={{ width:"100%", aspectRatio:"1/2", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
         <img src={photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
       </div>
-      <p style={{ fontSize:"11px", fontWeight:700, color:"#0e162a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", margin:0 }}>
+      <p style={{ fontSize:"11px", fontWeight:700, color:"var(--gray-900)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", margin:0 }}>
         {det.name}
       </p>
       <span style={{ display:"flex", alignItems:"baseline", gap:"3px" }}>
         <span style={{ fontSize:"10px", fontWeight:800, color:c, letterSpacing:"-0.2px" }}>{det.type}</span>
-        {det.type === "VIP" && <span style={{ fontSize:"9px", fontWeight:600, color:"#475469" }}>{det.confidence}%</span>}
+        {det.type === "VIP" && <span style={{ fontSize:"9px", fontWeight:600, color:"var(--gray-600)" }}>{det.confidence}%</span>}
       </span>
     </div>
   );
@@ -278,8 +278,8 @@ function ReelCard({ det, index, isFocused, onClick }: { det: Detection; index: n
         // Mirrors whichever detection is focused on the camera feed — clicking a box there (or
         // this card) keeps the two in sync, matching each other's "focused" outline rather than
         // this being its own independent selection state.
-        outline: isFocused ? "2px solid #5a3dfb" : hovered ? "1px solid #cbd5e1" : "none",
-        backgroundColor: hovered && !isFocused ? "#f8fafc" : "transparent",
+        outline: isFocused ? "2px solid var(--primary-400)" : hovered ? "1px solid var(--gray-300)" : "none",
+        backgroundColor: hovered && !isFocused ? "var(--gray-50)" : "transparent",
         transition: "background-color 0.15s ease",
       }}
     >
@@ -288,13 +288,13 @@ function ReelCard({ det, index, isFocused, onClick }: { det: Detection; index: n
           card's narrower width: the bubble scaled up disproportionately large relative to the
           card and read as broken rather than intentional. A plain stack has no such scaling
           issue at any card width. */}
-      <div style={{ position:"relative", width:"100%", aspectRatio:"1/1", borderRadius:"10px", overflow:"hidden", backgroundColor:"#0e162a" }}>
+      <div style={{ position:"relative", width:"100%", aspectRatio:"1/1", borderRadius:"10px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
         <img src={photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"50% 20%", display:"block", transform:"scale(1.8)", transformOrigin:"50% 20%" }} />
         <div style={{ position:"absolute", top:6, left:6, backgroundColor:"rgba(14,22,42,0.75)", borderRadius:"4px", padding:"2px 6px", fontSize:"10px", fontWeight:600, color:"white" }}>
           P-0{index + 1}
         </div>
       </div>
-      <div style={{ width:"100%", aspectRatio:"1/2", borderRadius:"10px", overflow:"hidden", backgroundColor:"#0e162a" }}>
+      <div style={{ width:"100%", aspectRatio:"1/2", borderRadius:"10px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
         <img src={photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
       </div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -308,7 +308,7 @@ function ReelCard({ det, index, isFocused, onClick }: { det: Detection; index: n
         {/* Confidence is a match-against-registry score — only meaningful for VIP, since
             Vehicle/Unknown have nothing registered to match against. */}
         {det.type === "VIP" && (
-          <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a" }}>{det.confidence}%</span>
+          <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>{det.confidence}%</span>
         )}
       </div>
       {/* Attribute chips (gender, apparel) used to sit here — with a reel that can grow to a
@@ -316,7 +316,7 @@ function ReelCard({ det, index, isFocused, onClick }: { det: Detection; index: n
           Inspection Detail already shows the full attribute breakdown. */}
       {/* Negative margin pulls this closer to the type/confidence row above — the outer gap that
           spaces every child evenly was wider than this specific pair needed. */}
-      <p style={{ fontSize:"13px", fontWeight:700, color:"#0e162a", letterSpacing:"-0.24px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginTop:"-3px" }}>
+      <p style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)", letterSpacing:"-0.24px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginTop:"-3px" }}>
         {det.name}
       </p>
     </div>
@@ -337,8 +337,8 @@ function BestFrameReel({ data, focusedId, onFocus, onSelect, filter, onFilterCha
     <div style={{ width:"380px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER, display:"flex", flexDirection:"column", overflow:"hidden" }}>
       <div style={{ padding:"16px 16px 12px", flexShrink:0, display:"flex", flexDirection:"column", gap:"12px" }}>
         <div>
-          <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.28px" }}>Best frame reel</p>
-          <p style={{ fontSize:"11px", color:"#94a3b8", marginTop:"2px" }}>Objects captured in current frame</p>
+          <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px" }}>Best frame reel</p>
+          <p style={{ fontSize:"11px", color:"var(--gray-400)", marginTop:"2px" }}>Objects captured in current frame</p>
         </div>
         <ReelFilterBar filter={filter} onChange={onFilterChange} />
       </div>
@@ -355,7 +355,7 @@ function BestFrameReel({ data, focusedId, onFocus, onSelect, filter, onFilterCha
           least 8px clearance now. */}
       <div style={{ flex:1, overflowY:"auto", padding:"16px", display:"grid", gridTemplateColumns:"repeat(4, 1fr)", columnGap:"14px", rowGap:"16px", alignItems:"start" }}>
         {dets.length === 0 && (
-          <div style={{ gridColumn:"1 / -1", padding:"24px 0", textAlign:"center", color:"#94a3b8", fontSize:"12px" }}>No detections</div>
+          <div style={{ gridColumn:"1 / -1", padding:"24px 0", textAlign:"center", color:"var(--gray-400)", fontSize:"12px" }}>No detections</div>
         )}
         {dets.map((det, i) => (
           <ReelCard key={det.id} det={det} index={i} isFocused={det.id === focusedId} onClick={() => { onFocus(det); onSelect(det); }} />
@@ -376,8 +376,8 @@ function AIInspectionDetail({ det, data, onClose, onGoRedmapTrace }: { det: Dete
           header's bottom border to its left (both act as one continuous line across the screen,
           not two independently-sized bars that happen to sit side by side) */}
       <div style={{ padding:"12px 16px 10px", borderBottom:BORDER, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <p style={{ fontSize:"16px", fontWeight:700, color:"#0e162a", letterSpacing:"-0.32px" }}>Inspection detail</p>
-        <button onClick={onClose} aria-label="Close" style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8", fontSize:"16px", lineHeight:1, padding:"0 2px" }}>✕</button>
+        <p style={{ fontSize:"16px", fontWeight:700, color:"var(--gray-900)", letterSpacing:"-0.32px" }}>Inspection detail</p>
+        <button onClick={onClose} aria-label="Close" style={{ background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", fontSize:"16px", lineHeight:1, padding:"0 2px" }}>✕</button>
       </div>
 
       <div style={{ flex:1, overflowY:"auto", padding:"14px" }}>
@@ -385,58 +385,58 @@ function AIInspectionDetail({ det, data, onClose, onGoRedmapTrace }: { det: Dete
         <div style={{ display:"flex", alignItems:"flex-end", gap:"8px", marginBottom:"14px" }}>
           <div style={{ flex:"0 0 77px", display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
             <img src={LIVE_CAPTURE_PHOTO} alt="" style={{ width:"77px", height:"177px", objectFit:"cover", objectPosition:"top", borderRadius:"8px", display:"block" }} />
-            <p title="지금 카메라가 실시간으로 찍은 사진" style={{ fontSize:"10px", fontWeight:600, color:"#5a3dfb", letterSpacing:"-0.2px", cursor:"help" }}>LIVE Capture</p>
+            <p title="지금 카메라가 실시간으로 찍은 사진" style={{ fontSize:"10px", fontWeight:600, color:"var(--primary-400)", letterSpacing:"-0.2px", cursor:"help" }}>LIVE Capture</p>
           </div>
           <div style={{ flex:1, alignSelf:"flex-end", height:"177px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px" }}>
             <svg width="22" height="22" viewBox="0 0 16 16" fill="none">
-              <path d="M5 4L3 6L5 8" stroke="#94a3b8" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M3 6H13" stroke="#94a3b8" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M11 12L13 10L11 8" stroke="#94a3b8" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M13 10H3" stroke="#94a3b8" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M5 4L3 6L5 8" stroke="var(--gray-400)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M3 6H13" stroke="var(--gray-400)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M11 12L13 10L11 8" stroke="var(--gray-400)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M13 10H3" stroke="var(--gray-400)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            <span style={{ fontSize:"13px", fontWeight:700, color:"#0e162a" }}>{det.confidence || 0}%</span>
+            <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>{det.confidence || 0}%</span>
           </div>
           <div style={{ flex:"0 0 176px", display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
             <img src={DB_PHOTO} alt="" style={{ width:"176px", height:"177px", objectFit:"cover", objectPosition:"top", borderRadius:"10px", display:"block" }} />
-            <p title="사전에 등록된 데이터베이스 속 대조 사진" style={{ fontSize:"10px", fontWeight:600, color:"#64748a", letterSpacing:"-0.2px", cursor:"help" }}>ENROLLED DB</p>
+            <p title="사전에 등록된 데이터베이스 속 대조 사진" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", letterSpacing:"-0.2px", cursor:"help" }}>ENROLLED DB</p>
           </div>
         </div>
 
         {/* Name */}
         <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"3px" }}>
           <TypeIcon type={det.type} color={c} size={15} />
-          <span style={{ fontSize:"16px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.32px" }}>{det.name}</span>
+          <span style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.32px" }}>{det.name}</span>
         </div>
-        <p style={{ fontSize:"12px", fontWeight:600, color:"#64748a", marginBottom:"14px" }}>Registered: {REGISTERED[det.type]}</p>
+        <p style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)", marginBottom:"14px" }}>Registered: {REGISTERED[det.type]}</p>
 
         {/* Divider — info below is separated by rules, not a boxed container */}
-        <div style={{ height:"1px", backgroundColor:"#e2e8f0", marginBottom:"14px" }} />
+        <div style={{ height:"1px", backgroundColor:"var(--gray-200)", marginBottom:"14px" }} />
 
         {/* Meta */}
         <div style={{ marginBottom:"14px" }}>
           {[["Camera name", data.location], ["Event time", `${sgtDateKey(new Date())} ${det.time}`]].map(([k, v]) => (
             <div key={k} style={{ display:"flex", alignItems:"center", padding:"3px 0" }}>
-              <span style={{ fontSize:"12px", color:"#64748a", fontWeight:600, width:"88px", flexShrink:0 }}>{k}</span>
-              <span style={{ fontSize:"13px", color:"#0e162a", fontWeight:700 }}>{v}</span>
+              <span style={{ fontSize:"12px", color:"var(--gray-500)", fontWeight:600, width:"88px", flexShrink:0 }}>{k}</span>
+              <span style={{ fontSize:"13px", color:"var(--gray-900)", fontWeight:700 }}>{v}</span>
             </div>
           ))}
         </div>
 
         {/* Divider */}
-        <div style={{ height:"1px", backgroundColor:"#e2e8f0", marginBottom:"22px" }} />
+        <div style={{ height:"1px", backgroundColor:"var(--gray-200)", marginBottom:"22px" }} />
 
         {/* AI Analysis Results */}
         <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"10px" }}>
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <path d="M8.00195 1.33301C8.1574 1.33309 8.30814 1.38798 8.42773 1.4873C8.54731 1.58669 8.62868 1.72508 8.65723 1.87793L9.35742 5.58301C9.40718 5.84636 9.53512 6.08878 9.72461 6.27832C9.9141 6.46781 10.1566 6.5957 10.4199 6.64551L14.126 7.34668C14.2785 7.37528 14.4164 7.45589 14.5156 7.5752C14.615 7.69488 14.6699 7.84638 14.6699 8.00195C14.6698 8.1574 14.6149 8.30814 14.5156 8.42773C14.4163 8.54716 14.2786 8.62864 14.126 8.65723L10.4199 9.35742C10.1566 9.40723 9.91411 9.53511 9.72461 9.72461C9.53511 9.91411 9.40723 10.1566 9.35742 10.4199L8.65723 14.126C8.62864 14.2786 8.54716 14.4163 8.42773 14.5156C8.30814 14.6149 8.1574 14.6698 8.00195 14.6699C7.84638 14.6699 7.69488 14.615 7.5752 14.5156C7.45589 14.4164 7.37528 14.2785 7.34668 14.126L6.64551 10.4199C6.5957 10.1566 6.46781 9.9141 6.27832 9.72461C6.08878 9.53512 5.84636 9.40718 5.58301 9.35742L1.87793 8.65723C1.72508 8.62868 1.58669 8.54731 1.4873 8.42773C1.38798 8.30814 1.33309 8.1574 1.33301 8.00195C1.33301 7.84638 1.38791 7.69488 1.4873 7.5752C1.58668 7.45571 1.72515 7.37522 1.87793 7.34668L5.58301 6.64551C5.8464 6.59573 6.08877 6.46787 6.27832 6.27832C6.46787 6.08877 6.59573 5.8464 6.64551 5.58301L7.34668 1.87793C7.37522 1.72515 7.45571 1.58668 7.5752 1.4873C7.69488 1.38791 7.84638 1.33301 8.00195 1.33301ZM2.66699 12C3.40311 12.0002 3.99982 12.5969 4 13.333C4 14.0693 3.40322 14.6668 2.66699 14.667C1.93061 14.667 1.33301 14.0694 1.33301 13.333C1.33318 12.5968 1.93072 12 2.66699 12ZM13.333 0.833008C13.609 0.833008 13.8328 1.05702 13.833 1.33301V2.16699H14.667C14.943 2.16717 15.167 2.39096 15.167 2.66699C15.1668 2.94288 14.9429 3.16682 14.667 3.16699H13.833V4C13.8328 4.27599 13.609 4.5 13.333 4.5C13.0571 4.49982 12.8332 4.27588 12.833 4V3.16699H12C11.724 3.16699 11.5002 2.94298 11.5 2.66699C11.5 2.39085 11.7239 2.16699 12 2.16699H12.833V1.33301C12.8332 1.05712 13.0571 0.833183 13.333 0.833008Z" fill="#0e162a"/>
+            <path d="M8.00195 1.33301C8.1574 1.33309 8.30814 1.38798 8.42773 1.4873C8.54731 1.58669 8.62868 1.72508 8.65723 1.87793L9.35742 5.58301C9.40718 5.84636 9.53512 6.08878 9.72461 6.27832C9.9141 6.46781 10.1566 6.5957 10.4199 6.64551L14.126 7.34668C14.2785 7.37528 14.4164 7.45589 14.5156 7.5752C14.615 7.69488 14.6699 7.84638 14.6699 8.00195C14.6698 8.1574 14.6149 8.30814 14.5156 8.42773C14.4163 8.54716 14.2786 8.62864 14.126 8.65723L10.4199 9.35742C10.1566 9.40723 9.91411 9.53511 9.72461 9.72461C9.53511 9.91411 9.40723 10.1566 9.35742 10.4199L8.65723 14.126C8.62864 14.2786 8.54716 14.4163 8.42773 14.5156C8.30814 14.6149 8.1574 14.6698 8.00195 14.6699C7.84638 14.6699 7.69488 14.615 7.5752 14.5156C7.45589 14.4164 7.37528 14.2785 7.34668 14.126L6.64551 10.4199C6.5957 10.1566 6.46781 9.9141 6.27832 9.72461C6.08878 9.53512 5.84636 9.40718 5.58301 9.35742L1.87793 8.65723C1.72508 8.62868 1.58669 8.54731 1.4873 8.42773C1.38798 8.30814 1.33309 8.1574 1.33301 8.00195C1.33301 7.84638 1.38791 7.69488 1.4873 7.5752C1.58668 7.45571 1.72515 7.37522 1.87793 7.34668L5.58301 6.64551C5.8464 6.59573 6.08877 6.46787 6.27832 6.27832C6.46787 6.08877 6.59573 5.8464 6.64551 5.58301L7.34668 1.87793C7.37522 1.72515 7.45571 1.58668 7.5752 1.4873C7.69488 1.38791 7.84638 1.33301 8.00195 1.33301ZM2.66699 12C3.40311 12.0002 3.99982 12.5969 4 13.333C4 14.0693 3.40322 14.6668 2.66699 14.667C1.93061 14.667 1.33301 14.0694 1.33301 13.333C1.33318 12.5968 1.93072 12 2.66699 12ZM13.333 0.833008C13.609 0.833008 13.8328 1.05702 13.833 1.33301V2.16699H14.667C14.943 2.16717 15.167 2.39096 15.167 2.66699C15.1668 2.94288 14.9429 3.16682 14.667 3.16699H13.833V4C13.8328 4.27599 13.609 4.5 13.333 4.5C13.0571 4.49982 12.8332 4.27588 12.833 4V3.16699H12C11.724 3.16699 11.5002 2.94298 11.5 2.66699C11.5 2.39085 11.7239 2.16699 12 2.16699H12.833V1.33301C12.8332 1.05712 13.0571 0.833183 13.333 0.833008Z" fill="var(--gray-900)"/>
           </svg>
-          <p style={{ fontSize:"13px", fontWeight:700, color:"#0e162a", letterSpacing:"-0.26px" }}>Analysis results</p>
+          <p style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)", letterSpacing:"-0.26px" }}>Analysis results</p>
         </div>
         {[["Basic", attrs.basic], ["Top", attrs.top], ["Bottom", attrs.bottom], ["Add-ons", attrs.addons]]
           .filter(([, v]) => (v as string[]).length > 0)
           .map(([label, tags]) => (
             <div key={label as string} style={{ display:"flex", alignItems:"flex-start", gap:"8px", marginBottom:"8px" }}>
-              <span style={{ fontSize:"12px", fontWeight:700, color:"#475469", width:"52px", flexShrink:0, paddingTop:"2px" }}>{label as string}</span>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-600)", width:"52px", flexShrink:0, paddingTop:"2px" }}>{label as string}</span>
               <div style={{ display:"flex", gap:"4px", flexWrap:"wrap" }}>
                 {(tags as string[]).map(t => <Tag key={t} label={t} />)}
               </div>
@@ -446,7 +446,7 @@ function AIInspectionDetail({ det, data, onClose, onGoRedmapTrace }: { det: Dete
         {/* Also captured in this frame */}
         {data.detections.filter(d => d.id !== det.id).length > 0 && (
           <>
-            <p style={{ fontSize:"13px", fontWeight:700, color:"#0e162a", letterSpacing:"-0.26px", marginTop:"22px", marginBottom:"12px" }}>Also captured in this frame</p>
+            <p style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)", letterSpacing:"-0.26px", marginTop:"22px", marginBottom:"12px" }}>Also captured in this frame</p>
             {/* This row scrolls independently of the panel around it, so the panel's own padding
                 stops giving the last card any clearance once you've scrolled past it — its
                 box-shadow was getting clipped flush against this row's own right/bottom edge.
@@ -462,10 +462,10 @@ function AIInspectionDetail({ det, data, onClose, onGoRedmapTrace }: { det: Dete
 
       {/* Buttons */}
       <div style={{ padding:"10px 14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", flexShrink:0 }}>
-        <button onClick={onClose} style={{ padding:"9px 0", borderRadius:"8px", border:BORDER, backgroundColor:"white", color:"#334155", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>
+        <button onClick={onClose} style={{ padding:"9px 0", borderRadius:"8px", border:BORDER, backgroundColor:"white", color:"var(--gray-700)", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>
           Back
         </button>
-        <button onClick={() => onGoRedmapTrace?.(det.name)} style={{ padding:"9px 0", borderRadius:"8px", border:"none", backgroundColor:"#0e162a", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+        <button onClick={() => onGoRedmapTrace?.(det.name)} style={{ padding:"9px 0", borderRadius:"8px", border:"none", backgroundColor:"var(--gray-900)", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
             <path d="M16.6667 8.33333C16.6667 13.3333 10 18.3333 10 18.3333C10 18.3333 3.33333 13.3333 3.33333 8.33333C3.33333 6.56522 4.03571 4.86953 5.28596 3.61929C6.5362 2.36905 8.23189 1.66667 10 1.66667C11.7681 1.66667 13.4638 2.36905 14.714 3.61929C15.9643 4.86953 16.6667 6.56522 16.6667 8.33333Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M10 10.8333C11.3807 10.8333 12.5 9.71404 12.5 8.33333C12.5 6.95262 11.3807 5.83333 10 5.83333C8.61929 5.83333 7.5 6.95262 7.5 8.33333C7.5 9.71404 8.61929 10.8333 10 10.8333Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -512,16 +512,16 @@ function TrackDateCalendar({ selected, onPick }: { selected: string; onPick: (da
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"224px", padding:"12px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", height:"24px" }}>
-        <button onClick={prevMonth} style={{ width:"24px", height:"24px", display:"flex", alignItems:"center", justifyContent:"center", background:"none", border:"none", cursor:"pointer", color:"#324055" }}>
+        <button onClick={prevMonth} style={{ width:"24px", height:"24px", display:"flex", alignItems:"center", justifyContent:"center", background:"none", border:"none", cursor:"pointer", color:"var(--gray-700)" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
-        <span style={{ fontSize:"13px", fontWeight:700, color:"#0e162a" }}>{monthLabel}</span>
-        <button onClick={nextMonth} disabled={isCurrentMonth} style={{ width:"24px", height:"24px", display:"flex", alignItems:"center", justifyContent:"center", background:"none", border:"none", cursor: isCurrentMonth ? "default" : "pointer", visibility: isCurrentMonth ? "hidden" : "visible", color:"#324055" }}>
+        <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>{monthLabel}</span>
+        <button onClick={nextMonth} disabled={isCurrentMonth} style={{ width:"24px", height:"24px", display:"flex", alignItems:"center", justifyContent:"center", background:"none", border:"none", cursor: isCurrentMonth ? "default" : "pointer", visibility: isCurrentMonth ? "hidden" : "visible", color:"var(--gray-700)" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", justifyItems:"center" }}>
-        {WEEKDAY_LABELS.map(w => <span key={w} style={{ fontSize:"10px", color:"#94a3b8", height:"22px", display:"flex", alignItems:"center" }}>{w}</span>)}
+        {WEEKDAY_LABELS.map(w => <span key={w} style={{ fontSize:"10px", color:"var(--gray-400)", height:"22px", display:"flex", alignItems:"center" }}>{w}</span>)}
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", justifyItems:"center", rowGap:"2px" }}>
         {cells.map((day, i) => {
@@ -532,9 +532,9 @@ function TrackDateCalendar({ selected, onPick }: { selected: string; onPick: (da
           const isFuture = key > todayKey;
           return (
             <button key={i} disabled={isFuture} onClick={() => onPick(key)} style={{
-              width:"28px", height:"28px", borderRadius:"50%", border: isToday && !isSelected ? "1px solid #5a3dfb" : "none",
-              backgroundColor: isSelected ? "#5a3dfb" : "transparent",
-              color: isSelected ? "white" : isFuture ? "#ccd5e1" : "#0e162a",
+              width:"28px", height:"28px", borderRadius:"50%", border: isToday && !isSelected ? "1px solid var(--primary-400)" : "none",
+              backgroundColor: isSelected ? "var(--primary-400)" : "transparent",
+              color: isSelected ? "white" : isFuture ? "var(--gray-300)" : "var(--gray-900)",
               fontSize:"12px", fontWeight: isSelected ? 700 : 500, cursor: isFuture ? "default" : "pointer",
             }}>{day}</button>
           );
@@ -650,33 +650,33 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
         {/* Breadcrumb */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 20px", borderBottom:BORDER, backgroundColor:"white", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-            <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", color:"#64748a", fontSize:"13px", fontWeight:600 }}>
+            <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", color:"var(--gray-500)", fontSize:"13px", fontWeight:600 }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M10 3L5 8l5 5" stroke="#64748a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M10 3L5 8l5 5" stroke="var(--gray-500)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               Best frame
             </button>
             {/* Vertical divider — "Best frame" is the only real navigable step here, so it gets
                 a back button; the location/date pair to its right is read-only context, not
                 another hierarchy level, so it doesn't share the back button's "›" chevron. */}
-            <div style={{ width:"1px", height:"14px", backgroundColor:"#e2e8f0" }} />
-            <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"#334155", fontSize:"13px", fontWeight:600 }}>
+            <div style={{ width:"1px", height:"14px", backgroundColor:"var(--gray-200)" }} />
+            <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"var(--gray-700)", fontSize:"13px", fontWeight:600 }}>
               <svg width="16" height="16" viewBox="1 1 22 22" fill="none">
-                <path d="M16 13L21.223 16.482C21.2983 16.5321 21.3858 16.5608 21.4761 16.5652C21.5664 16.5695 21.6563 16.5492 21.736 16.5065C21.8157 16.4639 21.8824 16.4003 21.9289 16.3228C21.9754 16.2452 22 16.1564 22 16.066V7.87C22 7.78202 21.9768 7.6956 21.9328 7.61945C21.8887 7.5433 21.8253 7.48012 21.7491 7.4363C21.6728 7.39248 21.5863 7.36956 21.4983 7.36985C21.4103 7.37015 21.324 7.39366 21.248 7.438L16 10.5" stroke="#64748a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M14 6H4C2.89543 6 2 6.89543 2 8V16C2 17.1046 2.89543 18 4 18H14C15.1046 18 16 17.1046 16 16V8C16 6.89543 15.1046 6 14 6Z" stroke="#64748a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M16 13L21.223 16.482C21.2983 16.5321 21.3858 16.5608 21.4761 16.5652C21.5664 16.5695 21.6563 16.5492 21.736 16.5065C21.8157 16.4639 21.8824 16.4003 21.9289 16.3228C21.9754 16.2452 22 16.1564 22 16.066V7.87C22 7.78202 21.9768 7.6956 21.9328 7.61945C21.8887 7.5433 21.8253 7.48012 21.7491 7.4363C21.6728 7.39248 21.5863 7.36956 21.4983 7.36985C21.4103 7.37015 21.324 7.39366 21.248 7.438L16 10.5" stroke="var(--gray-500)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M14 6H4C2.89543 6 2 6.89543 2 8V16C2 17.1046 2.89543 18 4 18H14C15.1046 18 16 17.1046 16 16V8C16 6.89543 15.1046 6 14 6Z" stroke="var(--gray-500)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               {data.location}
             </div>
-            <span style={{ color:"#64748a" }}>·</span>
-            <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"#334155", fontSize:"13px", fontWeight:600 }}>
+            <span style={{ color:"var(--gray-500)" }}>·</span>
+            <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"var(--gray-700)", fontSize:"13px", fontWeight:600 }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="6" stroke="#64748a" strokeWidth="1.4"/>
-                <path d="M8 5v3l2 2" stroke="#64748a" strokeWidth="1.4" strokeLinecap="round"/>
+                <circle cx="8" cy="8" r="6" stroke="var(--gray-500)" strokeWidth="1.4"/>
+                <path d="M8 5v3l2 2" stroke="var(--gray-500)" strokeWidth="1.4" strokeLinecap="round"/>
               </svg>
               {sgtDateKey(new Date())}
             </div>
           </div>
-          <div style={{ padding:"4px 10px", fontSize:"12px", fontWeight:700, color:"#64748a" }}>
+          <div style={{ padding:"4px 10px", fontSize:"12px", fontWeight:700, color:"var(--gray-500)" }}>
             AI engine v5.22.2
           </div>
         </div>
@@ -685,7 +685,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
             edge-to-edge on a wide window the way a full-bleed background would; it's capped at a
             realistic width/height and centered on a neutral surface, same idea as the original
             design mockup this was built from. */}
-        <div style={{ flex:1, position:"relative", display:"flex", alignItems:"center", justifyContent:"center", overflow:"auto", backgroundColor:"#f1f5f9", minHeight:0, padding:"20px", boxSizing:"border-box" }}>
+        <div style={{ flex:1, position:"relative", display:"flex", alignItems:"center", justifyContent:"center", overflow:"auto", backgroundColor:"var(--gray-100)", minHeight:0, padding:"20px", boxSizing:"border-box" }}>
           <div
             onMouseEnter={() => setCameraHovered(true)}
             onMouseLeave={() => setCameraHovered(false)}
@@ -698,11 +698,11 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
               // uploaded image has no timeline eating vertical space either, so it gets the same
               // treatment.
               maxWidth: (selectedPerson || data.sourceType === "image") ? "100%" : "1400px",
-              maxHeight:"100%", aspectRatio:"16/9", flexShrink:0, borderRadius:"12px", overflow:"hidden", backgroundColor:"#0e162a",
+              maxHeight:"100%", aspectRatio:"16/9", flexShrink:0, borderRadius:"12px", overflow:"hidden", backgroundColor:"var(--gray-900)",
             }}
           >
             <img src={data.bgUrl ?? ""} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:0.9 }} />
-            <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(0,0,0,0) 50%,rgba(0,0,0,0.04) 50%)", backgroundSize:"100% 4px" }} />
+            <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(14, 22, 42,0) 50%,rgba(14, 22, 42,0.04) 50%)", backgroundSize:"100% 4px" }} />
             <div style={{ position:"absolute", top:12, right:14, backgroundColor:"rgba(14,22,42,0.65)", padding:"3px 8px", fontSize:"10px", fontWeight:600, color:"rgba(255,255,255,0.8)", letterSpacing:"0.5px" }}>
               {sgtDateKey(new Date()).split("-").reverse().join("-")} {focusedDet.time}
             </div>
@@ -715,7 +715,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
               // border width/label opacity below, not by switching to a second, off-palette blue.
               // VIP boxes always render in the primary purple — a VIP hit is an identity signal,
               // not just a focus state, so it stays purple whether focused or not.
-              const borderColor = det.type === "VIP" ? "#5a3dfb" : "#38bdf8";
+              const borderColor = det.type === "VIP" ? "var(--primary-400)" : "var(--type-vehicle)";
               return (
                 <div key={det.id}
                   // Just focuses — the same "highlight, don't commit" action as clicking this
@@ -732,7 +732,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                     // matches the reel card's purple focus outline on the right. Reusing the
                     // type color for focus meant a blue (non-VIP) box and its purple-outlined
                     // card didn't read as the same linked item.
-                    boxShadow: isFocused ? "0 0 0 3px #5a3dfb" : "none",
+                    boxShadow: isFocused ? "0 0 0 3px var(--primary-400)" : "none",
                     borderRadius:"3px", boxSizing:"border-box",
                     transition:"border-color 0.15s, box-shadow 0.15s",
                   }}
@@ -744,9 +744,9 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                     boxShadow:"0 1px 6px rgba(14,22,42,0.12)",
                     opacity: isFocused ? 1 : 0.85,
                   }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a" }}>P-0{i + 1}</span>
-                    {det.type === "VIP" && <TypeIcon type="VIP" color="#8b5cf6" size={10} />}
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"#0e162a" }}>{det.name}</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>P-0{i + 1}</span>
+                    {det.type === "VIP" && <TypeIcon type="VIP" color="var(--primary-400)" size={10} />}
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-900)" }}>{det.name}</span>
                   </div>
                 </div>
               );
@@ -766,13 +766,13 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
               }}>
                 {isPlaying ? (
                   <svg width="52" height="52" viewBox="0 0 40 40" fill="none">
-                    <rect width="40" height="40" rx="20" fill="#5A3DFB"/>
+                    <rect width="40" height="40" rx="20" fill="var(--primary-400)"/>
                     <rect x="14" y="13" width="4" height="14" rx="1.5" fill="white"/>
                     <rect x="22" y="13" width="4" height="14" rx="1.5" fill="white"/>
                   </svg>
                 ) : (
                   <svg width="52" height="52" viewBox="0 0 40 40" fill="none">
-                    <rect width="40" height="40" rx="20" fill="#5A3DFB"/>
+                    <rect width="40" height="40" rx="20" fill="var(--primary-400)"/>
                     <path d="M14.9511 13.9987C14.8189 14.2272 14.7493 14.4864 14.7494 14.7503V25.2497C14.7493 25.5136 14.8189 25.7728 14.9511 26.0013C15.0833 26.2297 15.2734 26.4192 15.5023 26.5507C15.7312 26.6821 15.9907 26.7509 16.2547 26.75C16.5186 26.7491 16.7777 26.6786 17.0057 26.5456L26.0068 21.2959C26.2336 21.1638 26.4219 20.9744 26.5526 20.7468C26.6833 20.5191 26.752 20.2611 26.7518 19.9986C26.7516 19.7361 26.6824 19.4782 26.5513 19.2508C26.4202 19.0234 26.2316 18.8343 26.0045 18.7026L17.0057 13.4544C16.7777 13.3214 16.5186 13.2509 16.2547 13.25C15.9907 13.2491 15.7312 13.3179 15.5023 13.4493C15.2734 13.5808 15.0833 13.7703 14.9511 13.9987Z" fill="white" stroke="white" strokeLinecap="round"/>
                   </svg>
                 )}
@@ -800,14 +800,14 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
               flex, so the step controls stay truly centered regardless of how wide the title or
               the date/jump-to group are). */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", padding:"12px 16px 16px", columnGap:"12px" }}>
-            <span title="이 카메라에서 여러 트랙(감지된 객체)에 걸쳐 발생한 이벤트 기록" style={{ fontSize:"14px", fontWeight:700, color:"#0e162a", letterSpacing:"-0.26px", cursor:"help" }}>Multi-track event history</span>
+            <span title="이 카메라에서 여러 트랙(감지된 객체)에 걸쳐 발생한 이벤트 기록" style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Multi-track event history</span>
             {/* Step controls — precise ±1s/±10s seeking for when dragging the axis by hand is too
                 coarse. Arrow keys do the same (see the keydown effect above); Shift+arrow mirrors
                 the ±10s buttons. */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px" }}>
               <button onClick={() => stepBy(-10)} style={STEP_BTN_STYLE}>◀ 10s</button>
               <button onClick={() => stepBy(-1)} style={STEP_BTN_STYLE}>◀ 1s</button>
-              <span style={{ fontSize:"16px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.3px", minWidth:"92px", textAlign:"center", fontFamily:"monospace" }}>
+              <span style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.3px", minWidth:"92px", textAlign:"center", fontFamily:"monospace" }}>
                 {secToHHMMSS(selectedSec)}
               </span>
               <button onClick={() => stepBy(1)} style={STEP_BTN_STYLE}>1s ▶</button>
@@ -819,19 +819,19 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                   gets its own calendar glyph instead of a clock face that made it read as a
                   time control at a glance. */}
               <div ref={dateDropdownRef} style={{ position:"relative" }}>
-                <button onClick={() => setDateOpen(o => !o)} style={{ display:"flex", alignItems:"center", gap:"6px", backgroundColor:"white", borderRadius:"8px", padding:"6px 12px", border:"1px solid #ccd5e1", cursor:"pointer" }}>
+                <button onClick={() => setDateOpen(o => !o)} style={{ display:"flex", alignItems:"center", gap:"6px", backgroundColor:"white", borderRadius:"8px", padding:"6px 12px", border:"1px solid var(--gray-300)", cursor:"pointer" }}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                    <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="#0e162a" strokeWidth="1.4"/>
-                    <path d="M2 6.5H14" stroke="#0e162a" strokeWidth="1.4"/>
-                    <path d="M5 2V4.5M11 2V4.5" stroke="#0e162a" strokeWidth="1.4" strokeLinecap="round"/>
+                    <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="var(--gray-900)" strokeWidth="1.4"/>
+                    <path d="M2 6.5H14" stroke="var(--gray-900)" strokeWidth="1.4"/>
+                    <path d="M5 2V4.5M11 2V4.5" stroke="var(--gray-900)" strokeWidth="1.4" strokeLinecap="round"/>
                   </svg>
-                  <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{trackDate}</span>
+                  <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{trackDate}</span>
                   <svg width="9" height="9" viewBox="0 0 8 8" fill="none">
-                    <path d="M2 3L4 5L6 3" stroke="#0e162a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M2 3L4 5L6 3" stroke="var(--gray-900)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
                 {dateOpen && (
-                  <div style={{ position:"absolute", right:0, top:"calc(100% + 4px)", backgroundColor:"white", borderRadius:"8px", boxShadow:"0 4px 16px rgba(0,0,0,0.12)", border:"1px solid #e2e8f0", overflow:"hidden", zIndex:50 }}>
+                  <div style={{ position:"absolute", right:0, top:"calc(100% + 4px)", backgroundColor:"white", borderRadius:"8px", boxShadow:"0 4px 16px rgba(14, 22, 42,0.12)", border:"1px solid var(--gray-200)", overflow:"hidden", zIndex:50 }}>
                     <TrackDateCalendar selected={trackDate} onPick={(d) => { setTrackDate(d); setDateOpen(false); }} />
                   </div>
                 )}
@@ -846,12 +846,12 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                   date button beside it. The clock icon (moved here from the date button, where
                   it misleadingly looked like a time indicator) now marks the control that's
                   actually about time. */}
-              <div style={{ display:"flex", alignItems:"center", gap:"6px", backgroundColor:"white", borderRadius:"8px", padding:"6px 12px", border:"1px solid #ccd5e1" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"6px", backgroundColor:"white", borderRadius:"8px", padding:"6px 12px", border:"1px solid var(--gray-300)" }}>
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="6" stroke="#64748a" strokeWidth="1.4"/>
-                  <path d="M8 5v3l2 2" stroke="#64748a" strokeWidth="1.4" strokeLinecap="round"/>
+                  <circle cx="8" cy="8" r="6" stroke="var(--gray-500)" strokeWidth="1.4"/>
+                  <path d="M8 5v3l2 2" stroke="var(--gray-500)" strokeWidth="1.4" strokeLinecap="round"/>
                 </svg>
-                <span style={{ fontSize:"12px", fontWeight:600, color:"#64748a" }}>Jump to</span>
+                <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)" }}>Jump to</span>
                 <input
                   type="text" inputMode="numeric" placeholder="HH:MM:SS" defaultValue={secToHHMMSS(selectedSec)}
                   onKeyDown={e => {
@@ -859,7 +859,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                     const match = e.currentTarget.value.trim().match(/^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/);
                     if (match) jumpTo(Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] ?? 0));
                   }}
-                  style={{ width:"66px", border:"none", outline:"none", fontSize:"12px", fontWeight:700, color:"#0e162a", fontFamily:"monospace" }}
+                  style={{ width:"66px", border:"none", outline:"none", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", fontFamily:"monospace" }}
                 />
               </div>
             </div>
@@ -903,18 +903,18 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                         display:"flex", flexDirection:"column", alignItems:"center",
                         opacity: hoveredThumbIdx === i ? 1 : 0, pointerEvents:"none", transition:"opacity 0.12s", zIndex:5,
                       }}>
-                        <span style={{ fontSize:"12px", fontWeight:800, color:"white", backgroundColor:"#5a3dfb", padding:"4px 10px", borderRadius:"999px", fontFamily:"monospace", whiteSpace:"nowrap" }}>
+                        <span style={{ fontSize:"12px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"4px 10px", borderRadius:"999px", fontFamily:"monospace", whiteSpace:"nowrap" }}>
                           {secToHHMMSS(selectedSec)}
                         </span>
-                        <span style={{ width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderTop:"6px solid #5a3dfb", marginTop:"-2px" }} />
+                        <span style={{ width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderTop:"6px solid var(--primary-400)", marginTop:"-2px" }} />
                       </div>
                     )}
                     <div style={{
                       width:"100%", aspectRatio:"8/5", boxSizing:"border-box",
-                      border: isSelected ? "3px solid #5a3dfb" : "1.5px solid #E2E8F0",
+                      border: isSelected ? "3px solid var(--primary-400)" : "1.5px solid var(--gray-200)",
                       borderRadius:"8px",
                     }}>
-                      <div style={{ width:"100%", height:"100%", overflow:"hidden", borderRadius: isSelected ? "6px" : "7px", position:"relative", backgroundColor:"#1e293b" }}>
+                      <div style={{ width:"100%", height:"100%", overflow:"hidden", borderRadius: isSelected ? "6px" : "7px", position:"relative", backgroundColor:"var(--gray-800)" }}>
                         <img src={data.bgUrl ?? ""} alt=""
                           style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", filter: isSelected ? "none" : "grayscale(100%)", opacity: isSelected ? 1 : 0.75 }} />
                         {/* Headcount chip — see personCountFor()'s comment: a deterministic mock
@@ -934,14 +934,14 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                     </div>
                     {/* Full absolute HH:MM:SS per thumbnail — clearer than a relative offset
                         when frames are only 2 seconds apart, where "+2s"/"+4s" all look alike. */}
-                    <span style={{ fontSize:"10px", fontWeight:600, color: isSelected ? "#5a3dfb" : "#64748a", fontFamily:"monospace" }}>
+                    <span style={{ fontSize:"10px", fontWeight:600, color: isSelected ? "var(--primary-400)" : "var(--gray-500)", fontFamily:"monospace" }}>
                       {secToHHMMSS(sec)}
                     </span>
                     {/* Crown — present/absent only, one per frame that actually had a real VIP
                         hit. Reserves its height even when absent so the label row above doesn't
                         jump around from frame to frame. */}
                     <div style={{ height:"12px" }}>
-                      {hasVip && <TypeIcon type="VIP" color="#5a3dfb" size={12} />}
+                      {hasVip && <TypeIcon type="VIP" color="var(--primary-400)" size={12} />}
                     </div>
                   </div>
                 );
@@ -951,7 +951,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
 
           {/* Hour bar / Minute bar — a two-tier coarse navigator (pick the hour, then pick the
               minute within it), moved below the thumbnail strip. Both reuse the same purple
-              highlight as the rest of this timeline (bg #f0f0ff / border #5a3dfb), not a
+              highlight as the rest of this timeline (bg var(--primary-100) / border var(--primary-400)), not a
               separate accent color. No persistent "Hour 14"/"active number" label sitting on
               the bar itself — instead, hovering any segment pops the same pill+pointer tooltip
               used for the selected thumbnail's time badge above, which already reads clearly on
@@ -966,8 +966,8 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                       onMouseEnter={() => setHoveredHour(h)}
                       onMouseLeave={() => setHoveredHour(prev => (prev === h ? null : prev))}
                       style={{
-                      flex:1, height:"22px", padding:0, border: active ? "1px solid #5a3dfb" : "none",
-                      borderRadius:"4px", backgroundColor: active ? "#f0f0ff" : "#e2e8f0", cursor:"pointer",
+                      flex:1, height:"22px", padding:0, border: active ? "1px solid var(--primary-400)" : "none",
+                      borderRadius:"4px", backgroundColor: active ? "var(--primary-100)" : "var(--gray-200)", cursor:"pointer",
                       boxSizing:"border-box",
                     }} />
                   );
@@ -978,16 +978,16 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                   position:"absolute", bottom:"calc(100% + 6px)", left:`${((hoveredHour + 0.5) / HOURS_IN_DAY) * 100}%`, transform:"translateX(-50%)",
                   display:"flex", flexDirection:"column", alignItems:"center", pointerEvents:"none", zIndex:5,
                 }}>
-                  <span style={{ fontSize:"12px", fontWeight:800, color:"white", backgroundColor:"#5a3dfb", padding:"4px 10px", borderRadius:"999px", fontFamily:"monospace", whiteSpace:"nowrap" }}>
+                  <span style={{ fontSize:"12px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"4px 10px", borderRadius:"999px", fontFamily:"monospace", whiteSpace:"nowrap" }}>
                     Hour {pad2(hoveredHour)}
                   </span>
-                  <span style={{ width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderTop:"6px solid #5a3dfb", marginTop:"-2px" }} />
+                  <span style={{ width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderTop:"6px solid var(--primary-400)", marginTop:"-2px" }} />
                 </div>
               )}
             </div>
             <div style={{ position:"relative", height:"16px", marginTop:"2px" }}>
               {[0, 6, 12, 18].map(h => (
-                <span key={h} style={{ position:"absolute", left:`${(h / HOURS_IN_DAY) * 100}%`, fontSize:"11px", fontWeight:600, color:"#94a3b8" }}>
+                <span key={h} style={{ position:"absolute", left:`${(h / HOURS_IN_DAY) * 100}%`, fontSize:"11px", fontWeight:600, color:"var(--gray-400)" }}>
                   {pad2(h)}
                 </span>
               ))}
@@ -1001,8 +1001,8 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                       onMouseEnter={() => setHoveredMinute(m)}
                       onMouseLeave={() => setHoveredMinute(prev => (prev === m ? null : prev))}
                       style={{
-                      flex:1, height:"14px", padding:0, border: active ? "1px solid #5a3dfb" : "none",
-                      borderRadius:"2px", backgroundColor: active ? "#f0f0ff" : "#e2e8f0", cursor:"pointer",
+                      flex:1, height:"14px", padding:0, border: active ? "1px solid var(--primary-400)" : "none",
+                      borderRadius:"2px", backgroundColor: active ? "var(--primary-100)" : "var(--gray-200)", cursor:"pointer",
                       boxSizing:"border-box",
                     }} />
                   );
@@ -1013,16 +1013,16 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                   position:"absolute", bottom:"calc(100% + 6px)", left:`${((hoveredMinute + 0.5) / MINUTES_IN_HOUR) * 100}%`, transform:"translateX(-50%)",
                   display:"flex", flexDirection:"column", alignItems:"center", pointerEvents:"none", zIndex:5,
                 }}>
-                  <span style={{ fontSize:"12px", fontWeight:800, color:"white", backgroundColor:"#5a3dfb", padding:"4px 10px", borderRadius:"999px", fontFamily:"monospace", whiteSpace:"nowrap" }}>
+                  <span style={{ fontSize:"12px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"4px 10px", borderRadius:"999px", fontFamily:"monospace", whiteSpace:"nowrap" }}>
                     Min {pad2(hoveredMinute)}
                   </span>
-                  <span style={{ width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderTop:"6px solid #5a3dfb", marginTop:"-2px" }} />
+                  <span style={{ width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderTop:"6px solid var(--primary-400)", marginTop:"-2px" }} />
                 </div>
               )}
             </div>
             <div style={{ position:"relative", height:"16px", marginTop:"2px" }}>
               {[0, 15, 30, 45].map(m => (
-                <span key={m} style={{ position:"absolute", left:`${(m / MINUTES_IN_HOUR) * 100}%`, fontSize:"11px", fontWeight:600, color:"#94a3b8" }}>
+                <span key={m} style={{ position:"absolute", left:`${(m / MINUTES_IN_HOUR) * 100}%`, fontSize:"11px", fontWeight:600, color:"var(--gray-400)" }}>
                   {pad2(m)}
                 </span>
               ))}

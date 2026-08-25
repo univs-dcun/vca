@@ -9,7 +9,7 @@ import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useApiData } from "@/hooks/useApiData";
 import { getDashboardStats, getDevices, getDistricts } from "@/lib/api/dashboard";
 
-const BORDER = "1px solid #E2E8F0";
+const BORDER = "1px solid var(--gray-200)";
 const PAGE_SIZE = 12;
 const SIDEBAR_TAB_STORAGE_KEY = "vca:sidebarTab";
 const SIDEBAR_TAB_CHANGE_EVENT = "vca:sidebarTabChange";
@@ -42,7 +42,7 @@ function usePersistedSidebarTab(): [SidebarTab, (tab: SidebarTab) => void] {
 
 const PAGE_BTN: React.CSSProperties = {
   width:"26px", height:"26px", borderRadius:"7px",
-  border:"1px solid #e2e8f0", background:"white",
+  border:"1px solid var(--gray-200)", background:"white",
   cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
   padding:0,
 };
@@ -55,9 +55,9 @@ function DeltaBadge({ delta, deltaPct, down }: { delta: number; deltaPct: number
   return (
     <div style={{ display:"flex", gap:"4px", alignItems:"center" }}>
       <svg width="8" height="7" viewBox="0 0 8 7" style={{ flexShrink:0, transform: down ? "none" : "rotate(180deg)" }}>
-        <path d="M4 7L0 0H8L4 7Z" fill="#475469"/>
+        <path d="M4 7L0 0H8L4 7Z" fill="var(--gray-600)"/>
       </svg>
-      <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", lineHeight:"16px" }}>{delta} ({deltaPct}%)</span>
+      <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-600)", lineHeight:"16px" }}>{delta} ({deltaPct}%)</span>
     </div>
   );
 }
@@ -65,7 +65,7 @@ function DeltaBadge({ delta, deltaPct, down }: { delta: number; deltaPct: number
 // Per Figma (node 154:23572): 6px between the label row and the count block, then 4px
 // *inside* that block between the count and the delta — not one flat gap across all three,
 // which over-tallens the row and throws off the divider line's height next to it.
-function StatCol({ icon, label, labelColor = "#475469", labelFontSize = 12, count, delta, deltaPct, down }: { icon?: React.ReactNode; label:string; labelColor?:string; labelFontSize?:number; count:number; delta:number; deltaPct:number; down:boolean }) {
+function StatCol({ icon, label, labelColor = "var(--gray-600)", labelFontSize = 12, count, delta, deltaPct, down }: { icon?: React.ReactNode; label:string; labelColor?:string; labelFontSize?:number; count:number; delta:number; deltaPct:number; down:boolean }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
       <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
@@ -73,7 +73,7 @@ function StatCol({ icon, label, labelColor = "#475469", labelFontSize = 12, coun
         <span style={{ fontSize:`${labelFontSize}px`, fontWeight:600, color:labelColor }}>{label}</span>
       </div>
       <div style={{ display:"flex", flexDirection:"column", gap:"2px" }}>
-        <span style={{ fontSize:"24px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.4px", lineHeight:"30px" }}>{count}</span>
+        <span style={{ fontSize:"24px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.4px", lineHeight:"30px" }}>{count}</span>
         <DeltaBadge delta={delta} deltaPct={deltaPct} down={down} />
       </div>
     </div>
@@ -83,9 +83,9 @@ function StatCol({ icon, label, labelColor = "#475469", labelFontSize = 12, coun
 function WatchlistStatIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
-      <path d="M1 10.5C0.999958 9.73016 1.22207 8.97667 1.63967 8.32994C2.05728 7.68322 2.65264 7.17074 3.3543 6.85401C4.05596 6.53728 4.83412 6.42975 5.59538 6.54434C6.35664 6.65893 7.06866 6.99075 7.646 7.5" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M5 6.5C6.38071 6.5 7.5 5.38071 7.5 4C7.5 2.61929 6.38071 1.5 5 1.5C3.61929 1.5 2.5 2.61929 2.5 4C2.5 5.38071 3.61929 6.5 5 6.5Z" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8 9.5L9 10.5L11 8.5" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1 10.5C0.999958 9.73016 1.22207 8.97667 1.63967 8.32994C2.05728 7.68322 2.65264 7.17074 3.3543 6.85401C4.05596 6.53728 4.83412 6.42975 5.59538 6.54434C6.35664 6.65893 7.06866 6.99075 7.646 7.5" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5 6.5C6.38071 6.5 7.5 5.38071 7.5 4C7.5 2.61929 6.38071 1.5 5 1.5C3.61929 1.5 2.5 2.61929 2.5 4C2.5 5.38071 3.61929 6.5 5 6.5Z" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 9.5L9 10.5L11 8.5" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -93,16 +93,16 @@ function WatchlistStatIcon() {
 function EventsTodayStatIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
-      <path d="M4 1V3" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8 1V3" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M9.5 2H2.5C1.94772 2 1.5 2.44772 1.5 3V10C1.5 10.5523 1.94772 11 2.5 11H9.5C10.0523 11 10.5 10.5523 10.5 10V3C10.5 2.44772 10.0523 2 9.5 2Z" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M1.5 5H10.5" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M4.5 8L5.5 9L7.5 7" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M4 1V3" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 1V3" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M9.5 2H2.5C1.94772 2 1.5 2.44772 1.5 3V10C1.5 10.5523 1.94772 11 2.5 11H9.5C10.0523 11 10.5 10.5523 10.5 10V3C10.5 2.44772 10.0523 2 9.5 2Z" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1.5 5H10.5" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M4.5 8L5.5 9L7.5 7" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
 
-function LocationPinIcon({ color = "#324055" }: { color?: string }) {
+function LocationPinIcon({ color = "var(--gray-700)" }: { color?: string }) {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
       <path d="M6.3005 10.8995C7.2305 10.0965 10 7.4965 10 5C10 3.93913 9.57857 2.92172 8.82843 2.17157C8.07828 1.42143 7.06087 1 6 1C4.93913 1 3.92172 1.42143 3.17157 2.17157C2.42143 2.92172 2 3.93913 2 5C2 7.4965 4.7695 10.0965 5.6995 10.8995C5.78614 10.9646 5.8916 10.9999 6 10.9999C6.1084 10.9999 6.21386 10.9646 6.3005 10.8995Z" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
@@ -125,7 +125,7 @@ function AvatarStack() {
 
 function PersonThumb({ isSelected, photoUrl }: { isSelected:boolean; photoUrl:string }) {
   return (
-    <div style={{ width:54, height:54, borderRadius:8, flexShrink:0, overflow:"hidden", outline: isSelected ? "2px solid #5a3dfb" : "none", outlineOffset:2 }}>
+    <div style={{ width:54, height:54, borderRadius:8, flexShrink:0, overflow:"hidden", outline: isSelected ? "2px solid var(--primary-400)" : "none", outlineOffset:2 }}>
       <img src={photoUrl} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} alt="" />
     </div>
   );
@@ -135,15 +135,15 @@ function VipBadge() {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:"4px", flexShrink:0 }}>
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
-        <path d="M5.781 1.633C5.80258 1.5938 5.83429 1.56112 5.87281 1.53835C5.91133 1.51559 5.95525 1.50358 6 1.50358C6.04475 1.50358 6.08867 1.51559 6.12719 1.53835C6.16571 1.56112 6.19742 1.5938 6.219 1.633L7.695 4.435C7.7302 4.49988 7.77933 4.55617 7.83885 4.59981C7.89838 4.64345 7.96684 4.67338 8.0393 4.68743C8.11176 4.70148 8.18644 4.69932 8.25797 4.68109C8.3295 4.66286 8.3961 4.62902 8.453 4.582L10.5915 2.75C10.6326 2.71661 10.6831 2.69711 10.736 2.6943C10.7888 2.69149 10.8412 2.70552 10.8855 2.73437C10.9299 2.76322 10.964 2.8054 10.9828 2.85485C11.0017 2.90429 11.0044 2.95844 10.9905 3.0095L9.5735 8.1325C9.54458 8.23733 9.48226 8.32988 9.396 8.39611C9.30975 8.46233 9.20425 8.49863 9.0955 8.4995H2.905C2.79617 8.49874 2.69055 8.46249 2.6042 8.39626C2.51784 8.33002 2.45545 8.23742 2.4265 8.1325L1.01 3.01C0.996125 2.95894 0.998811 2.90479 1.01767 2.85535C1.03653 2.8059 1.07059 2.76372 1.11495 2.73487C1.15931 2.70602 1.21168 2.69199 1.26452 2.6948C1.31736 2.69761 1.36795 2.71711 1.409 2.7505L3.547 4.5825C3.6039 4.62952 3.6705 4.66336 3.74203 4.68159C3.81356 4.69982 3.88824 4.70198 3.9607 4.68793C4.03316 4.67388 4.10162 4.64395 4.16115 4.60031C4.22067 4.55666 4.2698 4.50038 4.305 4.4355L5.781 1.633Z" stroke="#5A3DFB" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M2.5 10.5H9.5" stroke="#5A3DFB" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M5.781 1.633C5.80258 1.5938 5.83429 1.56112 5.87281 1.53835C5.91133 1.51559 5.95525 1.50358 6 1.50358C6.04475 1.50358 6.08867 1.51559 6.12719 1.53835C6.16571 1.56112 6.19742 1.5938 6.219 1.633L7.695 4.435C7.7302 4.49988 7.77933 4.55617 7.83885 4.59981C7.89838 4.64345 7.96684 4.67338 8.0393 4.68743C8.11176 4.70148 8.18644 4.69932 8.25797 4.68109C8.3295 4.66286 8.3961 4.62902 8.453 4.582L10.5915 2.75C10.6326 2.71661 10.6831 2.69711 10.736 2.6943C10.7888 2.69149 10.8412 2.70552 10.8855 2.73437C10.9299 2.76322 10.964 2.8054 10.9828 2.85485C11.0017 2.90429 11.0044 2.95844 10.9905 3.0095L9.5735 8.1325C9.54458 8.23733 9.48226 8.32988 9.396 8.39611C9.30975 8.46233 9.20425 8.49863 9.0955 8.4995H2.905C2.79617 8.49874 2.69055 8.46249 2.6042 8.39626C2.51784 8.33002 2.45545 8.23742 2.4265 8.1325L1.01 3.01C0.996125 2.95894 0.998811 2.90479 1.01767 2.85535C1.03653 2.8059 1.07059 2.76372 1.11495 2.73487C1.15931 2.70602 1.21168 2.69199 1.26452 2.6948C1.31736 2.69761 1.36795 2.71711 1.409 2.7505L3.547 4.5825C3.6039 4.62952 3.6705 4.66336 3.74203 4.68159C3.81356 4.69982 3.88824 4.70198 3.9607 4.68793C4.03316 4.67388 4.10162 4.64395 4.16115 4.60031C4.22067 4.55666 4.2698 4.50038 4.305 4.4355L5.781 1.633Z" stroke="var(--primary-400)" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M2.5 10.5H9.5" stroke="var(--primary-400)" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
-      <span style={{ fontSize:"10px", fontWeight:600, color:"#5a3dfb" }}>VIP</span>
+      <span style={{ fontSize:"10px", fontWeight:600, color:"var(--primary-400)" }}>VIP</span>
     </div>
   );
 }
 
-function PawTrackIcon({ color = "#6D9300", size = 14 }: { color?: string; size?: number }) {
+function PawTrackIcon({ color = "var(--type-tracking)", size = 14 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 14 14" fill="none" style={{ flexShrink:0 }}>
       <path d="M2.33333 9.33333V7.945C2.33333 6.70833 1.7325 6.125 1.75 4.66667C1.7675 3.08 2.61917 1.16667 4.375 1.16667C5.46583 1.16667 5.83333 2.21667 5.83333 3.20833C5.83333 5.0225 4.66667 6.51 4.66667 8.27167V9.33333C4.66667 9.64275 4.54375 9.9395 4.32496 10.1583C4.10617 10.3771 3.80942 10.5 3.5 10.5C3.19058 10.5 2.89383 10.3771 2.67504 10.1583C2.45625 9.9395 2.33333 9.64275 2.33333 9.33333Z" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
@@ -188,7 +188,7 @@ function AvailabilityDonut({ pct, size = 92 }: { pct: number; size?: number }) {
   // Neutral gray by default; only shift to a semantic signal color when availability is
   // genuinely low (matches the red/green convention already used elsewhere in this file for
   // LIVE/OUT status).
-  const ringColor = pct < 50 ? "#f43f5e" : "#94a3b8";
+  const ringColor = pct < 50 ? "var(--danger-400)" : "var(--gray-400)";
   const cx = 46, cy = 40, r = 34, strokeWidth = 10;
   const sweep = 180 * (Math.max(0, Math.min(100, pct)) / 100);
   const trackPath = describeArc(cx, cy, r, 270, 450);
@@ -205,7 +205,7 @@ function AvailabilityDonut({ pct, size = 92 }: { pct: number; size?: number }) {
 }
 
 function TablePinIcon({ active }: { active: boolean }) {
-  const c = active ? "#5a3dfb" : "#64748A";
+  const c = active ? "var(--primary-400)" : "var(--gray-500)";
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <g clipPath="url(#tpin)">
@@ -223,12 +223,12 @@ function TablePinIcon({ active }: { active: boolean }) {
 function SystemHeaderIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink:0 }}>
-      <path d="M16.6667 11.6667H3.33333C2.41286 11.6667 1.66667 12.4129 1.66667 13.3333V16.6667C1.66667 17.5871 2.41286 18.3333 3.33333 18.3333H16.6667C17.5871 18.3333 18.3333 17.5871 18.3333 16.6667V13.3333C18.3333 12.4129 17.5871 11.6667 16.6667 11.6667Z" stroke="#0E162A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M5.00833 15H5" stroke="#0E162A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8.34167 15H8.33333" stroke="#0E162A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M12.5 8.33333V11.6667" stroke="#0E162A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M14.8667 5.975C14.5571 5.66508 14.1895 5.41922 13.7848 5.25147C13.3801 5.08372 12.9464 4.99738 12.5083 4.99738C12.0703 4.99738 11.6365 5.08372 11.2319 5.25147C10.8272 5.41922 10.4596 5.66508 10.15 5.975" stroke="#0E162A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M17.2167 3.61667C15.9665 2.36737 14.2715 1.66559 12.5042 1.66559C10.7368 1.66559 9.04178 2.36737 7.79167 3.61667" stroke="#0E162A" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M16.6667 11.6667H3.33333C2.41286 11.6667 1.66667 12.4129 1.66667 13.3333V16.6667C1.66667 17.5871 2.41286 18.3333 3.33333 18.3333H16.6667C17.5871 18.3333 18.3333 17.5871 18.3333 16.6667V13.3333C18.3333 12.4129 17.5871 11.6667 16.6667 11.6667Z" stroke="var(--gray-900)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5.00833 15H5" stroke="var(--gray-900)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8.34167 15H8.33333" stroke="var(--gray-900)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12.5 8.33333V11.6667" stroke="var(--gray-900)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14.8667 5.975C14.5571 5.66508 14.1895 5.41922 13.7848 5.25147C13.3801 5.08372 12.9464 4.99738 12.5083 4.99738C12.0703 4.99738 11.6365 5.08372 11.2319 5.25147C10.8272 5.41922 10.4596 5.66508 10.15 5.975" stroke="var(--gray-900)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M17.2167 3.61667C15.9665 2.36737 14.2715 1.66559 12.5042 1.66559C10.7368 1.66559 9.04178 2.36737 7.79167 3.61667" stroke="var(--gray-900)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -236,8 +236,8 @@ function SystemHeaderIcon() {
 function LinkedCamsIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
-      <path d="M5.41165 6.47011C5.61374 6.74029 5.87158 6.96385 6.16767 7.12561C6.46376 7.28738 6.79118 7.38358 7.12772 7.40768C7.46426 7.43178 7.80204 7.38323 8.11817 7.2653C8.43429 7.14738 8.72135 6.96285 8.95989 6.72423L10.3717 5.31247C10.8003 4.8687 11.0374 4.27434 11.0321 3.6574C11.0267 3.04047 10.7792 2.45032 10.343 2.01407C9.90673 1.57781 9.31659 1.33036 8.69965 1.325C8.08272 1.31964 7.48836 1.5568 7.04459 1.98541L6.23518 2.79011" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M6.32638 5.53182C6.12429 5.26164 5.86645 5.03808 5.57036 4.87631C5.27427 4.71455 4.94685 4.61835 4.61031 4.59425C4.27377 4.57014 3.93599 4.6187 3.61987 4.73662C3.30374 4.85455 3.01668 5.03908 2.77815 5.2777L1.36638 6.68946C0.937774 7.13323 0.70061 7.72759 0.705971 8.34452C0.711332 8.96146 0.958789 9.55161 1.39504 9.98786C1.8313 10.4241 2.42144 10.6716 3.03838 10.6769C3.65531 10.6823 4.24967 10.4451 4.69344 10.0165L5.49815 9.21182" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5.41165 6.47011C5.61374 6.74029 5.87158 6.96385 6.16767 7.12561C6.46376 7.28738 6.79118 7.38358 7.12772 7.40768C7.46426 7.43178 7.80204 7.38323 8.11817 7.2653C8.43429 7.14738 8.72135 6.96285 8.95989 6.72423L10.3717 5.31247C10.8003 4.8687 11.0374 4.27434 11.0321 3.6574C11.0267 3.04047 10.7792 2.45032 10.343 2.01407C9.90673 1.57781 9.31659 1.33036 8.69965 1.325C8.08272 1.31964 7.48836 1.5568 7.04459 1.98541L6.23518 2.79011" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M6.32638 5.53182C6.12429 5.26164 5.86645 5.03808 5.57036 4.87631C5.27427 4.71455 4.94685 4.61835 4.61031 4.59425C4.27377 4.57014 3.93599 4.6187 3.61987 4.73662C3.30374 4.85455 3.01668 5.03908 2.77815 5.2777L1.36638 6.68946C0.937774 7.13323 0.70061 7.72759 0.705971 8.34452C0.711332 8.96146 0.958789 9.55161 1.39504 9.98786C1.8313 10.4241 2.42144 10.6716 3.03838 10.6769C3.65531 10.6823 4.24967 10.4451 4.69344 10.0165L5.49815 9.21182" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -245,9 +245,9 @@ function LinkedCamsIcon() {
 function OfflineCamsIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
-      <path d="M5.33 3H7C7.26522 3 7.51957 3.10536 7.70711 3.29289C7.89464 3.48043 8 3.73478 8 4V5.25L10.624 3.719C10.662 3.69683 10.7052 3.68508 10.7492 3.68493C10.7931 3.68478 10.8364 3.69624 10.8745 3.71815C10.9127 3.74006 10.9444 3.77165 10.9664 3.80972C10.9884 3.8478 11 3.89101 11 3.935V8.033" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8 8C8 8.26522 7.89464 8.51957 7.70711 8.70711C7.51957 8.89464 7.26522 9 7 9H2C1.73478 9 1.48043 8.89464 1.29289 8.70711C1.10536 8.51957 1 8.26522 1 8V4C1 3.73478 1.10536 3.48043 1.29289 3.29289C1.48043 3.10536 1.73478 3 2 3H3" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M1 1L11 11" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5.33 3H7C7.26522 3 7.51957 3.10536 7.70711 3.29289C7.89464 3.48043 8 3.73478 8 4V5.25L10.624 3.719C10.662 3.69683 10.7052 3.68508 10.7492 3.68493C10.7931 3.68478 10.8364 3.69624 10.8745 3.71815C10.9127 3.74006 10.9444 3.77165 10.9664 3.80972C10.9884 3.8478 11 3.89101 11 3.935V8.033" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 8C8 8.26522 7.89464 8.51957 7.70711 8.70711C7.51957 8.89464 7.26522 9 7 9H2C1.73478 9 1.48043 8.89464 1.29289 8.70711C1.10536 8.51957 1 8.26522 1 8V4C1 3.73478 1.10536 3.48043 1.29289 3.29289C1.48043 3.10536 1.73478 3 2 3H3" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1 1L11 11" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -255,7 +255,7 @@ function OfflineCamsIcon() {
 function AvailabilityIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
-      <path d="M11 6H9.76C9.54148 5.99953 9.32883 6.07065 9.15456 6.20248C8.98029 6.33431 8.854 6.5196 8.795 6.73L7.62 10.91C7.61243 10.936 7.59664 10.9588 7.575 10.975C7.55336 10.9912 7.52705 11 7.5 11C7.47295 11 7.44664 10.9912 7.425 10.975C7.40336 10.9588 7.38757 10.936 7.38 10.91L4.62 1.09C4.61243 1.06404 4.59664 1.04123 4.575 1.025C4.55336 1.00877 4.52705 1 4.5 1C4.47295 1 4.44664 1.00877 4.425 1.025C4.40336 1.04123 4.38757 1.06404 4.38 1.09L3.205 5.27C3.14623 5.47958 3.02069 5.66426 2.84743 5.79601C2.67417 5.92776 2.46266 5.99938 2.245 6H1" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M11 6H9.76C9.54148 5.99953 9.32883 6.07065 9.15456 6.20248C8.98029 6.33431 8.854 6.5196 8.795 6.73L7.62 10.91C7.61243 10.936 7.59664 10.9588 7.575 10.975C7.55336 10.9912 7.52705 11 7.5 11C7.47295 11 7.44664 10.9912 7.425 10.975C7.40336 10.9588 7.38757 10.936 7.38 10.91L4.62 1.09C4.61243 1.06404 4.59664 1.04123 4.575 1.025C4.55336 1.00877 4.52705 1 4.5 1C4.47295 1 4.44664 1.00877 4.425 1.025C4.40336 1.04123 4.38757 1.06404 4.38 1.09L3.205 5.27C3.14623 5.47958 3.02069 5.66426 2.84743 5.79601C2.67417 5.92776 2.46266 5.99938 2.245 6H1" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -266,11 +266,11 @@ function StatusBadge({ status }: { status: string }) {
     <div style={{
       display:"inline-flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
       padding:"4px 8px", borderRadius:"12px", backgroundColor:"white",
-      border: isLive ? "1px solid rgba(22,163,74,0.3)" : "1px solid #ffeaea",
+      border: isLive ? "1px solid rgba(22,163,74,0.3)" : "1px solid var(--danger-100)",
     }}>
       <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
-        <div style={{ width: isLive ? 2 : 5, height: isLive ? 2 : 5, borderRadius:"50%", backgroundColor: isLive ? "#16a34a" : "#f43f5e", flexShrink:0 }} />
-        <span style={{ fontSize:"10px", fontWeight:800, color: isLive ? "#16a34a" : "#f43f5e", letterSpacing:"-0.2px" }}>{isLive ? "LIVE" : "OUT"}</span>
+        <div style={{ width: isLive ? 2 : 5, height: isLive ? 2 : 5, borderRadius:"50%", backgroundColor: isLive ? "var(--success-400)" : "var(--danger-400)", flexShrink:0 }} />
+        <span style={{ fontSize:"10px", fontWeight:800, color: isLive ? "var(--success-400)" : "var(--danger-400)", letterSpacing:"-0.2px" }}>{isLive ? "LIVE" : "OUT"}</span>
       </div>
     </div>
   );
@@ -312,17 +312,17 @@ function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPers
       <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"360px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"80vh", overflow:"hidden", boxShadow:"0 20px 60px rgba(14,22,42,0.18)" }}>
         <div style={{ padding:"14px 16px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-            <Crown size={16} color="#5a3dfb" />
-            <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Registered VIP targets</p>
-            <span style={{ fontSize:"14px", fontWeight:800, color:"#5a3dfb" }}>{persons.length}</span>
+            <Crown size={16} color="var(--primary-400)" />
+            <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>Registered VIP targets</p>
+            <span style={{ fontSize:"14px", fontWeight:800, color:"var(--primary-400)" }}>{persons.length}</span>
           </div>
-          <button onClick={onClose} aria-label="Close" style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
+          <button onClick={onClose} aria-label="Close" style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
         <div style={{ flex:1, overflowY:"auto" }}>
           {persons.length === 0 && (
-            <div style={{ padding:"32px 16px", textAlign:"center", color:"#94a3b8", fontSize:"13px" }}>No VIP targets registered.</div>
+            <div style={{ padding:"32px 16px", textAlign:"center", color:"var(--gray-400)", fontSize:"13px" }}>No VIP targets registered.</div>
           )}
           {persons.map((p, i) => {
             const registeredLabel = new Date(p.registeredAt).toLocaleDateString("en-US", { year:"numeric", month:"short", day:"numeric" });
@@ -330,21 +330,21 @@ function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPers
               <div key={p.id}>
                 <button
                   onClick={() => { onPersonSelect(p.name); onClose(); }}
-                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = "var(--gray-50)"; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; }}
                   style={{ display:"flex", alignItems:"center", gap:"10px", padding:"10px 16px", width:"100%", border:"none", background:"none", cursor:"pointer", textAlign:"left", transition:"background-color 0.1s" }}
                 >
                   <PersonThumb isSelected={false} photoUrl={p.photoUrl} />
                   <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:"3px" }}>
-                    <span style={{ fontSize:"13px", fontWeight:600, color:"#0e162a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
+                    <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-900)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
                     {p.description && (
-                      <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.description}</span>
+                      <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.description}</span>
                     )}
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Registered {registeredLabel}</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Registered {registeredLabel}</span>
                   </div>
                   <VipBadge />
                 </button>
-                {i < persons.length - 1 && <div style={{ height:"1px", backgroundColor:"#e2e8f0", margin:"0 16px" }} />}
+                {i < persons.length - 1 && <div style={{ height:"1px", backgroundColor:"var(--gray-200)", margin:"0 16px" }} />}
               </div>
             );
           })}
@@ -370,13 +370,13 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           style={{
-            display:"flex", alignItems:"center", gap:"8px", background: isHovered ? "#f8fafc" : "none",
+            display:"flex", alignItems:"center", gap:"8px", background: isHovered ? "var(--gray-50)" : "none",
             border:"none", cursor:"pointer", padding:"4px 8px", margin:"-4px -8px", borderRadius:"8px",
             transition:"background-color 0.15s",
           }}
         >
-          <span style={{ fontSize:"16px", fontWeight:700, color:"#334155", letterSpacing:"-0.32px" }}>Registered VIP targets</span>
-          <span style={{ fontSize:"16px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.32px" }}>{vipTargets}</span>
+          <span style={{ fontSize:"16px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.32px" }}>Registered VIP targets</span>
+          <span style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.32px" }}>{vipTargets}</span>
         </button>
       </div>
       {showVipList && (
@@ -395,15 +395,15 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
           onMouseLeave={() => setIsDetectionsHovered(false)}
           style={{
             flex:1, minWidth:0, cursor: onToggleDetectionChart ? "pointer" : undefined,
-            backgroundColor: isDetectionsHovered ? "#f8fafc" : "transparent",
+            backgroundColor: isDetectionsHovered ? "var(--gray-50)" : "transparent",
             borderRadius:"8px", padding:"4px", margin:"-4px", transition:"background-color 0.15s",
           }}
         >
-          <StatCol icon={<WatchlistStatIcon />} label="VIP detections" labelColor="#324055" labelFontSize={13} count={watchlistMatch.count} delta={watchlistMatch.delta} deltaPct={watchlistMatch.deltaPct} down={watchlistMatch.down} />
+          <StatCol icon={<WatchlistStatIcon />} label="VIP detections" labelColor="var(--gray-700)" labelFontSize={13} count={watchlistMatch.count} delta={watchlistMatch.delta} deltaPct={watchlistMatch.deltaPct} down={watchlistMatch.down} />
         </div>
-        <div style={{ width:"1px", backgroundColor:"#E2E8F0", alignSelf:"stretch", flexShrink:0 }} />
+        <div style={{ width:"1px", backgroundColor:"var(--gray-200)", alignSelf:"stretch", flexShrink:0 }} />
         <div style={{ flex:1, minWidth:0 }}>
-          <StatCol icon={<EventsTodayStatIcon />} label="Today's detections" labelColor="#475469" labelFontSize={13} count={eventsToday.count} delta={eventsToday.delta} deltaPct={eventsToday.deltaPct} down={eventsToday.down} />
+          <StatCol icon={<EventsTodayStatIcon />} label="Today's detections" labelColor="var(--gray-600)" labelFontSize={13} count={eventsToday.count} delta={eventsToday.delta} deltaPct={eventsToday.deltaPct} down={eventsToday.down} />
         </div>
       </div>
     </div>
@@ -420,34 +420,34 @@ function LocationPickerModal({ current, onSelect, onClose }: { current: string |
       style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.4)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
       <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"320px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"70vh", overflow:"hidden", boxShadow:"0 20px 60px rgba(14,22,42,0.18)" }}>
         <div style={{ padding:"14px 16px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-          <p style={{ fontSize:"14px", fontWeight:800, color:"#0e162a" }}>Select location</p>
-          <button onClick={onClose} aria-label="Close" style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"#94a3b8", display:"flex" }}>
+          <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>Select location</p>
+          <button onClick={onClose} aria-label="Close" style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
         <div style={{ flex:1, overflowY:"auto", padding:"8px" }}>
           <button onClick={() => onSelect(null)}
-            onMouseEnter={e => { if (current) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = !current ? "#f6f6fe" : "transparent"; }}
+            onMouseEnter={e => { if (current) e.currentTarget.style.backgroundColor = "var(--gray-50)"; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = !current ? "var(--primary-50)" : "transparent"; }}
             style={{
               display:"flex", alignItems:"center", gap:"8px", width:"100%", textAlign:"left",
               padding:"9px 10px", borderRadius:"8px", border:"none", cursor:"pointer",
-              backgroundColor: !current ? "#f6f6fe" : "transparent",
-              fontSize:"13px", fontWeight:700, color: !current ? "#5a3dfb" : "#334155", transition:"background-color 0.1s",
+              backgroundColor: !current ? "var(--primary-50)" : "transparent",
+              fontSize:"13px", fontWeight:700, color: !current ? "var(--primary-400)" : "var(--gray-700)", transition:"background-color 0.1s",
             }}>All Locations</button>
           {locations.map(loc => {
             const active = current === loc;
             return (
               <button key={loc} onClick={() => onSelect(loc)}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = active ? "#f6f6fe" : "transparent"; }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "var(--gray-50)"; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = active ? "var(--primary-50)" : "transparent"; }}
                 style={{
                   display:"flex", alignItems:"center", gap:"8px", width:"100%", textAlign:"left",
                   padding:"9px 10px", borderRadius:"8px", border:"none", cursor:"pointer",
-                  backgroundColor: active ? "#f6f6fe" : "transparent",
-                  fontSize:"13px", fontWeight: active ? 700 : 600, color: active ? "#5a3dfb" : "#334155", transition:"background-color 0.1s",
+                  backgroundColor: active ? "var(--primary-50)" : "transparent",
+                  fontSize:"13px", fontWeight: active ? 700 : 600, color: active ? "var(--primary-400)" : "var(--gray-700)", transition:"background-color 0.1s",
                 }}>
-                <LocationPinIcon color={active ? "#5a3dfb" : "#64748a"} />
+                <LocationPinIcon color={active ? "var(--primary-400)" : "var(--gray-500)"} />
                 {loc}
               </button>
             );
@@ -473,13 +473,13 @@ function CameraTrailIcon() {
 // height, so it needs a fixed pixel tile to look consistent from hop to hop).
 const HOP_DASH_STYLE_VERTICAL: React.CSSProperties = {
   width:"1.5px",
-  backgroundImage:"repeating-linear-gradient(to bottom, #475469 0, #475469 3px, transparent 3px, transparent 6px)",
+  backgroundImage:"repeating-linear-gradient(to bottom, var(--gray-600) 0, var(--gray-600) 3px, transparent 3px, transparent 6px)",
 };
 
 function ChevronDownIcon({ rotated }: { rotated: boolean }) {
   return (
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ transform: rotated ? "rotate(180deg)" : "none", transition:"transform 0.15s", flexShrink:0 }}>
-      <path d="M4 6L8 10L12 6" stroke="#94a3b8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M4 6L8 10L12 6" stroke="var(--gray-400)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -528,7 +528,7 @@ function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; is
         style={{
           display:"flex", alignItems:"center", justifyContent:"space-between",
           padding:"10px 16px", cursor:"pointer",
-          backgroundColor: isSelected ? "#f6f6fe" : isHovered ? "#f8fafc" : "transparent",
+          backgroundColor: isSelected ? "var(--primary-50)" : isHovered ? "var(--gray-50)" : "transparent",
           transition:"background-color 0.15s",
         }}
       >
@@ -536,17 +536,17 @@ function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; is
           <PersonThumb isSelected={isSelected} photoUrl={photoUrl} />
           <div style={{ display:"flex", flexDirection:"column", gap:"5px", flex:1, minWidth:0 }}>
             <div style={{ display:"flex", gap:"6px", alignItems:"baseline" }}>
-              <span title={event.name} style={{ fontSize:"13px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.26px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              <span title={event.name} style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-900)", letterSpacing:"-0.26px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                 {event.name}
               </span>
               <span title={`${distinctCameraCount} camera${distinctCameraCount === 1 ? "" : "s"}`} style={{
                 width:"16px", height:"16px", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center",
-                fontSize:"10px", fontWeight:600, color:"#64748a",
-                border:"1px solid #ccd5e1", borderRadius:"50%",
+                fontSize:"10px", fontWeight:600, color:"var(--gray-500)",
+                border:"1px solid var(--gray-300)", borderRadius:"50%",
               }}>{distinctCameraCount}</span>
             </div>
             <div style={{ display:"flex", gap:"5px", alignItems:"center", minWidth:0 }}>
-              <LocationPinIcon color="#324055" />
+              <LocationPinIcon color="var(--gray-700)" />
               {/* Just the camera captured most recently — expanding the row already shows the
                   full hop-by-hop history below, so cramming a route chain into this collapsed
                   line was redundant (and its directional arrow kept reading as ambiguous/
@@ -558,7 +558,7 @@ function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; is
                   name itself is never truncated (wraps instead) now that it isn't sharing this
                   line with a chevron. */}
               {lastHop && (
-                <span style={{ minWidth:0, fontSize:"12px", fontWeight:600, color:"#324055", wordBreak:"break-word" }}>
+                <span style={{ minWidth:0, fontSize:"12px", fontWeight:600, color:"var(--gray-700)", wordBreak:"break-word" }}>
                   {lastHop.location}{lastHop.cameraLabel ? ` ${lastHop.cameraLabel}` : ""}
                 </span>
               )}
@@ -572,7 +572,7 @@ function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; is
         <div style={{ marginLeft:"8px", flexShrink:0, alignSelf:"flex-start", marginTop:"10px", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
             <PawTrackIcon size={14} />
-            <span style={{ fontSize:"12px", fontWeight:600, color:"#6d9300", letterSpacing:"-0.24px", whiteSpace:"nowrap" }}>Tracking</span>
+            <span style={{ fontSize:"12px", fontWeight:600, color:"var(--type-tracking)", letterSpacing:"-0.24px", whiteSpace:"nowrap" }}>Tracking</span>
           </div>
           <ChevronDownIcon rotated={isSelected} />
         </div>
@@ -584,21 +584,21 @@ function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; is
             return (
               <div key={i} style={{ display:"flex", gap:"8px", alignItems: isLast ? "center" : "stretch" }}>
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"center", width:"20px", flexShrink:0 }}>
-                  <div style={{ width:"20px", height:"16px", backgroundColor:"#324055", borderRadius:"7px", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <div style={{ width:"20px", height:"16px", backgroundColor:"var(--gray-700)", borderRadius:"7px", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                     <CameraTrailIcon />
                   </div>
                   {!isLast && <div style={{ ...HOP_DASH_STYLE_VERTICAL, flex:1, minHeight:"14px", marginTop:"2px" }} />}
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:"2px", paddingBottom: isLast ? 0 : "10px" }}>
                   <span style={{ display:"flex", alignItems:"center", gap:"5px" }}>
-                    <span style={{ fontSize:"12px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.24px" }}>
+                    <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-900)", letterSpacing:"-0.24px" }}>
                       {hop.location}{hop.cameraLabel ? ` ${hop.cameraLabel}` : ""}
                     </span>
                     {count > 1 && (
-                      <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>×{count}</span>
+                      <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>×{count}</span>
                     )}
                   </span>
-                  <span style={{ fontSize:"12px", fontWeight:600, color:"#64748a", letterSpacing:"-0.2px" }}>
+                  <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)", letterSpacing:"-0.2px" }}>
                     {formatTimeAgo(hop.timestamp)}
                   </span>
                 </div>
@@ -625,7 +625,7 @@ function VipEventRow({ event, isSelected, photoUrl, onClick, locationFilter }: {
       style={{
         display:"flex", alignItems:"center", justifyContent:"space-between",
         padding:"10px 16px", cursor:"pointer",
-        backgroundColor: isSelected ? "#f6f6fe" : isHovered ? "#f8fafc" : "transparent",
+        backgroundColor: isSelected ? "var(--primary-50)" : isHovered ? "var(--gray-50)" : "transparent",
         transition:"background-color 0.15s",
       }}
     >
@@ -633,21 +633,21 @@ function VipEventRow({ event, isSelected, photoUrl, onClick, locationFilter }: {
         <PersonThumb isSelected={isSelected} photoUrl={photoUrl} />
         <div style={{ display:"flex", flexDirection:"column", gap:"5px", flex:1, minWidth:0 }}>
           <div style={{ display:"flex", gap:"6px", alignItems:"baseline" }}>
-            <span title={event.name} style={{ fontSize:"13px", fontWeight:600, color:"#0e162a", letterSpacing:"-0.26px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            <span title={event.name} style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-900)", letterSpacing:"-0.26px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
               {event.name}
             </span>
             <span style={{
-              fontSize:"10px", fontWeight:600, color:"#64748a", flexShrink:0,
-              border:"1px solid #ccd5e1", borderRadius:"999px", padding:"1px 8px",
+              fontSize:"10px", fontWeight:600, color:"var(--gray-500)", flexShrink:0,
+              border:"1px solid var(--gray-300)", borderRadius:"999px", padding:"1px 8px",
             }}>{event.confidence}%</span>
           </div>
           <div style={{ display:"flex", gap:"5px", alignItems:"center" }}>
-            <LocationPinIcon color="#324055" />
-            <span title={secondLine} style={{ fontSize:"12px", fontWeight:600, color:"#324055", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            <LocationPinIcon color="var(--gray-700)" />
+            <span title={secondLine} style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-700)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
               {secondLine}
             </span>
-            <span style={{ color:"#cbd5e1", fontSize:"11px", flexShrink:0 }}>·</span>
-            <span style={{ fontSize:"12px", fontWeight:600, color:"#64748a", flexShrink:0 }}>{formatTimeAgo(event.timestamp)}</span>
+            <span style={{ color:"var(--gray-300)", fontSize:"11px", flexShrink:0 }}>·</span>
+            <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)", flexShrink:0 }}>{formatTimeAgo(event.timestamp)}</span>
           </div>
         </div>
       </div>
@@ -716,16 +716,16 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
       {/* Live Analytics + filter */}
       <div style={{ padding:"20px 20px 12px", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"12px" }}>
-          <span style={{ fontSize:"16px", fontWeight:700, color:"#334155", letterSpacing:"-0.32px" }}>Live analytics</span>
+          <span style={{ fontSize:"16px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.32px" }}>Live analytics</span>
           <button
             onClick={() => setShowLocationPicker(true)}
             style={{ display:"flex", alignItems:"center", gap:"4px", background:"none", border:"none", cursor:"pointer", padding:0 }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
-              <path d="M8.40075 14.5333C9.64075 13.4627 13.3334 9.99599 13.3334 6.66732C13.3334 5.25283 12.7715 3.89628 11.7713 2.89608C10.7711 1.89589 9.41457 1.33398 8.00008 1.33398C6.58559 1.33398 5.22904 1.89589 4.22885 2.89608C3.22865 3.89628 2.66675 5.25283 2.66675 6.66732C2.66675 9.99599 6.35941 13.4627 7.59941 14.5333C7.71493 14.6202 7.85555 14.6672 8.00008 14.6672C8.14461 14.6672 8.28523 14.6202 8.40075 14.5333Z" stroke="#5A3DFB" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M8 8.66602C9.10457 8.66602 10 7.77059 10 6.66602C10 5.56145 9.10457 4.66602 8 4.66602C6.89543 4.66602 6 5.56145 6 6.66602C6 7.77059 6.89543 8.66602 8 8.66602Z" stroke="#5A3DFB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M8.40075 14.5333C9.64075 13.4627 13.3334 9.99599 13.3334 6.66732C13.3334 5.25283 12.7715 3.89628 11.7713 2.89608C10.7711 1.89589 9.41457 1.33398 8.00008 1.33398C6.58559 1.33398 5.22904 1.89589 4.22885 2.89608C3.22865 3.89628 2.66675 5.25283 2.66675 6.66732C2.66675 9.99599 6.35941 13.4627 7.59941 14.5333C7.71493 14.6202 7.85555 14.6672 8.00008 14.6672C8.14461 14.6672 8.28523 14.6202 8.40075 14.5333Z" stroke="var(--primary-400)" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M8 8.66602C9.10457 8.66602 10 7.77059 10 6.66602C10 5.56145 9.10457 4.66602 8 4.66602C6.89543 4.66602 6 5.56145 6 6.66602C6 7.77059 6.89543 8.66602 8 8.66602Z" stroke="var(--primary-400)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            <span style={{ fontSize:"13px", fontWeight:700, color:"#5a3dfb", letterSpacing:"-0.26px" }}>
+            <span style={{ fontSize:"13px", fontWeight:700, color:"var(--primary-400)", letterSpacing:"-0.26px" }}>
               {locationFilter || "All"}
             </span>
           </button>
@@ -733,35 +733,35 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
         {personFilter && (
           <button
             onClick={onPersonClear}
-            style={{ display:"flex", alignItems:"center", gap:"5px", background:"#f6f6fe", border:"none", borderRadius:"999px", padding:"5px 10px", cursor:"pointer", marginBottom:"12px" }}
+            style={{ display:"flex", alignItems:"center", gap:"5px", background:"var(--primary-50)", border:"none", borderRadius:"999px", padding:"5px 10px", cursor:"pointer", marginBottom:"12px" }}
           >
-            <Crown size={11} color="#5a3dfb" />
-            <span style={{ fontSize:"12px", fontWeight:700, color:"#5a3dfb" }}>{personFilter}</span>
-            <span style={{ fontSize:"12px", color:"#5a3dfb", fontWeight:700 }}>✕</span>
+            <Crown size={11} color="var(--primary-400)" />
+            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)" }}>{personFilter}</span>
+            <span style={{ fontSize:"12px", color:"var(--primary-400)", fontWeight:700 }}>✕</span>
           </button>
         )}
         {districtLabel && (
           <button
             onClick={onDistrictClear}
-            style={{ display:"flex", alignItems:"center", gap:"5px", background:"#f6f6fe", border:"none", borderRadius:"999px", padding:"5px 10px", cursor:"pointer", marginBottom:"12px" }}
+            style={{ display:"flex", alignItems:"center", gap:"5px", background:"var(--primary-50)", border:"none", borderRadius:"999px", padding:"5px 10px", cursor:"pointer", marginBottom:"12px" }}
           >
-            <LocationPinIcon color="#5a3dfb" />
-            <span style={{ fontSize:"12px", fontWeight:700, color:"#5a3dfb" }}>{districtLabel} · VIP only</span>
-            <span style={{ fontSize:"12px", color:"#5a3dfb", fontWeight:700 }}>✕</span>
+            <LocationPinIcon color="var(--primary-400)" />
+            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)" }}>{districtLabel} · VIP only</span>
+            <span style={{ fontSize:"12px", color:"var(--primary-400)", fontWeight:700 }}>✕</span>
           </button>
         )}
         <div style={{ display:"flex", gap:"6px" }}>
           {FILTERS.map(id => {
             const active = filter === id;
-            const color  = active ? "white" : "#324055";
+            const color  = active ? "white" : "var(--gray-700)";
             return (
               <button key={id} onClick={() => { setFilter(id); setPage(1); }}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "#e2e8f0"; }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor = "#f1f5f9"; }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "var(--gray-200)"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor = "var(--gray-100)"; }}
                 style={{
                   display:"flex", alignItems:"center", gap:"4px",
                   padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
-                  backgroundColor: active ? "#5a3dfb" : "#f1f5f9",
+                  backgroundColor: active ? "var(--primary-400)" : "var(--gray-100)",
                   color, fontSize:"12px", fontWeight:600, letterSpacing:"-0.24px", transition:"all 0.15s",
                 }}>
                 <FilterPillIcon id={id} color={color} />
@@ -776,7 +776,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
       <div style={{ flex:1, overflowY:"auto", minHeight:0 }}>
         {paginated.length === 0 && (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", padding:"32px 20px" }}>
-            <span style={{ fontSize:"13px", fontWeight:600, color:"#94a3b8", textAlign:"center", letterSpacing:"-0.26px" }}>
+            <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-400)", textAlign:"center", letterSpacing:"-0.26px" }}>
               No events detected currently.
             </span>
           </div>
@@ -791,7 +791,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
               ) : (
                 <VipEventRow event={event} isSelected={isSelected} photoUrl={photoUrl} onClick={() => onEventSelect?.(isSelected ? null : event)} locationFilter={locationFilter} />
               )}
-              {i < paginated.length - 1 && <div style={{ height:"1px", backgroundColor:"#e2e8f0", margin:"0 16px" }} />}
+              {i < paginated.length - 1 && <div style={{ height:"1px", backgroundColor:"var(--gray-200)", margin:"0 16px" }} />}
             </div>
           );
         })}
@@ -799,18 +799,18 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
 
       {/* Pagination */}
       <div style={{ padding:"10px 16px", borderTop:BORDER, flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center", backgroundColor:"white" }}>
-        <span style={{ fontSize:"10px", color:"#94a3b8", fontWeight:600 }}>{rangeStart} – {rangeEnd} of {filtered.length}</span>
+        <span style={{ fontSize:"10px", color:"var(--gray-400)", fontWeight:600 }}>{rangeStart} – {rangeEnd} of {filtered.length}</span>
         <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-          <span style={{ fontSize:"11px", color:"#94a3b8" }}>Go to page</span>
+          <span style={{ fontSize:"11px", color:"var(--gray-400)" }}>Go to page</span>
           <input type="number" min={1} max={totalPages} value={safePage}
             onChange={e => setPage(Math.max(1, Math.min(totalPages, parseInt(e.target.value) || 1)))}
-            style={{ width:"32px", textAlign:"center", fontSize:"12px", fontWeight:700, border:"1px solid #e2e8f0", borderRadius:"6px", padding:"2px 0", outline:"none", color:"#0e162a" }} />
-          <span style={{ fontSize:"11px", color:"#94a3b8" }}>/ {totalPages}</span>
+            style={{ width:"32px", textAlign:"center", fontSize:"12px", fontWeight:700, border:"1px solid var(--gray-200)", borderRadius:"6px", padding:"2px 0", outline:"none", color:"var(--gray-900)" }} />
+          <span style={{ fontSize:"11px", color:"var(--gray-400)" }}>/ {totalPages}</span>
           <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={safePage===1} aria-label="Previous page" style={{ ...PAGE_BTN, opacity: safePage===1 ? 0.3 : 1 }}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="var(--gray-700)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
           <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={safePage===totalPages} aria-label="Next page" style={{ ...PAGE_BTN, opacity: safePage===totalPages ? 0.3 : 1 }}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="var(--gray-700)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
         </div>
       </div>
@@ -899,7 +899,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
       <div style={{ padding:"16px 20px 0", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
           <SystemHeaderIcon />
-          <p style={{ fontSize:"16px", fontWeight:700, color:"#334155", letterSpacing:"-0.32px" }}>
+          <p style={{ fontSize:"16px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.32px" }}>
             Infrastructure & debug
           </p>
         </div>
@@ -907,15 +907,15 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
           <div style={{ flex:1 }}>
             <StatCol icon={<LinkedCamsIcon />} label="Linked cams" labelFontSize={13} count={linkedCount} delta={linkedCams.delta} deltaPct={linkedCams.deltaPct} down={linkedCams.down} />
           </div>
-          <div style={{ width:"1px", backgroundColor:"#E2E8F0", alignSelf:"stretch", flexShrink:0 }} />
+          <div style={{ width:"1px", backgroundColor:"var(--gray-200)", alignSelf:"stretch", flexShrink:0 }} />
           <div style={{ flex:1, paddingLeft:"14px" }}>
             <StatCol icon={<OfflineCamsIcon />} label="Out cams" labelFontSize={13} count={offlineCount} delta={offlineCams.delta} deltaPct={offlineCams.deltaPct} down={offlineCams.down} />
           </div>
-          <div style={{ width:"1px", backgroundColor:"#E2E8F0", alignSelf:"stretch", flexShrink:0 }} />
+          <div style={{ width:"1px", backgroundColor:"var(--gray-200)", alignSelf:"stretch", flexShrink:0 }} />
           <div style={{ flex:1, paddingLeft:"14px", display:"flex", flexDirection:"column", alignItems:"center" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"6px", alignSelf:"flex-start", marginBottom:"6px" }}>
               <AvailabilityIcon />
-              <span style={{ fontSize:"13px", fontWeight:600, color:"#475469" }}>Availability</span>
+              <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-600)" }}>Availability</span>
             </div>
             <AvailabilityDonut pct={availability} />
           </div>
@@ -926,8 +926,8 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
       <div style={{ padding:"20px 20px 12px", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"8px", border:BORDER, borderRadius:"8px", padding:"9px 18px", backgroundColor:"white" }}>
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Enter Device Name"
-            style={{ flex:1, border:"none", background:"none", outline:"none", fontSize:"12px", fontWeight:600, color:"#334155" }} />
-          <Search size={18} color="#475469" />
+            style={{ flex:1, border:"none", background:"none", outline:"none", fontSize:"12px", fontWeight:600, color:"var(--gray-700)" }} />
+          <Search size={18} color="var(--gray-600)" />
         </div>
       </div>
 
@@ -935,16 +935,16 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
       <div style={{ display:"flex", gap:"6px", padding:"0 20px 16px", flexShrink:0 }}>
         {SYSTEM_STATUS_FILTERS.map(id => {
           const active = statusFilter === id;
-          const dotColor = id === "Live" ? "#22c55e" : id === "Off" ? "#f43f5e" : "#94a3b8";
+          const dotColor = id === "Live" ? "var(--success-400)" : id === "Off" ? "var(--danger-400)" : "var(--gray-400)";
           return (
             <button key={id} onClick={() => { setStatusFilter(id); setPage(1); }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "#e2e8f0"; }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor = "#f1f5f9"; }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "var(--gray-200)"; }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor = "var(--gray-100)"; }}
               style={{
                 display:"flex", alignItems:"center", gap:"5px",
                 padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
-                backgroundColor: active ? "#5a3dfb" : "#f1f5f9",
-                color: active ? "white" : "#324055", fontSize:"12px", fontWeight:600, letterSpacing:"-0.24px", transition:"all 0.15s",
+                backgroundColor: active ? "var(--primary-400)" : "var(--gray-100)",
+                color: active ? "white" : "var(--gray-700)", fontSize:"12px", fontWeight:600, letterSpacing:"-0.24px", transition:"all 0.15s",
               }}>
               <span style={{ width:"6px", height:"6px", borderRadius:"50%", backgroundColor: active ? "white" : dotColor, flexShrink:0 }} />
               {id === "Off" ? "Out" : id}
@@ -957,7 +957,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
       <div style={{ display:"grid", gridTemplateColumns:"76px 60px 40px 1fr 32px", padding:"6px 20px", flexShrink:0, gap:"4px" }}>
         {["NAME","STATUS","TYPE","INFO","PIN"].map(h => (
           <span key={h} style={{
-            fontSize:"12px", fontWeight:800, color:"#324055", letterSpacing:"-0.24px",
+            fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.24px",
             textAlign: h==="TYPE" || h==="PIN" ? "center" : h==="INFO" ? "right" : "left",
           }}>{h}</span>
         ))}
@@ -975,16 +975,16 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
             and recoverable instead of silently indistinguishable from zero results. */}
         {devicesError ? (
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", padding:"32px 20px", gap:"10px" }}>
-            <span style={{ fontSize:"13px", fontWeight:600, color:"#f43f5e", textAlign:"center", letterSpacing:"-0.26px" }}>
+            <span style={{ fontSize:"13px", fontWeight:600, color:"var(--danger-400)", textAlign:"center", letterSpacing:"-0.26px" }}>
               Couldn&apos;t load devices.
             </span>
-            <button onClick={refetchDevices} style={{ fontSize:"12px", fontWeight:700, color:"#5a3dfb", background:"none", border:"none", cursor:"pointer", padding:0 }}>
+            <button onClick={refetchDevices} style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)", background:"none", border:"none", cursor:"pointer", padding:0 }}>
               Retry
             </button>
           </div>
         ) : filtered.length === 0 && (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", padding:"32px 20px" }}>
-            <span style={{ fontSize:"13px", fontWeight:600, color:"#94a3b8", textAlign:"center", letterSpacing:"-0.26px" }}>
+            <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-400)", textAlign:"center", letterSpacing:"-0.26px" }}>
               No devices found.
             </span>
           </div>
@@ -1000,25 +1000,25 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
                 setLocalPinnedId(next?.id ?? null);
                 onPinDevice?.(next);
               }}
-              onMouseEnter={e => { if (!isPinned) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+              onMouseEnter={e => { if (!isPinned) e.currentTarget.style.backgroundColor = "var(--gray-50)"; }}
               onMouseLeave={e => { if (!isPinned) e.currentTarget.style.backgroundColor = "transparent"; }}
               style={{
                 display:"grid", gridTemplateColumns:"76px 60px 40px 1fr 32px",
                 alignItems:"center", padding:"10px 20px", gap:"4px", cursor:"pointer",
-                backgroundColor: isPinned ? "#f6f6fe" : "transparent", transition:"background-color 0.1s",
+                backgroundColor: isPinned ? "var(--primary-50)" : "transparent", transition:"background-color 0.1s",
               }}>
               <div style={{ display:"flex", flexDirection:"column", gap:"1px", overflow:"hidden" }}>
-                <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", letterSpacing:"-0.24px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.name}</span>
-                <span style={{ fontSize:"12px", fontWeight:600, color:"#94a3b8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{zone}</span>
+                <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-600)", letterSpacing:"-0.24px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.name}</span>
+                <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-400)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{zone}</span>
               </div>
               <div><StatusBadge status={device.status} /></div>
-              <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.type}</span>
-              <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", textAlign:"right", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.ip}</span>
+              <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-600)", textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.type}</span>
+              <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-600)", textAlign:"right", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{device.ip}</span>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"2px" }}>
                 <TablePinIcon active={isPinned} />
               </div>
             </div>
-            {i < paginated.length - 1 && <div style={{ height:"1px", backgroundColor:"#e2e8f0", margin:"0 20px" }} />}
+            {i < paginated.length - 1 && <div style={{ height:"1px", backgroundColor:"var(--gray-200)", margin:"0 20px" }} />}
             </div>
           );
         })}
@@ -1026,18 +1026,18 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
 
       {/* Pagination */}
       <div style={{ padding:"10px 16px", borderTop:BORDER, flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <span style={{ fontSize:"10px", color:"#94a3b8", fontWeight:600 }}>{rangeStart} – {rangeEnd} of {filtered.length}</span>
+        <span style={{ fontSize:"10px", color:"var(--gray-400)", fontWeight:600 }}>{rangeStart} – {rangeEnd} of {filtered.length}</span>
         <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-          <span style={{ fontSize:"11px", color:"#94a3b8" }}>Go to page</span>
+          <span style={{ fontSize:"11px", color:"var(--gray-400)" }}>Go to page</span>
           <input type="number" min={1} max={totalPages} value={safePage}
             onChange={e => setPage(Math.max(1, Math.min(totalPages, parseInt(e.target.value) || 1)))}
-            style={{ width:"32px", textAlign:"center", fontSize:"12px", fontWeight:700, border:"1px solid #e2e8f0", borderRadius:"6px", padding:"2px 0", outline:"none", color:"#0e162a" }} />
-          <span style={{ fontSize:"11px", color:"#94a3b8" }}>/ {totalPages}</span>
+            style={{ width:"32px", textAlign:"center", fontSize:"12px", fontWeight:700, border:"1px solid var(--gray-200)", borderRadius:"6px", padding:"2px 0", outline:"none", color:"var(--gray-900)" }} />
+          <span style={{ fontSize:"11px", color:"var(--gray-400)" }}>/ {totalPages}</span>
           <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={safePage===1} aria-label="Previous page" style={{ ...PAGE_BTN, opacity: safePage===1 ? 0.3 : 1 }}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="var(--gray-700)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
           <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={safePage===totalPages} aria-label="Next page" style={{ ...PAGE_BTN, opacity: safePage===totalPages ? 0.3 : 1 }}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="var(--gray-700)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
         </div>
       </div>
@@ -1084,40 +1084,40 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
   return (
     <div onMouseLeave={() => setHovered(null)} style={{ width:"60px", flexShrink:0, height:"100%", backgroundColor:"white", ...(position === "right" ? { borderLeft: BORDER } : { borderRight: BORDER }), display:"flex", flexDirection:"column", alignItems:"center", padding:"12px 0", overflow:"hidden", position:"relative" }}>
       {/* Tab toggle */}
-      <div style={{ width:"44px", backgroundColor:"#f1f5f9", borderRadius:"12px", padding:"4px", display:"flex", flexDirection:"column", gap:"4px", flexShrink:0 }}>
-        <button onClick={() => setTab("EVENTS")} aria-label="Events" style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="EVENTS" ? "#5a3dfb" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
+      <div style={{ width:"44px", backgroundColor:"var(--gray-100)", borderRadius:"12px", padding:"4px", display:"flex", flexDirection:"column", gap:"4px", flexShrink:0 }}>
+        <button onClick={() => setTab("EVENTS")} aria-label="Events" style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="EVENTS" ? "var(--primary-400)" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M1.75 1.75V11.0833C1.75 11.3928 1.87292 11.6895 2.09171 11.9083C2.3105 12.1271 2.60725 12.25 2.91667 12.25H12.25" stroke={tab==="EVENTS" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M11.083 5.25L8.16634 8.16667L5.83301 5.83333L4.08301 7.58333" stroke={tab==="EVENTS" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M1.75 1.75V11.0833C1.75 11.3928 1.87292 11.6895 2.09171 11.9083C2.3105 12.1271 2.60725 12.25 2.91667 12.25H12.25" stroke={tab==="EVENTS" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M11.083 5.25L8.16634 8.16667L5.83301 5.83333L4.08301 7.58333" stroke={tab==="EVENTS" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <button onClick={() => setTab("SYSTEM")} aria-label="System" style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="SYSTEM" ? "#5a3dfb" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
+        <button onClick={() => setTab("SYSTEM")} aria-label="System" style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="SYSTEM" ? "var(--primary-400)" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M9.87887 7.82031H12.0651C12.1677 7.82037 12.2685 7.84663 12.3581 7.89661C12.4477 7.94658 12.523 8.01862 12.5769 8.10587C12.6308 8.19313 12.6615 8.29271 12.6661 8.39517C12.6708 8.49764 12.6491 8.59958 12.6033 8.69133L11.3789 11.1406C11.3325 11.2334 11.2629 11.3127 11.1768 11.3706C11.0907 11.4286 10.9911 11.4633 10.8876 11.4714C10.7842 11.4796 10.6804 11.4608 10.5863 11.417C10.4923 11.3731 10.4111 11.3057 10.3508 11.2213L9.07227 9.43352" stroke={tab==="SYSTEM" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M10.0928 6.04789C10.2354 6.11931 10.3439 6.24445 10.3944 6.39581C10.4448 6.54717 10.4331 6.71236 10.3618 6.8551L8.49219 10.5938C8.45683 10.6645 8.40788 10.7276 8.34814 10.7793C8.28841 10.8311 8.21905 10.8707 8.14403 10.8957C8.06901 10.9206 7.98981 10.9306 7.91094 10.925C7.83208 10.9193 7.75509 10.8982 7.68438 10.8628L1.96893 8.0024C1.55379 7.7933 1.23838 7.42826 1.09173 6.98717C0.945073 6.54608 0.979114 6.06486 1.1864 5.6488L2.01708 3.96938C2.12062 3.76305 2.26378 3.57913 2.43841 3.42813C2.61303 3.27713 2.81568 3.16202 3.0348 3.08935C3.25392 3.01668 3.48521 2.98789 3.71545 3.00462C3.9457 3.02135 4.17039 3.08327 4.3767 3.18685L10.0928 6.04789Z" stroke={tab==="SYSTEM" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M1 12.0347H3.26331C3.48767 12.0363 3.70801 11.9751 3.89945 11.8581C4.0909 11.7411 4.24585 11.573 4.34681 11.3726L5.21361 9.62695" stroke={tab==="SYSTEM" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M1 13.2398V10.832" stroke={tab==="SYSTEM" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M4.00977 6.01562H4.01458" stroke={tab==="SYSTEM" ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M9.87887 7.82031H12.0651C12.1677 7.82037 12.2685 7.84663 12.3581 7.89661C12.4477 7.94658 12.523 8.01862 12.5769 8.10587C12.6308 8.19313 12.6615 8.29271 12.6661 8.39517C12.6708 8.49764 12.6491 8.59958 12.6033 8.69133L11.3789 11.1406C11.3325 11.2334 11.2629 11.3127 11.1768 11.3706C11.0907 11.4286 10.9911 11.4633 10.8876 11.4714C10.7842 11.4796 10.6804 11.4608 10.5863 11.417C10.4923 11.3731 10.4111 11.3057 10.3508 11.2213L9.07227 9.43352" stroke={tab==="SYSTEM" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M10.0928 6.04789C10.2354 6.11931 10.3439 6.24445 10.3944 6.39581C10.4448 6.54717 10.4331 6.71236 10.3618 6.8551L8.49219 10.5938C8.45683 10.6645 8.40788 10.7276 8.34814 10.7793C8.28841 10.8311 8.21905 10.8707 8.14403 10.8957C8.06901 10.9206 7.98981 10.9306 7.91094 10.925C7.83208 10.9193 7.75509 10.8982 7.68438 10.8628L1.96893 8.0024C1.55379 7.7933 1.23838 7.42826 1.09173 6.98717C0.945073 6.54608 0.979114 6.06486 1.1864 5.6488L2.01708 3.96938C2.12062 3.76305 2.26378 3.57913 2.43841 3.42813C2.61303 3.27713 2.81568 3.16202 3.0348 3.08935C3.25392 3.01668 3.48521 2.98789 3.71545 3.00462C3.9457 3.02135 4.17039 3.08327 4.3767 3.18685L10.0928 6.04789Z" stroke={tab==="SYSTEM" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M1 12.0347H3.26331C3.48767 12.0363 3.70801 11.9751 3.89945 11.8581C4.0909 11.7411 4.24585 11.573 4.34681 11.3726L5.21361 9.62695" stroke={tab==="SYSTEM" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M1 13.2398V10.832" stroke={tab==="SYSTEM" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M4.00977 6.01562H4.01458" stroke={tab==="SYSTEM" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
       </div>
 
       {/* Summary badges */}
-      <div style={{ width:"100%", borderTop:"1px solid #f1f5f9", borderBottom:"1px solid #f1f5f9", padding:"12px 0", display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", margin:"12px 0", flexShrink:0 }}>
+      <div style={{ width:"100%", borderTop:"1px solid var(--gray-100)", borderBottom:"1px solid var(--gray-100)", padding:"12px 0", display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", margin:"12px 0", flexShrink:0 }}>
         {tab === "EVENTS" ? (
           <>
             {/* Purple only when there are actual registered VIP targets — not a fixed default. */}
             <div style={{
               width:"38px", height:"38px", borderRadius:"10px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-              backgroundColor: vipTargets > 0 ? "#eef2ff" : "#f1f5f9", border: vipTargets > 0 ? "1px solid #c7d2fe" : "1px solid #e2e8f0",
+              backgroundColor: vipTargets > 0 ? "var(--primary-100)" : "var(--gray-100)", border: vipTargets > 0 ? "1px solid var(--primary-200)" : "1px solid var(--gray-200)",
             }}>
-              <span style={{ fontSize:"10px", fontWeight:600, color: vipTargets > 0 ? "#5a3dfb" : "#94a3b8", letterSpacing:"0.5px" }}>VIP</span>
-              <span style={{ fontSize:"13px", fontWeight:700, color: vipTargets > 0 ? "#5a3dfb" : "#94a3b8", lineHeight:1 }}>{vipTargets}</span>
+              <span style={{ fontSize:"10px", fontWeight:600, color: vipTargets > 0 ? "var(--primary-400)" : "var(--gray-400)", letterSpacing:"0.5px" }}>VIP</span>
+              <span style={{ fontSize:"13px", fontWeight:700, color: vipTargets > 0 ? "var(--primary-400)" : "var(--gray-400)", lineHeight:1 }}>{vipTargets}</span>
             </div>
             {/* This is just today's detection count, not an alert — plain gray, no red. */}
-            <div style={{ width:"38px", height:"38px", borderRadius:"10px", backgroundColor:"#f1f5f9", border:"1px solid #e2e8f0", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-              <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a", letterSpacing:"0.3px" }}>TODAY</span>
-              <span style={{ fontSize:"13px", fontWeight:700, color:"#334155", lineHeight:1 }}>{todayTotal}</span>
+            <div style={{ width:"38px", height:"38px", borderRadius:"10px", backgroundColor:"var(--gray-100)", border:"1px solid var(--gray-200)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", letterSpacing:"0.3px" }}>TODAY</span>
+              <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-700)", lineHeight:1 }}>{todayTotal}</span>
             </div>
           </>
         ) : (
@@ -1125,10 +1125,10 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
           // genuinely low (<50%), not a fixed purple regardless of value.
           <div style={{
             width:"38px", height:"38px", borderRadius:"10px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-            backgroundColor: availability < 50 ? "#fff1f2" : "#f1f5f9", border: availability < 50 ? "1px solid #fecdd3" : "1px solid #e2e8f0",
+            backgroundColor: availability < 50 ? "var(--danger-100)" : "var(--gray-100)", border: availability < 50 ? "1px solid #fecdd3" : "1px solid var(--gray-200)",
           }}>
-            <span style={{ fontSize:"10px", fontWeight:600, color: availability < 50 ? "#f43f5e" : "#94a3b8", letterSpacing:"0.3px" }}>AVAIL</span>
-            <span style={{ fontSize:"13px", fontWeight:700, color: availability < 50 ? "#f43f5e" : "#94a3b8", lineHeight:1 }}>{availability}%</span>
+            <span style={{ fontSize:"10px", fontWeight:600, color: availability < 50 ? "var(--danger-400)" : "var(--gray-400)", letterSpacing:"0.3px" }}>AVAIL</span>
+            <span style={{ fontSize:"13px", fontWeight:700, color: availability < 50 ? "var(--danger-400)" : "var(--gray-400)", lineHeight:1 }}>{availability}%</span>
           </div>
         )}
       </div>
@@ -1144,11 +1144,11 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
                   onMouseEnter={e => handleMouseEnter(e, event.id, event)}
                   onClick={() => onEventSelect?.(isSelected ? null : event)}
                   style={{ width:"40px", height:"40px", borderRadius:"10px", overflow:"hidden", flexShrink:0, cursor:"pointer", position:"relative",
-                    border: event.type==="VIP" ? "2px solid #5a3dfb" : "1.5px solid #e2e8f0",
-                    boxShadow: isSelected ? "0 0 0 2px #5a3dfb" : "none" }}>
+                    border: event.type==="VIP" ? "2px solid var(--primary-400)" : "1.5px solid var(--gray-200)",
+                    boxShadow: isSelected ? "0 0 0 2px var(--primary-400)" : "none" }}>
                   <img src={photoUrl} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} alt="" />
                   {event.type === "VIP" && (
-                    <div style={{ position:"absolute", top:"1px", right:"1px", width:"15px", height:"15px", borderRadius:"50%", backgroundColor:"#5a3dfb", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <div style={{ position:"absolute", top:"1px", right:"1px", width:"15px", height:"15px", borderRadius:"50%", backgroundColor:"var(--primary-400)", display:"flex", alignItems:"center", justifyContent:"center" }}>
                       <Crown size={9} color="white" />
                     </div>
                   )}
@@ -1162,10 +1162,10 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
                 <div key={device.id}
                   onMouseEnter={e => handleMouseEnter(e, device.id, device)}
                   onClick={() => onPinDevice?.(isPinned ? null : device)}
-                  style={{ width:"40px", height:"40px", borderRadius:"10px", backgroundColor: isLive ? "#0e162a" : "#f8fafc", border: isLive ? "1px solid #334155" : "1px solid #fecdd3", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", flexShrink:0,
-                    boxShadow: isPinned ? "0 0 0 2px #5a3dfb" : "none" }}>
-                  <span style={{ fontSize:"10px", fontWeight:600, color: isLive ? "white" : "#f43f5e", fontFamily:"monospace", textAlign:"center" }}>{device.name}</span>
-                  <div style={{ position:"absolute", bottom:"3px", right:"3px", width:"6px", height:"6px", borderRadius:"50%", backgroundColor: isLive ? "#22c55e" : "#f43f5e" }} />
+                  style={{ width:"40px", height:"40px", borderRadius:"10px", backgroundColor: isLive ? "var(--gray-900)" : "var(--gray-50)", border: isLive ? "1px solid var(--gray-700)" : "1px solid #fecdd3", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", flexShrink:0,
+                    boxShadow: isPinned ? "0 0 0 2px var(--primary-400)" : "none" }}>
+                  <span style={{ fontSize:"10px", fontWeight:600, color: isLive ? "white" : "var(--danger-400)", fontFamily:"monospace", textAlign:"center" }}>{device.name}</span>
+                  <div style={{ position:"absolute", bottom:"3px", right:"3px", width:"6px", height:"6px", borderRadius:"50%", backgroundColor: isLive ? "var(--success-400)" : "var(--danger-400)" }} />
                 </div>
               );
             })
@@ -1183,18 +1183,18 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
           const event = hovered.item as LiveEvent;
           const photoUrl = getFacePhoto(event.id);
           return (
-            <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"210px", backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(0,0,0,0.12)", pointerEvents:"none" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:"8px", marginBottom:"8px", borderBottom:"1px solid #f1f5f9" }}>
-                <span style={{ fontSize:"10px", fontWeight:800, color: event.type==="VIP" ? "#5a3dfb" : "#6d9300", backgroundColor: event.type==="VIP" ? "#eef2ff" : "#f6f9ec", padding:"2px 6px", borderRadius:"4px" }}>
+            <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"210px", backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(14, 22, 42,0.12)", pointerEvents:"none" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:"8px", marginBottom:"8px", borderBottom:"1px solid var(--gray-100)" }}>
+                <span style={{ fontSize:"10px", fontWeight:800, color: event.type==="VIP" ? "var(--primary-400)" : "var(--type-tracking)", backgroundColor: event.type==="VIP" ? "var(--primary-100)" : "#f6f9ec", padding:"2px 6px", borderRadius:"4px" }}>
                   {event.type==="VIP" ? `VIP · ${event.confidence}%` : "TRACKING"}
                 </span>
-                <span style={{ fontSize:"10px", color:"#94a3b8" }}>{formatTimeAgo(event.timestamp)}</span>
+                <span style={{ fontSize:"10px", color:"var(--gray-400)" }}>{formatTimeAgo(event.timestamp)}</span>
               </div>
               <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
                 <img src={photoUrl} style={{ width:"36px", height:"48px", borderRadius:"6px", objectFit:"cover", flexShrink:0 }} alt="" />
                 <div>
-                  <div style={{ fontSize:"12px", fontWeight:800, color:"#0e162a" }}>{event.name}</div>
-                  <div style={{ fontSize:"10px", color:"#64748a", marginTop:"3px" }}>{event.location}</div>
+                  <div style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)" }}>{event.name}</div>
+                  <div style={{ fontSize:"10px", color:"var(--gray-500)", marginTop:"3px" }}>{event.location}</div>
                 </div>
               </div>
             </div>
@@ -1204,11 +1204,11 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
           const isLive = device.status === "Live";
           const zone = nearestZoneName(device.lat, device.lng, cameras);
           return (
-            <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"180px", backgroundColor:"#0e162a", border:"1px solid #334155", borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(0,0,0,0.2)", pointerEvents:"none" }}>
-              <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"3px" }}>{zone}</div>
+            <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"180px", backgroundColor:"var(--gray-900)", border:"1px solid var(--gray-700)", borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(14, 22, 42,0.2)", pointerEvents:"none" }}>
+              <div style={{ fontSize:"10px", color:"var(--gray-400)", marginBottom:"3px" }}>{zone}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span style={{ fontSize:"12px", fontWeight:800, color:"white" }}>{device.name}</span>
-                <span style={{ fontSize:"10px", fontWeight:600, color: isLive ? "#22c55e" : "#f43f5e", backgroundColor: isLive ? "rgba(34,197,94,0.1)" : "rgba(244,63,94,0.1)", padding:"2px 6px", borderRadius:"4px" }}>
+                <span style={{ fontSize:"10px", fontWeight:600, color: isLive ? "var(--success-400)" : "var(--danger-400)", backgroundColor: isLive ? "rgba(22, 163, 74,0.1)" : "rgba(244,63,94,0.1)", padding:"2px 6px", borderRadius:"4px" }}>
                   {isLive ? "● LIVE" : "○ OFF"}
                 </span>
               </div>
@@ -1256,30 +1256,30 @@ export default function Sidebar({ onEventSelect, selectedEventId, locationFilter
 
       {/* Tab toggle */}
       <div style={{ padding:"12px 20px 6px", flexShrink:0 }}>
-        <div style={{ display:"flex", backgroundColor:"#f1f5f9", borderRadius:"12px", padding:"4px", gap:"4px" }}>
+        <div style={{ display:"flex", backgroundColor:"var(--gray-100)", borderRadius:"12px", padding:"4px", gap:"4px" }}>
           {(["EVENTS","SYSTEM"] as SidebarTab[]).map(tab => {
             const active = activeTab === tab;
             return (
               <button key={tab} onClick={() => setActiveTab(tab)} style={{
                 flex:1, padding:"8px 0", borderRadius:"10px", border:"none", cursor:"pointer",
-                backgroundColor: active ? "#5a3dfb" : "transparent",
-                color: active ? "white" : "#64748a",
+                backgroundColor: active ? "var(--primary-400)" : "transparent",
+                color: active ? "white" : "var(--gray-500)",
                 fontSize:"13px", fontWeight:700, letterSpacing:"-0.26px",
                 display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
                 transition:"background-color 0.15s",
               }}>
                 {tab === "EVENTS" ? (
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M1.75 1.75V11.0833C1.75 11.3928 1.87292 11.6895 2.09171 11.9083C2.3105 12.1271 2.60725 12.25 2.91667 12.25H12.25" stroke={active ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M11.083 5.25L8.16634 8.16667L5.83301 5.83333L4.08301 7.58333" stroke={active ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M1.75 1.75V11.0833C1.75 11.3928 1.87292 11.6895 2.09171 11.9083C2.3105 12.1271 2.60725 12.25 2.91667 12.25H12.25" stroke={active ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M11.083 5.25L8.16634 8.16667L5.83301 5.83333L4.08301 7.58333" stroke={active ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 ) : (
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M9.87887 7.82031H12.0651C12.1677 7.82037 12.2685 7.84663 12.3581 7.89661C12.4477 7.94658 12.523 8.01862 12.5769 8.10587C12.6308 8.19313 12.6615 8.29271 12.6661 8.39517C12.6708 8.49764 12.6491 8.59958 12.6033 8.69133L11.3789 11.1406C11.3325 11.2334 11.2629 11.3127 11.1768 11.3706C11.0907 11.4286 10.9911 11.4633 10.8876 11.4714C10.7842 11.4796 10.6804 11.4608 10.5863 11.417C10.4923 11.3731 10.4111 11.3057 10.3508 11.2213L9.07227 9.43352" stroke={active ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M10.0928 6.04789C10.2354 6.11931 10.3439 6.24445 10.3944 6.39581C10.4448 6.54717 10.4331 6.71236 10.3618 6.8551L8.49219 10.5938C8.45683 10.6645 8.40788 10.7276 8.34814 10.7793C8.28841 10.8311 8.21905 10.8707 8.14403 10.8957C8.06901 10.9206 7.98981 10.9306 7.91094 10.925C7.83208 10.9193 7.75509 10.8982 7.68438 10.8628L1.96893 8.0024C1.55379 7.7933 1.23838 7.42826 1.09173 6.98717C0.945073 6.54608 0.979114 6.06486 1.1864 5.6488L2.01708 3.96938C2.12062 3.76305 2.26378 3.57913 2.43841 3.42813C2.61303 3.27713 2.81568 3.16202 3.0348 3.08935C3.25392 3.01668 3.48521 2.98789 3.71545 3.00462C3.9457 3.02135 4.17039 3.08327 4.3767 3.18685L10.0928 6.04789Z" stroke={active ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M1 12.0347H3.26331C3.48767 12.0363 3.70801 11.9751 3.89945 11.8581C4.0909 11.7411 4.24585 11.573 4.34681 11.3726L5.21361 9.62695" stroke={active ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M1 13.2398V10.832" stroke={active ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M4.00977 6.01562H4.01458" stroke={active ? "white" : "#64748a"} strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M9.87887 7.82031H12.0651C12.1677 7.82037 12.2685 7.84663 12.3581 7.89661C12.4477 7.94658 12.523 8.01862 12.5769 8.10587C12.6308 8.19313 12.6615 8.29271 12.6661 8.39517C12.6708 8.49764 12.6491 8.59958 12.6033 8.69133L11.3789 11.1406C11.3325 11.2334 11.2629 11.3127 11.1768 11.3706C11.0907 11.4286 10.9911 11.4633 10.8876 11.4714C10.7842 11.4796 10.6804 11.4608 10.5863 11.417C10.4923 11.3731 10.4111 11.3057 10.3508 11.2213L9.07227 9.43352" stroke={active ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10.0928 6.04789C10.2354 6.11931 10.3439 6.24445 10.3944 6.39581C10.4448 6.54717 10.4331 6.71236 10.3618 6.8551L8.49219 10.5938C8.45683 10.6645 8.40788 10.7276 8.34814 10.7793C8.28841 10.8311 8.21905 10.8707 8.14403 10.8957C8.06901 10.9206 7.98981 10.9306 7.91094 10.925C7.83208 10.9193 7.75509 10.8982 7.68438 10.8628L1.96893 8.0024C1.55379 7.7933 1.23838 7.42826 1.09173 6.98717C0.945073 6.54608 0.979114 6.06486 1.1864 5.6488L2.01708 3.96938C2.12062 3.76305 2.26378 3.57913 2.43841 3.42813C2.61303 3.27713 2.81568 3.16202 3.0348 3.08935C3.25392 3.01668 3.48521 2.98789 3.71545 3.00462C3.9457 3.02135 4.17039 3.08327 4.3767 3.18685L10.0928 6.04789Z" stroke={active ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M1 12.0347H3.26331C3.48767 12.0363 3.70801 11.9751 3.89945 11.8581C4.0909 11.7411 4.24585 11.573 4.34681 11.3726L5.21361 9.62695" stroke={active ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M1 13.2398V10.832" stroke={active ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M4.00977 6.01562H4.01458" stroke={active ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 )}
                 {tab}

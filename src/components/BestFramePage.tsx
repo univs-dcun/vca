@@ -9,7 +9,7 @@ import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { VIP_SIMULATION_CAMERAS } from "@/lib/vcaStore";
 import { recentSgtClockTime, sgtHour, sgtMinute } from "@/lib/time";
 
-const BORDER = "1px solid #E2E8F0";
+const BORDER = "1px solid var(--gray-200)";
 
 function FilterIcon({ type, color, active, size = 14 }: { type: DetType; color: string; active?: boolean; size?: number }) {
   if (type === "VIP") return active ? (
@@ -46,7 +46,7 @@ function FilterIcon({ type, color, active, size = 14 }: { type: DetType; color: 
   return active ? (
     <svg width={size} height={size} viewBox="0 0 14 14" fill="none" style={{ flexShrink:0 }}>
       <g clipPath="url(#filterIconUnknownClipActive)">
-        <path d="M2.24583 5.02833C2.16069 4.64481 2.17376 4.24599 2.28384 3.86886C2.39392 3.49174 2.59744 3.14851 2.87552 2.871C3.15361 2.5935 3.49726 2.3907 3.87462 2.28141C4.25198 2.17213 4.65082 2.15989 5.03417 2.24583C5.24516 1.91584 5.53584 1.64428 5.87939 1.45617C6.22294 1.26806 6.60832 1.16946 7 1.16946C7.39168 1.16946 7.77706 1.26806 8.12061 1.45617C8.46416 1.64428 8.75484 1.91584 8.96583 2.24583C9.34976 2.15951 9.74929 2.1717 10.1272 2.28125C10.5052 2.3908 10.8493 2.59417 11.1276 2.87242C11.4058 3.15068 11.6092 3.49479 11.7188 3.87275C11.8283 4.25071 11.8405 4.65024 11.7542 5.03417C12.0842 5.24516 12.3557 5.53583 12.5438 5.87939C12.7319 6.22294 12.8305 6.60832 12.8305 7C12.8305 7.39168 12.7319 7.77706 12.5438 8.12061C12.3557 8.46416 12.0842 8.75484 11.7542 8.96583C11.8401 9.34918 11.8279 9.74802 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4026 10.5083 11.6061 10.1311 11.7162C9.75401 11.8262 9.35519 11.8393 8.97167 11.7542C8.76094 12.0854 8.47005 12.3582 8.12591 12.5471C7.78177 12.7361 7.39552 12.8351 7.00292 12.8351C6.61032 12.8351 6.22407 12.7361 5.87993 12.5471C5.53579 12.3582 5.24489 12.0854 5.03417 11.7542C4.65082 11.8401 4.25198 11.8279 3.87462 11.7186C3.49726 11.6093 3.15361 11.4065 2.87552 11.129C2.59744 10.8515 2.39392 10.5083 2.28384 10.1311C2.17376 9.75401 2.16069 9.35519 2.24583 8.97167C1.91331 8.76122 1.63941 8.4701 1.44961 8.12537C1.25982 7.78065 1.16029 7.39352 1.16029 7C1.16029 6.60648 1.25982 6.21935 1.44961 5.87462C1.63941 5.5299 1.91331 5.23877 2.24583 5.02833Z" fill="#FEF3C7" stroke="#FEF3C7" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M2.24583 5.02833C2.16069 4.64481 2.17376 4.24599 2.28384 3.86886C2.39392 3.49174 2.59744 3.14851 2.87552 2.871C3.15361 2.5935 3.49726 2.3907 3.87462 2.28141C4.25198 2.17213 4.65082 2.15989 5.03417 2.24583C5.24516 1.91584 5.53584 1.64428 5.87939 1.45617C6.22294 1.26806 6.60832 1.16946 7 1.16946C7.39168 1.16946 7.77706 1.26806 8.12061 1.45617C8.46416 1.64428 8.75484 1.91584 8.96583 2.24583C9.34976 2.15951 9.74929 2.1717 10.1272 2.28125C10.5052 2.3908 10.8493 2.59417 11.1276 2.87242C11.4058 3.15068 11.6092 3.49479 11.7188 3.87275C11.8283 4.25071 11.8405 4.65024 11.7542 5.03417C12.0842 5.24516 12.3557 5.53583 12.5438 5.87939C12.7319 6.22294 12.8305 6.60832 12.8305 7C12.8305 7.39168 12.7319 7.77706 12.5438 8.12061C12.3557 8.46416 12.0842 8.75484 11.7542 8.96583C11.8401 9.34918 11.8279 9.74802 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4026 10.5083 11.6061 10.1311 11.7162C9.75401 11.8262 9.35519 11.8393 8.97167 11.7542C8.76094 12.0854 8.47005 12.3582 8.12591 12.5471C7.78177 12.7361 7.39552 12.8351 7.00292 12.8351C6.61032 12.8351 6.22407 12.7361 5.87993 12.5471C5.53579 12.3582 5.24489 12.0854 5.03417 11.7542C4.65082 11.8401 4.25198 11.8279 3.87462 11.7186C3.49726 11.6093 3.15361 11.4065 2.87552 11.129C2.59744 10.8515 2.39392 10.5083 2.28384 10.1311C2.17376 9.75401 2.16069 9.35519 2.24583 8.97167C1.91331 8.76122 1.63941 8.4701 1.44961 8.12537C1.25982 7.78065 1.16029 7.39352 1.16029 7C1.16029 6.60648 1.25982 6.21935 1.44961 5.87462C1.63941 5.5299 1.91331 5.23877 2.24583 5.02833Z" fill="var(--warning-200)" stroke="var(--warning-200)" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M5.3025 5.25C5.43964 4.86014 5.71034 4.5314 6.06664 4.32199C6.42294 4.11259 6.84186 4.03605 7.24919 4.10592C7.65652 4.17578 8.02598 4.38756 8.29213 4.70372C8.55828 5.01989 8.70395 5.42005 8.70333 5.83333C8.70333 7 6.95333 7.58333 6.95333 7.58333" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M7 9.91667H7.00583" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
       </g>
@@ -71,7 +71,7 @@ function FilterIcon({ type, color, active, size = 14 }: { type: DetType; color: 
 /* ── Colors ────────────────────────────────────────────────────── */
 // VIP is brand purple everywhere else in the app (Sidebar's VIP badges, watchlist icons) —
 // matches that instead of the sky-blue this page used to use on its own.
-const DET_COLOR: Record<DetType, string> = { VIP: "#5a3dfb", Vehicle: "#38bdf8", Unknown: "#976400" };
+const DET_COLOR: Record<DetType, string> = { VIP: "var(--primary-400)", Vehicle: "var(--type-vehicle)", Unknown: "var(--type-unknown)" };
 
 // How long the sidebar's "VIP detected now" pulsing dot stays lit after a hit — long enough not
 // to be missed on a glance, short enough that it still means "just now" rather than "at some
@@ -240,12 +240,12 @@ export const IMAGE_CAMS_INIT: Camera[] = [
 function CheckboxIcon({ checked }: { checked: boolean }) {
   if (checked) return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M15.75 7.992V14.25C15.75 14.6478 15.592 15.0294 15.3107 15.3107C15.0294 15.592 14.6478 15.75 14.25 15.75H3.75C3.35218 15.75 2.97064 15.592 2.68934 15.3107C2.40804 15.0294 2.25 14.6478 2.25 14.25V3.75C2.25 3.35218 2.40804 2.97064 2.68934 2.68934C2.97064 2.40804 3.35218 2.25 3.75 2.25H13.008M6.75 8.25L9 10.5L16.5 3" stroke="#5A3DFB" strokeWidth="1.5" strokeLinecap="round"/>
+      <path d="M15.75 7.992V14.25C15.75 14.6478 15.592 15.0294 15.3107 15.3107C15.0294 15.592 14.6478 15.75 14.25 15.75H3.75C3.35218 15.75 2.97064 15.592 2.68934 15.3107C2.40804 15.0294 2.25 14.6478 2.25 14.25V3.75C2.25 3.35218 2.40804 2.97064 2.68934 2.68934C2.97064 2.40804 3.35218 2.25 3.75 2.25H13.008M6.75 8.25L9 10.5L16.5 3" stroke="var(--primary-400)" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   );
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M14.25 2.25H3.75C2.92157 2.25 2.25 2.92157 2.25 3.75V14.25C2.25 15.0784 2.92157 15.75 3.75 15.75H14.25C15.0784 15.75 15.75 15.0784 15.75 14.25V3.75C15.75 2.92157 15.0784 2.25 14.25 2.25Z" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round"/>
+      <path d="M14.25 2.25H3.75C2.92157 2.25 2.25 2.92157 2.25 3.75V14.25C2.25 15.0784 2.92157 15.75 3.75 15.75H14.25C15.0784 15.75 15.75 15.0784 15.75 14.25V3.75C15.75 2.92157 15.0784 2.25 14.25 2.25Z" stroke="var(--gray-400)" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   );
 }
@@ -253,17 +253,17 @@ function CheckboxIcon({ checked }: { checked: boolean }) {
 function MonitorIcon({ purple }: { purple: boolean }) {
   if (purple) return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M10.022 6.29339C10.0874 6.33127 10.1418 6.38571 10.1796 6.45124C10.2174 6.51676 10.2373 6.59108 10.2373 6.66672C10.2373 6.74236 10.2174 6.81667 10.1796 6.8822C10.1418 6.94773 10.0874 7.00217 10.022 7.04005L7.31196 8.60805C7.24652 8.64592 7.17224 8.66585 7.09663 8.66586C7.02102 8.66586 6.94675 8.64592 6.8813 8.60806C6.81585 8.5702 6.76155 8.51575 6.72386 8.4502C6.68617 8.38465 6.66643 8.31033 6.66663 8.23472V5.09872C6.6665 5.02321 6.68625 4.94899 6.72391 4.88354C6.76156 4.81809 6.81579 4.7637 6.88114 4.72586C6.94648 4.68802 7.02064 4.66805 7.09615 4.66797C7.17166 4.66789 7.24587 4.68769 7.31129 4.72539L10.022 6.29339Z" stroke="#5A3DFB" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8 11.334V14.0007" stroke="#5A3DFB" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M5.33337 14H10.6667" stroke="#5A3DFB" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M13.3334 2H2.66671C1.93033 2 1.33337 2.59695 1.33337 3.33333V10C1.33337 10.7364 1.93033 11.3333 2.66671 11.3333H13.3334C14.0698 11.3333 14.6667 10.7364 14.6667 10V3.33333C14.6667 2.59695 14.0698 2 13.3334 2Z" stroke="#5A3DFB" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M10.022 6.29339C10.0874 6.33127 10.1418 6.38571 10.1796 6.45124C10.2174 6.51676 10.2373 6.59108 10.2373 6.66672C10.2373 6.74236 10.2174 6.81667 10.1796 6.8822C10.1418 6.94773 10.0874 7.00217 10.022 7.04005L7.31196 8.60805C7.24652 8.64592 7.17224 8.66585 7.09663 8.66586C7.02102 8.66586 6.94675 8.64592 6.8813 8.60806C6.81585 8.5702 6.76155 8.51575 6.72386 8.4502C6.68617 8.38465 6.66643 8.31033 6.66663 8.23472V5.09872C6.6665 5.02321 6.68625 4.94899 6.72391 4.88354C6.76156 4.81809 6.81579 4.7637 6.88114 4.72586C6.94648 4.68802 7.02064 4.66805 7.09615 4.66797C7.17166 4.66789 7.24587 4.68769 7.31129 4.72539L10.022 6.29339Z" stroke="var(--primary-400)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 11.334V14.0007" stroke="var(--primary-400)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5.33337 14H10.6667" stroke="var(--primary-400)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M13.3334 2H2.66671C1.93033 2 1.33337 2.59695 1.33337 3.33333V10C1.33337 10.7364 1.93033 11.3333 2.66671 11.3333H13.3334C14.0698 11.3333 14.6667 10.7364 14.6667 10V3.33333C14.6667 2.59695 14.0698 2 13.3334 2Z" stroke="var(--primary-400)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M13.3334 2H2.66671C1.93033 2 1.33337 2.59695 1.33337 3.33333V10C1.33337 10.7364 1.93033 11.3333 2.66671 11.3333H13.3334C14.0698 11.3333 14.6667 10.7364 14.6667 10V3.33333C14.6667 2.59695 14.0698 2 13.3334 2Z" stroke="#E2E8F0" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M5.33337 14H10.6667" stroke="#E2E8F0" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8 11.666L8 13.666" stroke="#E2E8F0" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M13.3334 2H2.66671C1.93033 2 1.33337 2.59695 1.33337 3.33333V10C1.33337 10.7364 1.93033 11.3333 2.66671 11.3333H13.3334C14.0698 11.3333 14.6667 10.7364 14.6667 10V3.33333C14.6667 2.59695 14.0698 2 13.3334 2Z" stroke="var(--gray-200)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5.33337 14H10.6667" stroke="var(--gray-200)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 11.666L8 13.666" stroke="var(--gray-200)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -271,17 +271,17 @@ function MonitorIcon({ purple }: { purple: boolean }) {
 function FolderIcon({ open }: { open: boolean }) {
   if (open) return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M4 9.3334L5 7.40006C5.10871 7.18416 5.27408 7.00187 5.47841 6.8727C5.68273 6.74352 5.91833 6.67233 6.16 6.66673H13.3333M13.3333 6.66673C13.537 6.66637 13.7381 6.71269 13.9211 6.80212C14.1041 6.89155 14.2642 7.02172 14.389 7.18264C14.5139 7.34356 14.6003 7.53095 14.6415 7.73043C14.6826 7.92991 14.6776 8.13618 14.6267 8.3334L13.6 12.3334C13.5257 12.6211 13.3575 12.8758 13.1219 13.0569C12.8864 13.2381 12.5971 13.3354 12.3 13.3334H2.66667C2.31304 13.3334 1.9739 13.1929 1.72386 12.9429C1.47381 12.6928 1.33333 12.3537 1.33333 12.0001V3.3334C1.33333 2.97978 1.47381 2.64064 1.72386 2.39059C1.9739 2.14054 2.31304 2.00006 2.66667 2.00006H5.26667C5.48966 1.99788 5.70963 2.05166 5.90647 2.15648C6.1033 2.2613 6.27069 2.41381 6.39333 2.60006L6.93333 3.40006C7.05474 3.58442 7.22002 3.73574 7.41433 3.84047C7.60865 3.94519 7.82593 4.00003 8.04667 4.00006H12C12.3536 4.00006 12.6928 4.14054 12.9428 4.39059C13.1929 4.64064 13.3333 4.97978 13.3333 5.3334V6.66673Z" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M4 9.3334L5 7.40006C5.10871 7.18416 5.27408 7.00187 5.47841 6.8727C5.68273 6.74352 5.91833 6.67233 6.16 6.66673H13.3333M13.3333 6.66673C13.537 6.66637 13.7381 6.71269 13.9211 6.80212C14.1041 6.89155 14.2642 7.02172 14.389 7.18264C14.5139 7.34356 14.6003 7.53095 14.6415 7.73043C14.6826 7.92991 14.6776 8.13618 14.6267 8.3334L13.6 12.3334C13.5257 12.6211 13.3575 12.8758 13.1219 13.0569C12.8864 13.2381 12.5971 13.3354 12.3 13.3334H2.66667C2.31304 13.3334 1.9739 13.1929 1.72386 12.9429C1.47381 12.6928 1.33333 12.3537 1.33333 12.0001V3.3334C1.33333 2.97978 1.47381 2.64064 1.72386 2.39059C1.9739 2.14054 2.31304 2.00006 2.66667 2.00006H5.26667C5.48966 1.99788 5.70963 2.05166 5.90647 2.15648C6.1033 2.2613 6.27069 2.41381 6.39333 2.60006L6.93333 3.40006C7.05474 3.58442 7.22002 3.73574 7.41433 3.84047C7.60865 3.94519 7.82593 4.00003 8.04667 4.00006H12C12.3536 4.00006 12.6928 4.14054 12.9428 4.39059C13.1929 4.64064 13.3333 4.97978 13.3333 5.3334V6.66673Z" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M14.2766 12.9423C14.0265 13.1923 13.6874 13.3328 13.3337 13.3328H2.6662C2.31255 13.3328 1.97339 13.1923 1.72332 12.9423C1.47325 12.6923 1.33276 12.3531 1.33276 11.9995V3.33327C1.33276 2.97967 1.47325 2.64054 1.72332 2.39051C1.97339 2.14047 2.31255 2 2.6662 2H5.28641C5.50717 2.00004 5.72446 2.05487 5.9188 2.15959C6.11313 2.26431 6.27842 2.41563 6.39984 2.59997L6.93988 3.39993C7.06253 3.58618 7.22994 3.73868 7.42679 3.8435C7.62363 3.94832 7.84363 4.00209 8.06664 3.99991H13.3337C13.6874 3.99991 14.0265 4.14038 14.2766 4.39041C14.5267 4.64045 14.6672 4.97957 14.6672 5.33318V11.9995C14.6672 12.3531 14.5267 12.6923 14.2766 12.9423Z" stroke="#64748A" strokeWidth="1.5" strokeLinecap="round"/>
+      <path d="M14.2766 12.9423C14.0265 13.1923 13.6874 13.3328 13.3337 13.3328H2.6662C2.31255 13.3328 1.97339 13.1923 1.72332 12.9423C1.47325 12.6923 1.33276 12.3531 1.33276 11.9995V3.33327C1.33276 2.97967 1.47325 2.64054 1.72332 2.39051C1.97339 2.14047 2.31255 2 2.6662 2H5.28641C5.50717 2.00004 5.72446 2.05487 5.9188 2.15959C6.11313 2.26431 6.27842 2.41563 6.39984 2.59997L6.93988 3.39993C7.06253 3.58618 7.22994 3.73868 7.42679 3.8435C7.62363 3.94832 7.84363 4.00209 8.06664 3.99991H13.3337C13.6874 3.99991 14.0265 4.14038 14.2766 4.39041C14.5267 4.64045 14.6672 4.97957 14.6672 5.33318V11.9995C14.6672 12.3531 14.5267 12.6923 14.2766 12.9423Z" stroke="var(--gray-500)" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   );
 }
 
-function VideoFileIcon({ color = "#64748A" }: { color?: string }) {
+function VideoFileIcon({ color = "var(--gray-500)" }: { color?: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
       <path d="M4.00008 14.6673C3.64646 14.6673 3.30732 14.5268 3.05727 14.2768C2.80722 14.0267 2.66675 13.6876 2.66675 13.334V2.66732C2.66675 2.3137 2.80722 1.97456 3.05727 1.72451C3.30732 1.47446 3.64646 1.33399 4.00008 1.33399H9.33341C9.54445 1.33364 9.75347 1.37505 9.94843 1.45583C10.1434 1.53661 10.3205 1.65516 10.4694 1.80465L12.8614 4.19665C13.0113 4.34566 13.1302 4.52288 13.2112 4.71809C13.2922 4.91331 13.3338 5.12263 13.3334 5.33399V13.334C13.3334 13.6876 13.1929 14.0267 12.9429 14.2768C12.6928 14.5268 12.3537 14.6673 12.0001 14.6673H4.00008Z" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
@@ -294,15 +294,15 @@ function VideoFileIcon({ color = "#64748A" }: { color?: string }) {
 function ImageFileIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M12.6667 2H3.33333C2.59695 2 2 2.59695 2 3.33333V12.6667C2 13.403 2.59695 14 3.33333 14H12.6667C13.403 14 14 13.403 14 12.6667V3.33333C14 2.59695 13.403 2 12.6667 2Z" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M6.00008 7.33268C6.73646 7.33268 7.33341 6.73573 7.33341 5.99935C7.33341 5.26297 6.73646 4.66602 6.00008 4.66602C5.2637 4.66602 4.66675 5.26297 4.66675 5.99935C4.66675 6.73573 5.2637 7.33268 6.00008 7.33268Z" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M14 10.0004L11.9427 7.94312C11.6926 7.69315 11.3536 7.55273 11 7.55273C10.6464 7.55273 10.3074 7.69315 10.0573 7.94312L4 14.0004" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12.6667 2H3.33333C2.59695 2 2 2.59695 2 3.33333V12.6667C2 13.403 2.59695 14 3.33333 14H12.6667C13.403 14 14 13.403 14 12.6667V3.33333C14 2.59695 13.403 2 12.6667 2Z" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M6.00008 7.33268C6.73646 7.33268 7.33341 6.73573 7.33341 5.99935C7.33341 5.26297 6.73646 4.66602 6.00008 4.66602C5.2637 4.66602 4.66675 5.26297 4.66675 5.99935C4.66675 6.73573 5.2637 7.33268 6.00008 7.33268Z" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14 10.0004L11.9427 7.94312C11.6926 7.69315 11.3536 7.55273 11 7.55273C10.6464 7.55273 10.3074 7.69315 10.0573 7.94312L4 14.0004" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
 
 function PinIcon({ active }: { active: boolean }) {
-  const color = active ? "#5a3dfb" : "#94a3b8";
+  const color = active ? "var(--primary-400)" : "var(--gray-400)";
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <path d="M6 8.5V11" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
@@ -321,7 +321,7 @@ function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
     <svg width="34" height="62" viewBox="0 0 34 62" fill="none">
       <g filter={`url(#${filterId})`}>
         <path d="M3 1H19C25.6274 1 31 6.37258 31 13V45C31 51.6274 25.6274 57 19 57H3V1Z" fill="white"/>
-        <path d={trianglePath} fill="#475469"/>
+        <path d={trianglePath} fill="var(--gray-600)"/>
       </g>
       <defs>
         <filter id={filterId} x="0" y="0" width="34" height="62" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
@@ -371,7 +371,7 @@ function CameraCard({
       <div
         onMouseEnter={() => setFeedHovered(true)}
         onMouseLeave={() => setFeedHovered(false)}
-        style={{ flex:1, position:"relative", overflow:"hidden", backgroundColor:"#0e162a", minWidth:0, minHeight:0 }}
+        style={{ flex:1, position:"relative", overflow:"hidden", backgroundColor:"var(--gray-900)", minWidth:0, minHeight:0 }}
       >
         <img src={data.bgUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:0.9 }} />
         {feedHovered && canAnalyze && (
@@ -383,7 +383,7 @@ function CameraCard({
               padding:"10px 20px", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.15)",
               backgroundColor:"rgba(14,22,42,0.55)", backdropFilter:"blur(6px)", WebkitBackdropFilter:"blur(6px)",
               color:"white", fontSize:"13px", fontWeight:700,
-              cursor:"pointer", boxShadow:"0 4px 12px rgba(0,0,0,0.25)",
+              cursor:"pointer", boxShadow:"0 4px 12px rgba(14, 22, 42,0.25)",
             }}
           >
             <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
@@ -399,12 +399,12 @@ function CameraCard({
             Analyze Frame
           </button>
         )}
-        <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(0,0,0,0) 50%,rgba(0,0,0,0.04) 50%)", backgroundSize:"100% 4px" }} />
+        <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(14, 22, 42,0) 50%,rgba(14, 22, 42,0.04) 50%)", backgroundSize:"100% 4px" }} />
         <div
           className={hasVip ? "vca-cam-label-glow" : undefined}
           style={{ position:"absolute", top:10, left:10, display:"flex", alignItems:"center", gap:"5px", zIndex:10, backgroundColor:"rgba(14,22,42,0.55)", padding:"4px 8px", border:"1.5px solid transparent" }}
         >
-          <div style={{ width:"6px", height:"6px", borderRadius:"50%", backgroundColor:"#22c55e", flexShrink:0 }} />
+          <div style={{ width:"6px", height:"6px", borderRadius:"50%", backgroundColor:"var(--success-400)", flexShrink:0 }} />
           <span style={{ fontSize:"10px", fontWeight:600, color:"white", letterSpacing:"-0.2px" }}>
             {data.camLabel} • {data.location}
           </span>
@@ -417,13 +417,13 @@ function CameraCard({
       <div style={sidePanelOnHover ? {
         position:"absolute", right:0, top:0, width:"50%", maxHeight:"100%",
         display:"flex", flexDirection:"column", overflow:"hidden", backgroundColor:"white",
-        boxShadow: panelRevealed ? "-4px 4px 16px rgba(0,0,0,0.12)" : "none",
+        boxShadow: panelRevealed ? "-4px 4px 16px rgba(14, 22, 42,0.12)" : "none",
         transform: panelRevealed ? "translateX(0)" : "translateX(100%)",
         transition:"transform 0.15s ease",
       } : { flex:"0 0 240px", display:"flex", flexDirection:"column", overflow:"hidden", backgroundColor:"white" }}>
         {/* Header */}
         <div style={{ padding:"12px 16px 10px", borderBottom:BORDER, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a", letterSpacing:"-0.24px" }}>{data.location}</span>
+          <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", letterSpacing:"-0.24px" }}>{data.location}</span>
           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
             {sidePanelOnHover && (
               <button
@@ -438,11 +438,11 @@ function CameraCard({
               onClick={data.detections.length > 0 ? onHeaderArrowClick : undefined}
               style={{ display:"flex", alignItems:"center", gap:"4px", cursor: data.detections.length > 0 ? "pointer" : "default" }}
             >
-            <span style={{ fontSize:"10px", fontWeight:600, color:"#324055", letterSpacing:"-0.2px" }}>{data.detections.length} target</span>
+            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>{data.detections.length} target</span>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M10.5 6.5V9.5C10.5 9.76522 10.3946 10.0196 10.2071 10.2071C10.0196 10.3946 9.76522 10.5 9.5 10.5H2.5C2.23478 10.5 1.98043 10.3946 1.79289 10.2071C1.60536 10.0196 1.5 9.76522 1.5 9.5V2.5C1.5 2.23478 1.60536 1.98043 1.79289 1.79289C1.98043 1.60536 2.23478 1.5 2.5 1.5H5.5" stroke="#324055" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M10.5 1.5L6 6" stroke="#324055" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M7.5 1.5H10.5V4.5" stroke="#324055" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M10.5 6.5V9.5C10.5 9.76522 10.3946 10.0196 10.2071 10.2071C10.0196 10.3946 9.76522 10.5 9.5 10.5H2.5C2.23478 10.5 1.98043 10.3946 1.79289 10.2071C1.60536 10.0196 1.5 9.76522 1.5 9.5V2.5C1.5 2.23478 1.60536 1.98043 1.79289 1.79289C1.98043 1.60536 2.23478 1.5 2.5 1.5H5.5" stroke="var(--gray-700)" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M10.5 1.5L6 6" stroke="var(--gray-700)" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M7.5 1.5H10.5V4.5" stroke="var(--gray-700)" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             </div>
           </div>
@@ -451,7 +451,7 @@ function CameraCard({
         {/* List */}
         <div style={{ flex:1, overflowY:"auto" }}>
           {dets.length === 0 ? (
-            <div style={{ padding:"20px", textAlign:"center", color:"#94a3b8", fontSize:"11px" }}>No detections</div>
+            <div style={{ padding:"20px", textAlign:"center", color:"var(--gray-400)", fontSize:"11px" }}>No detections</div>
           ) : dets.map((det, i) => {
             const avatarSrc = det.type === "Vehicle" ? CAR_IMG : AVATAR[i % AVATAR.length];
             const showConfidence = det.type === "VIP";
@@ -461,9 +461,9 @@ function CameraCard({
                 style={{
                   display:"flex", alignItems:"center", gap:"8px",
                   padding:"8px 16px", cursor:"pointer",
-                  borderBottom: i < dets.length - 1 ? "1px solid #e2e8f0" : "none",
+                  borderBottom: i < dets.length - 1 ? "1px solid var(--gray-200)" : "none",
                 }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#f8fafc")}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "var(--gray-50)")}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 {/* Avatar + status dot — rounded-square (8px), not a circle, per Figma */}
@@ -478,19 +478,19 @@ function CameraCard({
 
                 <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:"6px" }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"4px" }}>
-                    <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", letterSpacing:"-0.24px" }}>
+                    <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", letterSpacing:"-0.24px" }}>
                       {det.name}
                     </span>
                     {showConfidence && (
-                      <span style={{ fontSize:"10px", fontWeight:800, color:"#5a3dfb", flexShrink:0, letterSpacing:"-0.2px" }}>
+                      <span style={{ fontSize:"10px", fontWeight:800, color:"var(--primary-400)", flexShrink:0, letterSpacing:"-0.2px" }}>
                         {det.confidence}%
                       </span>
                     )}
                   </div>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"4px" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:"4px", overflow:"hidden" }}>
-                      <FilterIcon type={det.type} color="#475469" size={14} />
-                      <span style={{ fontSize:"12px", fontWeight:600, color:"#475469", letterSpacing:"-0.2px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      <FilterIcon type={det.type} color="var(--gray-600)" size={14} />
+                      <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-600)", letterSpacing:"-0.2px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                         {/* VIP and Vehicle rows read just "VIP"/"Vehicle" here — the specific
                             group (Staff/VIP group, Navy/Logistics/Security fleet, etc.) varied
                             row to row and read as inconsistent; that detail is still available
@@ -498,7 +498,7 @@ function CameraCard({
                         {det.type === "VIP" ? "VIP" : det.type === "Vehicle" ? "Vehicle" : det.group}
                       </span>
                     </div>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a", fontFamily:"monospace", flexShrink:0 }}>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", fontFamily:"monospace", flexShrink:0 }}>
                       {det.time}
                     </span>
                   </div>
@@ -527,7 +527,7 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
     <div onClick={e => e.stopPropagation()} style={{
       position:"fixed", zIndex:200, left:hud.x, top:hud.y,
       width:"320px", backgroundColor:"white", borderRadius:"24px",
-      boxShadow:"-3px 3px 8px rgba(0,0,0,0.12)", padding:"20px",
+      boxShadow:"-3px 3px 8px rgba(14, 22, 42,0.12)", padding:"20px",
       display:"flex", flexDirection:"column", gap:"16px",
     }}>
       {/* Header */}
@@ -535,37 +535,37 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
         <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
             <FilterIcon type={det.type} color={c} size={16} />
-            <span style={{ fontSize:"13px", fontWeight:600, color:"#324055" }}>{det.type}</span>
+            <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-700)" }}>{det.type}</span>
           </div>
           {det.type === "VIP" && (
-            <div style={{ backgroundColor:"#f0f0ff", borderRadius:"12px", padding:"2px 6px" }}>
-              <span style={{ fontSize:"12px", fontWeight:800, color:"#5a3dfb" }}>{det.confidence}%</span>
+            <div style={{ backgroundColor:"var(--primary-100)", borderRadius:"12px", padding:"2px 6px" }}>
+              <span style={{ fontSize:"12px", fontWeight:800, color:"var(--primary-400)" }}>{det.confidence}%</span>
             </div>
           )}
         </div>
-        <button onClick={onClose} aria-label="Close" style={{ background:"none", border:"none", cursor:"pointer", color:"#64748a", padding:0, display:"flex" }}>
+        <button onClick={onClose} aria-label="Close" style={{ background:"none", border:"none", cursor:"pointer", color:"var(--gray-500)", padding:0, display:"flex" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M4 4L12 12" stroke="#64748a" strokeWidth="1.5" strokeLinecap="round"/>
-            <path d="M12 4L4 12" stroke="#64748a" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M4 4L12 12" stroke="var(--gray-500)" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M12 4L4 12" stroke="var(--gray-500)" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
         </button>
       </div>
 
       {/* Photo comparison */}
-      <div style={{ display:"flex", gap:"12px", backgroundColor:"#f8fafc", borderRadius:"16px", padding:"12px" }}>
+      <div style={{ display:"flex", gap:"12px", backgroundColor:"var(--gray-50)", borderRadius:"16px", padding:"12px" }}>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", width:"96px", flexShrink:0 }}>
           <img src={det.type === "Vehicle" ? CAR_IMG : AVATAR[0]} alt="" style={{ width:"100%", aspectRatio: det.type === "Vehicle" ? "1/1" : "77/177", objectFit:"cover", borderRadius:"8px", display:"block" }} />
-          <span title="지금 카메라가 실시간으로 찍은 사진" style={{ fontSize:"10px", fontWeight:600, color:"#64748a", cursor:"help" }}>LIVE SNAPSHOT</span>
+          <span title="지금 카메라가 실시간으로 찍은 사진" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", cursor:"help" }}>LIVE SNAPSHOT</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", flex:1, minWidth:0 }}>
           {isUnknown ? (
-            <div style={{ width:"100%", aspectRatio:"1/1", borderRadius:"10px", border:"2px dashed #f97316", backgroundColor:"#fffbf0", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span title="사전에 등록된 데이터베이스에서 일치하는 인물을 찾지 못함" style={{ fontSize:"10px", fontWeight:600, color:"#f97316", textAlign:"center", cursor:"help" }}>NO DB MATCH</span>
+            <div style={{ width:"100%", aspectRatio:"1/1", borderRadius:"10px", border:"2px dashed var(--warning-500)", backgroundColor:"var(--warning-100)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <span title="사전에 등록된 데이터베이스에서 일치하는 인물을 찾지 못함" style={{ fontSize:"10px", fontWeight:600, color:"var(--warning-500)", textAlign:"center", cursor:"help" }}>NO DB MATCH</span>
             </div>
           ) : (
             <img src={det.type === "Vehicle" ? CAR_IMG : AVATAR[0]} alt="" style={{ width:"100%", aspectRatio:"1/1", objectFit:"cover", borderRadius:"10px", display:"block", filter:"sepia(0.2)" }} />
           )}
-          <span title="사전에 등록된 데이터베이스 속 대조 사진" style={{ fontSize:"10px", fontWeight:600, color:"#64748a", cursor:"help" }}>ENROLLED DB</span>
+          <span title="사전에 등록된 데이터베이스 속 대조 사진" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", cursor:"help" }}>ENROLLED DB</span>
         </div>
       </div>
 
@@ -573,29 +573,29 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
       <div style={{ display:"flex", flexDirection:"column", gap:"4px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
           <FilterIcon type={det.type} color={c} size={20} />
-          <span style={{ fontSize:"18px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.36px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          <span style={{ fontSize:"18px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.36px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
             {isUnknown ? "Unknown target" : det.name}
           </span>
         </div>
-        <p style={{ fontSize:"13px", fontWeight:400, color:"#475469" }}>{hud.location} &nbsp;•&nbsp; {det.time}</p>
+        <p style={{ fontSize:"13px", fontWeight:400, color:"var(--gray-600)" }}>{hud.location} &nbsp;•&nbsp; {det.time}</p>
       </div>
 
       {/* Attributes / details */}
-      <div style={{ backgroundColor:"#f8fafc", borderRadius:"16px", padding:"14px 16px", display:"flex", flexDirection:"column", gap:"8px" }}>
+      <div style={{ backgroundColor:"var(--gray-50)", borderRadius:"16px", padding:"14px 16px", display:"flex", flexDirection:"column", gap:"8px" }}>
         {attributes.length > 0 ? attributes.map((attr, i) => (
           <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a" }}>DETAIL {i + 1}</span>
-            <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{attr}</span>
+            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>DETAIL {i + 1}</span>
+            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{attr}</span>
           </div>
         )) : (
           <>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a" }}>GROUP</span>
-              <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{det.group}</span>
+              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>GROUP</span>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{det.group}</span>
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontSize:"10px", fontWeight:600, color:"#64748a" }}>CAMERA</span>
-              <span style={{ fontSize:"12px", fontWeight:700, color:"#0e162a" }}>{hud.camLabel}</span>
+              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>CAMERA</span>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{hud.camLabel}</span>
             </div>
           </>
         )}
@@ -603,14 +603,14 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
 
       {/* Actions */}
       <div style={{ display:"flex", gap:"8px" }}>
-        <button onClick={onTrackOnMap} style={{ flex:1, padding:"12px 0", borderRadius:"12px", border:"1px solid #0e162a", backgroundColor:"white", color:"#0e162a", fontSize:"13px", fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+        <button onClick={onTrackOnMap} style={{ flex:1, padding:"12px 0", borderRadius:"12px", border:"1px solid var(--gray-900)", backgroundColor:"white", color:"var(--gray-900)", fontSize:"13px", fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M16.6667 8.33333C16.6667 13.3333 10 18.3333 10 18.3333C10 18.3333 3.33333 13.3333 3.33333 8.33333C3.33333 6.56522 4.03571 4.86953 5.28596 3.61929C6.5362 2.36905 8.23189 1.66667 10 1.66667C11.7681 1.66667 13.4638 2.36905 14.714 3.61929C15.9643 4.86953 16.6667 6.56522 16.6667 8.33333Z" stroke="#0e162a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M10 10.8333C11.3807 10.8333 12.5 9.71404 12.5 8.33333C12.5 6.95262 11.3807 5.83333 10 5.83333C8.61929 5.83333 7.5 6.95262 7.5 8.33333C7.5 9.71404 8.61929 10.8333 10 10.8333Z" stroke="#0e162a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M16.6667 8.33333C16.6667 13.3333 10 18.3333 10 18.3333C10 18.3333 3.33333 13.3333 3.33333 8.33333C3.33333 6.56522 4.03571 4.86953 5.28596 3.61929C6.5362 2.36905 8.23189 1.66667 10 1.66667C11.7681 1.66667 13.4638 2.36905 14.714 3.61929C15.9643 4.86953 16.6667 6.56522 16.6667 8.33333Z" stroke="var(--gray-900)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M10 10.8333C11.3807 10.8333 12.5 9.71404 12.5 8.33333C12.5 6.95262 11.3807 5.83333 10 5.83333C8.61929 5.83333 7.5 6.95262 7.5 8.33333C7.5 9.71404 8.61929 10.8333 10 10.8333Z" stroke="var(--gray-900)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           Track on Map
         </button>
-        <button onClick={onAnalyze} style={{ flex:1, padding:"12px 0", borderRadius:"12px", border:"none", backgroundColor:"#0e162a", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+        <button onClick={onAnalyze} style={{ flex:1, padding:"12px 0", borderRadius:"12px", border:"none", backgroundColor:"var(--gray-900)", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path d="M15.2701 1.77009L16.2301 2.73009C16.3163 2.81396 16.3848 2.91425 16.4315 3.02503C16.4783 3.13581 16.5024 3.25484 16.5024 3.37509C16.5024 3.49535 16.4783 3.61438 16.4315 3.72516C16.3848 3.83594 16.3163 3.93623 16.2301 4.02009L4.02009 16.2301C3.93623 16.3163 3.83594 16.3848 3.72516 16.4315C3.61438 16.4783 3.49535 16.5024 3.37509 16.5024C3.25484 16.5024 3.13581 16.4783 3.02503 16.4315C2.91425 16.3848 2.81396 16.3163 2.73009 16.2301L1.77009 15.2701C1.68483 15.1857 1.61715 15.0853 1.57095 14.9745C1.52476 14.8638 1.50098 14.7451 1.50098 14.6251C1.50098 14.5051 1.52476 14.3864 1.57095 14.2757C1.61715 14.1649 1.68483 14.0645 1.77009 13.9801L13.9801 1.77009C14.0645 1.68483 14.1649 1.61715 14.2757 1.57095C14.3864 1.52476 14.5051 1.50098 14.6251 1.50098C14.7451 1.50098 14.8638 1.52476 14.9745 1.57095C15.0853 1.61715 15.1857 1.68483 15.2701 1.77009Z" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M10.5 5.25L12.75 7.5" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
@@ -638,11 +638,11 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
 function BulletCameraIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M13.9583 10H16.985C17.127 10.0001 17.2666 10.0364 17.3906 10.1056C17.5146 10.1748 17.6189 10.2745 17.6935 10.3953C17.7681 10.5161 17.8107 10.654 17.8171 10.7958C17.8234 10.9377 17.7935 11.0788 17.73 11.2058L16.035 14.5967C15.9707 14.7252 15.8743 14.8348 15.7552 14.9151C15.636 14.9953 15.4981 15.0434 15.3549 15.0546C15.2117 15.0659 15.068 15.0399 14.9377 14.9792C14.8075 14.9185 14.6952 14.8252 14.6117 14.7083L12.8417 12.2333" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M14.255 7.54373C14.4525 7.6426 14.6027 7.81584 14.6726 8.02539C14.7424 8.23493 14.7262 8.46363 14.6275 8.66123L12.0392 13.8371C11.9902 13.935 11.9225 14.0223 11.8398 14.094C11.7571 14.1657 11.661 14.2204 11.5572 14.255C11.4533 14.2896 11.3437 14.3034 11.2345 14.2956C11.1253 14.2878 11.0187 14.2586 10.9209 14.2096L3.00836 10.2496C2.43364 9.96007 1.99699 9.45471 1.79396 8.84407C1.59093 8.23342 1.63806 7.56722 1.92503 6.99123L3.07503 4.66623C3.21836 4.38058 3.41656 4.12597 3.65831 3.91693C3.90006 3.70788 4.18061 3.54851 4.48396 3.44791C4.78731 3.34731 5.1075 3.30746 5.42625 3.33062C5.74501 3.35378 6.05608 3.4395 6.34169 3.5829L14.255 7.54373Z" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M1.66663 15.8333H4.79996C5.11057 15.8355 5.4156 15.7508 5.68064 15.5888C5.94568 15.4269 6.16019 15.1941 6.29996 14.9167L7.49996 12.5" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M1.66675 17.4993V14.166" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M5.83337 7.5H5.84171" stroke="#64748A" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M13.9583 10H16.985C17.127 10.0001 17.2666 10.0364 17.3906 10.1056C17.5146 10.1748 17.6189 10.2745 17.6935 10.3953C17.7681 10.5161 17.8107 10.654 17.8171 10.7958C17.8234 10.9377 17.7935 11.0788 17.73 11.2058L16.035 14.5967C15.9707 14.7252 15.8743 14.8348 15.7552 14.9151C15.636 14.9953 15.4981 15.0434 15.3549 15.0546C15.2117 15.0659 15.068 15.0399 14.9377 14.9792C14.8075 14.9185 14.6952 14.8252 14.6117 14.7083L12.8417 12.2333" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14.255 7.54373C14.4525 7.6426 14.6027 7.81584 14.6726 8.02539C14.7424 8.23493 14.7262 8.46363 14.6275 8.66123L12.0392 13.8371C11.9902 13.935 11.9225 14.0223 11.8398 14.094C11.7571 14.1657 11.661 14.2204 11.5572 14.255C11.4533 14.2896 11.3437 14.3034 11.2345 14.2956C11.1253 14.2878 11.0187 14.2586 10.9209 14.2096L3.00836 10.2496C2.43364 9.96007 1.99699 9.45471 1.79396 8.84407C1.59093 8.23342 1.63806 7.56722 1.92503 6.99123L3.07503 4.66623C3.21836 4.38058 3.41656 4.12597 3.65831 3.91693C3.90006 3.70788 4.18061 3.54851 4.48396 3.44791C4.78731 3.34731 5.1075 3.30746 5.42625 3.33062C5.74501 3.35378 6.05608 3.4395 6.34169 3.5829L14.255 7.54373Z" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1.66663 15.8333H4.79996C5.11057 15.8355 5.4156 15.7508 5.68064 15.5888C5.94568 15.4269 6.16019 15.1941 6.29996 14.9167L7.49996 12.5" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1.66675 17.4993V14.166" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5.83337 7.5H5.84171" stroke="var(--gray-500)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -654,7 +654,7 @@ function CameraItem({ cam, onToggle, type = "camera", disabled = false, activity
   // unselectable in effect, but the click must still reach toggle() — that's what shows the
   // "offline" / "limit reached" toast instead of the click silently doing nothing.
   const isCapped = disabled && !cam.checked;
-  const iconColor = isChecked ? "#8b5cf6" : "#64748A";
+  const iconColor = isChecked ? "var(--primary-400)" : "var(--gray-500)";
   const [hovered, setHovered] = useState(false);
   // Only a VIP hit gets a dot now — the second color (green, for Vehicle/Unknown) read as a
   // tracking indicator elsewhere in the app and was confusing here, so it's gone; VIP is the one
@@ -666,7 +666,7 @@ function CameraItem({ cam, onToggle, type = "camera", disabled = false, activity
       onClick={onToggle}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={{ display:"flex", alignItems:"center", gap:"8px", padding:"10px 12px", borderRadius:"10px", width:"100%", border:"none", cursor: isAlert ? "default" : "pointer", backgroundColor: isChecked ? "#eeeafe" : hovered && !isAlert && !isCapped ? "#f8fafc" : "transparent", flexShrink:0, opacity: isAlert || isCapped ? 0.4 : 1 }}
+      style={{ display:"flex", alignItems:"center", gap:"8px", padding:"10px 12px", borderRadius:"10px", width:"100%", border:"none", cursor: isAlert ? "default" : "pointer", backgroundColor: isChecked ? "var(--primary-100)" : hovered && !isAlert && !isCapped ? "var(--gray-50)" : "transparent", flexShrink:0, opacity: isAlert || isCapped ? 0.4 : 1 }}
     >
       {/* Video/Image rows navigate straight to their analysis screen on click — there's nothing
           for a checkbox to toggle there, so it's replaced with a plain spacer to keep alignment. */}
@@ -678,10 +678,10 @@ function CameraItem({ cam, onToggle, type = "camera", disabled = false, activity
           ? <VideoFileIcon color={iconColor} />
           : <ImageFileIcon />}
         {isVipActive && (
-          <div title="VIP detected now" className="vca-vip-dot-pulse" style={{ position:"absolute", top:-2, right:-2, width:"7px", height:"7px", borderRadius:"50%", backgroundColor:"#5a3dfb", border:"1.5px solid white" }} />
+          <div title="VIP detected now" className="vca-vip-dot-pulse" style={{ position:"absolute", top:-2, right:-2, width:"7px", height:"7px", borderRadius:"50%", backgroundColor:"var(--primary-400)", border:"1.5px solid white" }} />
         )}
       </div>
-      <span style={{ flex:1, textAlign:"left", fontSize:"13px", fontWeight: isChecked ? 700 : 400, color: isChecked ? "#8b5cf6" : "#64748a", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+      <span style={{ flex:1, textAlign:"left", fontSize:"13px", fontWeight: isChecked ? 700 : 400, color: isChecked ? "var(--primary-400)" : "var(--gray-500)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
         {cam.name}
       </span>
       <MonitorIcon purple={isChecked} />
@@ -692,7 +692,7 @@ function CameraItem({ cam, onToggle, type = "camera", disabled = false, activity
 function Chevron({ expanded }: { expanded: boolean }) {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink:0, transform: expanded ? "none" : "rotate(-90deg)", transition:"transform 0.15s" }}>
-      <path d="M3 5l4 4 4-4" stroke="#94a3b8" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M3 5l4 4 4-4" stroke="var(--gray-400)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -702,11 +702,11 @@ function SidebarSection({ label, count, badge, expanded, onToggle }: { label:str
     <button onClick={onToggle} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 12px", width:"100%", border:"none", background:"none", cursor:"pointer" }}>
       <Chevron expanded={expanded} />
       <FolderIcon open={expanded} />
-      <span style={{ flex:1, fontSize:"14px", fontWeight:800, color:"#1d293b", letterSpacing:"-0.28px", whiteSpace:"nowrap", textAlign:"left" }}>{label}</span>
-      {count !== undefined && <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8", flexShrink:0 }}>{count} Active</span>}
+      <span style={{ flex:1, fontSize:"14px", fontWeight:800, color:"var(--gray-800)", letterSpacing:"-0.28px", whiteSpace:"nowrap", textAlign:"left" }}>{label}</span>
+      {count !== undefined && <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", flexShrink:0 }}>{count} Active</span>}
       {badge !== undefined && (
-        <div style={{ backgroundColor:"#f1f5f9", borderRadius:"999px", minWidth:"18px", height:"18px", padding:"0 4px", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-          <span style={{ fontSize:"10px", fontWeight:600, color:"#324055" }}>{badge}</span>
+        <div style={{ backgroundColor:"var(--gray-100)", borderRadius:"999px", minWidth:"18px", height:"18px", padding:"0 4px", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+          <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-700)" }}>{badge}</span>
         </div>
       )}
     </button>
@@ -714,14 +714,14 @@ function SidebarSection({ label, count, badge, expanded, onToggle }: { label:str
 }
 
 function CollapsedIcon({ type, badge, purple=false }: { type:"camera"|"video"|"image"|"search"; badge?:number; purple?:boolean }) {
-  const camColor = purple ? "#5a3dfb" : "#64748a";
+  const camColor = purple ? "var(--primary-400)" : "var(--gray-500)";
   const hasBg = type === "search" || type === "camera" || purple;
   return (
     <div style={{ position:"relative" }}>
-      <div style={{ width:"40px", height:"40px", borderRadius:"10px", backgroundColor: hasBg ? (purple ? "#ece9ff" : "#f1f5f9") : "transparent", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ width:"40px", height:"40px", borderRadius:"10px", backgroundColor: hasBg ? (purple ? "var(--primary-100)" : "var(--gray-100)") : "transparent", display:"flex", alignItems:"center", justifyContent:"center" }}>
         {type === "search" && (
           <svg width="18" height="18" viewBox="6.5 6.5 16.5 16.5" fill="none">
-            <path d="M21.7501 21.7501L18.4951 18.4951M20.25 14.25C20.25 17.5637 17.5637 20.25 14.25 20.25C10.9363 20.25 8.25 17.5637 8.25 14.25C8.25 10.9363 10.9363 8.25 14.25 8.25C17.5637 8.25 20.25 10.9363 20.25 14.25Z" stroke="#64748A" strokeWidth="1" strokeLinecap="round"/>
+            <path d="M21.7501 21.7501L18.4951 18.4951M20.25 14.25C20.25 17.5637 17.5637 20.25 14.25 20.25C10.9363 20.25 8.25 17.5637 8.25 14.25C8.25 10.9363 10.9363 8.25 14.25 8.25C17.5637 8.25 20.25 10.9363 20.25 14.25Z" stroke="var(--gray-500)" strokeWidth="1" strokeLinecap="round"/>
           </svg>
         )}
         {type === "camera" && (
@@ -743,7 +743,7 @@ function CollapsedIcon({ type, badge, purple=false }: { type:"camera"|"video"|"i
         )}
       </div>
       {badge !== undefined && (
-        <div style={{ position:"absolute", top:"-4px", right:"-4px", backgroundColor: purple ? "#5a3dfb" : "#94a3b8", borderRadius:"999px", minWidth:"16px", height:"16px", padding:"0 3px", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ position:"absolute", top:"-4px", right:"-4px", backgroundColor: purple ? "var(--primary-400)" : "var(--gray-400)", borderRadius:"999px", minWidth:"16px", height:"16px", padding:"0 3px", display:"flex", alignItems:"center", justifyContent:"center" }}>
           <span style={{ fontSize:"10px", fontWeight:600, color:"white", lineHeight:"16px" }}>{badge}</span>
         </div>
       )}
@@ -1159,18 +1159,18 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
       {!collapsed && (
         <div style={{ width:"240px", flexShrink:0, backgroundColor:"white", display:"flex", flexDirection:"column", overflow:"hidden" }}>
           <div style={{ padding:"24px 12px 10px" }}>
-            <p style={{ fontSize:"20px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.4px" }}>Live camera</p>
+            <p style={{ fontSize:"20px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.4px" }}>Live camera</p>
           </div>
           <div style={{ padding:"0 12px 10px" }}>
-            <div style={{ display:"flex", alignItems:"center", backgroundColor:"#f1f5f9", borderRadius:"8px", height:"36px", padding:"0 14px", gap:"8px" }}>
+            <div style={{ display:"flex", alignItems:"center", backgroundColor:"var(--gray-100)", borderRadius:"8px", height:"36px", padding:"0 14px", gap:"8px" }}>
               <input
                 ref={camSearchInputRef}
                 value={camSearch}
                 onChange={e => setCamSearch(e.target.value)}
                 placeholder="Enter Source"
-                style={{ flex:1, border:"none", background:"none", outline:"none", fontSize:"13px", color:"#0e162a" }}
+                style={{ flex:1, border:"none", background:"none", outline:"none", fontSize:"13px", color:"var(--gray-900)" }}
               />
-              <Search size={14} color="#475469" />
+              <Search size={14} color="var(--gray-600)" />
             </div>
           </div>
           <div style={{ padding:"0 12px 10px", display:"flex", gap:"6px" }}>
@@ -1179,9 +1179,9 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
               return (
                 <button key={f.id} onClick={() => setCamTypeFilter(f.id)} style={{
                   padding:"6px 14px", borderRadius:"999px", cursor:"pointer",
-                  border: active ? "1px solid #324055" : "1px solid #ccd5e1",
-                  backgroundColor: active ? "#f1f5f9" : "white",
-                  color:"#324055", fontSize:"12px", fontWeight: active ? 700 : 600,
+                  border: active ? "1px solid var(--gray-700)" : "1px solid var(--gray-300)",
+                  backgroundColor: active ? "var(--gray-100)" : "white",
+                  color:"var(--gray-700)", fontSize:"12px", fontWeight: active ? 700 : 600,
                 }}>
                   {f.label}
                 </button>
@@ -1217,7 +1217,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
               && (!showNormalSection || visibleNormalCams.length === 0)
               && (!showVideoSection || visibleVideoCams.length === 0)
               && (!showImageSection || visibleImageCams.length === 0) && (
-              <div style={{ padding:"24px 16px", textAlign:"center", fontSize:"12px", fontWeight:600, color:"#94a3b8" }}>
+              <div style={{ padding:"24px 16px", textAlign:"center", fontSize:"12px", fontWeight:600, color:"var(--gray-400)" }}>
                 No cameras match &quot;{camSearch}&quot;.
               </div>
             )}
@@ -1248,17 +1248,17 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         {/* Top: filter */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px 12px", flexShrink:0, borderBottom:BORDER }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
-            <span style={{ fontSize:"13px", fontWeight:700, color:"#0e162a", letterSpacing:"-0.24px" }}>
+            <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)", letterSpacing:"-0.24px" }}>
               {gridCams.length} / {MAX_GRID_CAMS} selected
             </span>
             {gridCams.length > 0 && (
               <button
                 onClick={clearAllCams}
-                style={{ display:"flex", alignItems:"center", gap:"4px", background:"none", border:"none", cursor:"pointer", padding:0, fontSize:"12px", fontWeight:600, color:"#5a3dfb" }}
+                style={{ display:"flex", alignItems:"center", gap:"4px", background:"none", border:"none", cursor:"pointer", padding:0, fontSize:"12px", fontWeight:600, color:"var(--primary-400)" }}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                  <path d="M3 12a9 9 0 1 0 2.64-6.36L3 8" stroke="#5a3dfb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M3 3v5h5" stroke="#5a3dfb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M3 12a9 9 0 1 0 2.64-6.36L3 8" stroke="var(--primary-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M3 3v5h5" stroke="var(--primary-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
                 Reset
               </button>
@@ -1271,9 +1271,9 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                 return (
                   <button key="All" onClick={() => setFilterType("All")} style={{
                     padding:"6px 16px", borderRadius:"999px", cursor:"pointer",
-                    border: active ? "1px solid #0e162a" : "1px solid #ccd5e1",
-                    backgroundColor: active ? "#0e162a" : "white",
-                    color: active ? "white" : "#324055",
+                    border: active ? "1px solid var(--gray-900)" : "1px solid var(--gray-300)",
+                    backgroundColor: active ? "var(--gray-900)" : "white",
+                    color: active ? "white" : "var(--gray-700)",
                     fontSize:"13px", fontWeight: active ? 700 : 600,
                   }}>All</button>
                 );
@@ -1283,9 +1283,9 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                 <button key={f.id} onClick={() => setFilterType(f.id)} style={{
                   display:"flex", alignItems:"center", gap:"6px",
                   padding:"6px 12px", borderRadius:"999px", cursor:"pointer",
-                  border: active ? `1px solid ${c}` : "1px solid #ccd5e1",
+                  border: active ? `1px solid ${c}` : "1px solid var(--gray-300)",
                   backgroundColor: active ? c : "white",
-                  color: active ? "white" : "#324055",
+                  color: active ? "white" : "var(--gray-700)",
                   fontSize:"13px", fontWeight: active ? 700 : 600,
                 }}>
                   <FilterIcon type={f.id as DetType} color={c} active={active} />
@@ -1298,7 +1298,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
 
         {/* Camera grid */}
         {gridCams.length === 0 ? (
-          <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", color:"#94a3b8" }}>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", color:"var(--gray-400)" }}>
             <BulletCameraIcon />
             <span style={{ fontSize:"14px", fontWeight:600 }}>Select a camera</span>
           </div>
@@ -1310,7 +1310,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
               display:"grid",
               gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))`,
               gridTemplateRows: `repeat(${layout.rows}, minmax(0, 1fr))`,
-              gap:"1px", backgroundColor:"#e2e8f0", flex:1, minHeight:0,
+              gap:"1px", backgroundColor:"var(--gray-200)", flex:1, minHeight:0,
             }}>
               {orderedGridCams.map((cam) => {
                 // Synthesized deep-link tiles (see focusLocation handling above) have no CAM_DATA
@@ -1340,7 +1340,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                       onDetClick={handleDetClick}
                       onHeaderArrowClick={() => setDetailView({ camId: cam.id, data: camData, det: camData.detections[0] })}
                       sidePanelOnHover={layout.sidePanelOnHover}
-                      style={cam.id === highlightCamId ? { boxShadow: "inset 0 0 0 3px #5a3dfb", transition: "box-shadow 0.3s" } : undefined}
+                      style={cam.id === highlightCamId ? { boxShadow: "inset 0 0 0 3px var(--primary-400)", transition: "box-shadow 0.3s" } : undefined}
                     />
                   </div>
                 );
@@ -1348,9 +1348,9 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
               {/* Odd counts don't fill the grid evenly (e.g. 3 cams in a 2x2) — leave the
                   remainder as a plain placeholder slot rather than stretching a real feed. */}
               {Array.from({ length: emptySlots }).map((_, i) => (
-                <div key={`empty-${i}`} style={{ backgroundColor:"#f8fafc", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:"6px", color:"#cbd5e1" }}>
+                <div key={`empty-${i}`} style={{ backgroundColor:"var(--gray-50)", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:"6px", color:"var(--gray-300)" }}>
                   <BulletCameraIcon />
-                  <span style={{ fontSize:"10px", fontWeight:600, color:"#94a3b8" }}>Awaiting camera</span>
+                  <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Awaiting camera</span>
                 </div>
               ))}
             </div>

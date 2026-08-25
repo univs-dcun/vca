@@ -33,7 +33,7 @@ function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
     <svg width="34" height="62" viewBox="0 0 34 62" fill="none">
       <g filter={`url(#${filterId})`}>
         <path d="M3 1H19C25.6274 1 31 6.37258 31 13V45C31 51.6274 25.6274 57 19 57H3V1Z" fill="white"/>
-        <path d={trianglePath} fill="#475469"/>
+        <path d={trianglePath} fill="var(--gray-600)"/>
       </g>
       <defs>
         <filter id={filterId} x="0" y="0" width="34" height="62" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
@@ -317,9 +317,9 @@ export default function ClientLayout() {
                   }}
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 10L8 6L12 10" stroke="#0e162a" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M4 10L8 6L12 10" stroke="var(--gray-900)" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.24px", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.24px", whiteSpace: "nowrap" }}>
                     Detection topology
                   </span>
                 </button>

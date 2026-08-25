@@ -84,24 +84,24 @@ function statusMarkerHtml(zone: StatusZone): string {
   const isDashed = !!zone.cam;
 
   let bg: string, textColor: string, border: string;
-  if (zone.isAlert)  { bg = "#f43f5e"; textColor = "white";   border = ""; }
-  else if (isDark)   { bg = "#0e162a"; textColor = "white";   border = ""; }
-  else if (isDashed) { bg = "white";   textColor = "#64748a"; border = "border:1.5px dashed #cbd5e1;"; }
-  else               { bg = "white";   textColor = "#334155"; border = "border:1.5px solid #e2e8f0;"; }
+  if (zone.isAlert)  { bg = "var(--danger-400)"; textColor = "white";   border = ""; }
+  else if (isDark)   { bg = "var(--gray-900)"; textColor = "white";   border = ""; }
+  else if (isDashed) { bg = "white";   textColor = "var(--gray-500)"; border = "border:1.5px dashed var(--gray-300);"; }
+  else               { bg = "white";   textColor = "var(--gray-700)"; border = "border:1.5px solid var(--gray-200);"; }
 
   const camSvg = isDashed
     ? `<svg width="14" height="11" viewBox="0 0 14 11" fill="none" style="flex-shrink:0">
-        <path d="M1 1L13 10" stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round"/>
+        <path d="M1 1L13 10" stroke="var(--gray-400)" stroke-width="1.1" stroke-linecap="round"/>
         <path d="M6 1H2A1.5 1.5 0 0 0 0.5 2.5v5A1.5 1.5 0 0 0 2 9h9A1.5 1.5 0 0 0 11.5 7.5V5"
-              stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+              stroke="var(--gray-400)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M10 2L13.5 0.5V10L10 8.5"
-              stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+              stroke="var(--gray-400)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>`
     : "";
 
   const label  = isDashed ? zone.label : `${zone.label}&nbsp;&nbsp;${zone.count}`;
   const fw     = isDark || !!zone.isAlert ? 700 : 600;
-  const shadow = isDark || !!zone.isAlert ? "0 2px 10px rgba(0,0,0,0.2)" : "0 2px 6px rgba(0,0,0,0.08)";
+  const shadow = isDark || !!zone.isAlert ? "0 2px 10px rgba(14, 22, 42,0.2)" : "0 2px 6px rgba(14, 22, 42,0.08)";
 
   return `<div style="transform:translateX(-50%) translateY(-50%);display:inline-flex;align-items:center;
       gap:5px;background:${bg};${border}border-radius:999px;padding:5px 12px;
@@ -208,7 +208,7 @@ export default function RedmapMap({
         // Activity circles first (render behind labels)
         STATUS_ZONES.forEach((zone) => {
           if (!zone.cam && zone.count >= 20) {
-            const circleColor = zone.isAlert ? "#f43f5e" : "#818cf8";
+            const circleColor = zone.isAlert ? "var(--danger-400)" : "#818cf8";
             const circle = L.circle([zone.lat, zone.lng], {
               radius: 600 + zone.count * 12,
               color: "transparent",
@@ -259,7 +259,7 @@ export default function RedmapMap({
           .map((h, hitIndex) => ({ h, hitIndex }))
           .filter(({ h }) => (h.groupId ?? "__default__") === groupId && !h.hidden);
         if (groupHits.length === 0) return;
-        const color = groupHits[0].h.color ?? "#5a3dfb";
+        const color = groupHits[0].h.color ?? "var(--primary-400)";
 
         const nodes: RouteNode[] = isSingleGroup
           ? [
@@ -312,7 +312,7 @@ export default function RedmapMap({
                           font-family:'SUIT',sans-serif;font-size:14px;font-weight:700;color:white;box-shadow:0 0 0 10px ${hexToRgba(color, 0.15)}">${num}</div>`
             : `<div style="width:${size}px;height:${size}px;aspect-ratio:1/1;flex:none;border-radius:50%;background:white;border:2px solid ${color};display:flex;align-items:center;justify-content:center;
                           font-family:'SUIT',sans-serif;font-size:13px;font-weight:700;color:${color};
-                          transform:${isActive ? "scale(1.15)" : "scale(1)"};transition:transform 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.12)">${num}</div>`;
+                          transform:${isActive ? "scale(1.15)" : "scale(1)"};transition:transform 0.2s;box-shadow:0 2px 6px rgba(14, 22, 42,0.12)">${num}</div>`;
 
           if (!showCard) {
             const icon = L.divIcon({ html: circleHtml, iconSize: [size, size], iconAnchor: [size / 2, size / 2], className: "" });
@@ -331,7 +331,7 @@ export default function RedmapMap({
                   background:${color};border-radius:3px;transform:rotate(45deg);"></div>`
             : isLast
               ? bubbleTailHtml(tailCenterY, color, color) // solid arrow, group color, for the "LAST SEEN" card
-              : bubbleTailHtml(tailCenterY, "white", "#e2e8f0");
+              : bubbleTailHtml(tailCenterY, "white", "var(--gray-200)");
 
           const cardHtml = isLast
             ? `<div style="position:relative;font-family:'SUIT',sans-serif;filter:drop-shadow(0 4px 10px ${hexToRgba(color, 0.25)})">
@@ -342,16 +342,16 @@ export default function RedmapMap({
                      LAST SEEN
                    </div>
                    <div style="background:white;padding:8px 12px 10px;white-space:nowrap">
-                     <div style="font-size:15px;font-weight:800;color:#0e162a">${node.label}</div>
-                     <div style="font-size:13px;color:#64748a;margin-top:2px">${node.time}</div>
+                     <div style="font-size:15px;font-weight:800;color:var(--gray-900)">${node.label}</div>
+                     <div style="font-size:13px;color:var(--gray-500);margin-top:2px">${node.time}</div>
                    </div>
                  </div>
                </div>`
-            : `<div style="position:relative;background:white;border:1px solid #e2e8f0;border-radius:16px;padding:10px 14px;white-space:nowrap;
-                          font-family:'SUIT',sans-serif;box-shadow:0 4px 10px rgba(0,0,0,0.08);cursor:${hitIndex >= 0 ? "pointer" : "default"}">
+            : `<div style="position:relative;background:white;border:1px solid var(--gray-200);border-radius:16px;padding:10px 14px;white-space:nowrap;
+                          font-family:'SUIT',sans-serif;box-shadow:0 4px 10px rgba(14, 22, 42,0.08);cursor:${hitIndex >= 0 ? "pointer" : "default"}">
                  ${tailHtml}
-                 <div style="font-size:15px;font-weight:800;color:#0e162a">${node.label}</div>
-                 <div style="font-size:13px;color:#64748a;margin-top:2px">${node.time}</div>
+                 <div style="font-size:15px;font-weight:800;color:var(--gray-900)">${node.label}</div>
+                 <div style="font-size:13px;color:var(--gray-500);margin-top:2px">${node.time}</div>
                </div>`;
 
           const html = cardBelow
@@ -387,7 +387,7 @@ export default function RedmapMap({
           to { stroke-dashoffset: -18; }
         }
       `}</style>
-      <div ref={mapRef} style={{ width: "100%", height: "100%", position: "relative", backgroundColor: "#f1f5f9" }} />
+      <div ref={mapRef} style={{ width: "100%", height: "100%", position: "relative", backgroundColor: "var(--gray-100)" }} />
     </>
   );
 }

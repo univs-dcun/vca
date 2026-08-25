@@ -6,7 +6,7 @@ import AuthHeader from "@/components/AuthHeader";
 import { PersonFieldIcon, LockFieldIcon, EyeIcon, EyeOffIcon } from "@/components/AuthIcons";
 import { useVcaStore } from "@/lib/vcaStore";
 
-const FIELD_BORDER = "1px solid #ccd5e1";
+const FIELD_BORDER = "1px solid var(--gray-300)";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,28 +45,28 @@ export default function LoginPage() {
           display: "flex", flexDirection: "column", gap: "40px", alignItems: "center",
         }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", width: "100%" }}>
-            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "#1e293b", letterSpacing: "-0.52px", lineHeight: "40px" }}>Log in</h1>
-            <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#475569", letterSpacing: "-0.28px" }}>Welcome to VCA</p>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "var(--gray-800)", letterSpacing: "-0.52px", lineHeight: "40px" }}>Log in</h1>
+            <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.28px" }}>Welcome to VCA</p>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "32px", width: "100%" }}>
               {/* Email */}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                <label style={{ fontSize: "14px", fontWeight: 700, color: "#475469", letterSpacing: "-0.28px" }}>Email</label>
+                <label style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.28px" }}>Email</label>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "48px", padding: "8px", border: FIELD_BORDER, borderRadius: "8px" }}>
                   <PersonFieldIcon />
                   <input
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     placeholder="user@email.com"
-                    style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "#0e162a", letterSpacing: "-0.35px" }}
+                    style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-900)", letterSpacing: "-0.35px" }}
                   />
                 </div>
               </div>
               {/* Password */}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                <label style={{ fontSize: "14px", fontWeight: 700, color: "#475469", letterSpacing: "-0.28px" }}>Password</label>
+                <label style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.28px" }}>Password</label>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "48px", padding: "8px", border: FIELD_BORDER, borderRadius: "8px" }}>
                   <LockFieldIcon />
                   <input
@@ -74,7 +74,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="Please enter your password"
-                    style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "#0e162a", letterSpacing: "-0.35px" }}
+                    style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-900)", letterSpacing: "-0.35px" }}
                   />
                   <button onClick={() => setShowPassword(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                     {showPassword ? <EyeIcon /> : <EyeOffIcon />}
@@ -90,13 +90,13 @@ export default function LoginPage() {
                     type="checkbox"
                     checked={keepLoggedIn}
                     onChange={e => setKeepLoggedIn(e.target.checked)}
-                    style={{ width: "20px", height: "20px", accentColor: "#5a3dfb", cursor: "pointer" }}
+                    style={{ width: "20px", height: "20px", accentColor: "var(--primary-400)", cursor: "pointer" }}
                   />
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#475469", letterSpacing: "-0.24px" }}>Keep me logged in</span>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}>Keep me logged in</span>
                 </label>
                 <button
                   onClick={() => router.push("/password-setup")}
-                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "12px", fontWeight: 600, color: "#475469", letterSpacing: "-0.24px" }}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}
                 >
                   Forgot password?
                 </button>
@@ -107,8 +107,8 @@ export default function LoginPage() {
                 disabled={!canSubmit}
                 style={{
                   height: "48px", width: "100%", border: "none", borderRadius: "8px",
-                  backgroundColor: canSubmit ? "#5a3dfb" : "#f1f5f9",
-                  color: canSubmit ? "white" : "#94a3b8",
+                  backgroundColor: canSubmit ? "var(--primary-400)" : "var(--gray-100)",
+                  color: canSubmit ? "white" : "var(--gray-400)",
                   fontSize: "16px", fontWeight: 800, letterSpacing: "-0.32px",
                   cursor: canSubmit ? "pointer" : "default",
                   transition: "background-color 0.15s, color 0.15s",
@@ -116,11 +116,11 @@ export default function LoginPage() {
               >
                 Log in
               </button>
-              <p style={{ textAlign: "center", fontSize: "12px", fontWeight: 600, color: "#475469", letterSpacing: "-0.24px" }}>
+              <p style={{ textAlign: "center", fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}>
                 New organization?{" "}
                 <button
                   onClick={() => router.push("/signup")}
-                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "12px", fontWeight: 700, color: "#5a3dfb" }}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "12px", fontWeight: 700, color: "var(--primary-400)" }}
                 >
                   Sign up for Portal
                 </button>

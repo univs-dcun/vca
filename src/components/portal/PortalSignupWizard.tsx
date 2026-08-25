@@ -49,7 +49,7 @@ function isChannelCountValid(value: string): boolean {
 
 function FieldError({ text }: { text: string }) {
   if (!text) return null;
-  return <p style={{ fontSize: "10px", color: "#d91616", marginTop: "4px" }}>{text}</p>;
+  return <p style={{ fontSize: "10px", color: "var(--danger-500)", marginTop: "4px" }}>{text}</p>;
 }
 
 function BackLink({ label, onClick }: { label: string; onClick: () => void }) {
@@ -58,11 +58,11 @@ function BackLink({ label, onClick }: { label: string; onClick: () => void }) {
       onClick={onClick}
       style={{
         display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none",
-        cursor: "pointer", padding: 0, marginBottom: "16px", color: "#64748a", fontSize: "12px", fontWeight: 700,
+        cursor: "pointer", padding: 0, marginBottom: "16px", color: "var(--gray-500)", fontSize: "12px", fontWeight: 700,
       }}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-        <path d="M7.5 2.5L3 6L7.5 9.5" stroke="#64748a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M7.5 2.5L3 6L7.5 9.5" stroke="var(--gray-500)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
       {label}
     </button>
@@ -77,8 +77,8 @@ function ProgressPills({ current }: { current: SignupStep }) {
         return (
           <span key={p.key} style={{
             fontSize: "10px", fontWeight: 600, padding: "7px 14px", borderRadius: "14px",
-            backgroundColor: active ? "#5a3dfb" : "#f1f5f9",
-            color: active ? "white" : "#64748a", whiteSpace: "nowrap",
+            backgroundColor: active ? "var(--primary-400)" : "var(--gray-100)",
+            color: active ? "white" : "var(--gray-500)", whiteSpace: "nowrap",
           }}>
             {p.label}
           </span>
@@ -100,13 +100,13 @@ function StepCard({ children, width = 520 }: { children: React.ReactNode; width?
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <p style={{ fontSize: "12px", fontWeight: 700, color: "#475469", marginBottom: "6px" }}>{children}</p>;
+  return <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", marginBottom: "6px" }}>{children}</p>;
 }
 
 const inputStyle: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", height: "40px", padding: "0 13px",
   borderRadius: "10px", border: BORDER, backgroundColor: "white",
-  fontSize: "12px", fontWeight: 600, fontFamily: "inherit", color: "#0e162a",
+  fontSize: "12px", fontWeight: 600, fontFamily: "inherit", color: "var(--gray-900)",
 };
 
 export default function PortalSignupWizard() {
@@ -219,17 +219,17 @@ export default function PortalSignupWizard() {
   }, [step]);
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f8fafc", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "var(--gray-50)", display: "flex", flexDirection: "column" }}>
       <ProgressPills current={step} />
       <div style={{ flex: 1, display: "flex", justifyContent: "center", padding: "20px 24px 60px" }}>
 
         {step === "account" && (
           <StepCard>
             <BackLink label="Back to Login" onClick={() => router.push("/login")} />
-            <p style={{ fontSize: "18px", fontWeight: 800, color: "#0e162a" }}>Step 1 / 2 — Create Admin Account</p>
-            <p style={{ fontSize: "12px", color: "#64748a", marginTop: "4px" }}>This becomes your login ID and the master admin who receives system notifications.</p>
-            <div style={{ height: "4px", backgroundColor: "#f1f5f9", borderRadius: "2px", marginTop: "16px", marginBottom: "20px" }}>
-              <div style={{ height: "4px", width: "50%", backgroundColor: "#5a3dfb", borderRadius: "2px" }} />
+            <p style={{ fontSize: "18px", fontWeight: 800, color: "var(--gray-900)" }}>Step 1 / 2 — Create Admin Account</p>
+            <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "4px" }}>This becomes your login ID and the master admin who receives system notifications.</p>
+            <div style={{ height: "4px", backgroundColor: "var(--gray-100)", borderRadius: "2px", marginTop: "16px", marginBottom: "20px" }}>
+              <div style={{ height: "4px", width: "50%", backgroundColor: "var(--primary-400)", borderRadius: "2px" }} />
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
@@ -241,15 +241,15 @@ export default function PortalSignupWizard() {
                     onChange={e => { setEmail(e.target.value); setEmailChecked(false); setEmailTaken(false); }}
                     onBlur={() => markTouched("email")}
                     placeholder="e.g. hyejin@univs.ai"
-                    style={{ ...inputStyle, flex: 1, border: emailError ? "1px solid #d91616" : inputStyle.border }}
+                    style={{ ...inputStyle, flex: 1, border: emailError ? "1px solid var(--danger-500)" : inputStyle.border }}
                   />
                   <button
                     onClick={checkAvailability}
                     disabled={!email.trim()}
                     style={{
                       width: "124px", height: "40px", borderRadius: "999px", border: "none", flexShrink: 0,
-                      backgroundColor: emailChecked ? (emailTaken ? "#ffeaea" : "#f1f5f9") : "#0e162a",
-                      color: emailChecked ? (emailTaken ? "#d91616" : "#16a34a") : "white",
+                      backgroundColor: emailChecked ? (emailTaken ? "var(--danger-100)" : "var(--gray-100)") : "var(--gray-900)",
+                      color: emailChecked ? (emailTaken ? "var(--danger-500)" : "var(--success-400)") : "white",
                       fontSize: "12px", fontWeight: 700, cursor: email.trim() ? "pointer" : "not-allowed",
                     }}
                   >
@@ -267,12 +267,12 @@ export default function PortalSignupWizard() {
                   onChange={e => setPassword(e.target.value)}
                   onBlur={() => markTouched("password")}
                   placeholder="Letters, numbers & symbols, 8+ characters"
-                  style={{ ...inputStyle, border: passwordError ? "1px solid #d91616" : inputStyle.border }}
+                  style={{ ...inputStyle, border: passwordError ? "1px solid var(--danger-500)" : inputStyle.border }}
                 />
                 <FieldError text={passwordError} />
-                <div style={{ backgroundColor: "#f0f0ff", borderRadius: "10px", padding: "8px 14px", marginTop: "6px" }}>
-                  <p style={{ fontSize: "10px", fontWeight: 600, color: "#5a3dfb" }}>Password Requirements</p>
-                  <p style={{ fontSize: "10px", color: "#5a3dfb", marginTop: "2px" }}>Upper &amp; lowercase letters · at least 1 number · at least 1 symbol (@#$%) · minimum 8 characters</p>
+                <div style={{ backgroundColor: "var(--primary-100)", borderRadius: "10px", padding: "8px 14px", marginTop: "6px" }}>
+                  <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--primary-400)" }}>Password Requirements</p>
+                  <p style={{ fontSize: "10px", color: "var(--primary-400)", marginTop: "2px" }}>Upper &amp; lowercase letters · at least 1 number · at least 1 symbol (@#$%) · minimum 8 characters</p>
                 </div>
               </div>
 
@@ -284,7 +284,7 @@ export default function PortalSignupWizard() {
                   onChange={e => setConfirmPassword(e.target.value)}
                   onBlur={() => markTouched("confirmPassword")}
                   placeholder="Re-enter your password"
-                  style={{ ...inputStyle, border: confirmError ? "1px solid #d91616" : inputStyle.border }}
+                  style={{ ...inputStyle, border: confirmError ? "1px solid var(--danger-500)" : inputStyle.border }}
                 />
                 <FieldError text={confirmError} />
               </div>
@@ -296,7 +296,7 @@ export default function PortalSignupWizard() {
                   onChange={e => setFullName(e.target.value)}
                   onBlur={() => markTouched("fullName")}
                   placeholder="e.g. Hye Kim"
-                  style={{ ...inputStyle, border: nameError ? "1px solid #d91616" : inputStyle.border }}
+                  style={{ ...inputStyle, border: nameError ? "1px solid var(--danger-500)" : inputStyle.border }}
                 />
                 <FieldError text={nameError} />
               </div>
@@ -306,7 +306,7 @@ export default function PortalSignupWizard() {
               onClick={handleContinueStep1}
               style={{
                 width: "100%", height: "48px", marginTop: "24px", borderRadius: "999px", border: "none",
-                backgroundColor: "#0e162a", color: "white", fontSize: "14px", fontWeight: 700,
+                backgroundColor: "var(--gray-900)", color: "white", fontSize: "14px", fontWeight: 700,
                 cursor: "pointer", opacity: step1Valid ? 1 : 0.5,
               }}
             >
@@ -318,9 +318,9 @@ export default function PortalSignupWizard() {
         {step === "organization" && (
           <StepCard>
             <BackLink label="Back" onClick={() => setStep("account")} />
-            <p style={{ fontSize: "18px", fontWeight: 800, color: "#0e162a" }}>Step 2 / 2 — Set Up Your Organization</p>
-            <p style={{ fontSize: "12px", color: "#64748a", marginTop: "4px" }}>Create the top-level workspace that will contain all your projects.</p>
-            <div style={{ height: "4px", backgroundColor: "#5a3dfb", borderRadius: "2px", marginTop: "16px", marginBottom: "20px" }} />
+            <p style={{ fontSize: "18px", fontWeight: 800, color: "var(--gray-900)" }}>Step 2 / 2 — Set Up Your Organization</p>
+            <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "4px" }}>Create the top-level workspace that will contain all your projects.</p>
+            <div style={{ height: "4px", backgroundColor: "var(--primary-400)", borderRadius: "2px", marginTop: "16px", marginBottom: "20px" }} />
 
             <FieldLabel>Organization / Company Name *</FieldLabel>
             <div style={{ display: "flex", gap: "8px" }}>
@@ -329,14 +329,14 @@ export default function PortalSignupWizard() {
                 onChange={e => setOrgName(e.target.value)}
                 onBlur={() => markTouched2("orgName")}
                 placeholder="e.g. Universe Corporation"
-                style={{ ...inputStyle, flex: 1, border: orgNameError ? "1px solid #d91616" : inputStyle.border }}
+                style={{ ...inputStyle, flex: 1, border: orgNameError ? "1px solid var(--danger-500)" : inputStyle.border }}
               />
               <button
                 onClick={useSuggestedDomain}
                 disabled={!email.split("@")[1]}
                 style={{
                   width: "91px", height: "40px", borderRadius: "999px", border: "none", flexShrink: 0,
-                  backgroundColor: "#f0f0ff", color: "#5a3dfb", fontSize: "12px", fontWeight: 700,
+                  backgroundColor: "var(--primary-100)", color: "var(--primary-400)", fontSize: "12px", fontWeight: 700,
                   cursor: email.split("@")[1] ? "pointer" : "not-allowed",
                 }}
               >
@@ -345,7 +345,7 @@ export default function PortalSignupWizard() {
             </div>
             {orgNameError
               ? <FieldError text={orgNameError} />
-              : <p style={{ fontSize: "10px", color: "#94a3b8", marginTop: "6px" }}>Enter an organization name → the system will create your workspace automatically</p>}
+              : <p style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "6px" }}>Enter an organization name → the system will create your workspace automatically</p>}
 
             <div style={{ marginTop: "16px" }}>
               <FieldLabel>Primary Industry (optional)</FieldLabel>
@@ -355,8 +355,8 @@ export default function PortalSignupWizard() {
               </select>
             </div>
 
-            <div style={{ backgroundColor: "#f0f0ff", borderRadius: "10px", padding: "8px 14px", marginTop: "8px" }}>
-              <p style={{ fontSize: "10px", fontWeight: 600, color: "#5a3dfb" }}>💡 The domain you select here will be pre-highlighted as the template on the next [Create Project] screen.</p>
+            <div style={{ backgroundColor: "var(--primary-100)", borderRadius: "10px", padding: "8px 14px", marginTop: "8px" }}>
+              <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--primary-400)" }}>💡 The domain you select here will be pre-highlighted as the template on the next [Create Project] screen.</p>
             </div>
 
             <div style={{ marginTop: "16px" }}>
@@ -366,7 +366,7 @@ export default function PortalSignupWizard() {
                 onChange={e => setChannelCount(e.target.value)}
                 onBlur={() => markTouched2("channelCount")}
                 placeholder="e.g. 200 (optional — you can skip this for now)"
-                style={{ ...inputStyle, border: channelCountError ? "1px solid #d91616" : inputStyle.border }}
+                style={{ ...inputStyle, border: channelCountError ? "1px solid var(--danger-500)" : inputStyle.border }}
               />
               <FieldError text={channelCountError} />
             </div>
@@ -375,34 +375,34 @@ export default function PortalSignupWizard() {
               onClick={() => markTouched2("agreedToS")}>
               <span style={{
                 width: "16px", height: "16px", borderRadius: "4px", flexShrink: 0, marginTop: "1px",
-                border: tosError ? "1px solid #d91616" : agreedToS ? "1px solid #5a3dfb" : BORDER,
-                backgroundColor: agreedToS ? "#5a3dfb" : "white",
+                border: tosError ? "1px solid var(--danger-500)" : agreedToS ? "1px solid var(--primary-400)" : BORDER,
+                backgroundColor: agreedToS ? "var(--primary-400)" : "white",
                 display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "10px", fontWeight: 600,
               }}>
                 {agreedToS && "✓"}
               </span>
               <input type="checkbox" checked={agreedToS} onChange={e => setAgreedToS(e.target.checked)} style={{ display: "none" }} />
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#475469" }}>[Required] I agree to the Terms of Service and Privacy Policy.</span>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)" }}>[Required] I agree to the Terms of Service and Privacy Policy.</span>
             </label>
             <FieldError text={tosError} />
 
             <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginTop: "8px", cursor: "pointer" }}>
               <span style={{
                 width: "16px", height: "16px", borderRadius: "4px", flexShrink: 0, marginTop: "1px",
-                border: agreedMarketing ? "1px solid #5a3dfb" : BORDER, backgroundColor: agreedMarketing ? "#5a3dfb" : "white",
+                border: agreedMarketing ? "1px solid var(--primary-400)" : BORDER, backgroundColor: agreedMarketing ? "var(--primary-400)" : "white",
                 display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "10px", fontWeight: 600,
               }}>
                 {agreedMarketing && "✓"}
               </span>
               <input type="checkbox" checked={agreedMarketing} onChange={e => setAgreedMarketing(e.target.checked)} style={{ display: "none" }} />
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#475469" }}>[Optional] I&apos;d like to receive product updates and marketing emails.</span>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)" }}>[Optional] I&apos;d like to receive product updates and marketing emails.</span>
             </label>
 
             <button
               onClick={handleCompleteSignup}
               style={{
                 width: "100%", height: "48px", marginTop: "24px", borderRadius: "999px", border: "none",
-                backgroundColor: "#0e162a", color: "white", fontSize: "14px", fontWeight: 700,
+                backgroundColor: "var(--gray-900)", color: "white", fontSize: "14px", fontWeight: 700,
                 cursor: "pointer", opacity: step2Valid ? 1 : 0.5,
               }}
             >
@@ -415,23 +415,23 @@ export default function PortalSignupWizard() {
           <StepCard width={480}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
               <span style={{
-                width: "56px", height: "56px", borderRadius: "28px", backgroundColor: "#f0f0ff",
-                display: "flex", alignItems: "center", justifyContent: "center", color: "#5a3dfb", fontSize: "24px", fontWeight: 800,
+                width: "56px", height: "56px", borderRadius: "28px", backgroundColor: "var(--primary-100)",
+                display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary-400)", fontSize: "24px", fontWeight: 800,
               }}>
                 ✓
               </span>
-              <p style={{ fontSize: "18px", fontWeight: 800, color: "#0e162a", marginTop: "20px" }}>🎉 Welcome, {fullName || "there"}!</p>
-              <p style={{ fontSize: "12px", fontWeight: 600, color: "#64748a", marginTop: "12px", lineHeight: "18px" }}>
+              <p style={{ fontSize: "18px", fontWeight: 800, color: "var(--gray-900)", marginTop: "20px" }}>🎉 Welcome, {fullName || "there"}!</p>
+              <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-500)", marginTop: "12px", lineHeight: "18px" }}>
                 Your organization has been created.<br />Let&apos;s start your first AI surveillance project.
               </p>
-              <div style={{ width: "100%", backgroundColor: "#f0f0ff", borderRadius: "10px", padding: "11px 0", marginTop: "24px" }}>
-                <p style={{ fontSize: "12px", fontWeight: 700, color: "#5a3dfb", textAlign: "center" }}>→ Redirecting automatically to Create First Project</p>
+              <div style={{ width: "100%", backgroundColor: "var(--primary-100)", borderRadius: "10px", padding: "11px 0", marginTop: "24px" }}>
+                <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary-400)", textAlign: "center" }}>→ Redirecting automatically to Create First Project</p>
               </div>
               <button
                 onClick={goToFirstProject}
                 style={{
                   width: "100%", height: "48px", marginTop: "20px", borderRadius: "999px", border: "none",
-                  backgroundColor: "#0e162a", color: "white", fontSize: "14px", fontWeight: 700, cursor: "pointer",
+                  backgroundColor: "var(--gray-900)", color: "white", fontSize: "14px", fontWeight: 700, cursor: "pointer",
                 }}
               >
                 Start Creating Your Project
@@ -440,7 +440,7 @@ export default function PortalSignupWizard() {
                 onClick={goToDashboard}
                 style={{
                   width: "100%", height: "40px", marginTop: "10px", borderRadius: "999px", border: "none",
-                  backgroundColor: "transparent", color: "#64748a", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                  backgroundColor: "transparent", color: "var(--gray-500)", fontSize: "12px", fontWeight: 700, cursor: "pointer",
                 }}
               >
                 Skip for now — Go to Dashboard
