@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AuthHeader from "@/components/AuthHeader";
 import { PersonFieldIcon, LockFieldIcon, EyeIcon, EyeOffIcon } from "@/components/AuthIcons";
+import { useVcaStore } from "@/lib/vcaStore";
 
 const FIELD_BORDER = "1px solid #ccd5e1";
 
@@ -18,7 +19,20 @@ export default function LoginPage() {
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    router.push("/");
+    // No real backend yet — mock the post-login permission branch off the Portal user registry
+    // (see project-vca-auth-routing-plan memory) so Portal is reachable straight from login,
+    // not only via the VCA app's Navbar "Portal" switch-over item.
+    //
+    // HANDOFF NOTE: `password` is only checked for non-emptiness above (`canSubmit`) — it's never
+    // actually verified against anything, and no session token/cookie gets created here, so no
+    // route in the app is actually gated on being logged in. Left alone (rather than adding a mock
+    // session/middleware layer here) since src/app/portal/ has its own auth work already in
+    // progress — a real login needs to be wired up together with whatever session model that
+    // settles on, not built separately here and reconciled later.
+    const matchedUser = useVcaStore.getState().portalUsers.find(
+      u => u.email.toLowerCase() === email.trim().toLowerCase()
+    );
+    router.push(matchedUser?.permission === "admin" ? "/portal" : "/");
   };
 
   return (
@@ -31,7 +45,7 @@ export default function LoginPage() {
           display: "flex", flexDirection: "column", gap: "40px", alignItems: "center",
         }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", width: "100%" }}>
-            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "#1e293b", letterSpacing: "-0.52px", lineHeight: "40px" }}>Log In</h1>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "#1e293b", letterSpacing: "-0.52px", lineHeight: "40px" }}>Log in</h1>
             <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#475569", letterSpacing: "-0.28px" }}>Welcome to VCA</p>
           </div>
 
@@ -102,6 +116,15 @@ export default function LoginPage() {
               >
                 Log in
               </button>
+              <p style={{ textAlign: "center", fontSize: "12px", fontWeight: 600, color: "#475469", letterSpacing: "-0.24px" }}>
+                New organization?{" "}
+                <button
+                  onClick={() => router.push("/signup")}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "12px", fontWeight: 700, color: "#5a3dfb" }}
+                >
+                  Sign up for Portal
+                </button>
+              </p>
             </div>
           </div>
         </div>

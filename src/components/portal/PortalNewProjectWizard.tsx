@@ -1,0 +1,144 @@
+"use client";
+
+import { useState } from "react";
+import { useVcaStore, type ProjectType } from "@/lib/vcaStore";
+import { BORDER } from "./PortalShared";
+
+const TEMPLATES: { type: ProjectType; icon: string; title: string; description: string }[] = [
+  { type: "smart_city", icon: "/icons/portal-smart-city.png", title: "Smart City", description: "Urban road network & public area monitoring" },
+  { type: "smart_school", icon: "/icons/portal-smart-school.png", title: "Smart School", description: "Face recognition attendance & campus blind spots" },
+];
+
+interface PortalNewProjectWizardProps {
+  orgId: string;
+  onDeployed: (projectId: string) => void;
+  defaultType?: ProjectType;
+}
+
+export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType = "smart_city" }: PortalNewProjectWizardProps) {
+  const addProject = useVcaStore(s => s.addProject);
+  const [selectedType, setSelectedType] = useState<ProjectType>(defaultType);
+  const [name, setName] = useState("");
+  const [rtspUrl, setRtspUrl] = useState("");
+
+  const deploy = () => {
+    if (!name.trim() || !orgId) return;
+    const existingIds = new Set(useVcaStore.getState().projects.map(p => p.id));
+    addProject({ name: name.trim(), orgId, type: selectedType });
+    const created = useVcaStore.getState().projects.find(p => !existingIds.has(p.id));
+    onDeployed(created?.id ?? "");
+  };
+
+  return (
+    <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 24px" }}>
+      <span style={{
+        display: "flex", alignItems: "center", gap: "6px",
+        border: "1px solid #c7c4ff", backgroundColor: "white", borderRadius: "13px",
+        padding: "6px 14px", fontSize: "10px", fontWeight: 600, color: "#5a3dfb",
+      }}>
+        ● New Project Setup
+      </span>
+
+      <p style={{ fontSize: "26px", fontWeight: 800, color: "#0e162a", marginTop: "18px", textAlign: "center" }}>
+        Set Up Your New AI Monitoring Project
+      </p>
+      <p style={{ fontSize: "13px", color: "#64748a", marginTop: "6px", textAlign: "center", maxWidth: "560px" }}>
+        Welcome to the UniverseAI console. To get started, choose a solution template and fill in your project details.
+      </p>
+
+      <div style={{
+        backgroundColor: "white", border: BORDER, borderRadius: "20px",
+        width: "640px", maxWidth: "100%", boxSizing: "border-box", padding: "27px 32px 32px",
+        marginTop: "28px",
+      }}>
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "#475469", marginBottom: "12px" }}>1. Choose a Solution Template</p>
+        <div style={{ display: "flex", gap: "16px" }}>
+          {TEMPLATES.map(t => {
+            const selected = selectedType === t.type;
+            return (
+              <button
+                key={t.type}
+                onClick={() => setSelectedType(t.type)}
+                style={{
+                  position: "relative", flex: 1, textAlign: "left", cursor: "pointer",
+                  border: selected ? "1px solid #5a3dfb" : BORDER,
+                  backgroundColor: selected ? "#fafaff" : "white",
+                  borderRadius: "14px", padding: "10px 15px 14px", minHeight: "110px",
+                }}
+              >
+                {selected && (
+                  <span style={{
+                    position: "absolute", top: "-8px", right: "-8px",
+                    width: "24px", height: "24px", borderRadius: "50%",
+                    backgroundColor: "#5a3dfb", display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: "0 2px 4px rgba(90,61,251,0.3)",
+                  }}>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 6.5L4.5 8.5L9.5 3.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </span>
+                )}
+                <div style={{ width: "60px", height: "60px", borderRadius: "10px", overflow: "hidden", backgroundColor: "#f8fafc" }}>
+                  <img src={t.icon} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
+                <p style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", marginTop: "10px" }}>{t.title}</p>
+                <p style={{ fontSize: "12px", fontWeight: 600, color: "#64748a", marginTop: "4px", lineHeight: "16px" }}>{t.description}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ height: "1px", backgroundColor: "#f1f5f9", margin: "16px 0" }} />
+
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "#475469", marginBottom: "8px" }}>2. Project Name</p>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g. Guri City Smart School - Phase 3"
+          style={{
+            width: "100%", boxSizing: "border-box", height: "44px", padding: "0 13px",
+            borderRadius: "10px", border: BORDER, backgroundColor: "white",
+            fontSize: "13px", fontWeight: 600, fontFamily: "inherit", marginBottom: "16px",
+          }}
+        />
+
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "#475469", marginBottom: "8px" }}>3. Video Channel Stream (RTSP)</p>
+        <div style={{ display: "flex", gap: "16px" }}>
+          <input
+            value={rtspUrl}
+            onChange={e => setRtspUrl(e.target.value)}
+            placeholder="Enter your rtsp:// address"
+            style={{
+              flex: 1, boxSizing: "border-box", height: "44px", padding: "0 13px",
+              borderRadius: "10px", border: BORDER, backgroundColor: "white",
+              fontSize: "13px", fontWeight: 600, fontFamily: "inherit",
+            }}
+          />
+          <span style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: "84px", height: "44px", borderRadius: "10px", backgroundColor: "#0e162a",
+            color: "white", fontSize: "10px", fontWeight: 600, flexShrink: 0,
+          }}>
+            RTSP 1CH
+          </span>
+        </div>
+
+        <button
+          onClick={deploy}
+          disabled={!name.trim()}
+          style={{
+            width: "100%", height: "52px", marginTop: "16px", borderRadius: "999px", border: "none",
+            backgroundColor: "#5a3dfb", color: "white", fontSize: "14px", fontWeight: 700,
+            cursor: name.trim() ? "pointer" : "not-allowed", opacity: name.trim() ? 1 : 0.5,
+          }}
+        >
+          Deploy &amp; Start Monitoring
+        </button>
+      </div>
+
+      <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "24px", textAlign: "center" }}>
+        // You&apos;ll be redirected to the monitoring dashboard automatically after deployment
+      </p>
+    </div>
+  );
+}
