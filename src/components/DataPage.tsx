@@ -4,6 +4,7 @@ import type { MatchItem, ReIDStatus } from "@/types/reid";
 import { useVcaStore } from "@/lib/vcaStore";
 import { sgtDateKey } from "@/lib/time";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
+import RemoveImageButton from "./RemoveImageButton";
 
 const BORDER = "1px solid var(--gray-200)";
 export type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
@@ -642,13 +643,30 @@ function LiveSearchSidebar({
   const [uploadedBody, setUploadedBody] = useState<string | null>(null);
   const faceInputRef = useRef<HTMLInputElement>(null);
   const bodyInputRef = useRef<HTMLInputElement>(null);
+  // e.target.value is cleared so picking the SAME file again still fires onChange — without it,
+  // detaching an image and re-attaching the identical file silently did nothing. The previous
+  // blob is revoked on both replace and detach so it isn't held for the rest of the session.
   const handleFaceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setUploadedFace(URL.createObjectURL(file));
+    e.target.value = "";
+    if (!file) return;
+    if (uploadedFace) URL.revokeObjectURL(uploadedFace);
+    setUploadedFace(URL.createObjectURL(file));
   };
   const handleBodyUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setUploadedBody(URL.createObjectURL(file));
+    e.target.value = "";
+    if (!file) return;
+    if (uploadedBody) URL.revokeObjectURL(uploadedBody);
+    setUploadedBody(URL.createObjectURL(file));
+  };
+  const clearUploadedFace = () => {
+    if (uploadedFace) URL.revokeObjectURL(uploadedFace);
+    setUploadedFace(null);
+  };
+  const clearUploadedBody = () => {
+    if (uploadedBody) URL.revokeObjectURL(uploadedBody);
+    setUploadedBody(null);
   };
   const faceSrc = uploadedFace ?? target?.face ?? cardFace;
   const bodySrc = uploadedBody ?? target?.body ?? cardBody;
@@ -738,13 +756,15 @@ function LiveSearchSidebar({
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
               <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>Target face</span>
               <ImageDropzoneBox icon={<DefaultFaceIconSm />} label="Face" previewSrc={faceSrc} aspect="square"
-                onClick={() => faceInputRef.current?.click()} />
+                onClick={() => faceInputRef.current?.click()}
+                onClear={uploadedFace ? clearUploadedFace : undefined} />
               <input ref={faceInputRef} type="file" accept="image/*" onChange={handleFaceUpload} style={{ display:"none" }} />
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
               <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>Target body</span>
-              <ImageDropzoneBox icon={<FullBodyIconSm />} label="Full body" previewSrc={bodySrc} aspect="portrait"
-                onClick={() => bodyInputRef.current?.click()} />
+              <ImageDropzoneBox icon={<FullBodyIconSm />} label="Body" previewSrc={bodySrc} aspect="portrait"
+                onClick={() => bodyInputRef.current?.click()}
+                onClear={uploadedBody ? clearUploadedBody : undefined} />
               <input ref={bodyInputRef} type="file" accept="image/*" onChange={handleBodyUpload} style={{ display:"none" }} />
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
@@ -2207,8 +2227,12 @@ function ImageDropzoneHoverStyleTag() {
     `}</style>
   );
 }
-function ImageDropzoneBox({ icon, label, previewSrc, onClick, aspect }: {
-  icon: React.ReactNode; label: string; previewSrc?: string; onClick?: () => void; aspect?: "square"|"portrait";
+function ImageDropzoneBox({ icon, label, previewSrc, onClick, onClear, aspect }: {
+  icon: React.ReactNode; label: string; previewSrc?: string; onClick?: () => void;
+  /** Only passed when the preview is an image the USER attached — previewSrc also covers the
+   *  selected target's own photo, which there's nothing to detach from. */
+  onClear?: () => void;
+  aspect?: "square"|"portrait";
 }) {
   // aspect is opt-in (Live Monitoring's Photo tab, where face/body previews sit one above the
   // other and read clearer at their real proportions) — callers that don't pass it keep the
@@ -2233,6 +2257,9 @@ function ImageDropzoneBox({ icon, label, previewSrc, onClick, aspect }: {
         <span className="vca-dropzone-label" style={{ fontSize:"11px", color:"var(--gray-400)" }}>{label}</span>
         {onClick && hovered && <span style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)" }}>{previewSrc ? "Click to change" : "Click to upload"}</span>}
       </div>
+      {onClear && hovered && (
+        <RemoveImageButton label={`Remove ${label.toLowerCase()} image`} onRemove={onClear} />
+      )}
     </div>
   );
 }
@@ -2641,14 +2668,34 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   const [uploadedBody, setUploadedBody]     = useState<string|null>(null);
   const faceInputRef = useRef<HTMLInputElement>(null);
   const bodyInputRef = useRef<HTMLInputElement>(null);
+  // e.target.value is cleared so picking the SAME file again still fires onChange — without it,
+  // detaching an image and re-attaching the identical file silently did nothing. The previous
+  // blob is revoked on both replace and detach so it isn't held for the rest of the session.
   const handleFaceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setUploadedFace(URL.createObjectURL(file));
+    e.target.value = "";
+    if (!file) return;
+    if (uploadedFace) URL.revokeObjectURL(uploadedFace);
+    setUploadedFace(URL.createObjectURL(file));
   };
   const handleBodyUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setUploadedBody(URL.createObjectURL(file));
+    e.target.value = "";
+    if (!file) return;
+    if (uploadedBody) URL.revokeObjectURL(uploadedBody);
+    setUploadedBody(URL.createObjectURL(file));
   };
+  const clearUploadedFace = () => {
+    if (uploadedFace) URL.revokeObjectURL(uploadedFace);
+    setUploadedFace(null);
+  };
+  const clearUploadedBody = () => {
+    if (uploadedBody) URL.revokeObjectURL(uploadedBody);
+    setUploadedBody(null);
+  };
+  // These boxes fade their "click to change" hint in with CSS, but the detach button can't ride
+  // that: an opacity-0 button still swallows clicks, so it's mounted on hover instead of faded.
+  const [hoverImageBox, setHoverImageBox] = useState<"face"|"body"|null>(null);
 
   // Same cascade/toggle/mutual-exclusivity behavior as Re-ID Analysis and Smart Search — see
   // those for the rationale.
@@ -2796,7 +2843,8 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                 <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Search by image</span>
                 <ImageDropzoneHoverStyleTag />
                 <div style={{ display:"flex", gap:"10px" }}>
-                  <div onClick={() => faceInputRef.current?.click()} className="vca-image-dropzone-clickable" style={hasFace
+                  <div onClick={() => faceInputRef.current?.click()} className="vca-image-dropzone-clickable"
+                    onMouseEnter={() => setHoverImageBox("face")} onMouseLeave={() => setHoverImageBox(null)} style={hasFace
                     ? { flex:1, height:"84px", borderRadius:"8px", border:"1px solid var(--primary-300)", backgroundColor:"var(--primary-100)", overflow:"hidden", position:"relative", cursor:"pointer" }
                     : { flex:1, height:"84px", borderRadius:"8px", border:"1px dashed var(--gray-300)", backgroundColor:"white", cursor:"pointer",
                         display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px", color:"var(--gray-400)" }
@@ -2809,6 +2857,12 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                           backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
                           <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>Click to change</span>
                         </div>
+                        {uploadedBody && hoverImageBox === "body" && (
+                          <RemoveImageButton label="Remove body image" onRemove={clearUploadedBody} />
+                        )}
+                        {uploadedFace && hoverImageBox === "face" && (
+                          <RemoveImageButton label="Remove face image" onRemove={clearUploadedFace} />
+                        )}
                       </>
                     ) : (
                       <>
@@ -2819,7 +2873,8 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                     )}
                     <input ref={faceInputRef} type="file" accept="image/*" onChange={handleFaceUpload} style={{ display:"none" }} />
                   </div>
-                  <div onClick={() => bodyInputRef.current?.click()} className="vca-image-dropzone-clickable" style={hasBody
+                  <div onClick={() => bodyInputRef.current?.click()} className="vca-image-dropzone-clickable"
+                    onMouseEnter={() => setHoverImageBox("body")} onMouseLeave={() => setHoverImageBox(null)} style={hasBody
                     ? { flex:1, height:"84px", borderRadius:"8px", border:"1px solid var(--primary-300)", backgroundColor:"var(--primary-100)", overflow:"hidden", position:"relative", cursor:"pointer" }
                     : { flex:1, height:"84px", borderRadius:"8px", border:"1px dashed var(--gray-300)", backgroundColor:"white", cursor:"pointer",
                         display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px", color:"var(--gray-400)" }
@@ -2836,7 +2891,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                     ) : (
                       <>
                         <FullBodyIconSm />
-                        <span className="vca-dropzone-label" style={{ fontSize:"10px", color:"var(--gray-400)" }}>Full body</span>
+                        <span className="vca-dropzone-label" style={{ fontSize:"10px", color:"var(--gray-400)" }}>Body</span>
                         <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)", opacity:0 }}>Click to upload</span>
                       </>
                     )}

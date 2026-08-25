@@ -431,7 +431,6 @@ export default function MyPage() {
   const [showThresholdModal, setShowThresholdModal] = useState(false);
   const [sessionsTerminated, setSessionsTerminated] = useState(false);
   const [language, setLanguage] = useState("English");
-  const [timezone, setTimezone] = useState("SGT (UTC+8)");
   // Only one session is ever listed here (this mock has no other-device data to actually
   // terminate) — the confirmation is honest about that rather than pretending to have revoked
   // something. Auto-clears the same way BestFramePage's highlightCamId does.
@@ -561,10 +560,6 @@ export default function MyPage() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "0.006px" }}>Interface language</span>
                     <DropdownBtn value={language} options={["English", "한국어"]} onSelect={setLanguage} />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "0.006px" }}>Timezone</span>
-                    <DropdownBtn value={timezone} options={["SGT (UTC+8)", "UTC", "KST (UTC+9)"]} onSelect={setTimezone} />
                   </div>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "var(--gray-200)", width: "100%" }} />

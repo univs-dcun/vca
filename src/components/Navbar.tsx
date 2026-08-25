@@ -47,7 +47,6 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
   const { data: dashboardStats, error: dashboardStatsError } = useApiData(() => getDashboardStats(), []);
   const aiRunning = dashboardStatsError ? "—" : dashboardStats?.aiRunning ?? 0;
   const aiStopped = dashboardStatsError ? "—" : dashboardStats?.aiStopped ?? 0;
-  const timezone = dashboardStats?.timezone ?? "SGT";
   const location = dashboardStats?.location ?? "Singapore";
 
   const [sgNow, setSgNow] = useState<Date | null>(null);
@@ -248,8 +247,12 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
             </defs>
           </svg>
           <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--gray-900)", letterSpacing: "-0.26px", lineHeight: 1 }}>{currentDate}</span>
+          {/* No timezone label here on purpose. "SGT" isn't a widely-read abbreviation, and the
+              location chip to the left already says Singapore — which is the timezone, since
+              Singapore has exactly one. If this ever serves a second city, the fix is to make the
+              clock itself follow that city (see lib/time.ts, currently Asia/Singapore for every
+              date/hour bucket in the app) — not to re-add a label the clock doesn't honor. */}
           <span style={{ fontWeight: 700, fontSize: "13px", color: "var(--gray-900)", letterSpacing: "-0.26px", lineHeight: 1 }}>{currentTime}</span>
-          <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--gray-500)", letterSpacing: "-0.26px", lineHeight: 1 }}>{timezone}</span>
         </div>
 
         {/* Bell + Settings */}

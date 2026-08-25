@@ -362,7 +362,6 @@ export const dashboardStats = {
   availability: Math.round((liveDeviceCount / devices.length) * 1000) / 10,
   currentDate: "2026-07-02",
   currentTime: "16:32:15",
-  timezone: "SGT",
   location: "Singapore",
 };
 

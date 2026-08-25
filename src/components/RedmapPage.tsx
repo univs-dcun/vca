@@ -5,8 +5,10 @@ import RedmapMap, { TRACKING_ORIGIN } from "./RedmapMap";
 import type { RedmapMode as Mode, SimilarityLimit, HitResult, DateRange } from "@/types/redmap";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useToast } from "./Toast";
+import RemoveImageButton from "./RemoveImageButton";
 
 const BORDER = "1px solid var(--gray-200)";
+
 
 // Unlike BestFramePage's camera list (now sourced from the shared VIP_SIMULATION_CAMERAS pool —
 // see vcaStore.ts), these hits are intentionally hand-authored narrative content (specific face/
@@ -558,6 +560,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   const [activeNode, setActiveNode] = useState<number | null>(null);
   const [uploadFor, setUploadFor] = useState<"face" | "body" | null>(null);
   const [hoverUpload, setHoverUpload] = useState<"face" | "body" | null>(null);
+  // Separate from hoverUpload: that one drives the left panel's preview boxes, and sharing it
+  // would make hovering a toolbar chip light up the matching preview across the screen.
+  const [hoverChip, setHoverChip] = useState<"face" | "body" | null>(null);
   const [traceName, setTraceName] = useState<string | null>(null);
   const [timelineNewestFirst, setTimelineNewestFirst] = useState(true);
   // A sighting that's obviously a different person (see the X button on each trace node below)
@@ -605,9 +610,10 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // territory, rather than just defaulting there and letting the user slide back down.
   const BODY_ONLY_MIN_SIMILARITY = 75;
   const bodyOnly = mode === "person" && !!bodyFileKey && !faceFileKey;
-  // Only a body upload can newly create the body-only state (there's no way to remove a face once
-  // set short of Reset, which already puts similarity back at 70) — so the floor only needs
-  // enforcing right here, as a direct response to that upload, not as an effect watching for it.
+  // Two actions can newly create the body-only state: uploading a body with no face attached, and
+  // detaching the face while a body is still attached (see clearUpload). Both call this directly
+  // rather than an effect watching `bodyOnly`, so the floor is only ever applied in response to a
+  // deliberate action — never retroactively while the user is dragging the slider.
   const bumpSimilarityForBodyOnly = (hasFace: boolean) => {
     if (!hasFace) setSimilarity(s => s < BODY_ONLY_MIN_SIMILARITY ? BODY_ONLY_MIN_SIMILARITY : s);
   };
@@ -618,6 +624,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     if (!file) return;
     const url = URL.createObjectURL(file);
     const key = `${file.name}_${file.size}`;
+    // Replacing an image leaks the one it replaces unless the old blob is revoked here.
+    const previous = uploadFor === "face" ? faceImage : bodyImage;
+    if (previous) URL.revokeObjectURL(previous);
     if (uploadFor === "face") { setFaceImage(url); setFaceFileKey(key); }
     else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); bumpSimilarityForBodyOnly(!!faceImage); }
     setUploadFor(null);
@@ -631,9 +640,37 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     if (!file) return;
     const url = URL.createObjectURL(file);
     const key = `${file.name}_${file.size}`;
+    const previous = uploadFor === "face" ? faceImage : bodyImage;
+    if (previous) URL.revokeObjectURL(previous);
     if (uploadFor === "face") { setFaceImage(url); setFaceFileKey(key); }
     else if (uploadFor === "body") { setBodyImage(url); setBodyFileKey(key); bumpSimilarityForBodyOnly(!!faceImage); }
     setUploadFor(null);
+  };
+
+  // Detaching an attached image unsets the query, not just the preview: the file key has to go
+  // with it (handleSearch's "did you give me anything to search for" check and the result-set
+  // hash both key off the keys, not the preview URL), and the object URL is revoked so the blob
+  // isn't held for the rest of the session.
+  const clearUpload = (key: "face" | "body") => {
+    const url = key === "face" ? faceImage : bodyImage;
+    if (url) URL.revokeObjectURL(url);
+    if (key === "face") {
+      setFaceImage(null);
+      setFaceFileKey(null);
+      // Dropping the face while a body is still attached lands on a body-only search, which
+      // before this control could only be reached by uploading a body — so the similarity floor
+      // has to be enforced from here too.
+      if (bodyFileKey) bumpSimilarityForBodyOnly(false);
+    } else {
+      setBodyImage(null);
+      setBodyFileKey(null);
+    }
+    // Detaching the LAST image leaves nothing to search for, so the previous run's results and
+    // route come down with it — a map still tracing a query the user just withdrew reads as the
+    // current answer. Not routed through "0 results" either: that says the search came back
+    // empty, when in fact there is no longer a search at all. Back to the landing state.
+    const remaining = key === "face" ? bodyImage : faceImage;
+    if (!remaining) clearSearchOutcome();
   };
 
   const handleSearch = () => {
@@ -689,6 +726,19 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     setTraceName(null);
   };
 
+  // Everything describing the OUTCOME of a search, as opposed to the query settings
+  // (mode / similarity / date range) which are the user's own configuration and survive.
+  // Shared by Reset and by detaching the last attached image.
+  const clearSearchOutcome = () => {
+    setResults(MOCK_RESULTS);
+    setHasSearched(false);
+    setActiveHit(null);
+    setActiveNode(null);
+    setSelectedPersonIds(new Set());
+    setTraceName(null);
+    setExcludedHitIds(new Set());
+  };
+
   const handleReset = () => {
     setMode("person");
     setSimilarity(70);
@@ -698,13 +748,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     setBodyImage(null);
     setFaceFileKey(null);
     setBodyFileKey(null);
-    setResults(MOCK_RESULTS);
-    setHasSearched(false);
-    setActiveHit(null);
-    setActiveNode(null);
-    setSelectedPersonIds(new Set());
-    setTraceName(null);
-    setExcludedHitIds(new Set());
+    clearSearchOutcome();
   };
 
   const handleHitClick = (index: number) => {
@@ -727,6 +771,11 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // results, so it should appear as soon as a search has run — not only once a specific
   // result is clicked. A search that came back with no hits has nothing to trace.
   const trackingActive = hasSearched && results.length > 0;
+  // An attached image is enough to open the left panel, before any search has run — otherwise the
+  // only handle on an attached image is the toolbar chip, whose hover is delete-only, so swapping
+  // one out meant detaching and re-attaching. With the panel open its preview offers
+  // click-to-change directly.
+  const hasSearchTargets = mode === "person" && !!(faceImage || bodyImage);
 
   // Distinct people in the CURRENT results, in first-appearance order. Chips only render when
   // there's more than one — a single person's own sightings don't need disambiguating, and
@@ -896,36 +945,71 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
               {([
                 { key: "face" as const, label: "Face", image: faceImage },
-                { key: "body" as const, label: "Full body", image: bodyImage },
+                { key: "body" as const, label: "Body", image: bodyImage },
               ]).map(({ key, label, image }) => {
                 const active = !!image;
                 const uploading = uploadFor === key;
                 const highlighted = active || uploading;
                 const iconColor = highlighted ? "var(--gray-700)" : "var(--gray-400)";
                 return (
-                  <button
+                  // A wrapper, not a plain button: in the loaded state a hover overlay sits on
+                  // top offering "delete", and that overlay has to be its own button — which can't
+                  // nest inside one. The pill's own border/background live out here so the overlay
+                  // can clip to the same rounded shape.
+                  <div
                     key={key}
-                    onClick={() => setUploadFor(key)}
+                    onMouseEnter={() => setHoverChip(key)}
+                    onMouseLeave={() => setHoverChip(null)}
                     style={{
-                      height: "36px", padding: "0 12px", borderRadius: "999px",
+                      position: "relative", height: "36px", borderRadius: "999px", overflow: "hidden",
                       border: `1px dashed ${highlighted ? "var(--primary-400)" : "var(--gray-400)"}`,
                       backgroundColor: highlighted ? "var(--primary-100)" : "white",
-                      cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", flexShrink: 0,
+                      display: "flex", alignItems: "center", flexShrink: 0,
                     }}
                   >
-                    <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 700, color: "var(--gray-700)", whiteSpace: "nowrap" }}>
-                      {key === "face" ? <FaceIcon color={iconColor} /> : <BodyIcon color={iconColor} />} {label}
-                    </span>
-                    {active ? (
-                      <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 600, color: "var(--primary-400)", whiteSpace: "nowrap" }}>
-                        <CheckIconSm /> Loaded
+                    <button
+                      onClick={() => setUploadFor(key)}
+                      style={{
+                        height: "100%", padding: "0 12px", background: "none", border: "none",
+                        cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
+                      }}
+                    >
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 700, color: "var(--gray-700)", whiteSpace: "nowrap" }}>
+                        {key === "face" ? <FaceIcon color={iconColor} /> : <BodyIcon color={iconColor} />} {label}
                       </span>
-                    ) : (
-                      <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", whiteSpace: "nowrap" }}>
-                        Search by image
-                      </span>
+                      {active ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 600, color: "var(--primary-400)", whiteSpace: "nowrap" }}>
+                          <CheckIconSm /> Loaded
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", whiteSpace: "nowrap" }}>
+                          Search by image
+                        </span>
+                      )}
+                    </button>
+                    {/* Loaded state, on hover: the whole pill becomes "delete". Detach is the only
+                        action offered here — pairing it with a "change" half made one small chip
+                        carry two competing targets. Swapping an image is delete, then attach
+                        again; the left panel's preview still offers click-to-change directly once
+                        a search has run. */}
+                    {active && hoverChip === key && (
+                      <button
+                        onClick={() => clearUpload(key)}
+                        aria-label={`Remove ${label.toLowerCase()} image`}
+                        style={{
+                          position: "absolute", inset: 0, border: "none", cursor: "pointer",
+                          backgroundColor: "rgba(14, 22, 42, 0.55)",
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                          fontSize: "12px", fontWeight: 700, color: "white",
+                        }}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                          <path d="M2 2L9 9M9 2L2 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                        </svg>
+                        delete
+                      </button>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -1017,9 +1101,11 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
       {/* ── Main 3-column area (always visible) ── */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
 
-        {/* LEFT: Search Targets + Search Results — only mounts once a search has actually run;
+        {/* LEFT: Search Targets + Search Results. Mounts as soon as there's an attached image to
+            preview, not only after a search — the results half stays hidden until a search runs.
+            Originally gated on hasSearched alone;
             the landing state is just the search bar + full-width map, no side panels. */}
-        {hasSearched && (
+        {(hasSearched || hasSearchTargets) && (
         <div style={{
           width: "320px", backgroundColor: "white", borderRight: BORDER,
           display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden",
@@ -1032,7 +1118,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           <div className="vca-thin-scrollbar" style={{ flex: 1, overflow: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
 
             {/* ── Search Targets (read-only preview of the uploaded face/body) ── */}
-            {mode === "person" && (faceImage || bodyImage) && (
+            {hasSearchTargets && (
               <>
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   <h3 style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>Search targets</h3>
@@ -1075,15 +1161,27 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                               </span>
                             </div>
                           )}
+                          {/* Change is the box's own click; detaching needs its own target, so it
+                              sits in the corner rather than competing for the same hit area. */}
+                          {image && hoverUpload === key && (
+                            <RemoveImageButton
+                              label={`Remove ${key} image`}
+                              onRemove={() => clearUpload(key)}
+                            />
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div style={{ height: "1px", backgroundColor: "var(--gray-200)" }} />
+                {hasSearched && <div style={{ height: "1px", backgroundColor: "var(--gray-200)" }} />}
               </>
             )}
 
+            {/* The results half — header, person chips, grid. Held back until a search has
+                actually run; before that the panel is just the target preview above.
+                Left un-indented rather than shifted a hundred-odd lines for one wrapper. */}
+            {hasSearched && (<>
             {/* ── Search Results header ── */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <h3 style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>Search results</h3>
@@ -1216,6 +1314,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 })}
               </div>
             )}
+            </>)}
           </div>
 
           {hasSearched && results.length > 0 && (
