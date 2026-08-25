@@ -1125,7 +1125,7 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
           // genuinely low (<50%), not a fixed purple regardless of value.
           <div style={{
             width:"38px", height:"38px", borderRadius:"10px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-            backgroundColor: availability < 50 ? "var(--danger-100)" : "var(--gray-100)", border: availability < 50 ? "1px solid #fecdd3" : "1px solid var(--gray-200)",
+            backgroundColor: availability < 50 ? "var(--danger-100)" : "var(--gray-100)", border: availability < 50 ? "1px solid var(--danger-200)" : "1px solid var(--gray-200)",
           }}>
             <span style={{ fontSize:"10px", fontWeight:600, color: availability < 50 ? "var(--danger-400)" : "var(--gray-400)", letterSpacing:"0.3px" }}>AVAIL</span>
             <span style={{ fontSize:"13px", fontWeight:700, color: availability < 50 ? "var(--danger-400)" : "var(--gray-400)", lineHeight:1 }}>{availability}%</span>
@@ -1162,7 +1162,7 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
                 <div key={device.id}
                   onMouseEnter={e => handleMouseEnter(e, device.id, device)}
                   onClick={() => onPinDevice?.(isPinned ? null : device)}
-                  style={{ width:"40px", height:"40px", borderRadius:"10px", backgroundColor: isLive ? "var(--gray-900)" : "var(--gray-50)", border: isLive ? "1px solid var(--gray-700)" : "1px solid #fecdd3", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", flexShrink:0,
+                  style={{ width:"40px", height:"40px", borderRadius:"10px", backgroundColor: isLive ? "var(--gray-900)" : "var(--gray-50)", border: isLive ? "1px solid var(--gray-700)" : "1px solid var(--danger-200)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", flexShrink:0,
                     boxShadow: isPinned ? "0 0 0 2px var(--primary-400)" : "none" }}>
                   <span style={{ fontSize:"10px", fontWeight:600, color: isLive ? "white" : "var(--danger-400)", fontFamily:"monospace", textAlign:"center" }}>{device.name}</span>
                   <div style={{ position:"absolute", bottom:"3px", right:"3px", width:"6px", height:"6px", borderRadius:"50%", backgroundColor: isLive ? "var(--success-400)" : "var(--danger-400)" }} />
@@ -1185,7 +1185,7 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
           return (
             <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"210px", backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(14, 22, 42,0.12)", pointerEvents:"none" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:"8px", marginBottom:"8px", borderBottom:"1px solid var(--gray-100)" }}>
-                <span style={{ fontSize:"10px", fontWeight:800, color: event.type==="VIP" ? "var(--primary-400)" : "var(--type-tracking)", backgroundColor: event.type==="VIP" ? "var(--primary-100)" : "#f6f9ec", padding:"2px 6px", borderRadius:"4px" }}>
+                <span style={{ fontSize:"10px", fontWeight:800, color: event.type==="VIP" ? "var(--primary-400)" : "var(--type-tracking)", backgroundColor: event.type==="VIP" ? "var(--primary-100)" : "var(--type-tracking-100)", padding:"2px 6px", borderRadius:"4px" }}>
                   {event.type==="VIP" ? `VIP · ${event.confidence}%` : "TRACKING"}
                 </span>
                 <span style={{ fontSize:"10px", color:"var(--gray-400)" }}>{formatTimeAgo(event.timestamp)}</span>

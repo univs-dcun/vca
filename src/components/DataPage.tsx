@@ -3071,12 +3071,12 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
             backgroundColor: r.meta?.bg ?? "var(--primary-100)", borderBottom: r.key !== tierRows[tierRows.length-1]?.key ? "1px solid rgba(14, 22, 42,0.05)" : "none",
             display:"flex", alignItems:"flex-start", justifyContent:"space-between", padding:"24px 24px 0", boxSizing:"border-box" }}>
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
-              backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.8)", color: r.meta?.labelColor ?? "#818cf8",
+              backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.8)", color: r.meta?.labelColor ?? "var(--primary-300)",
               padding:"4px 8px", borderRadius:"4px" }}>
               {r.meta?.label ?? "APEX · PRIMARY TARGET ZONE"}
             </span>
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
-              backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.8)", color: r.meta?.labelColor ?? "#818cf8",
+              backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.8)", color: r.meta?.labelColor ?? "var(--primary-300)",
               padding:"4px 8px", borderRadius:"4px" }}>
               {r.meta?.sublabel ?? "CENTRAL TARGET PROFILE"}
             </span>
@@ -3318,7 +3318,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
 
       <div style={{ display:"flex", gap:"8px" }}>
         <button onClick={onExclude} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
-          padding:"9px 8px", borderRadius:"6px", border:"1px solid #fecdd3", cursor:"pointer",
+          padding:"9px 8px", borderRadius:"6px", border:"1px solid var(--danger-200)", cursor:"pointer",
           backgroundColor:"white", color:"var(--danger-400)", fontSize:"11px", fontWeight:700 }}>
           <XCircleSmallIconSm /> Exclude false positive
         </button>

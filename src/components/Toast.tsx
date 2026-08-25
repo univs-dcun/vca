@@ -18,7 +18,7 @@ interface ToastItem extends ToastOptions {
 
 const VARIANT_STYLES: Record<ToastVariant, { bg: string; border: string; title: string; desc: string }> = {
   default: { bg: "var(--gray-50)", border: "var(--gray-200)", title: "var(--gray-900)", desc: "var(--gray-600)" },
-  success: { bg: "var(--success-100)", border: "#aed7bc", title: "var(--success-400)", desc: "var(--success-400)" },
+  success: { bg: "var(--success-100)", border: "var(--success-200)", title: "var(--success-400)", desc: "var(--success-400)" },
   info:    { bg: "var(--info-100)", border: "var(--info-200)", title: "var(--info-500)", desc: "var(--info-500)" },
   warning: { bg: "var(--warning-100)", border: "var(--warning-300)", title: "var(--warning-500)", desc: "var(--warning-500)" },
   error:   { bg: "var(--danger-100)", border: "var(--danger-400)", title: "var(--danger-400)", desc: "var(--danger-400)" },

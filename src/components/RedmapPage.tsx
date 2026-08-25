@@ -1161,7 +1161,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
                   <circle cx="12" cy="12" r="8" stroke="var(--gray-200)" strokeWidth="2" />
                   <path d="M18 18L25 25" stroke="var(--gray-200)" strokeWidth="2" strokeLinecap="round" />
-                  <path d="M9 9l6 6M15 9l-6 6" stroke="#fda4af" strokeWidth="1.6" strokeLinecap="round" />
+                  <path d="M9 9l6 6M15 9l-6 6" stroke="var(--danger-200)" strokeWidth="1.6" strokeLinecap="round" />
                 </svg>
                 <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "var(--gray-400)" }}>
                   <strong style={{ color: "var(--gray-700)" }}>No matching sightings found.</strong><br />
@@ -1400,7 +1400,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                   title="Not the same person — remove from this trace"
                                   style={{
                                     width: "22px", height: "22px", borderRadius: "999px", flexShrink: 0,
-                                    border: "1px solid #fecdd3", backgroundColor: "var(--danger-100)",
+                                    border: "1px solid var(--danger-200)", backgroundColor: "var(--danger-100)",
                                     display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
                                   }}
                                 >

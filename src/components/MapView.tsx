@@ -109,7 +109,7 @@ function districtPillHtml(label: string, count: number, hasOnlineCamera: boolean
 
 function getPopupHTML(event: LiveEvent): string {
   const typeColor = event.type === "VIP" ? "var(--primary-400)" : "var(--type-tracking)";
-  const typeBg = event.type === "VIP" ? "var(--primary-50)" : "#f6f9ec";
+  const typeBg = event.type === "VIP" ? "var(--primary-50)" : "var(--type-tracking-100)";
   const photoUrl = getFacePhoto(event.id);
   const vipBadge = event.type === "VIP"
     ? `<div style="background:var(--primary-50);border-radius:10px;padding:2px 8px;display:flex;align-items:center;gap:3px;flex-shrink:0">
@@ -157,7 +157,7 @@ function getPopupHTML(event: LiveEvent): string {
         </div>
         <div style="text-align:center">
           <div style="width:60px;height:60px;border-radius:8px;background:var(--info-200);display:flex;align-items:center;justify-content:center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="#818cf8" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7" r="4" stroke="#818cf8" stroke-width="2"/></svg>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="var(--primary-300)" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7" r="4" stroke="var(--primary-300)" stroke-width="2"/></svg>
           </div>
           <span style="font-size:10px;color:var(--gray-400);display:block;margin-top:4px;letter-spacing:-0.2px">Registered</span>
         </div>

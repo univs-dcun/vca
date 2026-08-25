@@ -208,7 +208,7 @@ export default function RedmapMap({
         // Activity circles first (render behind labels)
         STATUS_ZONES.forEach((zone) => {
           if (!zone.cam && zone.count >= 20) {
-            const circleColor = zone.isAlert ? "var(--danger-400)" : "#818cf8";
+            const circleColor = zone.isAlert ? "var(--danger-400)" : "var(--primary-300)";
             const circle = L.circle([zone.lat, zone.lng], {
               radius: 600 + zone.count * 12,
               color: "transparent",
