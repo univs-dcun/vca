@@ -3541,7 +3541,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           the label has to say the value is the commonest one. The pin/sun/moon glyphs went with the
           stat tiles — in a key/value row the label already says what kind of thing the value is. */}
       <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-        <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지">Capture pattern</PanelHeading>
+        <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지">Relationship analytics</PanelHeading>
         <div style={{ paddingTop:"2px" }}>
           <DetailRow label="Status" value={
             <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
