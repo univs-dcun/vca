@@ -3399,7 +3399,9 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-const TIMELINE_PAGE_SIZE = 10;
+// 5, not 10: with every frame rendered a page of ten scrolled nearly 3000px, which makes the
+// pager decorative — you'd scroll past it before using it.
+const TIMELINE_PAGE_SIZE = 5;
 
 /**
  * Page numbers with gaps: first, last, and a window around the current page. A tier-1 pair can
@@ -3468,7 +3470,6 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
   const lastSeen = sortedByDate[sortedByDate.length - 1];
   const newestFirst = [...sortedByDate].reverse();
 
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
   const [page, setPage] = useState(1);
   // Picking a different associate keeps this panel mounted, so page 7 of the last pair's timeline
   // would carry over into a pair that may only have one page. Compare during render rather than in
@@ -3477,7 +3478,6 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
   if (pagedNodeId !== node.id) {
     setPagedNodeId(node.id);
     setPage(1);
-    setExpandedIdx(0);
   }
 
   const pageCount = Math.max(1, Math.ceil(newestFirst.length / TIMELINE_PAGE_SIZE));
@@ -3570,54 +3570,42 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
           {pageRows.map((e, i) => {
             const rowIdx = pageStart + i;
-            const open = expandedIdx === rowIdx;
             return (
+              /* No accordion. Opening rows one at a time made the frame — the only thing in the
+                 row that carries evidence — the thing you had to go looking for, and hid nine of
+                 ten frames on every page. Fewer rows per page pays for it. */
               <div key={rowIdx} style={{ border:BORDER, borderRadius:"8px", overflow:"hidden" }}>
-                <button onClick={() => setExpandedIdx(open ? null : rowIdx)} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
-                  gap:"8px", padding:"9px 12px", background: open ? "var(--gray-50)" : "white", border:"none", cursor:"pointer" }}>
-                  <span style={{ display:"flex", alignItems:"center", gap:"8px", minWidth:0 }}>
-                    <span style={{ fontSize:"11px", fontWeight:700, color:"var(--gray-900)", whiteSpace:"nowrap" }}>{e.date} {e.time}</span>
-                    <span style={{ fontSize:"10px", color:"var(--gray-400)", whiteSpace:"nowrap" }}>{e.camCode}</span>
+                <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between",
+                  gap:"8px", padding:"9px 12px 8px" }}>
+                  {/* The place name is the one thing in this row a person reads rather than scans,
+                      so it carries the weight of the analytics values (12/700). The camera code
+                      isn't repeated here — the frame's own overlay already stamps it. */}
+                  <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"12px", fontWeight:700, color:"var(--gray-800)", minWidth:0 }}>
+                    <CameraGlyph size={13} /> {e.location}
                   </span>
-                  <span style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
-                    <span style={{ display:"flex", color:"var(--gray-400)", transform: open ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}><ChevronDownIconSm /></span>
+                  <span style={{ fontSize:"11px", color:"var(--gray-500)", whiteSpace:"nowrap", flexShrink:0 }}>{e.date} {e.time}</span>
+                </div>
+                {/* One frame with both people boxed. An associate co-appearance IS a shared frame,
+                    so every row has one to show, and the box positions are the only thing that says
+                    where each stood. Scene still is the one Best Frame uses for its camera feeds. */}
+                <div style={{ position:"relative", margin:"0 12px 12px", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
+                  <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
+                  <span style={{ position:"absolute", top:6, left:6, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", letterSpacing:"0.4px" }}>
+                    {e.camCode} · {e.time}
                   </span>
-                </button>
-                {/* 8px of top padding, not 0: the camera line sat flush against the row button
-                    above it, so the expanded body read as a continuation of the header rather than
-                    its own block. */}
-                {open && (
-                  <div style={{ padding:"8px 12px 12px", display:"flex", flexDirection:"column", gap:"8px" }}>
-                    {/* The place name is the one thing in this row a person reads rather than
-                        scans, so it carries the weight of the analytics values (12/700) instead of
-                        sitting at the 11px caption size the camera code uses. */}
-                    <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"12px", fontWeight:700, color:"var(--gray-800)" }}>
-                      <CameraGlyph size={13} /> {e.location}
-                    </span>
-                    {/* One frame with both people boxed. There is no second rendering any more —
-                        an associate co-appearance IS a shared frame, so every row has one to show,
-                        and the box positions are the only thing that says where each stood. Scene
-                        still is the one Best Frame uses for its camera feeds. */}
-                    <div style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
-                      <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
-                      <span style={{ position:"absolute", top:6, left:6, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", letterSpacing:"0.4px" }}>
-                        {e.camCode} · {e.time}
+                  {[
+                    { label:"TARGET", color:"var(--primary-400)", left:e.boxLeft },
+                    { label:assocId(node), color:"var(--danger-400)", left:e.boxLeft + 17 },
+                  ].map(box => (
+                    <div key={box.label} style={{ position:"absolute", left:`${box.left}%`, top:"34%", width:"14%", height:"44%",
+                      border:`2px solid ${box.color}`, borderRadius:"2px" }}>
+                      <span style={{ position:"absolute", bottom:"100%", left:-2, marginBottom:"2px", whiteSpace:"nowrap",
+                        fontSize:"8px", fontWeight:800, color:"white", backgroundColor:box.color, padding:"1px 4px", borderRadius:"2px" }}>
+                        {box.label}
                       </span>
-                      {[
-                        { label:"TARGET", color:"var(--primary-400)", left:e.boxLeft },
-                        { label:assocId(node), color:"var(--danger-400)", left:e.boxLeft + 17 },
-                      ].map(box => (
-                        <div key={box.label} style={{ position:"absolute", left:`${box.left}%`, top:"34%", width:"14%", height:"44%",
-                          border:`2px solid ${box.color}`, borderRadius:"2px" }}>
-                          <span style={{ position:"absolute", bottom:"100%", left:-2, marginBottom:"2px", whiteSpace:"nowrap",
-                            fontSize:"8px", fontWeight:800, color:"white", backgroundColor:box.color, padding:"1px 4px", borderRadius:"2px" }}>
-                            {box.label}
-                          </span>
-                        </div>
-                      ))}
                     </div>
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
             );
           })}
@@ -3625,7 +3613,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         {/* Only when there is somewhere to go — a pair with 6 co-captures fits on one page, and a
             lone "1" button below it just looks broken. */}
         {pageCount > 1 && (
-          <TimelinePager page={safePage} pageCount={pageCount} onPage={(p) => { setPage(p); setExpandedIdx(null); }} />
+          <TimelinePager page={safePage} pageCount={pageCount} onPage={setPage} />
         )}
       </div>
     </div>
