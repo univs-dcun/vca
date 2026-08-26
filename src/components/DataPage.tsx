@@ -3688,7 +3688,9 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
         onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFilterCollapsed(c => !c); } }}
         style={{
           position:"absolute", top:"50%", left: filterCollapsed ? "-3px" : "277px", transform:"translateY(-50%)",
-          zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
+          // Above the graph and its own overlays (5-20), below the primary-target picker's
+          // backdrop (50) — at 100 the handle floated on top of that dialog.
+          zIndex:30, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
         }}
       >
         <SidebarToggleIcon collapsed={filterCollapsed} />
