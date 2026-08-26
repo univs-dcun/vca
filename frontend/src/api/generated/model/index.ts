@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.6.0
+ * OpenAPI spec version: 0.7.0
  */
 
 export * from './analysisTags';
@@ -81,6 +81,18 @@ export * from './personSearchHit';
 export * from './personSearchHitMatchedVip';
 export * from './personSearchResponse';
 export * from './personSearchResult';
+export * from './reidMatch';
+export * from './reidMatchAttributes';
+export * from './reidMatchGender';
+export * from './reidMatchMatchedVip';
+export * from './reidSearchPersonsApparelItem';
+export * from './reidSearchPersonsBody';
+export * from './reidSearchPersonsGender';
+export * from './reidSearchPersonsParams';
+export * from './reidSearchPersonsPropsItem';
+export * from './reidSearchResponse';
+export * from './reidSearchResult';
+export * from './reidSearchResultApplied';
 export * from './searchPersonsBody';
 export * from './searchPersonsParams';
 export * from './sizeParameter';

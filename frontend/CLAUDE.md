@@ -85,6 +85,21 @@ reidToMatchItem face 폴백(faceCrop ?? url) + DetailModal RedMap Trace 래핑 +
 스트림, mock은 ms 없어 안정 정렬로 기존 순서 유지). ClientLayout — DataPage onGoRedmap: ref
 있으면 handleGoRedmapTrace(UV-36 딥링크 재사용), 없으면 기존 플레인 이동.
 lib/realtime/types.ts — DetectionEvent에 faceUrl/gender/age.
+DATA Re-ID Analysis 주입(UV-39, 계약 v1.7): DataPage — reidAnalysis 브리지 import(searchReid·
+useReidRecentTargets·useReidVips·reidTrajectory) + ReIDContent(liveVips/liveRecent 훅,
+faceFile/bodyFile state, recentList/vipList/cameraOptions 결정, runSearch — 라이브 우선 mock 폴백,
+liveCluster — applied 에코 메타·유사도 내림차순 매치) + SearchFilterState 옵셔널 확장
+(faceFile·bodyFile·recentList·vipList·cameraOptions) + SearchPanel(목록 소스 교체, 드롭존 파일
+업로드 배선+미리보기, 빈 최근 대상 문구) + VipQuickSelectRow·CameraSelect에 옵션 prop +
+DetailModal(라이브 이동 경로 reidTrajectory — targetId 있으면 mock TRAJECTORY 대체, Analyze
+Frame 버튼에 capturedMs 동봉) + reidToMatchItem에 targetId/cameraId/capturedMs 통과(Live
+Monitoring 팝업도 라이브 경로·시각 딥링크 동작). types/reid.ts — MatchItem 옵셔널 확장.
+ClientLayout — bestFrameAnalyzeMs state + handleGoAnalyzeFrame(location, entryMs?) +
+BestFramePage analyzeFrameEntryMs prop. BestFramePage — Analyze Frame 딥링크를 렌더 단계
+블록에서 effect로 교체(UV-39 버그 수정 2건: prev 초기값=prop이라 첫 마운트 미발화, 라이브
+카메라 목록 반영 전 mock 매칭 레이스) + 라이브 카메라 이름 폴백 매칭 + 시딩 전 카메라
+플레이스홀더 감지로 진입 보장(autoOpenDetail은 실감지 있을 때만) + prevFocusLocation 초기값
+undefined 센티널(동일 잠재 버그).
 
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)
