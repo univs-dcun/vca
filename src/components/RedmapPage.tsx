@@ -960,23 +960,20 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
         </div>
       )}
 
-      {/* ── Search bar ── */}
+      {/* ── Search bar ──
+          Wraps instead of overflowing. This was one non-wrapping 52px row, and the full set of
+          person filters needs ~1780px: on a 14" laptop the row overflowed and the page's
+          overflow:hidden cut Reset and Search clean off the right edge, so the primary action of
+          the screen was invisible. Making the filters scroll horizontally instead only moved the
+          cut — it landed mid-way through the similarity presets, which reads as broken rather than
+          as scrollable. Wrapping costs one row of vertical space on narrow screens and nothing at
+          all on wide ones, and no control is ever hidden or clipped. */}
       <div style={{
         backgroundColor: "white", borderBottom: BORDER,
-        padding: "0 24px", height: "52px",
-        display: "flex", alignItems: "center", gap: "20px", flexShrink: 0,
+        padding: "8px 24px", minHeight: "52px",
+        display: "flex", alignItems: "center", flexWrap: "wrap",
+        columnGap: "20px", rowGap: "8px", flexShrink: 0,
       }}>
-
-        {/* Filters scroll, actions don't. Everything used to sit in one non-wrapping row with the
-            buttons last and flexShrink:0, so on anything narrower than ~1900px the row overflowed
-            and the page's own overflow:hidden simply cut Reset and Search off the right edge — on a
-            14" laptop the primary action of the screen was invisible. Now the filter band is the
-            only thing that gives way. */}
-        <div className="vca-hide-scrollbar" style={{
-          flex: 1, minWidth: 0, height: "100%",
-          display: "flex", alignItems: "center", gap: "20px",
-          overflowX: "auto", overflowY: "hidden",
-        }}>
 
         {/* Mode toggle */}
         <div style={{
@@ -1176,9 +1173,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           </>
         )}
 
-        </div>
-
-        <div style={{ display: "flex", gap: "12px", flexShrink: 0 }}>
+        {/* marginLeft:auto rather than a flex:1 spacer — a spacer div is itself a flex item and
+            would wrap onto its own line, leaving the buttons stranded a row further down. */}
+        <div style={{ display: "flex", gap: "12px", flexShrink: 0, marginLeft: "auto" }}>
           <button
             onClick={handleReset}
             style={{
