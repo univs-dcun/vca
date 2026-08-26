@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MatchItem, ReIDStatus } from "@/types/reid";
 import { useVcaStore } from "@/lib/vcaStore";
 import { sgtDateKey } from "@/lib/time";
@@ -9,6 +10,19 @@ import SidebarToggleIcon from "./SidebarToggleIcon";
 
 const BORDER = "1px solid var(--gray-200)";
 export type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
+
+// The sub-tab rides the URL the way the top-level tab already does (?tab=DATA), so a reload lands
+// back where the user was rather than on Live Monitoring. Short slugs rather than the tab labels:
+// the labels contain spaces and a hyphen, and "?sub=Re-ID%20Analysis" is not worth reading.
+const DATA_TAB_SLUGS: Record<DataTab, string> = {
+  "Live Monitoring": "live",
+  "Re-ID Analysis": "reid",
+  "Smart Search": "search",
+  "RedFace": "redface",
+};
+const DATA_TAB_BY_SLUG = Object.fromEntries(
+  Object.entries(DATA_TAB_SLUGS).map(([tab, slug]) => [slug, tab as DataTab]),
+) as Record<string, DataTab>;
 
 export const MATCH_DATA: MatchItem[] = [
   { id:1, face:"https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=200&q=80", cam:"NC-1", date:"2026-07-23", time:"13:40:43", similarity:96, gender:"F", age:"28", status:"Unknown" },
@@ -3939,7 +3953,23 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
   // Always lands on Live Monitoring — deliberately not persisted, unlike Best Frame's
   // camera selection. Switching sub-tabs while on this screen is normal component state;
   // leaving Data and coming back should start fresh at Live Monitoring.
-  const [activeTab, setActiveTab] = useState<DataTab>("Live Monitoring");
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<DataTab>(
+    () => DATA_TAB_BY_SLUG[searchParams.get("sub") ?? ""] ?? "Live Monitoring",
+  );
+  // Mirrored into the URL from an effect rather than from inside the setter: one caller runs
+  // DURING render (the command palette's deep link uses a compare-during-render), and a
+  // router.replace() from there is a side effect in the wrong phase. The guard means this only
+  // fires when the two actually disagree, so it can't loop on its own href change.
+  useEffect(() => {
+    const slug = DATA_TAB_SLUGS[activeTab];
+    if (searchParams.get("sub") === slug) return;
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("sub", slug);
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  }, [activeTab, searchParams, pathname, router]);
   // Carries a Live Monitoring card's data into whichever tab its hover-action button targets,
   // so that tab lands on real results for that person instead of a bare, empty search form.
   const [seedCard, setSeedCard] = useState<(typeof REID_DATA)[number] | null>(null);
