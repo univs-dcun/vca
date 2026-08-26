@@ -12,10 +12,20 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.7.0
+ * OpenAPI spec version: 0.8.0
  */
 
 export * from './analysisTags';
+export * from './associate';
+export * from './associateEvidence';
+export * from './associateEvidenceRequest';
+export * from './associateEvidenceResponse';
+export * from './associateMatchedVip';
+export * from './associateTopCamera';
+export * from './associatesRequest';
+export * from './associatesResponse';
+export * from './associatesResult';
+export * from './associatesResultApplied';
 export * from './bBox';
 export * from './bestFrameHistory';
 export * from './bestFrameHistoryItem';
@@ -43,6 +53,12 @@ export * from './detectionTopology';
 export * from './detectionTopologyResponse';
 export * from './errorResponse';
 export * from './errorResponseData';
+export * from './evidenceLocation';
+export * from './evidenceLocationEvent';
+export * from './evidencePattern';
+export * from './evidencePatternPeakPeriod';
+export * from './evidencePatternPeakPeriodBucket';
+export * from './evidencePatternTopLocation';
 export * from './getCameraBestframesParams';
 export * from './getCameraDetectionsParams';
 export * from './getCamerasParams';

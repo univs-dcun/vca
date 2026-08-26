@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.7.0
+ * OpenAPI spec version: 0.8.0
  */
 import {
   useMutation,
@@ -34,6 +34,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AssociateEvidenceRequest,
+  AssociateEvidenceResponse,
+  AssociatesRequest,
+  AssociatesResponse,
   ErrorResponse,
   PersonSearchResponse,
   ReidSearchPersonsBody,
@@ -459,6 +463,145 @@ export const useTrackTargetOnMap = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getTrackTargetOnMapMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * DATA RedFace 탭의 관계 그래프(Pyramid & Zone / Data Grid) 데이터 (계약 v1.8). primary target과 기간 내 같은 프레임에서 함께 감지된 인물을 동반 감지 횟수(coCaptures) 내림차순 **상위 최대 30명**으로 반환한다.
+- 대상 참조는 Track on Map과 동일(source + targetId=감지 eventId) — Re-ID 검색 결과·Live Monitoring 카드의 값을 그대로 사용
+- 기간 생략 시 사이트 로컬 최근 7일 — 실제 적용 구간은 data.applied로 에코 (팝업 Search Period를 명시 전달할 것)
+- Zone 분류(>100 / 10~99 / <10)·최소 횟수 슬라이더·정렬 전환·이름 검색은 화면 로컬 처리 — 목록이 최대 30건이라 재조회 불필요
+- faceUrl은 대표 동반 감지의 기존 크롭 라우트(/api/detections/{eventId}/face 또는 snapshot) — <img src>로 직접 사용
+- 동기 요청 — 프록시 타임아웃 60초 (검색 계열과 동일, 프론트도 이 요청만 타임아웃 연장 필요)
+ * @summary RedFace 동반 감지 인물 목록 — primary target과 함께 감지된 인물 집계
+ */
+export const listTargetAssociates = (
+    associatesRequest: AssociatesRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AssociatesResponse>(
+      {url: `/targets/associates`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: associatesRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getListTargetAssociatesMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof listTargetAssociates>>, TError,{data: AssociatesRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof listTargetAssociates>>, TError,{data: AssociatesRequest}, TContext> => {
+
+const mutationKey = ['listTargetAssociates'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof listTargetAssociates>>, {data: AssociatesRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  listTargetAssociates(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ListTargetAssociatesMutationResult = NonNullable<Awaited<ReturnType<typeof listTargetAssociates>>>
+    export type ListTargetAssociatesMutationBody = AssociatesRequest
+    export type ListTargetAssociatesMutationError = ErrorResponse
+
+    /**
+ * @summary RedFace 동반 감지 인물 목록 — primary target과 함께 감지된 인물 집계
+ */
+export const useListTargetAssociates = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof listTargetAssociates>>, TError,{data: AssociatesRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof listTargetAssociates>>,
+        TError,
+        {data: AssociatesRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getListTargetAssociatesMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * 동료 클릭(피라미드 노드·Data Grid Inspect) 시 우측 Joint Evidence Inspector 데이터 (계약 v1.8). 원본 이벤트 전량이 아닌 백엔드 계산 집계 요약을 반환한다.
+- 요청은 동료 목록과 같은 컨텍스트(source·targetId·기간) + associateId — 목록 요청과 같은 기간을 보낼 것
+- 'Mostly seen together at … mainly during … hours' 문구는 data.pattern 값으로 화면이 조립 (시간대: morning 05~12 / afternoon 12~17 / evening 17~21 / night 21~05, 사이트 로컬)
+- data.locations는 장소 그룹 count 내림차순, 그룹별 events는 최신순 최대 5건 표본
+- 동기 요청 — 프록시 타임아웃 60초
+ * @summary RedFace Joint Evidence — primary target·동료 페어의 동반 감지 집계 요약
+ */
+export const getAssociateEvidence = (
+    associateEvidenceRequest: AssociateEvidenceRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AssociateEvidenceResponse>(
+      {url: `/targets/associate-evidence`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: associateEvidenceRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getGetAssociateEvidenceMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getAssociateEvidence>>, TError,{data: AssociateEvidenceRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof getAssociateEvidence>>, TError,{data: AssociateEvidenceRequest}, TContext> => {
+
+const mutationKey = ['getAssociateEvidence'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getAssociateEvidence>>, {data: AssociateEvidenceRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  getAssociateEvidence(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GetAssociateEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof getAssociateEvidence>>>
+    export type GetAssociateEvidenceMutationBody = AssociateEvidenceRequest
+    export type GetAssociateEvidenceMutationError = ErrorResponse
+
+    /**
+ * @summary RedFace Joint Evidence — primary target·동료 페어의 동반 감지 집계 요약
+ */
+export const useGetAssociateEvidence = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getAssociateEvidence>>, TError,{data: AssociateEvidenceRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof getAssociateEvidence>>,
+        TError,
+        {data: AssociateEvidenceRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getGetAssociateEvidenceMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
