@@ -966,8 +966,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           clean off the right edge, so the primary action of the screen was invisible. Scrolling
           the filters only moved the cut into the middle of the similarity presets, and wrapping to
           a second row cost the map 44px and looked wrong. What gives instead is the controls
-          themselves, dropped in priority order by the vca-tb-* rules in globals.css: the slider
-          first (the presets cover it), then the "Search by image" hints (the dashed pill and its
+          themselves. The 60/70/80/90 presets are gone for good — the slider covers every value
+          they did in less width, and the % readout beside it says where you are. Past that, the
+          vca-tb-* rules in globals.css drop the "Search by image" hints (the dashed pill and its
           icon already say "attach an image"), then the word "Similarity". */}
       <div style={{
         backgroundColor: "white", borderBottom: BORDER,
@@ -1126,34 +1127,14 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
 
             <div style={{ width: "1px", height: "24px", flexShrink: 0, backgroundColor: "var(--gray-200)" }} />
 
-            {/* Similarity — quick presets plus a slider for anything in between, so landing on
-                e.g. 65% doesn't require picking the nearest preset and living with it. */}
+            {/* Similarity — the slider alone. It used to sit beside 60/70/80/90 preset chips, but
+                the two controls set the same one number and the chips cost ~190px in a toolbar that
+                could not afford them; the slider reaches every value the chips did, plus the ones
+                between. Arrow keys still step it by 1 for anything the drag can't land on. */}
             <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
               <span className="vca-tb-label" style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-600)", whiteSpace: "nowrap" }}
                 title={bodyOnly ? "Body-only search: matching on build and clothing alone is looser than a face match, so a low threshold here returns many false positives." : undefined}
               >Similarity</span>
-              <div style={{ display: "flex", gap: "2px", backgroundColor: "var(--gray-100)", borderRadius: "999px", padding: "2px", height: "36px", boxSizing: "border-box" }}>
-                {([60, 70, 80, 90] as SimilarityLimit[]).map((s) => {
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => setSimilarity(s)}
-                      style={{
-                        padding: "8px 12px", borderRadius: "999px",
-                        border: "none", cursor: "pointer",
-                        backgroundColor: similarity === s ? "white" : "transparent",
-                        color: similarity === s ? "var(--primary-400)" : "var(--gray-400)",
-                        fontWeight: similarity === s ? 700 : 600,
-                        fontSize: "12px",
-                        display: "flex", alignItems: "center",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      {s}%
-                    </button>
-                  );
-                })}
-              </div>
               {/* Resets the browser's native range-input chrome (Chrome/Safari/Firefox each draw
                   their own track/thumb border by default) down to a flat gray track + solid
                   purple thumb — same treatment as Data's Smart Search Similarity slider. */}
@@ -1165,18 +1146,18 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 .vca-similarity-slider::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:var(--primary-400); border:none; cursor:pointer; }
               `}</style>
               <input
-                className="vca-similarity-slider vca-tb-slider"
+                className="vca-similarity-slider"
                 type="range" min={0} max={100} value={similarity}
                 onChange={e => setSimilarity(Number(e.target.value))}
-                style={{ width: "100px", flexShrink: 0, cursor: "pointer" }}
+                style={{ width: "120px", flexShrink: 0, cursor: "pointer" }}
               />
               <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary-400)", width: "30px", flexShrink: 0 }}>{similarity}%</span>
             </div>
           </>
         )}
 
-        {/* marginLeft:auto rather than a flex:1 spacer — a spacer div is itself a flex item and
-            would wrap onto its own line, leaving the buttons stranded a row further down. */}
+        {/* marginLeft:auto rather than a flex:1 spacer — a spacer is one more flex item to lay out
+            and shrink, and this needs nothing but "push the actions to the right edge". */}
         <div style={{ display: "flex", gap: "12px", flexShrink: 0, marginLeft: "auto" }}>
           <button
             onClick={handleReset}
