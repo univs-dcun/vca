@@ -3606,16 +3606,22 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           <PanelHeading title="두 사람이 같은 프레임에 함께 찍힌 기록 — 최신순">Shared frames</PanelHeading>
           <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {events.length}</span>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+        <div style={{ display:"flex", flexDirection:"column" }}>
           {pageRows.map((e, i) => {
             const rowIdx = pageStart + i;
             return (
               /* No accordion. Opening rows one at a time made the frame — the only thing in the
-                 row that carries evidence — the thing you had to go looking for, and hid nine of
-                 ten frames on every page. Fewer rows per page pays for it. */
-              <div key={rowIdx} style={{ border:BORDER, borderRadius:"8px", overflow:"hidden" }}>
+                 row that carries evidence — the thing you had to go looking for, and hid four of
+                 five frames on every page. Fewer rows per page pays for it.
+
+                 Rules between rows rather than a box around each: five rounded outlines stacked in
+                 a 460px panel, each one already containing a bordered image, drew three levels of
+                 frame around one photo. A rule says "next row" with nothing left over — and it
+                 lets the frame run the full width of the panel. */
+              <div key={rowIdx} style={{ padding: i === 0 ? "0 0 14px" : "14px 0",
+                borderTop: i === 0 ? "none" : BORDER }}>
                 <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between",
-                  gap:"8px", padding:"9px 12px 8px" }}>
+                  gap:"8px", paddingBottom:"8px" }}>
                   {/* The place name is the one thing in this row a person reads rather than scans,
                       so it carries the weight of the analytics values (12/700). The camera code
                       isn't repeated here — the frame's own overlay already stamps it. */}
@@ -3627,7 +3633,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                 {/* One frame with both people boxed. An associate co-appearance IS a shared frame,
                     so every row has one to show, and the box positions are the only thing that says
                     where each stood. Scene still is the one Best Frame uses for its camera feeds. */}
-                <div style={{ position:"relative", margin:"0 12px 12px", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
+                <div style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
                   <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
                   <span style={{ position:"absolute", top:6, left:6, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", letterSpacing:"0.4px" }}>
                     {e.camCode} · {e.time}
