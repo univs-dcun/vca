@@ -69,7 +69,17 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
   const events = useVcaStore(s => s.events);
   const lastReadNotifAt = useVcaStore(s => s.lastReadNotifAt);
   const markNotificationsRead = useVcaStore(s => s.markNotificationsRead);
-  const vipEvents = events.filter(e => e.personType === "VIP");
+  // Scoped to the last hour, and the footer says so. The store keeps events by COUNT (500), not by
+  // age, so an unscoped total was really "however long this tab has been open" — it starts at the
+  // 13 seeded hits and climbs by one every 15-30s from the simulator, resetting on reload. A
+  // denominator nobody can interpret is worse than none. Riding sgNow, the header clock that
+  // already ticks every second, so the window moves with it rather than freezing at mount.
+  const NOTIF_WINDOW_LABEL = "last hour";
+  // null until the clock's first tick — no Date.now() fallback, since reading the clock during
+  // render is exactly the impurity sgNow exists to avoid. Unfiltered for that one frame.
+  const notifWindowStart = sgNow ? sgNow.getTime() - 3600_000 : null;
+  const vipEvents = events.filter(e => e.personType === "VIP"
+    && (notifWindowStart === null || new Date(e.timestamp).getTime() >= notifWindowStart));
   // 8 loaded against a 320px scroll box, so the sixth row sits half-cut and the list reads as
   // having more below it — the same cue Dovetail and Air use rather than a scrollbar nobody looks
   // for. The count is a constant because the footer below states it: a hardcoded "8" in the copy
@@ -336,7 +346,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                       <path d="M10 6.66602V9.99935" stroke="var(--gray-300)" strokeWidth="1.4" strokeLinecap="round"/>
                       <path d="M10 13.334H10.0083" stroke="var(--gray-300)" strokeWidth="1.4" strokeLinecap="round"/>
                     </svg>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-400)" }}>No new VIP detections</span>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-400)" }}>No VIP detections in the last hour</span>
                   </div>
                 ) : (
                   <>
@@ -375,8 +385,8 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                   <div style={{ padding: "9px 16px", borderTop: "1px solid var(--gray-200)", backgroundColor: "var(--gray-50)" }}>
                     <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--gray-500)" }}>
                       {vipEvents.length > NOTIF_LIMIT
-                        ? `Showing ${NOTIF_LIMIT} most recent of ${vipEvents.length}`
-                        : `All ${vipEvents.length} shown`}
+                        ? `Showing ${NOTIF_LIMIT} of ${vipEvents.length} · ${NOTIF_WINDOW_LABEL}`
+                        : `All ${vipEvents.length} · ${NOTIF_WINDOW_LABEL}`}
                     </span>
                   </div>
                   </>
