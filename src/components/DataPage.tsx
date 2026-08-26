@@ -60,7 +60,6 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
-
 // ── Person Detail Modal ────────────────────────────────────────
 function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:MatchItem; onClose:()=>void; onGoRedmap?:()=>void; onGoAnalyzeFrame?:(location:string)=>void }) {
   useEscapeKey(onClose);
@@ -3301,29 +3300,6 @@ function dominantTimeBucket(events: CooccurEvent[]) {
   return { bucket, pct: Math.round((count / events.length) * 100) };
 }
 
-// Of the sampled co-capture events, how many fall in the 0-3s "walking together" band versus
-// trailing behind. `probability` stays internal — it only picks the interpretation string; what
-// the panel shows is the two counts, since a share over a handful of events reads as more precise
-// than it is.
-function companionAnalytics(events: CooccurEvent[]) {
-  // Counts, not a percentage. The sample is 3-7 events, and "71%" over seven of them claims a
-  // precision the data doesn't have — five out of seven says the same thing and shows its working.
-  const walkingCount = events.filter(e => e.gapSec <= 3).length;
-  const probability = Math.round((walkingCount / events.length) * 100);
-  const avgGapSec = Math.round(events.reduce((s, e) => s + e.gapSec, 0) / events.length);
-  // Worded to what a time gap can actually establish. gapSec is the difference between two
-  // detections at the same camera, which cannot tell "side by side in one frame" from "three
-  // seconds and several metres behind" — that needs same-frame detections with boxes, and metric
-  // distance needs calibrated cameras. Until the backend is known to supply either, the copy
-  // stays on the measurement and off the inference.
-  const interpretation = probability >= 80
-    ? "Consistently within seconds of each other at the same camera"
-    : probability >= 50
-    ? "Mixed — some passes within seconds, some minutes apart"
-    : "Mostly minutes apart, rarely within seconds";
-  return { walkingCount, total: events.length, avgGapSec, interpretation };
-}
-
 const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string }> = {
   VIP: { bg:"var(--primary-100)", text:"var(--primary-400)" },
   Suspect: { bg:"var(--warning-200)", text:"var(--warning-500)" },
@@ -3345,7 +3321,6 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
   const firstSeen = sortedByDate[0];
   const lastSeen = sortedByDate[sortedByDate.length - 1];
   const newestFirst = [...sortedByDate].reverse();
-  const { walkingCount, total, avgGapSec, interpretation } = companionAnalytics(events);
 
   const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
 
@@ -3389,30 +3364,19 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
       </div>
 
       {/* ── Section 2: relationship analytics ──────────────────────
-          Trimmed hard. This was a paragraph of prose in a highlighted box, then two cards each
-          carrying a value and an "N of M sampled events" line under it, then a first/last row —
-          enough text that the section read as something to skip rather than read. What an
-          investigator takes from it is three figures and two labels; the sentence that used to
-          spell out what "mixed" means is on the tooltip, where it costs nothing to leave unread. */}
+          Where and when the two were captured together most, and the span between first and last.
+          That is the whole of what detection times at a camera can support: a gap-based
+          "companion probability" also lived here, but a time gap cannot separate walking side by
+          side from passing three seconds and several metres apart, and it was computed over three
+          to seven events. Both claims went. "Peak" rather than "Time of day": the label has to say
+          the value is the commonest one, since "Time of day" over "morning" left it ambiguous
+          whether that was the busiest band or simply a band — and peak hours / peak traffic is
+          already how this reads in a monitoring tool. */}
       <div style={{ display:"flex", flexDirection:"column", gap:"10px", border:BORDER, borderRadius:"8px", padding:"14px", backgroundColor:"var(--gray-50)" }}>
-        <span title={`함께 감지된 시간 간격·장소·시간대 분석 — ${interpretation}`} style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
-        {/* Label and value, not a headline figure. "5 of 7 within 3s" left the reader to work out
-            within 3s of WHAT — the whole point of the number is that it is measured against the
-            Primary's detection at the same camera, and a figure nobody can attribute is worse than
-            no figure. */}
-        <div style={{ display:"flex", flexDirection:"column", gap:"6px", backgroundColor:"var(--primary-100)", border:"1px solid var(--primary-200)", borderRadius:"8px", padding:"10px 12px" }}>
-          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
-            <span style={{ fontSize:"11px", fontWeight:600, color:"var(--gray-600)" }}>Within 3s of Primary</span>
-            <span style={{ fontSize:"13px", fontWeight:800, color:"var(--primary-400)", whiteSpace:"nowrap" }}>{walkingCount} of {total} passes</span>
-          </div>
-          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
-            <span style={{ fontSize:"11px", fontWeight:600, color:"var(--gray-600)" }}>Average gap</span>
-            <span style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-700)", whiteSpace:"nowrap" }}>{avgGapSec}s</span>
-          </div>
-        </div>
+        <span title="함께 감지된 이벤트가 어느 장소·시간대에 몰려 있는지" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
         <div style={{ display:"flex", gap:"10px" }}>
           <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Top location</p>
+            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
             {/* The glyph belongs on the value, not the label — a pin next to the words "Top
                 location" only restates them, next to "Novena" it marks what kind of thing that is. */}
             <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", display:"flex", alignItems:"center", gap:"4px" }}>
@@ -3420,7 +3384,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
             </p>
           </div>
           <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Time of day</p>
+            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak time</p>
             {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
                 glyph at all. */}
             <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize", display:"flex", alignItems:"center", gap:"4px" }}>
