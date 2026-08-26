@@ -3245,43 +3245,12 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
   );
 }
 
-function LinkChainIconSm({ size = 14 }: { size?: number } = {}) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
-      <path d="M12.8334 14.583C13.0839 14.9179 13.4035 15.195 13.7706 15.3955C14.1376 15.5961 14.5435 15.7153 14.9606 15.7452C15.3778 15.7751 15.7965 15.7149 16.1884 15.5687C16.5802 15.4225 16.9361 15.1938 17.2318 14.898L18.9818 13.148C19.5131 12.5979 19.807 11.8611 19.8004 11.0964C19.7937 10.3317 19.487 9.60012 18.9462 9.05935C18.4055 8.51858 17.6739 8.21183 16.9092 8.20519C16.1444 8.19854 15.4077 8.49253 14.8576 9.02382L13.8543 10.0213M15.1669 13.4165C14.9164 13.0816 14.5967 12.8044 14.2297 12.6039C13.8627 12.4034 13.4568 12.2842 13.0397 12.2543C12.6225 12.2244 12.2038 12.2846 11.8119 12.4308C11.4201 12.5769 11.0642 12.8057 10.7685 13.1015L9.01854 14.8515C8.48725 15.4016 8.19326 16.1383 8.19991 16.9031C8.20655 17.6678 8.5133 18.3993 9.05407 18.9401C9.59484 19.4809 10.3264 19.7876 11.0911 19.7943C11.8559 19.8009 12.5926 19.5069 13.1427 18.9756L14.1402 17.9781" stroke="currentColor" strokeLinecap="round"/>
-    </svg>
-  );
-}
-function SunIconSm({ size = 12 }: { size?: number } = {}) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
-      <circle cx="6" cy="6" r="2.5" stroke="currentColor" strokeWidth="1" />
-      <path d="M6 0.8V2M6 10V11.2M1.5 6H0.3M11.7 6H10.5M2.8 2.8L2 2M10 10L9.2 9.2M9.2 2.8L10 2M2 10L2.8 9.2"
-            stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-    </svg>
-  );
-}
 
-function MoonIconSm({ size = 12 }: { size?: number } = {}) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
-      <path d="M9.5 7.4A4.2 4.2 0 0 1 4.6 2.5 4.2 4.2 0 1 0 9.5 7.4Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 function SwapIconSm() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
       <path d="M2.5 5.5h9l-2.2-2.2M13.5 10.5h-9l2.2 2.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
-function MapPinIconSm() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-      <path d="M8 14.5s5-4.4 5-8.2A5 5 0 003 6.3c0 3.8 5 8.2 5 8.2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
-      <circle cx="8" cy="6.2" r="1.6" stroke="currentColor" strokeWidth="1.3"/>
     </svg>
   );
 }
@@ -3401,6 +3370,30 @@ const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string 
   Unknown: { bg:"var(--gray-100)", text:"var(--gray-500)" },
 };
 
+/**
+ * Micro section label, the shape Clay/folk/Attio use in their record panels: 10px uppercase gray
+ * rather than a 13px bold heading. Three bold headings stacked in a 460px panel made every block
+ * look equally important, which is how a generated mockup reads.
+ */
+function PanelLabel({ children, title }: { children: React.ReactNode; title?: string }) {
+  return (
+    <span title={title} style={{ fontSize:"10px", fontWeight:700, color:"var(--gray-400)",
+      letterSpacing:"0.6px", textTransform:"uppercase", cursor: title ? "help" : "default" }}>
+      {children}
+    </span>
+  );
+}
+
+/** label on the left, value right-aligned — the key/value row every CRM record panel uses. */
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"12px", minHeight:"21px" }}>
+      <span style={{ fontSize:"11px", color:"var(--gray-500)", flexShrink:0 }}>{label}</span>
+      <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textAlign:"right" }}>{value}</span>
+    </div>
+  );
+}
+
 const TIMELINE_PAGE_SIZE = 10;
 
 /**
@@ -3506,63 +3499,45 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         </button>
       </div>
 
-      {/* No card around the pair — the border and gray fill drew a box whose only content was two
-          faces and the link between them, and it competed with the analytics card right below it
-          for the same "this is a grouped block" reading. */}
-      <div style={{ padding:"4px 0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", width:"96px" }}>
-          <img src={primary.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid var(--danger-400)" }} />
-          <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)" }}>{primaryId}</span>
-          <span style={{ fontSize:"9px", fontWeight:800, color:"white", backgroundColor:"var(--danger-400)", padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>PRIMARY</span>
+      {/* The pair, left-aligned. What was here — two faces mirrored around a chain icon in a
+          circle, with TIER 2 LINK above it and a correlation line below — was a relationship
+          *diagram*, and no monitoring tool draws one for two rows of data. Every record panel that
+          does this for real (Clay, folk, Attio) puts the subject top-left, the faces at reading
+          size, and the rest in key/value rows. The status badge moves down into those rows. */}
+      <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+        <div style={{ display:"flex", gap:"3px", flexShrink:0 }}>
+          <img src={primary.face} alt="" style={{ width:"40px", height:"40px", borderRadius:"5px", objectFit:"cover" }} />
+          <img src={node.face} alt="" style={{ width:"40px", height:"40px", borderRadius:"5px", objectFit:"cover" }} />
         </div>
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
-          <span style={{ fontSize:"10px", fontWeight:800, color:"var(--danger-400)", letterSpacing:"0.4px" }}>{meta.label}</span>
-          <div style={{ width:"32px", height:"32px", borderRadius:"50%", backgroundColor:"var(--danger-100)", display:"flex", alignItems:"center", justifyContent:"center", color:"var(--danger-400)" }}>
-            <LinkChainIconSm size={19} />
-          </div>
-          <span style={{ fontSize:"10px", color:"var(--gray-500)", whiteSpace:"nowrap" }}>{node.count} co-captures</span>
-        </div>
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", width:"96px" }}>
-          <img src={node.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid var(--danger-400)" }} />
-          <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)" }}>{assocId(node)}</span>
-          <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg, padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{node.status.toUpperCase()}</span>
+        <div style={{ display:"flex", flexDirection:"column", gap:"2px", minWidth:0 }}>
+          {/* "+" not an arrow: appearing in one frame together is symmetric, and an arrow would
+              read as a movement from one to the other. */}
+          <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px" }}>
+            {primaryId} + {assocId(node)}
+          </span>
+          <span style={{ fontSize:"11px", color:"var(--gray-500)" }}>
+            {meta.label} · {node.count} co-captures
+          </span>
         </div>
       </div>
 
-      {/* ── Section 2: relationship analytics ──────────────────────
-          Where and when the two were captured together most, and the span between first and last.
-          That is the whole of what detection times at a camera can support: a gap-based
-          "companion probability" also lived here, but a time gap cannot separate walking side by
-          side from passing three seconds and several metres apart, and it was computed over three
-          to seven events. Both claims went. "Peak" rather than "Time of day": the label has to say
-          the value is the commonest one, since "Time of day" over "morning" left it ambiguous
-          whether that was the busiest band or simply a band — and peak hours / peak traffic is
-          already how this reads in a monitoring tool. */}
-      {/* Same as the pair block above: no card. Two bordered stat tiles inside a third bordered,
-          filled card gave three nested boxes for two numbers. */}
-      <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
-        <span title="함께 감지된 이벤트가 어느 장소·시간대에 몰려 있는지" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
-        <div style={{ display:"flex", gap:"10px" }}>
-          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
-            {/* The glyph belongs on the value, not the label — a pin next to the words "Top
-                location" only restates them, next to "Novena" it marks what kind of thing that is. */}
-            <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", display:"flex", alignItems:"center", gap:"4px" }}>
-              <MapPinIconSm /> {topGroup.location}
-            </p>
-          </div>
-          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak time</p>
-            {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
-                glyph at all. */}
-            <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize", display:"flex", alignItems:"center", gap:"4px" }}>
-              {bucket === "evening" || bucket === "night" ? <MoonIconSm /> : <SunIconSm />} {bucket} · {pct}%
-            </p>
-          </div>
-        </div>
-        <div style={{ display:"flex", justifyContent:"space-between", fontSize:"11px" }}>
-          <span style={{ color:"var(--gray-400)" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time}</strong></span>
-          <span style={{ color:"var(--gray-400)" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time}</strong></span>
+      {/* Where and when the two were captured together most, plus the span they cover. That is the
+          whole of what detection times at a camera can support: a gap-based "companion
+          probability" also lived here, but a time gap cannot separate walking side by side from
+          passing three seconds and several metres apart. "Peak" rather than "Time of day" because
+          the label has to say the value is the commonest one. The pin/sun/moon glyphs went with the
+          stat tiles — in a key/value row the label already says what kind of thing the value is. */}
+      <div style={{ display:"flex", flexDirection:"column", gap:"3px" }}>
+        <PanelLabel title="함께 감지된 이벤트가 어느 장소·시간대에 몰려 있는지">Pattern</PanelLabel>
+        <div style={{ display:"flex", flexDirection:"column", gap:"1px", paddingTop:"4px" }}>
+          <DetailRow label="Status" value={
+            <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
+              padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{node.status.toUpperCase()}</span>
+          } />
+          <DetailRow label="Peak location" value={topGroup.location} />
+          <DetailRow label="Peak time" value={<span style={{ textTransform:"capitalize" }}>{bucket} · {pct}%</span>} />
+          <DetailRow label="First seen" value={`${firstSeen.date} ${firstSeen.time}`} />
+          <DetailRow label="Last seen" value={`${lastSeen.date} ${lastSeen.time}`} />
         </div>
       </div>
 
@@ -3576,7 +3551,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
           {/* "Event timeline" named the shape of the list, not its contents — every row here is
               one frame with both people in it, which is the whole reason the row exists. */}
-          <span title="두 사람이 같은 프레임에 함께 찍힌 기록 — 최신순" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Shared frames</span>
+          <PanelLabel title="두 사람이 같은 프레임에 함께 찍힌 기록 — 최신순">Shared frames</PanelLabel>
           <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {events.length}</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
