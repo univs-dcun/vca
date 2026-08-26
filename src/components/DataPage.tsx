@@ -1106,6 +1106,15 @@ function RefreshIconSm() {
 // ── Shared Date Range Picker ─────────────────────────────────────
 type DateRangeValue = { start: Date | null; end: Date | null };
 
+// The range bounds are Date objects at LOCAL midnight, while every stored date is a "YYYY-MM-DD"
+// string that `new Date()` parses as UTC midnight. Comparing the two directly pushed the newest
+// day out of its own range: east of UTC, today-as-UTC-midnight lands after today-as-local-midnight.
+// Comparing the calendar days as strings has no timezone in it at all.
+const dateKeyOf = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const dateWithinRange = (date: string, range: DateRangeValue) =>
+  (!range.start || date >= dateKeyOf(range.start)) && (!range.end || date <= dateKeyOf(range.end));
+
 function fmtDate(d: Date) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -1845,7 +1854,7 @@ function filterReidData(f: {
     start = new Date(end);
     start.setDate(start.getDate() - 7);
   }
-  const inDateRange = (date: string) => (!start || new Date(date) >= start) && (!end || new Date(date) <= end);
+  const inDateRange = (date: string) => dateWithinRange(date, { start, end });
 
   if (f.searchType === "VEHICLE") {
     const plateQuery = (f.licensePlate ?? "").trim().toLowerCase().replace(/\s+/g, "");
@@ -3674,12 +3683,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   const [dateRange, setDateRange] = useState<DateRangeValue>(DEFAULT_REDFACE_RANGE);
   const inDateRange = (n: RedfaceNode) => {
     if (!dateRange.start && !dateRange.end) return true;
-    return buildCooccurEvents(n).some(e => {
-      const d = new Date(e.date);
-      if (dateRange.start && d < dateRange.start) return false;
-      if (dateRange.end && d > dateRange.end) return false;
-      return true;
-    });
+    return buildCooccurEvents(n).some(e => dateWithinRange(e.date, dateRange));
   };
   const sortNodes = (nodes: RedfaceNode[]) => [...nodes].sort((a, b) => sortDir === "desc" ? b.count - a.count : a.count - b.count);
 
