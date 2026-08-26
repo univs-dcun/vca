@@ -3562,7 +3562,9 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
       {/* ── Section 4: accordion timeline ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
-          <span title="최신 감지 순으로 정렬된 동시 포착 이벤트 목록" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Event timeline</span>
+          {/* "Event timeline" named the shape of the list, not its contents — every row here is
+              one frame with both people in it, which is the whole reason the row exists. */}
+          <span title="두 사람이 같은 프레임에 함께 찍힌 기록 — 최신순" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Shared frames</span>
           <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {events.length}</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
