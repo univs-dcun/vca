@@ -3591,14 +3591,14 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         </div>
       </div>
 
-      <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
           {/* "Event timeline" named the shape of the list, not its contents — every row here is
               one frame with both people in it, which is the whole reason the row exists. */}
           <PanelHeading title="두 사람이 같은 프레임에 함께 찍힌 기록 — 최신순">Shared frames</PanelHeading>
           <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {events.length}</span>
         </div>
-        <div style={{ display:"flex", flexDirection:"column" }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
           {pageRows.map((e, i) => {
             const rowIdx = pageStart + i;
             return (
@@ -3606,12 +3606,11 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                  row that carries evidence — the thing you had to go looking for, and hid four of
                  five frames on every page. Fewer rows per page pays for it.
 
-                 Rules between rows rather than a box around each: five rounded outlines stacked in
-                 a 460px panel, each one already containing a bordered image, drew three levels of
-                 frame around one photo. A rule says "next row" with nothing left over — and it
-                 lets the frame run the full width of the panel. */
-              <div key={rowIdx} style={{ padding: i === 0 ? "0 0 14px" : "14px 0",
-                borderTop: i === 0 ? "none" : BORDER }}>
+                 Neither a box nor a rule between rows: the frame images are the strongest edges on
+                 the page already, so any line drawn between them is a third edge next to two that
+                 are unmissable. 16px of air is enough to say "next row" — and it lets each frame
+                 run the full width of the panel. */
+              <div key={rowIdx}>
                 <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between",
                   gap:"8px", paddingBottom:"8px" }}>
                   {/* The place name is the one thing in this row a person reads rather than scans,
