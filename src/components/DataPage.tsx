@@ -3859,19 +3859,22 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   // with nothing in it, reading as broken empty space rather than "nothing here anymore." Only
   // the pre-search landing state (no primaryTarget) still shows every toggled-on tier as an empty
   // band on purpose (see comment above) — that placeholder case is left alone.
-  // Zone height follows how many associates are actually in it, rather than the fixed 2.2/2.6/3.4
-  // the tiers used to carry. Tier 3 holding 15 nodes needs the room and Tier 1 holding two does
-  // not, and that balance keeps shifting as tiers are toggled or the date range narrows — a fixed
-  // ratio was right for one particular distribution and wrong the rest of the time.
-  // sqrt rather than linear: nodes spread sideways, so the eighth one adds far less to the height
-  // a band needs than the second does, and a linear weight let one crowded tier squash the others
-  // to slivers. The floor keeps a band tall enough for a 52px node plus its count badge.
-  const zoneWeight = (count: number) => Math.max(1.5, 1.1 + Math.sqrt(count) * 0.75);
+  // Zone height follows how many ROWS of nodes a zone actually draws — not how many nodes it
+  // holds, and not the fixed 2.2/2.6/3.4 the tiers used to carry. Two nodes and six nodes both lay
+  // out as one horizontal row, so they need identical height; weighting by count made Tier 2 half
+  // again as tall as Tier 1 with nothing on screen to justify it, just more empty band above and
+  // below a single row of faces. Only the staggered tier splits its nodes over two lines, and that
+  // is the one that needs the room. Recomputed per render, so it keeps tracking as tiers are
+  // toggled or the date range narrows a tier down to a single node.
+  const zoneRows = (count: number, stagger: boolean) => (stagger && count > 1 ? 2 : 1);
+  // Base covers the zone label and its padding; the per-row term covers a 52px node plus its
+  // count badge and breathing room.
+  const zoneWeight = (count: number, meta: TierMeta) => 1 + zoneRows(count, !!meta.stagger) * 0.9;
   const visibleRows: PyramidRow[] = [
     { key:"apex", weight:1.3, nodes:[], meta:null },
-    ...(tier1On && (!primaryTarget || tier1.length > 0) ? [{ key:"tier1", weight:zoneWeight(primaryTarget ? tier1.length : 0), nodes: primaryTarget ? tier1 : [], meta:PYRAMID_TIER_META.tier1 }] : []),
-    ...(tier2On && (!primaryTarget || tier2.length > 0) ? [{ key:"tier2", weight:zoneWeight(primaryTarget ? tier2.length : 0), nodes: primaryTarget ? tier2 : [], meta:PYRAMID_TIER_META.tier2 }] : []),
-    ...(tier3On && (!primaryTarget || tier3.length > 0) ? [{ key:"tier3", weight:zoneWeight(primaryTarget ? tier3.length : 0), nodes: primaryTarget ? tier3 : [], meta:PYRAMID_TIER_META.tier3 }] : []),
+    ...(tier1On && (!primaryTarget || tier1.length > 0) ? [{ key:"tier1", weight:zoneWeight(primaryTarget ? tier1.length : 0, PYRAMID_TIER_META.tier1), nodes: primaryTarget ? tier1 : [], meta:PYRAMID_TIER_META.tier1 }] : []),
+    ...(tier2On && (!primaryTarget || tier2.length > 0) ? [{ key:"tier2", weight:zoneWeight(primaryTarget ? tier2.length : 0, PYRAMID_TIER_META.tier2), nodes: primaryTarget ? tier2 : [], meta:PYRAMID_TIER_META.tier2 }] : []),
+    ...(tier3On && (!primaryTarget || tier3.length > 0) ? [{ key:"tier3", weight:zoneWeight(primaryTarget ? tier3.length : 0, PYRAMID_TIER_META.tier3), nodes: primaryTarget ? tier3 : [], meta:PYRAMID_TIER_META.tier3 }] : []),
   ];
   const hasVisibleTier = tier1On || tier2On || tier3On;
   const gridRows: Array<{ tier:"tier1"|"tier2"|"tier3"; node:RedfaceNode }> = !primaryTarget ? [] : [
