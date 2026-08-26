@@ -3178,7 +3178,13 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
 
       <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column" }}>
         {positioned.map(r => (
-          <div key={r.key} style={{ flexGrow:r.weight, flexShrink:0, position:"relative",
+          /* flexBasis:0, not auto. With auto every band started at its own content height (label
+             + 24px padding, ~50px) and only the leftover was split by weight, which both flattened
+             the differences the weights are there to create AND — worse — put the coloured bands
+             somewhere other than where `positioned` says they are. Node dots and connector lines
+             are placed from those pure weight percentages, so they were drawing up to 30px above
+             the band they belong to. Zeroing the basis makes one calculation govern both. */
+          <div key={r.key} style={{ flexGrow:r.weight, flexShrink:0, flexBasis:0, position:"relative",
             backgroundColor: r.meta?.bg ?? "var(--primary-100)", borderBottom: r.key !== tierRows[tierRows.length-1]?.key ? "1px solid rgba(14, 22, 42,0.05)" : "none",
             display:"flex", alignItems:"flex-start", justifyContent:"space-between", padding:"24px 24px 0", boxSizing:"border-box" }}>
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
