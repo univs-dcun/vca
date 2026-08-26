@@ -3412,9 +3412,18 @@ function PanelHeading({ children, title, color = "var(--gray-900)" }: {
   );
 }
 
-// 5, not 10: with every frame rendered a page of ten scrolled nearly 3000px, which makes the
-// pager decorative — you'd scroll past it before using it.
-const TIMELINE_PAGE_SIZE = 5;
+// How many frames a page holds is measured, not fixed: the list band fills whatever height the
+// window leaves it, and a fixed count either overflows it on a laptop or wastes half of a tall
+// monitor. This is only the count used for the first paint, before the ResizeObserver reports in.
+const TIMELINE_PAGE_GUESS = 3;
+/** A page never grows past this, however tall the window gets — 10 frames is already a long page. */
+const TIMELINE_PAGE_MAX = 10;
+/** The scene stills are all this shape, so a row's height follows from the panel's width. */
+const FRAME_ASPECT = 1194 / 685;
+/** Gap between rows, and the list band's own vertical padding — both feed the fit calculation. */
+const FRAME_ROW_GAP = 16;
+const LIST_PAD_Y = 32;
+const LIST_PAD_X = 40;
 
 /**
  * Page numbers with gaps: first, last, and a window around the current page. A tier-1 pair can
@@ -3493,116 +3502,146 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
     setPage(1);
   }
 
-  const pageCount = Math.max(1, Math.ceil(newestFirst.length / TIMELINE_PAGE_SIZE));
+  // Measured from the list band itself. Reading its own box is safe rather than circular: the
+  // band is flex:1 with its own scroll, so its height comes from the window, never from how many
+  // rows we decide to put in it.
+  const listRef = useRef<HTMLDivElement>(null);
+  const [perPage, setPerPage] = useState(TIMELINE_PAGE_GUESS);
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    // ResizeObserver fires once on observe, so this covers the initial measure too.
+    const ro = new ResizeObserver(() => {
+      const rowH = (el.clientWidth - LIST_PAD_X) / FRAME_ASPECT + FRAME_ROW_GAP;
+      // Padding out, then the gap the last row doesn't have back in.
+      const usable = el.clientHeight - LIST_PAD_Y + FRAME_ROW_GAP;
+      setPerPage(Math.max(1, Math.min(TIMELINE_PAGE_MAX, Math.floor(usable / rowH))));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const pageCount = Math.max(1, Math.ceil(newestFirst.length / perPage));
   const safePage = Math.min(page, pageCount);
-  const pageStart = (safePage - 1) * TIMELINE_PAGE_SIZE;
-  const pageRows = newestFirst.slice(pageStart, pageStart + TIMELINE_PAGE_SIZE);
+  const pageStart = (safePage - 1) * perPage;
+  const pageRows = newestFirst.slice(pageStart, pageStart + perPage);
 
   return (
-    <div className="vca-hide-scrollbar" style={{ width:"460px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER,
-      padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"18px" }}>
+    /* Three bands instead of one long scroll: the summary blocks stay put, only the frame list
+       scrolls, and the pager is pinned to the bottom edge. Scrolling the whole panel meant the
+       pager sat below five 241px frames — on a 1080p screen you had to scroll ~1400px past the
+       evidence to reach the control that pages through it, and on a shorter window it was simply
+       off-screen. Same shape as the paginated lists in the sidebar. */
+    <div style={{ width:"460px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER,
+      display:"flex", flexDirection:"column", overflow:"hidden" }}>
+      <div style={{ flexShrink:0, padding:"20px 20px 0", display:"flex", flexDirection:"column", gap:"18px" }}>
 
-      {/* Panel title, then the subject — the shape Route history (Redmap) and Inspection detail
-          (Best Frame) already use: a 16px/800 title row with its one control on the right. Dropping
-          this row made the panel quieter but also made it the only right-hand panel in the app
-          without a name. The ✕ stays a bare glyph, which is what Best Frame's own close control
-          is; the 37px filled square was the outlier. */}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px" }}>
-        <p title="Primary Target와 선택한 연관자가 같은 프레임에 함께 찍힌 증거" style={{ margin:0, fontSize:"16px", fontWeight:800,
-          color:"var(--gray-900)", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</p>
-        <button onClick={onClose} aria-label="Close" style={{
-          width:"26px", height:"26px", flexShrink:0, padding:0,
-          backgroundColor:"transparent", border:"none", cursor:"pointer",
-          display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)",
-        }}>
-          <svg width="15" height="15" viewBox="0 0 18 18" fill="none">
-            <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </button>
-      </div>
-
-      {/* The pair, left-aligned. What was here — two faces mirrored around a chain icon in a
-          circle, with TIER 2 LINK above it and a correlation line below — was a relationship
-          *diagram*, and no monitoring tool draws one for two rows of data. Every record panel that
-          does this for real (Clay, folk, Attio) puts the subject top-left, the faces at reading
-          size, and the rest below. The status badge rides the line under the names. */}
-      <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-        <div style={{ display:"flex", gap:"3px", flexShrink:0 }}>
-          <img src={primary.face} alt="" style={{ width:"40px", height:"40px", borderRadius:"5px", objectFit:"cover" }} />
-          <img src={node.face} alt="" style={{ width:"40px", height:"40px", borderRadius:"5px", objectFit:"cover" }} />
+        {/* Panel title, then the subject — the shape Route history (Redmap) and Inspection detail
+            (Best Frame) already use: a 16px/800 title row with its one control on the right. Dropping
+            this row made the panel quieter but also made it the only right-hand panel in the app
+            without a name. The ✕ stays a bare glyph, which is what Best Frame's own close control
+            is; the 37px filled square was the outlier. */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px" }}>
+          <p title="Primary Target와 선택한 연관자가 같은 프레임에 함께 찍힌 증거" style={{ margin:0, fontSize:"16px", fontWeight:800,
+            color:"var(--gray-900)", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</p>
+          <button onClick={onClose} aria-label="Close" style={{
+            width:"26px", height:"26px", flexShrink:0, padding:0,
+            backgroundColor:"transparent", border:"none", cursor:"pointer",
+            display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)",
+          }}>
+            <svg width="15" height="15" viewBox="0 0 18 18" fill="none">
+              <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:"2px", minWidth:0 }}>
-          {/* "+" not an arrow: appearing in one frame together is symmetric, and an arrow would
-              read as a movement from one to the other. */}
-          <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px" }}>
-            {primaryId} + {assocId(node)}
-          </span>
-          {/* Status rides this line now that the analytics block is back to two stat cards —
-              it has nowhere else to sit, and it belongs to the associate, not to the pattern. */}
-          <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-500)" }}>
-            {meta.label} · {node.count} co-captures
-            <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
-              padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{node.status.toUpperCase()}</span>
-          </span>
-        </div>
-      </div>
 
-      {/* Where and when the two were captured together most, plus the span they cover. That is the
-          whole of what detection times at a camera can support: a gap-based "companion
-          probability" also lived here, but a time gap cannot separate walking side by side from
-          passing three seconds and several metres apart. "Peak" rather than "Time of day" because
-          the label has to say the value is the commonest one. */}
-      {/* Filled instead of ruled. A fill already says "these belong together", so the 1px rules
-          that used to bracket this block went with it — a tinted box between two rules was the
-          same boundary drawn twice. 2px of margin on top of the column's 18px gap keeps the 20px
-          of air the block had when the rules were doing the separating. */}
-      <div style={{ display:"flex", flexDirection:"column", gap:"10px", margin:"2px 0",
-        backgroundColor:"var(--gray-50)", borderRadius:"8px", padding:"14px" }}>
-        <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지" color="var(--primary-400)">Relationship analytics</PanelHeading>
-        <div style={{ display:"flex", gap:"10px" }}>
-          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
-            {/* The glyph belongs on the value, not the label — a pin next to the words "Peak
-                location" only restates them, next to "Novena" it marks what kind of thing that is. */}
-            <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", display:"flex", alignItems:"center", gap:"4px" }}>
-              <MapPinIconSm /> {topGroup.location}
-            </p>
+        {/* The pair, left-aligned. What was here — two faces mirrored around a chain icon in a
+            circle, with TIER 2 LINK above it and a correlation line below — was a relationship
+            *diagram*, and no monitoring tool draws one for two rows of data. Every record panel that
+            does this for real (Clay, folk, Attio) puts the subject top-left, the faces at reading
+            size, and the rest below. The status badge rides the line under the names. */}
+        <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+          <div style={{ display:"flex", gap:"3px", flexShrink:0 }}>
+            <img src={primary.face} alt="" style={{ width:"40px", height:"40px", borderRadius:"5px", objectFit:"cover" }} />
+            <img src={node.face} alt="" style={{ width:"40px", height:"40px", borderRadius:"5px", objectFit:"cover" }} />
           </div>
-          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak time</p>
-            {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
-                glyph at all. */}
-            <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize", display:"flex", alignItems:"center", gap:"4px" }}>
-              {bucket === "evening" || bucket === "night" ? <MoonIconSm /> : <SunIconSm />} {bucket} · {pct}%
-            </p>
+          <div style={{ display:"flex", flexDirection:"column", gap:"2px", minWidth:0 }}>
+            {/* "+" not an arrow: appearing in one frame together is symmetric, and an arrow would
+                read as a movement from one to the other. */}
+            <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px" }}>
+              {primaryId} + {assocId(node)}
+            </span>
+            {/* Status rides this line now that the analytics block is back to two stat cards —
+                it has nowhere else to sit, and it belongs to the associate, not to the pattern. */}
+            <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-500)" }}>
+              {meta.label} · {node.count} co-captures
+              <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
+                padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{node.status.toUpperCase()}</span>
+            </span>
           </div>
         </div>
-        {/* The badge sits between the two ends because that is what it counts — how many shared
-            frames fall inside this span. Without it the row states a range and leaves the density
-            of it unsaid: seven days could hold 3 co-captures or 148. Gray, not the link colour —
-            the number is context for the span, not the panel's headline. */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", fontSize:"11px" }}>
-          <span style={{ color:"var(--gray-400)" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time}</strong></span>
-          {/* White on the primary-100 field, matching the two stat cards in this same block — a
-              gray chip was the only element here outside the primary family, and gray-100 on
-              gray-50 had been a single step of tint away from invisible. */}
-          <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"white",
-            padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
-            {events.length} FRAMES
-          </span>
-          <span style={{ color:"var(--gray-400)" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time}</strong></span>
+
+        {/* Where and when the two were captured together most, plus the span they cover. That is the
+            whole of what detection times at a camera can support: a gap-based "companion
+            probability" also lived here, but a time gap cannot separate walking side by side from
+            passing three seconds and several metres apart. "Peak" rather than "Time of day" because
+            the label has to say the value is the commonest one. */}
+        {/* Filled instead of ruled. A fill already says "these belong together", so the 1px rules
+            that used to bracket this block went with it — a tinted box between two rules was the
+            same boundary drawn twice. 2px of margin on top of the column's 18px gap keeps the 20px
+            of air the block had when the rules were doing the separating. */}
+        <div style={{ display:"flex", flexDirection:"column", gap:"10px", margin:"2px 0",
+          backgroundColor:"var(--gray-50)", borderRadius:"8px", padding:"14px" }}>
+          <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지" color="var(--primary-400)">Relationship analytics</PanelHeading>
+          <div style={{ display:"flex", gap:"10px" }}>
+            <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
+              <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
+              {/* The glyph belongs on the value, not the label — a pin next to the words "Peak
+                  location" only restates them, next to "Novena" it marks what kind of thing that is. */}
+              <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", display:"flex", alignItems:"center", gap:"4px" }}>
+                <MapPinIconSm /> {topGroup.location}
+              </p>
+            </div>
+            <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
+              <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak time</p>
+              {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
+                  glyph at all. */}
+              <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize", display:"flex", alignItems:"center", gap:"4px" }}>
+                {bucket === "evening" || bucket === "night" ? <MoonIconSm /> : <SunIconSm />} {bucket} · {pct}%
+              </p>
+            </div>
+          </div>
+          {/* The badge sits between the two ends because that is what it counts — how many shared
+              frames fall inside this span. Without it the row states a range and leaves the density
+              of it unsaid: seven days could hold 3 co-captures or 148. Gray, not the link colour —
+              the number is context for the span, not the panel's headline. */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", fontSize:"11px" }}>
+            <span style={{ color:"var(--gray-400)" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time}</strong></span>
+            {/* White on the primary-100 field, matching the two stat cards in this same block — a
+                gray chip was the only element here outside the primary family, and gray-100 on
+                gray-50 had been a single step of tint away from invisible. */}
+            <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"white",
+              padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
+              {events.length} FRAMES
+            </span>
+            <span style={{ color:"var(--gray-400)" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time}</strong></span>
+          </div>
         </div>
+
+          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
+            {/* "Event timeline" named the shape of the list, not its contents — every row here is
+                one frame with both people in it, which is the whole reason the row exists. */}
+            <PanelHeading title="두 사람이 같은 프레임에 함께 찍힌 기록 — 최신순">Shared frames</PanelHeading>
+            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {events.length}</span>
+          </div>
       </div>
 
-      <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
-          {/* "Event timeline" named the shape of the list, not its contents — every row here is
-              one frame with both people in it, which is the whole reason the row exists. */}
-          <PanelHeading title="두 사람이 같은 프레임에 함께 찍힌 기록 — 최신순">Shared frames</PanelHeading>
-          <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {events.length}</span>
-        </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
-          {pageRows.map((e, i) => {
+      {/* The band that actually scrolls. minHeight:0 is what lets it: without it a flex child
+          refuses to shrink below its content, so the frames would push the pager off the panel
+          again no matter what overflow says. */}
+      <div ref={listRef} className="vca-hide-scrollbar" style={{ flex:1, minHeight:0, overflowY:"auto",
+        padding:"12px 20px 20px", display:"flex", flexDirection:"column", gap:"16px" }}>
+        {pageRows.map((e, i) => {
             const rowIdx = pageStart + i;
             return (
               /* No accordion. Opening rows one at a time made the frame — the only thing in the
@@ -3646,15 +3685,17 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                   </div>
                 ))}
               </div>
-            );
+          );
           })}
-        </div>
-        {/* Only when there is somewhere to go — a pair with 6 co-captures fits on one page, and a
-            lone "1" button below it just looks broken. */}
-        {pageCount > 1 && (
-          <TimelinePager page={safePage} pageCount={pageCount} onPage={setPage} />
-        )}
       </div>
+
+      {/* Only when there is somewhere to go — a pair whose co-captures all fit on one page would
+          get a lone "1" button and a border for nothing. */}
+      {pageCount > 1 && (
+        <div style={{ flexShrink:0, padding:"10px 20px", borderTop:BORDER }}>
+          <TimelinePager page={safePage} pageCount={pageCount} onPage={setPage} />
+        </div>
+      )}
     </div>
   );
 }
