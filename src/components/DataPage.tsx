@@ -3303,9 +3303,9 @@ const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string 
   Unknown: { bg:"var(--gray-100)", text:"var(--gray-500)" },
 };
 
-function JointEvidencePanel({ primary, tier, node, onClose }: {
+function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchToPrimary }: {
   primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode;
-  onClose: () => void;
+  onClose: () => void; onExclude: () => void; onSwitchToPrimary: () => void;
 }) {
   const meta = TIER_LINK_META[tier];
   const badge = TIER_BADGE_META[tier];
@@ -3330,9 +3330,26 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
       {/* ── Section 1: header, profile comparison, badges, actions ── */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span title="Primary Target와 선택한 연관자가 함께 감지된 증거(시간·장소)를 보여줌" style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</span>
-        <button onClick={onClose} title="Close" style={{ display:"flex", background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", padding:"2px" }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-        </button>
+        {/* Both actions used to be full-width buttons below the profile comparison, which gave a
+            "promote this associate" and a "dismiss this associate" the same weight as the evidence
+            they sit on. They belong to the associate this panel is already about, so they live in
+            its header as icons — reachable, not shouting. */}
+        <div style={{ display:"flex", alignItems:"center", gap:"2px" }}>
+          <button onClick={onSwitchToPrimary} title="Trace this associate instead — makes them the Primary Target, so the graph rebuilds around who THEY were seen with"
+            style={{ display:"flex", background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", padding:"4px" }}>
+            <SwapIconSm />
+          </button>
+          <button onClick={onExclude} title="Not the same person — hide from this associate list"
+            style={{ display:"flex", background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", padding:"4px" }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+          </button>
+          <button onClick={onClose} title="Close" style={{ display:"flex", background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", padding:"4px" }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </button>
+        </div>
       </div>
 
       <div style={{ border:BORDER, borderRadius:"8px", backgroundColor:"var(--gray-50)", padding:"16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -3417,8 +3434,11 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                     <span style={{ display:"flex", color:"var(--gray-400)", transform: open ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}><ChevronDownIconSm /></span>
                   </span>
                 </button>
+                {/* 8px of top padding, not 0: the camera line sat flush against the row button
+                    above it, so the expanded body read as a continuation of the header rather than
+                    its own block. */}
                 {open && (
-                  <div style={{ padding:"0 12px 12px", display:"flex", flexDirection:"column", gap:"8px" }}>
+                  <div style={{ padding:"8px 12px 12px", display:"flex", flexDirection:"column", gap:"8px" }}>
                     <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-700)" }}>
                       <CameraGlyph size={12} /> {e.location} — {assocId(node)} detected {e.gapSec}s {e.gapSec <= 3 ? "after" : "behind"} Primary at this camera
                     </span>
@@ -3539,9 +3559,6 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
   // hides a node from every view (pyramid/grid/counts) since a dismissed non-match shouldn't keep
   // cluttering the associate list. Reset whenever the Primary Target itself changes — these ids
   // belong to THIS person's associate graph, not the next one's.
-  // NOTHING POPULATES THIS ANY MORE: its only entry point was the joint-evidence panel's "Exclude
-  // false positive" button, removed on request. The filter below is kept so an entry point can be
-  // added back without rethreading it, but as it stands the set is always empty.
   const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set());
   useEffect(() => {
     setExcludedIds(new Set());
@@ -3565,6 +3582,10 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
     { id:"desc", label:"Co-occurrence frequency (high → low)" },
     { id:"asc",  label:"Co-occurrence frequency (low → high)" },
   ];
+  const handleExcludeNode = (id: number) => {
+    setExcludedIds(prev => new Set(prev).add(id));
+    setSelectedNode(null);
+  };
   const notExcluded = (n: RedfaceNode) => !excludedIds.has(n.id);
   // Reuses buildCooccurEvents' own dates rather than a separate fabricated "last activity" field —
   // a node passes the filter if ANY of its sampled co-capture events fall inside the range.
@@ -3756,6 +3777,8 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
       {selectedNode && primaryTarget && (
         <JointEvidencePanel primary={primaryTarget} tier={selectedNode.tier} node={selectedNode.node}
           onClose={() => setSelectedNode(null)}
+          onExclude={() => handleExcludeNode(selectedNode.node.id)}
+          onSwitchToPrimary={() => onSwitchToNode(selectedNode.node)}
         />
       )}
     </div>
