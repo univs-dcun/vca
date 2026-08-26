@@ -3295,11 +3295,16 @@ const TIER_LINK_META: Record<string, { label:string }> = {
   tier3: { label:"TIER 3 LINK" },
 };
 
+// One scene per camera. Until the backend serves the actual still behind each detection, every
+// row shared a single image, so paging through 15 pages of frames looked like the same moment
+// listed over and over — the scene is what tells you these are different places. Remote stills
+// come from the same source as the face crops; Bugis keeps the local CCTV asset.
+const CO_SCENE = (id: string) => `https://images.unsplash.com/${id}?w=640&h=368&fit=crop&q=70`;
 const COOCCUR_CAMERAS = [
-  { code:"CAM-GEY-024", location:"Geylang Rd Int." },
-  { code:"CAM-ORC-011", location:"Orchard Rd Junction" },
-  { code:"CAM-BGS-007", location:"Bugis St Crossing" },
-  { code:"CAM-CBD-019", location:"Raffles Pl Int." },
+  { code:"CAM-GEY-024", location:"Geylang Rd Int.",     scene:CO_SCENE("photo-1493780474015-ba834fd0ce2f") },
+  { code:"CAM-ORC-011", location:"Orchard Rd Junction", scene:CO_SCENE("photo-1449824913935-59a10b8d2000") },
+  { code:"CAM-BGS-007", location:"Bugis St Crossing",   scene:"/cctv-sample.png" },
+  { code:"CAM-CBD-019", location:"Raffles Pl Int.",     scene:CO_SCENE("photo-1519501025264-65ba15a82390") },
 ];
 
 function assocId(n: RedfaceNode) {
@@ -3321,6 +3326,8 @@ type CooccurEvent = {
   time: string;
   /** Left edge of the Primary's box, as a % of frame width; the associate's sits beside it. */
   boxLeft: number;
+  /** Scene still for this camera — stands in for the actual frame the detection came from. */
+  scene: string;
 };
 
 // Relative to now, like Redmap's sightings. A fixed July pool drifted further from today every
@@ -3360,7 +3367,7 @@ function buildCooccurEvents(node: RedfaceNode): CooccurEvent[] {
     const two = (n: number) => String(n).padStart(2, "0");
     // Stand-in for the box coordinates a per-frame detection would carry.
     const boxLeft = 22 + ((node.id + i * 13) % 18);
-    return { location: cam.location, camCode: cam.code, date, time: `${two(hh)}:${two(mm)}:${two(ss)}`, boxLeft };
+    return { location: cam.location, camCode: cam.code, scene: cam.scene, date, time: `${two(hh)}:${two(mm)}:${two(ss)}`, boxLeft };
   });
 }
 
@@ -3604,7 +3611,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                         and the box positions are the only thing that says where each stood. Scene
                         still is the one Best Frame uses for its camera feeds. */}
                     <div style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
-                      <img src="/cctv-sample.png" alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
+                      <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
                       <span style={{ position:"absolute", top:6, left:6, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", letterSpacing:"0.4px" }}>
                         {e.camCode} · {e.time}
                       </span>
