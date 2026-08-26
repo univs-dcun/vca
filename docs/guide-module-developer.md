@@ -55,7 +55,7 @@
 - `status`: `RUNNING` | `STOPPED` (두 값뿐)
 - 카메라가 시스템에서 제거되면 **빈 페이로드를 retained로 발행**해서 지운다
 
-### 2. 감지 이벤트 (v1.1: 전 카테고리)
+### 2. 감지 이벤트 (v1.1: 전 카테고리 · v1.6: faceUrl/gender/age)
 
 ```json
 // vca/v1/sg/cameras/cam-westgate-bs1/detections   (non-retained)
@@ -72,6 +72,9 @@
   "vehicle": null,
   "attributes": { "top": "White top", "bottom": "Brown bottom", "item": "No backpack" },
   "snapshotUrl": "/api/detections/evt-01J8Z3K7Q9/snapshot",
+  "faceUrl": "/api/detections/evt-01J8Z3K7Q9/face",
+  "gender": "male",
+  "age": 45,
   "location": { "lat": 1.3204, "lng": 103.8439 },
   "detectedAt": "2026-08-10T01:18:23Z"
 }
@@ -84,6 +87,10 @@
 - `label`은 화면 행 제목(인물 이름 / `"Vehicle SGX411"` / 외형 요약), `groupLabel`은 부제(`"Staff (Finance)"`, 차량 색상 등)
 - `similarity`/`confidence`: 0~1 실수 (0.726 = 72.6%). 미매칭 카테고리는 `confidence: null`
 - `snapshotUrl`: **MQTT 발행 시에는 `/api` 프리픽스를 모듈이 직접 붙인다** (MQTT는 프록시를 거치지 않으므로). REST 응답에서는 반대로 모듈 상대경로 — 아래 모듈 API 절 참고
+- **(v1.6, DATA Live Monitoring)** `faceUrl`(얼굴 크롭 — 인물이고 얼굴이 검출된 경우만, 그 외 `null`),
+  `gender`(`male`/`female`/`null`), `age`(추정 나이 단일 정수, 미추정 `null`) — 전부 additive라
+  기존 소비자와 호환. `snapshotUrl`이 카드의 **전신 이미지**, `faceUrl`이 얼굴 인셋이다.
+  `/api` 프리픽스 규칙은 snapshotUrl과 동일
 
 ### 5. Best Frame (v1.1 — BEST FRAME 화면)
 
@@ -189,13 +196,15 @@
 | `GET /v1/videos/{videoId}/bestframes?date&hour&minute` | **(v1.5)** 비디오 베스트 프레임 이력 — recordedAt(촬영 메타) 기준 절대 시각 축 |
 | `GET /v1/videos/{videoId}/bestframes/{frameId}/targets` | **(v1.5)** 비디오 프레임 대상 (targetId = v1.3 비디오 대상 targetId) |
 | `GET /v1/videos/{videoId}/bestframes/{frameId}/image` | **(v1.5)** 비디오 베스트 프레임 이미지 바이너리 (카메라는 v1.1 frames 라우트 재사용) |
+| `GET /v1/detections/{eventId}/face` | **(v1.6)** 감지 얼굴 크롭 바이너리 — 감지 이벤트 faceUrl의 대상. faceUrl null인 이벤트는 404. 보존은 snapshot과 동일 |
+| `POST /v1/persons/reid-search` | **(v1.7)** Re-ID 인물 검색 — 이미지 업로드(face/body) 또는 `vipId` 참조 + 필터(기간·유사도·카메라·성별·복장·소지품) 전부 모듈 적용 → 유사도 내림차순 상위 최대 20 (빈 결과 허용, 동기 60초) |
 
 지킬 규칙:
 
 1. **응답은 데이터 그대로** — envelope 없음 (envelope은 프록시가 씌운다). 오류는 HTTP 상태코드 + `{ "code": "MOD-XXXX", "message": "..." }`
 2. **MQTT 발행 값과 일관성** — `eventId`는 MQTT 감지 이벤트와 동일한 값 (브라우저가 두 채널을 이 값으로 병합한다). 카메라 status·locationId·좌표도 MQTT 발행분과 같아야 함
 3. **날짜 파라미터** 기본값은 사이트 로컬(Asia/Singapore) 오늘, 응답의 시각 필드는 ISO-8601 UTC
-4. **성능 분리** — 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리(프로세스 또는 저장소). 프록시는 5초 타임아웃으로 호출하므로 통상 2초 이내 응답 목표 (예외: v1.2 인물 검색은 60초)
+4. **성능 분리** — 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리(프로세스 또는 저장소). 프록시는 5초 타임아웃으로 호출하므로 통상 2초 이내 응답 목표 (예외: v1.2 인물 검색·v1.4 Track on Map·v1.7 Re-ID 검색은 60초)
 5. **보존 기간** — 최소 당일+전일 데이터는 조회 가능해야 함 (증감 계산·date 파라미터 지원 범위). 장기 보존 정책은 모듈 재량
 
 ### (v1.2) REDMAP 인물 검색 — 구현 전 알아둘 것
@@ -256,10 +265,33 @@
   (분석 전이면 null). 화면 AI Inspection Detail이 그대로 그린다
 - 보존: 최소 당일+전일 (공통 규칙) — 화면 날짜 선택지가 이 범위다
 
+### (v1.6) DATA Live Monitoring — 구현 전 알아둘 것
+
+- **새 API는 얼굴 크롭 1종뿐** — 화면 자체는 기존 감지 스트림(MQTT `detections`)과 기존 REST
+  (`GET /cameras/{id}/detections`)를 그대로 쓴다. 할 일은 감지 이벤트(MQTT·REST 동일 구조)에
+  `faceUrl`·`gender`·`age`를 채우는 것
+- 화면은 **인물 카테고리만** 카드로 렌더한다 (vehicle·false_positive는 무시) — 차량 이벤트에는
+  세 필드 모두 `null`이면 된다
+- 얼굴 미검출 인물은 `faceUrl: null` — 화면이 얼굴 인셋 없이 렌더한다 (오류 아님)
+
+### (v1.7) Re-ID 인물 검색 — 구현 전 알아둘 것
+
+- **검색 대상 지정은 두 방식 중 하나 필수**: ① multipart 이미지(face·body 중 1개 이상)
+  ② `vipId` 쿼리 파라미터 — 모듈 보관 등록 사진 임베딩으로 검색 (v1.4처럼 업로드 없는 참조
+  방식). vipId가 오면 이미지는 무시
+- **필터는 전부 모듈 책임** — 기간(from/to)·similarity 임계값·cameraId·gender·
+  apparel(trousers/shorts/skirts/short_sleeve/long_sleeve)·props(bag/hat/glasses).
+  apparel/props 배열은 "이 중 하나 이상 해당"(OR). 프론트는 후처리하지 않는다
+- 응답은 **유사도 내림차순 상위 maxResults(기본·최대 20)** — 조건에 맞는 매치가 없으면 빈
+  `results` (오류 아님). 실제 적용한 기간·임계값은 `applied`로 에코
+- **`targetId`는 감지 eventId와 동일 값이어야 한다** — 화면이 이 값으로 ① 팝업 이동 경로
+  (v1.4 track-on-map 재호출), ② Analyze Frame 딥링크(카메라+capturedAt의 분), ③ 크롭 조회
+  (`/detections/{id}/snapshot`·`/face`)를 전부 해결한다. 새 ID 체계를 만들면 셋 다 깨진다
+
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 30개 엔드포인트 전부**를
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 32개 엔드포인트 전부**를
 계약 그대로 구현한 Node 시뮬레이터. v1.3 비디오는 `sim/assets/`의 실제 H.264 MP4를 Range로
 서빙하며, **frames의 bbox 수식이 MP4 속 박스 움직임과 동일**해 재생 오버레이가 영상 속 박스를
 따라가는지 눈으로 검증할 수 있다 (수식·재생성 ffmpeg 명령은 sim.mjs 주석 참조). v1.2 인물 검색은 두 경로로 응답한다:
@@ -274,8 +306,9 @@ cd sim && npm install && npm start   # MQTT 발행 + :8081 모듈 API 서빙
 #   TOGGLE_P(카메라 상태 토글 확률, 0=고정), STOPPED_EVERY(초기 정지 간격, 0=전부 RUNNING)
 ```
 
-이 참조 구현 + 실제 프록시 + 실제 대시보드 조합으로 **DASHBOARD(2026-08-12)와
-BEST FRAME(2026-08-18) 전체 화면 E2E가 검증 완료**된 상태다 — 즉 모듈이 이 계약대로만
+이 참조 구현 + 실제 프록시 + 실제 대시보드 조합으로 **전 화면 E2E가 검증 완료**된 상태다 —
+DASHBOARD(08-12), BEST FRAME(08-18), REDMAP(08-19), Video/Image·Track on Map(08-21),
+Analyze Frame·DATA Live Monitoring(08-24), Re-ID Analysis(08-25). 즉 모듈이 이 계약대로만
 구현하면 화면 연결에 추가 작업이 없다. 검증 과정에서 확인된 구현 포인트:
 
 - **URL 경로 규칙 (혼동 주의)** — REST 응답의 리소스 URL(`photoUrl`, `snapshotUrl`)은
@@ -337,6 +370,10 @@ curl "http://localhost:8081/v1/dashboard/live-analytics?page=0&size=20&type=ALL"
   - [ ] (v1.3) frames가 t 오름차순·대상 있는 프레임만이고, objects[].targetId가 targets와 일치하는가
   - [ ] (v1.3) 목록 URL 필드(imageUrl/contentUrl/thumbnailUrl/cropUrl)가 전부 모듈 상대경로인가
   - [ ] (v1.3) processing 상태 비디오가 목록에 나오되 durationSec/thumbnailUrl이 null인가
+  - [ ] (v1.6) 인물 감지에 faceUrl/gender/age가 실리고 차량은 셋 다 null인가 (MQTT는 /api 프리픽스, REST는 상대경로)
+  - [ ] (v1.6) faceUrl null인 이벤트의 `/v1/detections/{id}/face`가 404를 주는가
+  - [ ] (v1.7) `/v1/persons/reid-search`에 vipId·face·body 모두 없으면 400, 미등록 vipId면 404인가
+  - [ ] (v1.7) results가 유사도 내림차순·최대 20건이고 targetId가 감지 eventId와 같은 값인가 (track-on-map 역참조 가능)
 
 ### 대시보드 E2E
 
