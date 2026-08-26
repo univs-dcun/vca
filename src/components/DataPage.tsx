@@ -3557,7 +3557,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           same boundary drawn twice. 2px of margin on top of the column's 18px gap keeps the 20px
           of air the block had when the rules were doing the separating. */}
       <div style={{ display:"flex", flexDirection:"column", gap:"10px", margin:"2px 0",
-        backgroundColor:"var(--primary-50)", borderRadius:"8px", padding:"14px" }}>
+        backgroundColor:"var(--primary-100)", borderRadius:"8px", padding:"14px" }}>
         <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지" color="var(--primary-400)">Relationship analytics</PanelHeading>
         <div style={{ display:"flex", gap:"10px" }}>
           <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
@@ -3583,9 +3583,10 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
             the number is context for the span, not the panel's headline. */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", fontSize:"11px" }}>
           <span style={{ color:"var(--gray-400)" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time}</strong></span>
-          {/* gray-200, not gray-100: on the block's gray-50 fill a gray-100 chip was one step of
-              tint away from invisible. */}
-          <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--gray-700)", backgroundColor:"var(--gray-200)",
+          {/* White on the primary-100 field, matching the two stat cards in this same block — a
+              gray chip was the only element here outside the primary family, and gray-100 on
+              gray-50 had been a single step of tint away from invisible. */}
+          <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"white",
             padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
             {events.length} FRAMES
           </span>
@@ -3611,39 +3612,39 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                  Neither a box nor a rule between rows: the frame images are the strongest edges on
                  the page already, so any line drawn between them is a third edge next to two that
                  are unmissable. 16px of air is enough to say "next row" — and it lets each frame
-                 run the full width of the panel. */
-              <div key={rowIdx}>
-                <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between",
-                  gap:"8px", paddingBottom:"8px" }}>
-                  {/* The place name is the one thing in this row a person reads rather than scans,
-                      so it carries the weight of the analytics values (12/700). The camera code
-                      isn't repeated here — the frame's own overlay already stamps it. */}
-                  <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"12px", fontWeight:700, color:"var(--gray-800)", minWidth:0 }}>
-                    <CameraGlyph size={13} /> {e.location}
-                  </span>
-                  <span style={{ fontSize:"11px", color:"var(--gray-500)", whiteSpace:"nowrap", flexShrink:0 }}>{e.date} {e.time}</span>
-                </div>
-                {/* One frame with both people boxed. An associate co-appearance IS a shared frame,
-                    so every row has one to show, and the box positions are the only thing that says
-                    where each stood. Scene still is the one Best Frame uses for its camera feeds. */}
-                <div style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
-                  <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
-                  <span style={{ position:"absolute", top:6, left:6, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", letterSpacing:"0.4px" }}>
-                    {e.camCode} · {e.time}
-                  </span>
-                  {[
-                    { label:"TARGET", color:"var(--primary-400)", left:e.boxLeft },
-                    { label:assocId(node), color:"var(--danger-400)", left:e.boxLeft + 17 },
-                  ].map(box => (
-                    <div key={box.label} style={{ position:"absolute", left:`${box.left}%`, top:"34%", width:"14%", height:"44%",
-                      border:`2px solid ${box.color}`, borderRadius:"2px" }}>
-                      <span style={{ position:"absolute", bottom:"100%", left:-2, marginBottom:"2px", whiteSpace:"nowrap",
-                        fontSize:"8px", fontWeight:800, color:"white", backgroundColor:box.color, padding:"1px 4px", borderRadius:"2px" }}>
-                        {box.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                 run the full width of the panel.
+
+                 The row IS the frame: an associate co-appearance is a shared frame, so there is
+                 always one to show, and the box positions are the only thing that says where each
+                 stood. Scene still is the one Best Frame uses for its camera feeds. */
+              <div key={rowIdx} style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
+                <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
+                {/* Burned into the frame instead of set above it, the way a camera stamps its own
+                    still — the caption belongs to the image, and pulling it out left every row
+                    with a line of text that only described the picture underneath it. 10px, not
+                    the 8px this chip used to be: a place name has to be read, not just seen. */}
+                <span style={{ position:"absolute", top:6, left:6, display:"flex", alignItems:"center", gap:"5px",
+                  maxWidth:"calc(100% - 12px)", fontSize:"10px", fontWeight:700, color:"white",
+                  backgroundColor:"rgba(14,22,42,0.65)", padding:"3px 7px", borderRadius:"4px" }}>
+                  <CameraGlyph size={12} /> {e.location}
+                  <span style={{ opacity:0.7, fontWeight:600 }}>{e.camCode}</span>
+                </span>
+                <span style={{ position:"absolute", bottom:6, right:6, fontSize:"10px", fontWeight:700, color:"white",
+                  backgroundColor:"rgba(14,22,42,0.65)", padding:"3px 7px", borderRadius:"4px", letterSpacing:"0.2px" }}>
+                  {e.date} {e.time}
+                </span>
+                {[
+                  { label:"TARGET", color:"var(--primary-400)", left:e.boxLeft },
+                  { label:assocId(node), color:"var(--danger-400)", left:e.boxLeft + 17 },
+                ].map(box => (
+                  <div key={box.label} style={{ position:"absolute", left:`${box.left}%`, top:"34%", width:"14%", height:"44%",
+                    border:`2px solid ${box.color}`, borderRadius:"2px" }}>
+                    <span style={{ position:"absolute", bottom:"100%", left:-2, marginBottom:"2px", whiteSpace:"nowrap",
+                      fontSize:"8px", fontWeight:800, color:"white", backgroundColor:box.color, padding:"1px 4px", borderRadius:"2px" }}>
+                      {box.label}
+                    </span>
+                  </div>
+                ))}
               </div>
             );
           })}
