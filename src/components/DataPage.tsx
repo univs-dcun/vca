@@ -3484,21 +3484,6 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
     <div className="vca-hide-scrollbar" style={{ width:"460px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER,
       padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"18px" }}>
 
-      {/* ── Section 1: header, profile comparison, badges, actions ── */}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <span title="Primary Target와 선택한 연관자가 함께 감지된 증거(시간·장소)를 보여줌" style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</span>
-        {/* Same close control as Redmap's image-upload popup — a 37px tinted square rather than a
-            bare glyph, so the one action in this header has a hit area to match. */}
-        <button onClick={onClose} aria-label="Close" style={{
-          width:"37px", height:"37px", borderRadius:"8px", backgroundColor:"var(--gray-50)",
-          border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
-        }}>
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M4 4L14 14M14 4L4 14" stroke="var(--gray-400)" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </button>
-      </div>
-
       {/* The pair, left-aligned. What was here — two faces mirrored around a chain icon in a
           circle, with TIER 2 LINK above it and a correlation line below — was a relationship
           *diagram*, and no monitoring tool draws one for two rows of data. Every record panel that
@@ -3519,6 +3504,20 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
             {meta.label} · {node.count} co-captures
           </span>
         </div>
+        {/* Close sits on the subject row, not on a title row of its own. A separate
+            "Co-capture evidence" heading at 16px/800 sat directly above these two names and read
+            as a second title competing with them, and the 37px filled square made dismissing the
+            panel the most prominent control in it. Every record panel in the references (Pin,
+            Juicebox, Circle) does it this way: subject as the header, bare ✕ beside it. */}
+        <button onClick={onClose} aria-label="Close" style={{
+          marginLeft:"auto", width:"26px", height:"26px", flexShrink:0, padding:0,
+          backgroundColor:"transparent", border:"none", cursor:"pointer",
+          display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)",
+        }}>
+          <svg width="15" height="15" viewBox="0 0 18 18" fill="none">
+            <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
 
       {/* Where and when the two were captured together most, plus the span they cover. That is the
