@@ -3593,8 +3593,11 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                     its own block. */}
                 {open && (
                   <div style={{ padding:"8px 12px 12px", display:"flex", flexDirection:"column", gap:"8px" }}>
-                    <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-700)" }}>
-                      <CameraGlyph size={12} /> {e.location}
+                    {/* The place name is the one thing in this row a person reads rather than
+                        scans, so it carries the weight of the analytics values (12/700) instead of
+                        sitting at the 11px caption size the camera code uses. */}
+                    <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"12px", fontWeight:700, color:"var(--gray-800)" }}>
+                      <CameraGlyph size={13} /> {e.location}
                     </span>
                     {/* One frame with both people boxed. There is no second rendering any more —
                         an associate co-appearance IS a shared frame, so every row has one to show,
