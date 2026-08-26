@@ -325,3 +325,14 @@ body {
   cursor: pointer;
 }
 
+
+/* Redmap search toolbar stays a single 52px row at every laptop width. It cannot wrap (a second
+   row eats the map and reads as a layout bug) and it cannot scroll (the cut lands mid-control and
+   reads as broken), so the controls themselves drop out in priority order as space runs out.
+   Order matters: the slider goes first because the 60/70/80/90 presets beside it already cover the
+   thresholds anyone picks; the "Search by image" hints go next because the dashed pill and its
+   face/body icon already say what the chip is for; the word "Similarity" goes last, once the
+   preset chips reading "60% 70% 80% 90%" are the only thing left and are self-describing. */
+@media (max-width: 1680px) { .vca-tb-slider { display: none; } }
+@media (max-width: 1600px) { .vca-tb-hint { display: none; } }
+@media (max-width: 1400px) { .vca-tb-label { display: none; } }

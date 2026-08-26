@@ -961,18 +961,19 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
       )}
 
       {/* ── Search bar ──
-          Wraps instead of overflowing. This was one non-wrapping 52px row, and the full set of
-          person filters needs ~1780px: on a 14" laptop the row overflowed and the page's
-          overflow:hidden cut Reset and Search clean off the right edge, so the primary action of
-          the screen was invisible. Making the filters scroll horizontally instead only moved the
-          cut — it landed mid-way through the similarity presets, which reads as broken rather than
-          as scrollable. Wrapping costs one row of vertical space on narrow screens and nothing at
-          all on wide ones, and no control is ever hidden or clipped. */}
+          Always one row. The full set of person filters wants ~1710px, and on a 14" laptop
+          (1512) the row used to overflow — the page's overflow:hidden then cut Reset and Search
+          clean off the right edge, so the primary action of the screen was invisible. Scrolling
+          the filters only moved the cut into the middle of the similarity presets, and wrapping to
+          a second row cost the map 44px and looked wrong. What gives instead is the controls
+          themselves, dropped in priority order by the vca-tb-* rules in globals.css: the slider
+          first (the presets cover it), then the "Search by image" hints (the dashed pill and its
+          icon already say "attach an image"), then the word "Similarity". */}
       <div style={{
         backgroundColor: "white", borderBottom: BORDER,
-        padding: "8px 24px", minHeight: "52px",
-        display: "flex", alignItems: "center", flexWrap: "wrap",
-        columnGap: "20px", rowGap: "8px", flexShrink: 0,
+        padding: "0 24px", height: "52px",
+        display: "flex", alignItems: "center", flexWrap: "nowrap",
+        gap: "20px", flexShrink: 0,
       }}>
 
         {/* Mode toggle */}
@@ -1077,6 +1078,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                   >
                     <button
                       onClick={() => setUploadFor(key)}
+                      title={`${label} — search by image`}
                       style={{
                         height: "100%", padding: "0 12px", background: "none", border: "none",
                         cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
@@ -1090,7 +1092,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                           <CheckIconSm /> Loaded
                         </span>
                       ) : (
-                        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", whiteSpace: "nowrap" }}>
+                        <span className="vca-tb-hint" style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", whiteSpace: "nowrap" }}>
                           Search by image
                         </span>
                       )}
@@ -1127,7 +1129,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             {/* Similarity — quick presets plus a slider for anything in between, so landing on
                 e.g. 65% doesn't require picking the nearest preset and living with it. */}
             <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
-              <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-600)", whiteSpace: "nowrap" }}
+              <span className="vca-tb-label" style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-600)", whiteSpace: "nowrap" }}
                 title={bodyOnly ? "Body-only search: matching on build and clothing alone is looser than a face match, so a low threshold here returns many false positives." : undefined}
               >Similarity</span>
               <div style={{ display: "flex", gap: "2px", backgroundColor: "var(--gray-100)", borderRadius: "999px", padding: "2px", height: "36px", boxSizing: "border-box" }}>
@@ -1156,13 +1158,6 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                   their own track/thumb border by default) down to a flat gray track + solid
                   purple thumb — same treatment as Data's Smart Search Similarity slider. */}
               <style>{`
-                /* The slider is the part of this control that gives way when the toolbar runs out
-                   of room: it is 100px plus its gap, and the 60/70/80/90 presets beside it already
-                   cover the values people actually pick. Below the breakpoint the whole row fits on
-                   one line again instead of wrapping. The reading stays visible either way, so a
-                   threshold set to something off-preset on a wide screen is still legible here —
-                   just not adjustable to a new off-preset value until there's room. */
-                @media (max-width: 1680px) { .vca-similarity-fine { display: none; } }
                 .vca-similarity-slider { -webkit-appearance:none; appearance:none; background:transparent; outline:none; border:none; }
                 .vca-similarity-slider::-webkit-slider-runnable-track { height:4px; border-radius:999px; background:var(--gray-200); border:none; }
                 .vca-similarity-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--primary-400); border:none; margin-top:-5px; cursor:pointer; }
@@ -1170,7 +1165,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 .vca-similarity-slider::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:var(--primary-400); border:none; cursor:pointer; }
               `}</style>
               <input
-                className="vca-similarity-slider vca-similarity-fine"
+                className="vca-similarity-slider vca-tb-slider"
                 type="range" min={0} max={100} value={similarity}
                 onChange={e => setSimilarity(Number(e.target.value))}
                 style={{ width: "100px", flexShrink: 0, cursor: "pointer" }}
