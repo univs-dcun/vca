@@ -281,7 +281,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
           <div ref={notifRef} style={{ position: "relative" }}>
             <button
               className="navbar-icon-btn"
-              aria-label="Notifications"
+              aria-label="VIP detections"
               onClick={() => {
                 setNotifOpen(o => {
                   const next = !o;
@@ -316,8 +316,15 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 zIndex: 200,
                 overflow: "hidden",
               }}>
+                {/* "VIP detections", not "Notifications": this list is filtered to
+                    personType === "VIP", so Tracking events, offline cameras and expiring licences
+                    never reach it. Under the broader title an operator whose camera just dropped
+                    would open the bell, find nothing, and have no way to tell whether there was no
+                    alert or whether that kind of alert simply doesn't arrive here. If other kinds
+                    are added later the right shape is this title back as the container with tabs
+                    beneath it (All / VIP / Cameras), the way Air and Qatalog do it. */}
                 <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--gray-200)" }}>
-                  <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>Notifications</span>
+                  <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>VIP detections</span>
                 </div>
                 {notifications.length === 0 ? (
                   <div style={{
@@ -329,7 +336,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                       <path d="M10 6.66602V9.99935" stroke="var(--gray-300)" strokeWidth="1.4" strokeLinecap="round"/>
                       <path d="M10 13.334H10.0083" stroke="var(--gray-300)" strokeWidth="1.4" strokeLinecap="round"/>
                     </svg>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-400)" }}>No new notifications</span>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-400)" }}>No new VIP detections</span>
                   </div>
                 ) : (
                   <>
