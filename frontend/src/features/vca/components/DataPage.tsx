@@ -248,6 +248,10 @@ type LiveCardExtras = { faceCrop?: string | null; eventId?: string; cameraId?: s
 type MonitorItem = (typeof REID_DATA)[number] & LiveCardExtras;
 const trackRefOf = (p: MonitorItem): TrackTargetRef | undefined =>
   p.eventId && p.cameraId ? { sourceType: "camera", sourceId: p.cameraId, targetId: p.eventId } : undefined;
+// 데이터 연결(UV-39): Re-ID 매치 → 같은 대상 참조 (targetId = 감지 eventId, v1.4 규칙 동일).
+// 라이브 매치만 값이 있고 mock 매치는 undefined → 딥링크 없이 플레인 REDMAP 이동(기존 동작).
+const matchTrackRefOf = (m: MatchItem): TrackTargetRef | undefined =>
+  m.targetId && m.cameraId ? { sourceType: "camera", sourceId: m.cameraId, targetId: m.targetId } : undefined;
 
 function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab, onGoRedmap }: { p: MonitorItem; onClick: () => void; showCam?: boolean; fill?: boolean; onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void }) {
   const status = REID_STATUS_STYLE[p.status];
@@ -1959,7 +1963,7 @@ function SearchPanel({ state, onSearch, onCollapse }: { state: SearchFilterState
   );
 }
 
-function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onNavigateTab?: (tab: DataTab) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string, entryMs?: number) => void } = {}) {
+function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onNavigateTab?: (tab: DataTab) => void; onGoRedmap?: (name?: string, ref?: TrackTargetRef) => void; onGoAnalyzeFrame?: (location: string, entryMs?: number) => void } = {}) {
   const [expanded, setExpanded]         = useState(false);
   const [hasSearched, setHasSearched]   = useState(false);
   const [detailId, setDetailId]         = useState<number | null>(null);
@@ -2139,7 +2143,9 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
           )
         }
       </div>
-      {detailItem && <DetailModal item={detailItem} onClose={() => setDetailId(null)} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
+      {/* 데이터 연결(UV-39): RedMap Trace — 라이브 매치는 대상 참조(v1.4 track-on-map)를 동봉해
+          Live Monitoring 팝업과 동일한 딥링크로 이동. mock 매치는 ref 없이 플레인 이동(기존) */}
+      {detailItem && <DetailModal item={detailItem} onClose={() => setDetailId(null)} onGoRedmap={() => onGoRedmap?.(detailItem.label || undefined, matchTrackRefOf(detailItem))} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
     </div>
   );
 }
