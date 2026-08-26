@@ -346,7 +346,13 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                         }}
                       >
                         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "8px" }}>
-                          <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{ev.name}</span>
+                          {/* Every row here is a VIP hit, so a "VIP" label would say nothing —
+                              the match confidence is what separates one alert from the next and
+                              decides whether it is worth opening. */}
+                          <span style={{ display: "flex", alignItems: "baseline", gap: "6px", minWidth: 0 }}>
+                            <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.name}</span>
+                            <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary-400)", flexShrink: 0 }}>{ev.confidence}%</span>
+                          </span>
                           <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)", flexShrink: 0 }}>{formatTimeAgo(ev.timestamp)}</span>
                         </div>
                         <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-500)" }}>
