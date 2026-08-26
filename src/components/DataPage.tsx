@@ -3559,6 +3559,11 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         </div>
       </div>
 
+      {/* Section break. The two blocks lost their cards, so nothing separated the analytics
+          numbers from the frame list except the column gap — and 18px of gap reads as spacing
+          within one block, not between two. */}
+      <div style={{ height:"1px", backgroundColor:"var(--gray-200)" }} />
+
       {/* ── Section 4: accordion timeline ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
