@@ -3401,9 +3401,11 @@ const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string 
  * detail), so this panel reads as the same product rather than a screen borrowed from a CRM — the
  * 10px uppercase micro-label that briefly lived here appears nowhere else in the service.
  */
-function PanelHeading({ children, title }: { children: React.ReactNode; title?: string }) {
+function PanelHeading({ children, title, color = "var(--gray-900)" }: {
+  children: React.ReactNode; title?: string; color?: string;
+}) {
   return (
-    <p style={{ margin:0, fontSize:"13px", fontWeight:700, color:"var(--gray-900)",
+    <p style={{ margin:0, fontSize:"13px", fontWeight:700, color,
       letterSpacing:"-0.26px", cursor: title ? "help" : "default" }} title={title}>
       {children}
     </p>
@@ -3555,8 +3557,8 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           same boundary drawn twice. 2px of margin on top of the column's 18px gap keeps the 20px
           of air the block had when the rules were doing the separating. */}
       <div style={{ display:"flex", flexDirection:"column", gap:"10px", margin:"2px 0",
-        backgroundColor:"var(--gray-50)", borderRadius:"8px", padding:"14px" }}>
-        <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지">Relationship analytics</PanelHeading>
+        backgroundColor:"var(--primary-50)", borderRadius:"8px", padding:"14px" }}>
+        <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지" color="var(--primary-400)">Relationship analytics</PanelHeading>
         <div style={{ display:"flex", gap:"10px" }}>
           <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
             <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
