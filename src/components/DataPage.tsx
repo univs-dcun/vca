@@ -1657,7 +1657,7 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
           {activeChips.map((c, i) => <FilterChip key={i}>{c}</FilterChip>)}
           <button onClick={onReset} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer",
             fontSize:"13px", fontWeight:600, color:"var(--gray-600)", flexShrink:0, padding:"0 4px" }}>
-            <ResetIconSm /> Reset Filters
+            <ResetIconSm /> Reset filters
           </button>
         </div>
         <button onClick={onRefine} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer",
@@ -2869,9 +2869,6 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                           backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
                           <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>Click to change</span>
                         </div>
-                        {uploadedBody && hoverImageBox === "body" && (
-                          <RemoveImageButton label="Remove body image" onRemove={clearUploadedBody} />
-                        )}
                         {uploadedFace && hoverImageBox === "face" && (
                           <RemoveImageButton label="Remove face image" onRemove={clearUploadedFace} />
                         )}
@@ -2899,6 +2896,9 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                           backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
                           <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>Click to change</span>
                         </div>
+                        {uploadedBody && hoverImageBox === "body" && (
+                          <RemoveImageButton label="Remove body image" onRemove={clearUploadedBody} />
+                        )}
                       </>
                     ) : (
                       <>
@@ -3031,14 +3031,14 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
 
       <div style={{ padding:"16px 24px", borderTop:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
         <button onClick={reset} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>
-          <ResetIconSm /> Reset Filters
+          <ResetIconSm /> Reset filters
         </button>
         <div style={{ display:"flex", gap:"8px" }}>
           <button onClick={onCancel} style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid var(--gray-300)", backgroundColor:"white", fontSize:"13px", fontWeight:700, color:"var(--gray-600)", cursor:"pointer" }}>Cancel</button>
           <button disabled={!selectedObj} onClick={() => selectedObj && onConfirm(selectedObj)} style={{ padding:"8px 12px", borderRadius:"8px", border:"none",
             backgroundColor: selectedObj ? "var(--primary-400)" : "var(--primary-200)", color:"white", fontSize:"13px", fontWeight:700,
             cursor: selectedObj ? "pointer" : "default" }}>
-            Set as Primary Target
+            Set as primary target
           </button>
         </div>
       </div>
@@ -3772,7 +3772,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
         <div style={{ display:"flex", flexDirection:"column", width:"100%", paddingTop:"4px" }}>
           <button onClick={reset} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
             padding:"10px", borderRadius:"6px", border:BORDER, backgroundColor:"white", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"var(--gray-600)" }}>
-            <ResetIconSm /> Reset Filters
+            <ResetIconSm /> Reset filters
           </button>
         </div>
       </div>
@@ -3790,7 +3790,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
                 </div>
                 <button onClick={onSwitchTarget} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 12px",
                   borderRadius:"6px", backgroundColor:"var(--gray-100)", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"var(--gray-600)" }}>
-                  <SwapIconSm /> Switch Primary Target
+                  <SwapIconSm /> Switch primary target
                 </button>
               </>
             )}
