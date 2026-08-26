@@ -259,29 +259,28 @@ function ExpandFrameIcon() {
 }
 
 function CameraIconXs() {
-  // The app's camera glyph as supplied, paths verbatim. Its own stroke (#475469) is dropped for
-  // currentColor so it takes the colour of the line of text it sits in, and the width is set to 2
-  // rather than the default 1: a 20-unit viewBox drawn at 12px scales by 0.6, so a 1 would render
-  // at little over half a pixel.
+  // The supplied camera glyph, redrawn on a 12-unit grid instead of scaled down from its original
+  // 20. Its coordinates (1.66675, 13.3333, …) land between pixels once multiplied by 0.6, and a
+  // 2-wide stroke comes out at 1.2px straddling two of them — the whole thing renders as a smear
+  // at this size. Here every edge sits on a half-pixel with a 1-wide stroke, so the viewBox maps
+  // 1:1 to device pixels. Same body-plus-lens-wedge shape and roughly the same proportions
+  // (body:wedge was 2.33:1, now 2:1).
   return (
-    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M13.3333 10.8327L17.6858 13.7343C17.7485 13.7761 17.8214 13.8 17.8967 13.8036C17.972 13.8072 18.0468 13.7903 18.1133 13.7548C18.1797 13.7192 18.2352 13.6663 18.274 13.6016C18.3127 13.537 18.3332 13.463 18.3333 13.3877V6.55766C18.3333 6.48434 18.314 6.41232 18.2772 6.34887C18.2405 6.28541 18.1877 6.23276 18.1241 6.19624C18.0606 6.15972 17.9885 6.14062 17.9152 6.14087C17.8419 6.14112 17.7699 6.16071 17.7066 6.19766L13.3333 8.74933"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M11.6667 5H3.33341C2.41294 5 1.66675 5.74619 1.66675 6.66667V13.3333C1.66675 14.2538 2.41294 15 3.33341 15H11.6667C12.5872 15 13.3334 14.2538 13.3334 13.3333V6.66667C13.3334 5.74619 12.5872 5 11.6667 5Z"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+      <rect x="1.5" y="3.5" width="6" height="5" rx="1" stroke="currentColor" strokeWidth="1" />
+      <path d="M7.5 5.5L10.5 3.5V8.5L7.5 6.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
 function ClockIconXs() {
-  // Same geometry as the clock on Best Frame's "Jump to" time control
-  // (BestFrameDetailPage), so the two screens don't each carry their own slightly different
-  // clock face. Stroke is 1.6 rather than that one's 1.4: this renders a 16-unit viewBox at
-  // 12px, so it scales by 0.75 and a 1.4 would come out lighter than the camera glyph beside it.
+  // Best Frame's clock ("Jump to" control) at the same 12-unit grid and 1-wide stroke as the
+  // camera beside it — its own 16-unit geometry scales to exactly this (r 6 → 4.5), so nothing
+  // about the shape changes, only where it lands on the pixel grid.
   return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M8 5v3l2 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+      <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1" />
+      <path d="M6 3.5V6L7.5 7.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
     </svg>
   );
 }
