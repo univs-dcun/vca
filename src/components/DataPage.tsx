@@ -684,8 +684,16 @@ function LiveSearchSidebar({
   const faceSrc = uploadedFace ?? target?.face ?? cardFace;
   const bodySrc = uploadedBody ?? target?.body ?? cardBody;
   // Picking a Recent target/VIP after uploading a photo should switch the preview to THAT
-  // person, not keep showing the stale upload underneath it.
-  useEffect(() => { setUploadedFace(null); setUploadedBody(null); }, [selectedTarget, activeVIP]);
+  // person, not keep showing the stale upload underneath it. Compared during render rather than
+  // reset from an effect — the same pattern dataNavRequest below uses. An effect would paint one
+  // frame with the new selection and the old upload still on top of it, then paint again.
+  const targetKey = `${selectedTarget}|${activeVIP}`;
+  const [prevTargetKey, setPrevTargetKey] = useState(targetKey);
+  if (targetKey !== prevTargetKey) {
+    setPrevTargetKey(targetKey);
+    setUploadedFace(null);
+    setUploadedBody(null);
+  }
 
   const TABS: { id: LiveSearchTab; label:string; icon:React.ReactNode }[] = [
     { id:"Photo",  label:"Photo",  icon:<ImageIconSm size={16} /> },
@@ -3656,10 +3664,14 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   // cluttering the associate list. Reset whenever the Primary Target itself changes — these ids
   // belong to THIS person's associate graph, not the next one's.
   const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set());
-  useEffect(() => {
+  // Compared during render, not reset from an effect: an effect would render one frame of the new
+  // target's graph still carrying the previous target's exclusions and open panel.
+  const [prevPrimaryName, setPrevPrimaryName] = useState(primaryTarget?.name);
+  if (primaryTarget?.name !== prevPrimaryName) {
+    setPrevPrimaryName(primaryTarget?.name);
     setExcludedIds(new Set());
     setSelectedNode(null);
-  }, [primaryTarget?.name]);
+  }
   // Recomputed only when the Primary Target actually changes — same person always reproduces the
   // same associate graph, but switching to someone else now genuinely changes who's in it instead
   // of only updating the header photo/name above a graph that never moved.

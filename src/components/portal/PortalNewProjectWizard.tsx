@@ -137,7 +137,7 @@ export default function PortalNewProjectWizard({ orgId, onDeployed, defaultType 
       </div>
 
       <p style={{ fontSize: "12px", color: "var(--gray-400)", marginTop: "24px", textAlign: "center" }}>
-        // You&apos;ll be redirected to the monitoring dashboard automatically after deployment
+        You&apos;ll be redirected to the monitoring dashboard automatically after deployment
       </p>
     </div>
   );

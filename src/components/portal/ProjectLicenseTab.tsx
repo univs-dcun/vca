@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useVcaStore } from "@/lib/vcaStore";
 import { BORDER, PANEL_SHADOW } from "./PortalShared";
 
@@ -15,12 +15,18 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
   const [channelLimit, setChannelLimit] = useState(project?.licenseChannelLimit?.toString() ?? "");
   const [expiresAt, setExpiresAt] = useState(project?.licenseExpiresAt ?? "");
   const [saved, setSaved] = useState(false);
+  // Read after mount, not during render: the clock is not a pure input, and this is the only thing
+  // here that needs it. queueMicrotask keeps the setState out of the effect body — same pattern
+  // ClientLayout uses for its localStorage read. Reads as not-expired for the first frame.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => { queueMicrotask(() => setNowMs(Date.now())); }, []);
 
   if (!project) return null;
 
   const cameraCount = cameras.filter(c => c.projectId === projectId).length;
   const limit = Number(channelLimit) || 0;
   const overLimit = limit > 0 && cameraCount > limit;
+  const isExpired = !!expiresAt && nowMs !== null && new Date(expiresAt).getTime() < nowMs;
 
   const save = () => {
     updateProjectLicense(projectId, {
@@ -32,7 +38,6 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const isExpired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : false;
 
   return (
     <div>
