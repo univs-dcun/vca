@@ -3121,7 +3121,10 @@ const PYRAMID_TIER_META: Record<"tier1"|"tier2"|"tier3", TierMeta> = {
   tier2: { weight:2.6, bg:"var(--warning-100)", labelBg:"var(--warning-200)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-OCCURRENCES",
     nodeSize:52, nodeBorder:2, nodeColor:"var(--warning-400)", step:11, lineWidth:1, dashed:true, lineOpacity:0.7 },
   tier3: { weight:3.4, bg:"var(--gray-50)", labelBg:"var(--gray-200)", labelColor:"var(--gray-600)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-OCCURRENCES",
-    nodeSize:42, nodeBorder:2, nodeColor:"var(--gray-400)", step:6.5, lineWidth:0.6, lineOpacity:0.45, stagger:true },
+    // Same 52px as Tier 2. Tier 3 was drawn smaller to signal a weaker link, but the faces here
+    // will be low-resolution CCTV crops in practice, and 42px left too little of them to tell
+    // people apart — which is the one thing these nodes are for.
+    nodeSize:52, nodeBorder:2, nodeColor:"var(--gray-400)", step:6.5, lineWidth:0.6, lineOpacity:0.45, stagger:true },
 };
 
 function xAt(i: number, count: number, step: number) {
@@ -3544,10 +3547,15 @@ const COCAPTURE_COLOR: Record<"tier1"|"tier2"|"tier3", string> = {
   tier1:"var(--danger-400)", tier2:"var(--gray-500)", tier3:"var(--gray-500)",
 };
 
-function DataGridView({ rows, onInspect, selectedNodeId }: {
+function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }: {
   rows: Array<{ tier:"tier1"|"tier2"|"tier3"; node:RedfaceNode }>;
   onInspect: (tier:string, node:RedfaceNode) => void;
   selectedNodeId: number|null;
+  /** Sorting lives on the column it sorts. It used to be a "Sort associates by" select in the
+   *  filter column, offering the two directions of this one field as if they were a list of
+   *  options — which is what a column header already is. */
+  sortDir: "desc"|"asc";
+  onToggleSort: () => void;
 }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", width:"100%" }}>
@@ -3556,7 +3564,14 @@ function DataGridView({ rows, onInspect, selectedNodeId }: {
         <span style={{ width:"50px", flexShrink:0 }}>Rank</span>
         <span style={{ flex:1 }}>Associate target</span>
         <span style={{ width:"180px", flexShrink:0 }}>Hierarchy tier &amp; zone</span>
-        <span style={{ width:"110px", flexShrink:0 }}>Co-captures</span>
+        <button onClick={onToggleSort} title={`Sort by co-captures, ${sortDir === "desc" ? "low to high" : "high to low"}`}
+          style={{ width:"110px", flexShrink:0, display:"flex", alignItems:"center", gap:"4px", padding:0,
+            background:"none", border:"none", cursor:"pointer", font:"inherit", color:"var(--primary-400)", textAlign:"left" }}>
+          Co-captures
+          <span style={{ display:"flex", transform: sortDir === "asc" ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}>
+            <ChevronDownIconSm />
+          </span>
+        </button>
         <span style={{ width:"160px", flexShrink:0 }}>Top camera node</span>
         <span style={{ width:"150px", flexShrink:0 }}>First detected</span>
         <span style={{ width:"150px", flexShrink:0 }}>Last detected</span>
@@ -3610,8 +3625,6 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   const [tier1On, setTier1On] = useState(true);
   const [tier2On, setTier2On] = useState(true);
   const [tier3On, setTier3On] = useState(true);
-  const [minHits, setMinHits] = useState(1);
-  const [filterCollapsed, setFilterCollapsed] = useState(false);
   const [view, setView] = useState<"pyramid"|"grid">("pyramid");
   const [selectedNode, setSelectedNode] = useState<{ tier:"tier1"|"tier2"|"tier3"; node:RedfaceNode } | null>(null);
   const toggleSelectedNode = (tier: string, node: RedfaceNode) =>
@@ -3638,11 +3651,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   );
 
   const [sortDir, setSortDir] = useState<"desc"|"asc">("desc");
-  const [sortOpen, setSortOpen] = useState(false);
-  const SORT_OPTIONS: { id:"desc"|"asc"; label:string }[] = [
-    { id:"desc", label:"Co-occurrence frequency (high → low)" },
-    { id:"asc",  label:"Co-occurrence frequency (low → high)" },
-  ];
+
   // Nothing writes to excludedIds any more — its entry point (the joint-evidence panel's exclude
   // action) is gone. Kept so an entry point can be added back without rethreading the filter,
   // but as it stands this always returns true.
@@ -3661,12 +3670,12 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   };
   const sortNodes = (nodes: RedfaceNode[]) => [...nodes].sort((a, b) => sortDir === "desc" ? b.count - a.count : a.count - b.count);
 
-  const tier1 = sortNodes(REDFACE_TIER1.filter(n => n.count >= minHits && notExcluded(n) && inDateRange(n)));
-  const tier2 = sortNodes(REDFACE_TIER2.filter(n => n.count >= minHits && notExcluded(n) && inDateRange(n)));
-  const tier3 = sortNodes(REDFACE_TIER3.filter(n => n.count >= minHits && notExcluded(n) && inDateRange(n)));
+  const tier1 = sortNodes(REDFACE_TIER1.filter(n => notExcluded(n) && inDateRange(n)));
+  const tier2 = sortNodes(REDFACE_TIER2.filter(n => notExcluded(n) && inDateRange(n)));
+  const tier3 = sortNodes(REDFACE_TIER3.filter(n => notExcluded(n) && inDateRange(n)));
   const totalAll = REDFACE_TIER1.filter(notExcluded).length + REDFACE_TIER2.filter(notExcluded).length + REDFACE_TIER3.filter(notExcluded).length;
   const totalVisible = (tier1On ? tier1.length : 0) + (tier2On ? tier2.length : 0) + (tier3On ? tier3.length : 0);
-  const reset = () => { setTier1On(true); setTier2On(true); setTier3On(true); setMinHits(1); setSortDir("desc"); setDateRange({ start:null, end:null }); };
+  const reset = () => { setTier1On(true); setTier2On(true); setTier3On(true); setSortDir("desc"); setDateRange({ start:null, end:null }); };
 
   // No primary target yet means there's nobody to compute co-occurrence against — the tier
   // filter counts/toggles in the sidebar still describe the dataset, but the canvas itself has
@@ -3691,115 +3700,13 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   ];
 
   const tierRows = [
-    { on:tier1On, toggle:() => setTier1On(o => !o), bg:"var(--danger-100)", text:"var(--danger-400)", label:"Tier 1 red zone (>100)", count:REDFACE_TIER1.filter(notExcluded).length, badgeBg:"var(--danger-400)" },
-    { on:tier2On, toggle:() => setTier2On(o => !o), bg:"var(--warning-100)", text:"var(--warning-500)", label:"Tier 2 orange zone (10~99)", count:REDFACE_TIER2.filter(notExcluded).length, badgeBg:"var(--warning-400)" },
-    { on:tier3On, toggle:() => setTier3On(o => !o), bg:"var(--gray-100)", text:"var(--gray-700)", label:"Tier 3 slate zone (<10)", count:REDFACE_TIER3.filter(notExcluded).length, badgeBg:"var(--gray-600)" },
+    { on:tier1On, toggle:() => setTier1On(o => !o), bg:"var(--danger-100)", text:"var(--danger-400)", short:"Tier 1", label:"Tier 1 red zone (>100)", count:REDFACE_TIER1.filter(notExcluded).length, badgeBg:"var(--danger-400)" },
+    { on:tier2On, toggle:() => setTier2On(o => !o), bg:"var(--warning-100)", text:"var(--warning-500)", short:"Tier 2", label:"Tier 2 orange zone (10~99)", count:REDFACE_TIER2.filter(notExcluded).length, badgeBg:"var(--warning-400)" },
+    { on:tier3On, toggle:() => setTier3On(o => !o), bg:"var(--gray-100)", text:"var(--gray-700)", short:"Tier 3", label:"Tier 3 slate zone (<10)", count:REDFACE_TIER3.filter(notExcluded).length, badgeBg:"var(--gray-600)" },
   ];
 
   return (
-    <div style={{ position:"relative", flex:1, display:"flex", overflow:"hidden" }}>
-      {/* Same collapse handle as the Dashboard sidebar, Best Frame's camera list and Redmap's
-          results panel. Anchored to this non-scrolling wrapper, not to the content column beside
-          it: that column scrolls, so a 50% offset inside it means half way down everything there
-          is to read, which is off screen almost always. Rides the panel edge, and stays put when
-          the panel is gone. */}
-      <div
-        onClick={() => setFilterCollapsed(c => !c)}
-        role="button"
-        tabIndex={0}
-        aria-label={filterCollapsed ? "Show associate filter" : "Hide associate filter"}
-        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFilterCollapsed(c => !c); } }}
-        style={{
-          position:"absolute", top:"50%", left: filterCollapsed ? "-3px" : "277px", transform:"translateY(-50%)",
-          // Above the graph and its own overlays (5-20), below the primary-target picker's
-          // backdrop (50) — at 100 the handle floated on top of that dialog.
-          zIndex:30, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
-        }}
-      >
-        <SidebarToggleIcon collapsed={filterCollapsed} />
-      </div>
-      {!filterCollapsed && (
-      <div className="vca-hide-scrollbar" style={{ width:"280px", flexShrink:0, backgroundColor:"white", borderRight:BORDER,
-        padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"20px" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-            <SlidersIconSm />
-            <span title="선택한 대상과 자주 함께 감지된 인물을 좁혀서 찾는 필터" style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px", cursor:"help" }}>Associate filter</span>
-          </div>
-          <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"2px 8px", borderRadius:"10px" }}>{totalVisible}/{totalAll}</span>
-        </div>
-
-        <div style={{ display:"flex", flexDirection:"column", gap:"10px", width:"100%" }}>
-          <span title="Primary Target와 함께 감지된 횟수(co-occurrence)를 구간별로 나눈 등급" style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.28px", cursor:"help" }}>Zone tiers</span>
-          <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
-            {tierRows.map(row => (
-              <button key={row.label} onClick={row.toggle} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-                padding:"8px", borderRadius:"6px", backgroundColor: row.on ? row.bg : "white", border: row.on ? "none" : BORDER, cursor:"pointer", width:"100%" }}>
-                <span style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                  <span style={{ color: row.on ? row.text : "var(--gray-300)", display:"flex" }}><CheckSquareIconSm /></span>
-                  <span style={{ fontSize:"12px", fontWeight:700, color: row.on ? row.text : "var(--gray-400)", letterSpacing:"-0.24px" }}>{row.label}</span>
-                </span>
-                <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor: row.on ? row.badgeBg : "var(--gray-300)", padding:"2px 6px", borderRadius:"10px" }}>{row.count}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ display:"flex", flexDirection:"column", gap:"10px", width:"100%" }}>
-          <span title="Primary Target와 같은 시간대에 같은 카메라에 함께 잡힌 횟수 — 이 값 이상인 인물만 표시" style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.28px", cursor:"help" }}>Min. co-occurrences</span>
-          {/* Same fixed-choice pattern as Min Similarity — a free 1-150 drag slider with no step
-              made landing on a specific number close to impossible; these five map directly to the
-              tier cutoffs above (Tier 3 <10, Tier 2 10-99, Tier 1 >100). */}
-          <div style={{ display:"flex", gap:"2px", backgroundColor:"var(--gray-100)", borderRadius:"999px", padding:"2px", height:"34px" }}>
-            {[1,10,50,100,150].map(v => {
-              const active = minHits === v;
-              return (
-                <button key={v} onClick={() => setMinHits(v)} style={{
-                  flex:1, borderRadius:"999px", border:"none", cursor:"pointer",
-                  backgroundColor: active ? "white" : "transparent",
-                  color: active ? "var(--primary-400)" : "var(--gray-400)", fontWeight: active ? 700 : 600, fontSize:"12px",
-                }}>{v}</button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div style={{ display:"flex", flexDirection:"column", gap:"10px", width:"100%" }}>
-          <span title="함께 감지된 날짜가 이 기간에 포함되는 연관자만 표시" style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.28px", cursor:"help" }}>Date range</span>
-          <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" size="sm" emptyText="All time" />
-        </div>
-
-        <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%", position:"relative" }}>
-          <span style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.28px" }}>Sort associates by</span>
-          <button onClick={() => setSortOpen(o => !o)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-            border:BORDER, borderRadius:"6px", padding:"10px 12px", width:"100%", backgroundColor:"white", cursor:"pointer" }}>
-            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", lineHeight:1.4 }}><SortOptionLabel label={SORT_OPTIONS.find(o => o.id === sortDir)!.label} /></span>
-            <span style={{ display:"flex", flexShrink:0, transform: sortOpen ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}><ChevronDownIconSm /></span>
-          </button>
-          {sortOpen && (
-            <div style={{ position:"absolute", top:"100%", left:0, marginTop:"4px", width:"100%", backgroundColor:"white",
-              border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden" }}>
-              {SORT_OPTIONS.map(opt => (
-                <button key={opt.id} onClick={() => { setSortDir(opt.id); setSortOpen(false); }} style={{
-                  display:"block", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
-                  backgroundColor: sortDir === opt.id ? "var(--primary-100)" : "white",
-                  fontSize:"12px", fontWeight: sortDir === opt.id ? 700 : 500, color: sortDir === opt.id ? "var(--primary-400)" : "var(--gray-700)", lineHeight:1.4,
-                }}>
-                  <SortOptionLabel label={opt.label} />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div style={{ display:"flex", flexDirection:"column", width:"100%", paddingTop:"4px" }}>
-          <button onClick={reset} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
-            padding:"10px", borderRadius:"6px", border:BORDER, backgroundColor:"white", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"var(--gray-600)" }}>
-            <ResetIconSm /> Reset filters
-          </button>
-        </div>
-      </div>
-      )}
+    <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
 
       <div className="vca-hide-scrollbar" style={{ flex:1, display:"flex", flexDirection:"column", overflowY:"auto" }}>
         <div style={{ backgroundColor:"white", borderBottom:BORDER, padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
@@ -3817,6 +3724,30 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
                 </button>
               </>
             )}
+          </div>
+          {/* Filters share the target's row rather than taking one of their own — a second bar cost
+              the graph another 50px of height, and this row had space to spare once the 280px
+              filter column came out. These were four controls in that column, three of which
+              belonged elsewhere: sorting on the grid's own column header, the date range on a
+              toolbar like every other tab's, and a "min co-captures" stepper that duplicated the
+              tier cutoffs it sat under (>100 / 10-99 / <10). The tiers are the one filter this
+              screen genuinely needs — 15 of 23 associates are Tier 3 — so they stay, as chips. */}
+          <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+            {tierRows.map(row => (
+              <button key={row.short} onClick={row.toggle} title={row.label} style={{
+                display:"flex", alignItems:"center", gap:"6px", height:"30px", padding:"0 10px", borderRadius:"999px",
+                backgroundColor: row.on ? row.bg : "white", border: row.on ? "none" : BORDER, cursor:"pointer",
+              }}>
+                <span style={{ fontSize:"12px", fontWeight:700, color: row.on ? row.text : "var(--gray-400)", whiteSpace:"nowrap" }}>{row.short}</span>
+                <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor: row.on ? row.badgeBg : "var(--gray-300)", padding:"1px 6px", borderRadius:"999px" }}>{row.count}</span>
+              </button>
+            ))}
+            <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" size="sm" emptyText="All time" />
+            <button onClick={reset} title="Reset filters" style={{ display:"flex", alignItems:"center", gap:"6px",
+              height:"30px", padding:"0 10px", borderRadius:"6px", border:BORDER, backgroundColor:"white", cursor:"pointer",
+              fontSize:"12px", fontWeight:600, color:"var(--gray-600)" }}>
+              <ResetIconSm /> Reset
+            </button>
           </div>
           <div style={{ display:"flex", gap:"2px", backgroundColor:"var(--gray-100)", borderRadius:"8px", padding:"4px" }}>
             {(["pyramid","grid"] as const).map(v => {
@@ -3845,7 +3776,8 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
           )
         ) : (
           hasVisibleTier ? (
-            <DataGridView rows={gridRows} selectedNodeId={selectedNode?.node.id ?? null} onInspect={toggleSelectedNode} />
+            <DataGridView rows={gridRows} selectedNodeId={selectedNode?.node.id ?? null} onInspect={toggleSelectedNode}
+              sortDir={sortDir} onToggleSort={() => setSortDir(d => d === "desc" ? "asc" : "desc")} />
           ) : (
             <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)", fontSize:"13px", fontWeight:600 }}>
               No tiers selected
