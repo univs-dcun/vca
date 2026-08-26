@@ -259,18 +259,16 @@ function ExpandFrameIcon() {
 }
 
 function CameraIconXs() {
-  // The same glyph the BEST FRAME tab uses (public/icons/nav-bestframe.svg), paths and 22-unit
-  // viewBox unchanged so the two can't drift into being almost-the-same camera. That file is
-  // loaded as an <img> in the navbar with its stroke baked in, which is why the paths are inlined
-  // here instead: at this size the icon has to take its colour from the line of text beside it.
-  // Stroke is 2.2 rather than the original 1.5 — rendered at 12px the 22-unit viewBox scales by
-  // 0.55, so 1.5 would come out under a pixel wide.
+  // The app's camera glyph as supplied, paths verbatim. Its own stroke (#475469) is dropped for
+  // currentColor so it takes the colour of the line of text it sits in, and the width is set to 2
+  // rather than the default 1: a 20-unit viewBox drawn at 12px scales by 0.6, so a 1 would render
+  // at little over half a pixel.
   return (
-    <svg width="12" height="12" viewBox="1 1 22 22" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M16 13L21.223 16.482C21.2983 16.5321 21.3858 16.5608 21.4761 16.5652C21.5664 16.5695 21.6563 16.5492 21.736 16.5065C21.8157 16.4639 21.8824 16.4003 21.9289 16.3228C21.9754 16.2452 22 16.1564 22 16.066V7.87C22 7.78202 21.9768 7.6956 21.9328 7.61945C21.8887 7.5433 21.8253 7.48012 21.7491 7.4363C21.6728 7.39248 21.5863 7.36956 21.4983 7.36985C21.4103 7.37015 21.324 7.39366 21.248 7.438L16 10.5"
-            stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M14 6H4C2.89543 6 2 6.89543 2 8V16C2 17.1046 2.89543 18 4 18H14C15.1046 18 16 17.1046 16 16V8C16 6.89543 15.1046 6 14 6Z"
-            stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M13.3333 10.8327L17.6858 13.7343C17.7485 13.7761 17.8214 13.8 17.8967 13.8036C17.972 13.8072 18.0468 13.7903 18.1133 13.7548C18.1797 13.7192 18.2352 13.6663 18.274 13.6016C18.3127 13.537 18.3332 13.463 18.3333 13.3877V6.55766C18.3333 6.48434 18.314 6.41232 18.2772 6.34887C18.2405 6.28541 18.1877 6.23276 18.1241 6.19624C18.0606 6.15972 17.9885 6.14062 17.9152 6.14087C17.8419 6.14112 17.7699 6.16071 17.7066 6.19766L13.3333 8.74933"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11.6667 5H3.33341C2.41294 5 1.66675 5.74619 1.66675 6.66667V13.3333C1.66675 14.2538 2.41294 15 3.33341 15H11.6667C12.5872 15 13.3334 14.2538 13.3334 13.3333V6.66667C13.3334 5.74619 12.5872 5 11.6667 5Z"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
