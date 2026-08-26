@@ -3621,7 +3621,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                 gray chip was the only element here outside the primary family, and gray-100 on
                 gray-50 had been a single step of tint away from invisible. */}
             <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"white",
-              padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
+              padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
               {events.length} FRAMES
             </span>
             <span style={{ color:"var(--gray-400)" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time}</strong></span>
