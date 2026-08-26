@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MatchItem, ReIDStatus } from "@/types/reid";
 import { useVcaStore } from "@/lib/vcaStore";
-import { sgtDateKey } from "@/lib/time";
+import { recentSgtStamp, sgtDateKey } from "@/lib/time";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import RemoveImageButton from "./RemoveImageButton";
 import SidebarToggleIcon from "./SidebarToggleIcon";
@@ -1139,7 +1139,7 @@ const QUICK_RANGES: { label: string; range: () => DateRangeValue }[] = [
   { label: "Last 3 months", range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), t.getMonth() - 3, 1), end: new Date(t.getFullYear(), t.getMonth() + 1, 0) }; } },
   { label: "Last 6 months", range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), t.getMonth() - 6, 1), end: new Date(t.getFullYear(), t.getMonth() + 1, 0) }; } },
   { label: "This year", range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), 0, 1), end: new Date(t.getFullYear(), 11, 31) }; } },
-  { label: "All time", range: () => ({ start: ALL_TIME_START, end: ALL_TIME_END }) },
+  { label: "All dates", range: () => ({ start: ALL_TIME_START, end: ALL_TIME_END }) },
 ];
 
 const WEEKDAY_LABELS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
@@ -1303,7 +1303,7 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
         <div onClick={toggle} style={{ ...boxStyle, justifyContent:"space-between" }}>
           <span style={{ display:"flex", alignItems:"center", gap: compact ? "6px" : "8px" }}>
             {showIcon && <CalendarIconSm size={compact ? 12 : 14} />}
-            <span style={emptyTextStyle}>{isAllTime ? "All time" : emptyText}</span>
+            <span style={emptyTextStyle}>{isAllTime ? "All dates" : emptyText}</span>
           </span>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="var(--gray-600)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
@@ -2686,6 +2686,12 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   const [licensePlate, setLicensePlate]     = useState("");
   const [uploadedFace, setUploadedFace]     = useState<string|null>(null);
   const [uploadedBody, setUploadedBody]     = useState<string|null>(null);
+  // A chosen target fills BOTH slots from one selection, but the two slots are searched
+  // separately — face-only and body-only are different queries — so dropping one has to be
+  // possible without dropping the other. These suppress the target's photo for one slot; picking
+  // a target (or a different one) clears them, since a fresh choice means both of its photos.
+  const [faceCleared, setFaceCleared] = useState(false);
+  const [bodyCleared, setBodyCleared] = useState(false);
   const faceInputRef = useRef<HTMLInputElement>(null);
   const bodyInputRef = useRef<HTMLInputElement>(null);
   // e.target.value is cleared so picking the SAME file again still fires onChange — without it,
@@ -2720,12 +2726,14 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   // Same cascade/toggle/mutual-exclusivity behavior as Re-ID Analysis and Smart Search — see
   // those for the rationale.
   const selectRecentTarget = (i: number) => {
+    setFaceCleared(false); setBodyCleared(false);
     if (selectedTarget === i) { setSelectedTarget(-1); setGender(""); setApparel([]); setProps([]); return; }
     setSelectedTarget(i); setActiveVIP(-1);
     const t = RECENT_TARGETS_EN[i];
     setGender(t.gender); setApparel([t.apparel]); setProps(t.props);
   };
   const selectVIP = (i: number) => {
+    setFaceCleared(false); setBodyCleared(false);
     if (activeVIP === i) { setActiveVIP(-1); return; }
     setActiveVIP(i); setSelectedTarget(-1);
   };
@@ -2740,19 +2748,12 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   const toggleTopColor    = (c: string) => setTopColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
   const toggleBottomColor = (c: string) => setBottomColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
   const toggleShoesColor  = (c: string) => setShoesColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
-  // Clearing an image that came from a chosen target means un-choosing the target: both slots show
-  // the same person, so there is no "just this one" to remove. Mirrors the deselect branches in
-  // selectRecentTarget/selectVIP — a Recent target also filled in gender/apparel/props, and those
-  // have to go with it, while a VIP set none and the user's own filters must be left alone.
-  const clearSelectedTarget = () => {
-    if (selectedTarget >= 0) { setSelectedTarget(-1); setGender(""); setApparel([]); setProps([]); }
-    else setActiveVIP(-1);
-  };
 
   const reset = () => {
     setSearchType("PERSON"); setThreshold(70); setGender(""); setApparel([]); setProps([]);
     setTopColors([]); setBottomColors([]); setShoesColors([]);
     setSelectedTarget(-1); setActiveVIP(-1); setUploadedFace(null); setUploadedBody(null);
+    setFaceCleared(false); setBodyCleared(false);
     setDateRange({ start:null, end:null }); setLicensePlate("");
   };
   // Same reasoning as Smart Search / Re-ID Analysis: a named target's cascaded gender/apparel/
@@ -2888,8 +2889,8 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                         </div>
                         {hoverImageBox === "face" && (
                           <RemoveImageButton
-                            label={uploadedFace ? "Remove face image" : "Clear the selected target"}
-                            onRemove={uploadedFace ? clearUploadedFace : clearSelectedTarget}
+                            label="Remove face image"
+                            onRemove={uploadedFace ? clearUploadedFace : () => setFaceCleared(true)}
                           />
                         )}
                       </>
@@ -2918,8 +2919,8 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                         </div>
                         {hoverImageBox === "body" && (
                           <RemoveImageButton
-                            label={uploadedBody ? "Remove body image" : "Clear the selected target"}
-                            onRemove={uploadedBody ? clearUploadedBody : clearSelectedTarget}
+                            label="Remove body image"
+                            onRemove={uploadedBody ? clearUploadedBody : () => setBodyCleared(true)}
                           />
                         )}
                       </>
@@ -3302,7 +3303,19 @@ type CooccurEvent = {
   boxLeft: number;
 };
 
-const COOCCUR_DATES = ["07-15","07-18","07-20","07-22","07-25","07-27","07-28","07-30"];
+// Relative to now, like Redmap's sightings. A fixed July pool drifted further from today every
+// week, and once the date filter defaults to a 7-day window it would have matched nothing at all.
+// The window the RedFace filter opens with — the same seven days the search tabs default to, so
+// the two don't disagree about what "recent" means. Computed once at module scope: dates only, so
+// a server pass and the client agree except across a midnight, and only on a default the user can
+// see and change.
+const DEFAULT_REDFACE_RANGE: DateRangeValue = (() => {
+  const end = new Date(); end.setHours(0, 0, 0, 0);
+  const start = new Date(end); start.setDate(start.getDate() - 6);
+  return { start, end };
+})();
+
+const COOCCUR_DATES = Array.from({ length: 8 }, (_, i) => recentSgtStamp(i * 24 * 60).date);
 const COOCCUR_TIMES = ["07:52","08:30","08:42","12:05","14:18","18:15","19:40","21:40"];
 
 function buildCooccurEvents(node: RedfaceNode): CooccurEvent[] {
@@ -3324,7 +3337,7 @@ function buildCooccurEvents(node: RedfaceNode): CooccurEvent[] {
     // event falls back to one crop per person.
     const sameFrame = gapSec === 0;
     const boxLeft = 22 + ((node.id + i * 13) % 18);
-    return { location: cam.location, camCode: cam.code, date: `2026-${date}`, time, gapSec, sameFrame, boxLeft };
+    return { location: cam.location, camCode: cam.code, date, time, gapSec, sameFrame, boxLeft };
   });
 }
 
@@ -3658,7 +3671,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   const notExcluded = (n: RedfaceNode) => !excludedIds.has(n.id);
   // Reuses buildCooccurEvents' own dates rather than a separate fabricated "last activity" field —
   // a node passes the filter if ANY of its sampled co-capture events fall inside the range.
-  const [dateRange, setDateRange] = useState<DateRangeValue>({ start:null, end:null });
+  const [dateRange, setDateRange] = useState<DateRangeValue>(DEFAULT_REDFACE_RANGE);
   const inDateRange = (n: RedfaceNode) => {
     if (!dateRange.start && !dateRange.end) return true;
     return buildCooccurEvents(n).some(e => {
@@ -3675,7 +3688,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   const tier3 = sortNodes(REDFACE_TIER3.filter(n => notExcluded(n) && inDateRange(n)));
   const totalAll = REDFACE_TIER1.filter(notExcluded).length + REDFACE_TIER2.filter(notExcluded).length + REDFACE_TIER3.filter(notExcluded).length;
   const totalVisible = (tier1On ? tier1.length : 0) + (tier2On ? tier2.length : 0) + (tier3On ? tier3.length : 0);
-  const reset = () => { setTier1On(true); setTier2On(true); setTier3On(true); setSortDir("desc"); setDateRange({ start:null, end:null }); };
+  const reset = () => { setTier1On(true); setTier2On(true); setTier3On(true); setSortDir("desc"); setDateRange(DEFAULT_REDFACE_RANGE); };
 
   // No primary target yet means there's nobody to compute co-occurrence against — the tier
   // filter counts/toggles in the sidebar still describe the dataset, but the canvas itself has
@@ -3751,9 +3764,11 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
               </button>
             ))}
             {/* Boxed to a fixed width: the trigger's own style is flex:1, which in a row of chips
-                grows it to the full line and pushes everything after it onto the next one. */}
-            <div style={{ width:"172px", display:"flex", flexShrink:0 }}>
-              <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" size="sm" emptyText="All time" />
+                grows it to the full line and pushes everything after it onto the next one. 212px
+                fits a full "2026.09.29 – 2026.10.19" — at 172px the text ran past the box and over
+                the reset button beside it. */}
+            <div style={{ width:"212px", display:"flex", flexShrink:0 }}>
+              <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" size="sm" emptyText="All dates" />
             </div>
             <button onClick={reset} title="Reset filters" style={{ display:"flex", alignItems:"center", gap:"6px",
               height:"30px", padding:"0 10px", borderRadius:"6px", border:BORDER, backgroundColor:"white", cursor:"pointer",
