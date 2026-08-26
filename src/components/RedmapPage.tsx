@@ -1156,6 +1156,13 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                   their own track/thumb border by default) down to a flat gray track + solid
                   purple thumb — same treatment as Data's Smart Search Similarity slider. */}
               <style>{`
+                /* The slider is the part of this control that gives way when the toolbar runs out
+                   of room: it is 100px plus its gap, and the 60/70/80/90 presets beside it already
+                   cover the values people actually pick. Below the breakpoint the whole row fits on
+                   one line again instead of wrapping. The reading stays visible either way, so a
+                   threshold set to something off-preset on a wide screen is still legible here —
+                   just not adjustable to a new off-preset value until there's room. */
+                @media (max-width: 1680px) { .vca-similarity-fine { display: none; } }
                 .vca-similarity-slider { -webkit-appearance:none; appearance:none; background:transparent; outline:none; border:none; }
                 .vca-similarity-slider::-webkit-slider-runnable-track { height:4px; border-radius:999px; background:var(--gray-200); border:none; }
                 .vca-similarity-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--primary-400); border:none; margin-top:-5px; cursor:pointer; }
@@ -1163,7 +1170,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 .vca-similarity-slider::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:var(--primary-400); border:none; cursor:pointer; }
               `}</style>
               <input
-                className="vca-similarity-slider"
+                className="vca-similarity-slider vca-similarity-fine"
                 type="range" min={0} max={100} value={similarity}
                 onChange={e => setSimilarity(Number(e.target.value))}
                 style={{ width: "100px", flexShrink: 0, cursor: "pointer" }}
