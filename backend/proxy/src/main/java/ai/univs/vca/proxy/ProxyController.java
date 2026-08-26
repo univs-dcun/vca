@@ -250,6 +250,45 @@ public class ProxyController {
 				});
 	}
 
+	/**
+	 * RedFace 동료 목록 중계 (계약 v1.8). Track on Map과 같은 JSON 패스스루 — 집계 계열이라
+	 * searchTimeout(60초) 적용, 응답은 envelope 포장 + URL 재작성(faceUrl·cropUrl → /api).
+	 */
+	@PostMapping("/api/targets/associates")
+	public Mono<ResponseEntity<ApiEnvelope>> listTargetAssociates(ServerHttpRequest request) {
+		return searchJsonPost("/targets/associates", request, "동반 감지 집계 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
+	}
+
+	/** RedFace Joint Evidence 중계 (계약 v1.8) — 동료 목록과 동일 규칙 */
+	@PostMapping("/api/targets/associate-evidence")
+	public Mono<ResponseEntity<ApiEnvelope>> getAssociateEvidence(ServerHttpRequest request) {
+		return searchJsonPost("/targets/associate-evidence", request, "동반 패턴 집계 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
+	}
+
+	/** 검색·집계 계열 JSON POST 패스스루 공통 골격 — searchTimeout + envelope + URL 재작성 */
+	private Mono<ResponseEntity<ApiEnvelope>> searchJsonPost(String path, ServerHttpRequest request, String timeoutMessage) {
+		return moduleApi.post()
+				.uri(path)
+				.headers(h -> h.setContentType(MediaType.APPLICATION_JSON))
+				.body(BodyInserters.fromDataBuffers(request.getBody()))
+				.retrieve()
+				.bodyToMono(JsonNode.class)
+				.timeout(props.searchTimeout())
+				.map(body -> ResponseEntity.ok(ApiEnvelope.ok(ModuleUrlRewriter.rewrite(body))))
+				.onErrorResume(WebClientResponseException.class, e -> Mono.just(moduleError(e)))
+				.onErrorResume(this::isConnectionError, e -> Mono.just(
+						ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+								.body(ApiEnvelope.error("VCA-5020", "모듈 API에 연결할 수 없습니다"))))
+				.onErrorResume(TimeoutException.class, e -> Mono.just(
+						ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+								.body(ApiEnvelope.error("VCA-5040", timeoutMessage))))
+				.onErrorResume(e -> {
+					log.error("프록시 내부 오류: POST {}", path, e);
+					return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+							.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류")));
+				});
+	}
+
 	/** 이미지 리소스 패스스루 — 모듈 응답의 상태코드·Content-Type을 유지한 채 envelope 없이 전달 */
 	private Mono<ResponseEntity<byte[]>> binary(String uriTemplate, Object... uriVars) {
 		return moduleApi.get()

@@ -105,6 +105,20 @@ TrackTargetRef, targetId=감지 eventId·sourceType camera — 라이브 매치�
 플레인 이동) + ReIDContent onGoRedmap 시그니처 (name?, ref?) + DetailModal 호출부 래핑
 (detailItem.label || undefined, matchTrackRefOf) — Live Monitoring 팝업(UV-38)과 동일 딥링크.
 types/reid.ts — MatchItem에 optional label(matchedVip 이름, Tracing 라벨용).
+DATA RedFace 주입(UV-40, 계약 v1.8): DataPage — redfaceAssociates 브리지 import
+(fetchRedfaceAssociates·fetchRedfaceEvidence) + RedfaceCandidate/RedfaceNode 옵셔널 확장
+(targetId/cameraId/label, associateId/label/topCameraLabel/firstSeen/lastSeen) +
+PrimaryTargetPickerModal(후보 검색 = v1.7 reid-search 재사용 — useReidVips/useReidRecentTargets
+훅 호출로 Re-ID 탭과 VIP·최근 검색 공유, faceFile/bodyFile state, liveCands state, handleSearch
+라이브 우선 mock 폴백, recentList/vipList/cameraOptions 소스 교체, onConfirm에 dateRange 동봉) +
+RedFaceContent(primaryTarget에 ref: RedfacePrimaryRef — 라이브 후보·LM 카드에서만, 팝업 기간이
+집계 구간, seedCard 딥링크는 LiveCardExtras 캐스트로 eventId/cameraId 사용·기간 기본 7일) +
+AssociateGraphView(liveRef effect로 동료 목록 조회 → allTier1/2/3을 count로 분류해 mock 티어
+대체, 필터·정렬은 기존 로컬 로직 그대로, 선택 노드 리셋) + DataGridView(topCameraLabel/
+firstSeen/lastSeen/label 실값 폴백) + JointEvidencePanel(liveRef+associateId effect로 집계
+요약 조회 → view 정규화 객체로 라이브·mock 동일 렌더, 배지 totalEvents, associateId 표시).
+Live Monitoring hover RedFace 버튼 = 위 seedCard 딥링크로 라이브 배선 완료 (UV-38 주입의
+onNavigateTab 경로 재사용 — 별도 변경 없음).
 
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)
