@@ -60,7 +60,6 @@ function ScoreBadge({ score }: { score: number }) {
 }
 
 
-
 // ── Person Detail Modal ────────────────────────────────────────
 function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:MatchItem; onClose:()=>void; onGoRedmap?:()=>void; onGoAnalyzeFrame?:(location:string)=>void }) {
   useEscapeKey(onClose);
@@ -1529,7 +1528,6 @@ function FilterChip({ children, icon, avatar, onRemove }: { children:React.React
 
 // Shared by Re-ID Analysis, Smart Search, and RedFace's picker — lets a search start from
 // "who/what was captured on this specific camera" instead of only attribute/image matching.
-
 
 function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_DATA)[number]; onClick: () => void; matchReasons?: string[] }) {
   const status = REID_STATUS_STYLE[p.status];
@@ -3196,14 +3194,6 @@ function LinkChainIconSm({ size = 14 }: { size?: number } = {}) {
     </svg>
   );
 }
-function XCircleSmallIconSm() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3"/>
-      <path d="M6 6l4 4M10 6l-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-    </svg>
-  );
-}
 function SwapIconSm() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -3313,9 +3303,9 @@ const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string 
   Unknown: { bg:"var(--gray-100)", text:"var(--gray-500)" },
 };
 
-function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchToPrimary }: {
+function JointEvidencePanel({ primary, tier, node, onClose }: {
   primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode;
-  onClose: () => void; onExclude: () => void; onSwitchToPrimary: () => void;
+  onClose: () => void;
 }) {
   const meta = TIER_LINK_META[tier];
   const badge = TIER_BADGE_META[tier];
@@ -3371,19 +3361,6 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
         <span style={{ fontSize:"10px", fontWeight:800, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"3px 9px", borderRadius:"999px" }}>Last seen {lastSeen.date}</span>
       </div>
 
-      <div style={{ display:"flex", gap:"8px" }}>
-        <button onClick={onExclude} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
-          padding:"9px 8px", borderRadius:"6px", border:"1px solid var(--danger-200)", cursor:"pointer",
-          backgroundColor:"white", color:"var(--danger-400)", fontSize:"11px", fontWeight:700 }}>
-          <XCircleSmallIconSm /> Exclude false positive
-        </button>
-        <button onClick={onSwitchToPrimary} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
-          padding:"9px 8px", borderRadius:"6px", border:"1px solid var(--primary-200)", cursor:"pointer",
-          backgroundColor:"white", color:"var(--primary-400)", fontSize:"11px", fontWeight:700 }}>
-          <SwapIconSm /> Make primary
-        </button>
-      </div>
-
       {/* ── Section 2: relationship analytics ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:"10px", border:BORDER, borderRadius:"8px", padding:"14px", backgroundColor:"var(--gray-50)" }}>
         <span title="함께 감지된 시간 간격, 주요 장소, 시간대 패턴을 종합한 관계 분석" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
@@ -3416,7 +3393,6 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
           </div>
         </div>
       </div>
-
 
       {/* ── Section 4: accordion timeline ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
@@ -3563,16 +3539,14 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
   // hides a node from every view (pyramid/grid/counts) since a dismissed non-match shouldn't keep
   // cluttering the associate list. Reset whenever the Primary Target itself changes — these ids
   // belong to THIS person's associate graph, not the next one's.
+  // NOTHING POPULATES THIS ANY MORE: its only entry point was the joint-evidence panel's "Exclude
+  // false positive" button, removed on request. The filter below is kept so an entry point can be
+  // added back without rethreading it, but as it stands the set is always empty.
   const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set());
   useEffect(() => {
     setExcludedIds(new Set());
     setSelectedNode(null);
   }, [primaryTarget?.name]);
-  const handleExcludeNode = (id: number) => {
-    setExcludedIds(prev => new Set(prev).add(id));
-    setSelectedNode(null);
-  };
-
   // Recomputed only when the Primary Target actually changes — same person always reproduces the
   // same associate graph, but switching to someone else now genuinely changes who's in it instead
   // of only updating the header photo/name above a graph that never moved.
@@ -3782,8 +3756,6 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
       {selectedNode && primaryTarget && (
         <JointEvidencePanel primary={primaryTarget} tier={selectedNode.tier} node={selectedNode.node}
           onClose={() => setSelectedNode(null)}
-          onExclude={() => handleExcludeNode(selectedNode.node.id)}
-          onSwitchToPrimary={() => onSwitchToNode(selectedNode.node)}
         />
       )}
     </div>
