@@ -3515,7 +3515,13 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
       const rowH = (el.clientWidth - LIST_PAD_X) / FRAME_ASPECT + FRAME_ROW_GAP;
       // Padding out, then the gap the last row doesn't have back in.
       const usable = el.clientHeight - LIST_PAD_Y + FRAME_ROW_GAP;
-      setPerPage(Math.max(1, Math.min(TIMELINE_PAGE_MAX, Math.floor(usable / rowH))));
+      const fits = usable / rowH;
+      // Flooring left up to a full frame's worth of dead white at the bottom — two frames and a
+      // 170px blank where a third obviously belonged. A part-visible frame at the fold is the
+      // better end: it says there is more below, and the band scrolls. So anything past a third
+      // of a row earns that row.
+      const rows = Math.floor(fits) + (fits % 1 >= 0.3 ? 1 : 0);
+      setPerPage(Math.max(1, Math.min(TIMELINE_PAGE_MAX, rows)));
     });
     ro.observe(el);
     return () => ro.disconnect();
