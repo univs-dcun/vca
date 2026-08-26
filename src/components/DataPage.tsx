@@ -3379,46 +3379,6 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
         <span style={{ fontSize:"10px", fontWeight:800, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"3px 9px", borderRadius:"999px" }}>Last seen {lastSeen.date}</span>
       </div>
 
-      {/* ── Co-capture frames ──────────────────────────────────────
-          The evidence, above the inference drawn from it. These frames were reachable only by
-          scrolling to the timeline below and expanding a row, which put "71% companion
-          probability" — a number derived from them — in the most prominent position on the panel
-          while the captures it rests on were two interactions away. Clicking a frame opens its
-          row in that timeline, where the full context sits. */}
-      <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-        <span title="Primary Target와 이 연관자가 함께(또는 앞뒤로) 잡힌 실제 프레임" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Captured together</span>
-        <div className="vca-thin-scrollbar" style={{ display:"flex", gap:"8px", overflowX:"auto", paddingBottom:"4px" }}>
-          {newestFirst.slice(0, 8).map((e, i) => {
-            const together = e.gapSec <= 3;
-            return (
-              <button key={i} onClick={() => setExpandedIdx(i)} title={`${e.date} ${e.time} · ${e.location}`}
-                style={{ flexShrink:0, width:"116px", padding:0, border: expandedIdx === i ? "2px solid var(--primary-400)" : "1px solid var(--gray-200)",
-                  borderRadius:"8px", overflow:"hidden", background:"none", cursor:"pointer", textAlign:"left" }}>
-                {/* Same rule the timeline row uses: within 3s is one frame with both people in it,
-                    anything longer is two separate moments and gets two frames. */}
-                {together ? (
-                  <div style={{ position:"relative", backgroundColor:"var(--gray-900)" }}>
-                    <img src={node.face} alt="" style={{ width:"100%", height:"74px", objectFit:"cover", display:"block" }} />
-                    <img src={primary.face} alt="" title="Primary" style={{ position:"absolute", bottom:4, left:4, width:"22px", height:"22px", borderRadius:"50%", objectFit:"cover", border:"1.5px solid white" }} />
-                  </div>
-                ) : (
-                  <div style={{ display:"flex", gap:"1px", backgroundColor:"var(--gray-900)" }}>
-                    <img src={primary.face} alt="" style={{ width:"50%", height:"74px", objectFit:"cover", display:"block" }} />
-                    <img src={node.face} alt="" style={{ width:"50%", height:"74px", objectFit:"cover", display:"block" }} />
-                  </div>
-                )}
-                <div style={{ padding:"5px 7px", backgroundColor:"white" }}>
-                  <p style={{ margin:0, fontSize:"10px", fontWeight:700, color:"var(--gray-900)" }}>{e.time}</p>
-                  <p style={{ margin:"1px 0 0", fontSize:"9px", fontWeight:600, color: together ? "var(--primary-400)" : "var(--gray-500)" }}>
-                    {together ? "together" : `${e.gapSec}s behind`} · {e.camCode}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* ── Section 2: relationship analytics ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:"10px", border:BORDER, borderRadius:"8px", padding:"14px", backgroundColor:"var(--gray-50)" }}>
         <span title="함께 감지된 시간 간격, 주요 장소, 시간대 패턴을 종합한 관계 분석" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
