@@ -3249,7 +3249,18 @@ function assocId(n: RedfaceNode) {
 // the actual signal for "walking together" (a couple of seconds apart, same stride) versus
 // "trailing" (tens of seconds to a couple of minutes back, consistent with following rather than
 // walking side by side).
-type CooccurEvent = { location:string; camCode:string; date:string; time:string; gapSec:number };
+type CooccurEvent = {
+  location: string;
+  camCode: string;
+  date: string;
+  time: string;
+  /** Seconds between the Primary's detection and the associate's at this camera. */
+  gapSec: number;
+  /** Both detections carry the same timestamp, so they are one frame — see buildCooccurEvents. */
+  sameFrame: boolean;
+  /** Left edge of the Primary's box, as a % of frame width; the associate's sits beside it. */
+  boxLeft: number;
+};
 
 const COOCCUR_DATES = ["07-15","07-18","07-20","07-22","07-25","07-27","07-28","07-30"];
 const COOCCUR_TIMES = ["07:52","08:30","08:42","12:05","14:18","18:15","19:40","21:40"];
@@ -3266,14 +3277,24 @@ function buildCooccurEvents(node: RedfaceNode): CooccurEvent[] {
     // ~2/3 of events land in the 0-3s "walking together" band, the rest in a 30-120s "trailing" band.
     const walkingTogether = (node.id + i) % 3 !== 0;
     const gapSec = walkingTogether ? (node.id + i * 7) % 4 : 30 + ((node.id + i * 11) % 91);
-    return { location: cam.location, camCode: cam.code, date: `2026-${date}`, time, gapSec };
+    // Same frame only when the two detections carry the SAME timestamp. A 1-3s gap is a different
+    // frame at the same camera, and nothing in a gap that size says how far apart they stood —
+    // see the note on the relationship analytics. Boxes are stand-ins for what a backend that
+    // returns per-frame detections would supply; without that, sameFrame is never true and the
+    // event falls back to one crop per person.
+    const sameFrame = gapSec === 0;
+    const boxLeft = 22 + ((node.id + i * 13) % 18);
+    return { location: cam.location, camCode: cam.code, date: `2026-${date}`, time, gapSec, sameFrame, boxLeft };
   });
 }
 
+// Just the measurement. "Walking together" / "Trailing" read as conclusions about how the two
+// moved, which a gap between detections at one camera cannot support — a 2s gap may be shoulder to
+// shoulder or several metres apart.
 function gapLabel(gapSec: number): { text:string; color:string } {
-  return gapSec <= 3
-    ? { text:`${gapSec}s gap · Walking together`, color:"var(--success-400)" }
-    : { text:`${gapSec}s gap · Trailing`, color:"var(--warning-500)" };
+  return gapSec === 0
+    ? { text:"same frame", color:"var(--success-400)" }
+    : { text:`${gapSec}s apart`, color: gapSec <= 3 ? "var(--gray-600)" : "var(--warning-500)" };
 }
 
 function groupCooccurEvents(events: CooccurEvent[]) {
@@ -3429,20 +3450,43 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                     <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-700)" }}>
                       <CameraGlyph size={12} /> {e.location} — {assocId(node)} detected {e.gapSec}s after Primary at this camera
                     </span>
-                    {/* Two frames, always. This used to draw a gap of 3s or less as ONE capture
-                        with both people in it — Primary overlaid on the associate's frame — but a
-                        time gap can't establish that: two detections 3s apart at one camera may be
-                        a single frame or may be metres apart. Same-frame co-presence needs
-                        detections with boxes from the backend, so until that's known, each person's
-                        capture is shown as its own. */}
-                    <div style={{ display:"flex", gap:"8px" }}>
-                      {[{ label:"Primary", face:primary.face }, { label:assocId(node), face:node.face }].map((shot, si) => (
-                        <div key={si} style={{ flex:1, borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"var(--gray-900)" }}>
-                          <img src={shot.face} alt="" style={{ width:"100%", height:"78px", objectFit:"cover", display:"block" }} />
-                          <span style={{ position:"absolute", top:4, left:4, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.6)", padding:"2px 5px", borderRadius:"3px" }}>{shot.label}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {e.sameFrame ? (
+                      /* One capture, both people boxed in it — the honest rendering when the two
+                         detections carry the same timestamp. Also the only way to show WHERE in the
+                         scene each stood; two cropped thumbnails throw that away, and squeezed side
+                         by side in a 460px panel they cropped the faces too. The scene image is the
+                         same CCTV still Best Frame uses for its camera feeds. */
+                      <div style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
+                        <img src="/cctv-sample.png" alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
+                        <span style={{ position:"absolute", top:6, left:6, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", letterSpacing:"0.4px" }}>
+                          {e.camCode} · {e.time}
+                        </span>
+                        {[
+                          { label:"TARGET", color:"var(--primary-400)", left:e.boxLeft },
+                          { label:assocId(node), color:"var(--danger-400)", left:e.boxLeft + 17 },
+                        ].map(box => (
+                          <div key={box.label} style={{ position:"absolute", left:`${box.left}%`, top:"34%", width:"14%", height:"44%",
+                            border:`2px solid ${box.color}`, borderRadius:"2px" }}>
+                            <span style={{ position:"absolute", bottom:"100%", left:-2, marginBottom:"2px", whiteSpace:"nowrap",
+                              fontSize:"8px", fontWeight:800, color:"white", backgroundColor:box.color, padding:"1px 4px", borderRadius:"2px" }}>
+                              {box.label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* Different timestamps — genuinely two moments at this camera, so one crop
+                         each. Taller than it was: at 78px in a two-up split the faces were cut off
+                         top and bottom. */
+                      <div style={{ display:"flex", gap:"8px" }}>
+                        {[{ label:"Primary", face:primary.face }, { label:assocId(node), face:node.face }].map((shot, si) => (
+                          <div key={si} style={{ flex:1, borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"var(--gray-900)" }}>
+                            <img src={shot.face} alt="" style={{ width:"100%", height:"130px", objectFit:"cover", display:"block" }} />
+                            <span style={{ position:"absolute", top:4, left:4, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.6)", padding:"2px 5px", borderRadius:"3px" }}>{shot.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
