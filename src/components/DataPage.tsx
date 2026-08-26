@@ -5,6 +5,7 @@ import { useVcaStore } from "@/lib/vcaStore";
 import { sgtDateKey } from "@/lib/time";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import RemoveImageButton from "./RemoveImageButton";
+import SidebarToggleIcon from "./SidebarToggleIcon";
 
 const BORDER = "1px solid var(--gray-200)";
 export type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
@@ -3551,6 +3552,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
   const [tier2On, setTier2On] = useState(true);
   const [tier3On, setTier3On] = useState(true);
   const [minHits, setMinHits] = useState(1);
+  const [filterCollapsed, setFilterCollapsed] = useState(false);
   const [view, setView] = useState<"pyramid"|"grid">("pyramid");
   const [selectedNode, setSelectedNode] = useState<{ tier:"tier1"|"tier2"|"tier3"; node:RedfaceNode } | null>(null);
   const toggleSelectedNode = (tier: string, node: RedfaceNode) =>
@@ -3637,7 +3639,26 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
   ];
 
   return (
-    <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
+    <div style={{ position:"relative", flex:1, display:"flex", overflow:"hidden" }}>
+      {/* Same collapse handle as the Dashboard sidebar, Best Frame's camera list and Redmap's
+          results panel. Anchored to this non-scrolling wrapper, not to the content column beside
+          it: that column scrolls, so a 50% offset inside it means half way down everything there
+          is to read, which is off screen almost always. Rides the panel edge, and stays put when
+          the panel is gone. */}
+      <div
+        onClick={() => setFilterCollapsed(c => !c)}
+        role="button"
+        tabIndex={0}
+        aria-label={filterCollapsed ? "Show associate filter" : "Hide associate filter"}
+        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFilterCollapsed(c => !c); } }}
+        style={{
+          position:"absolute", top:"50%", left: filterCollapsed ? "-3px" : "277px", transform:"translateY(-50%)",
+          zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
+        }}
+      >
+        <SidebarToggleIcon collapsed={filterCollapsed} />
+      </div>
+      {!filterCollapsed && (
       <div className="vca-hide-scrollbar" style={{ width:"280px", flexShrink:0, backgroundColor:"white", borderRight:BORDER,
         padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"20px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -3718,6 +3739,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
           </button>
         </div>
       </div>
+      )}
 
       <div className="vca-hide-scrollbar" style={{ flex:1, display:"flex", flexDirection:"column", overflowY:"auto" }}>
         <div style={{ backgroundColor:"white", borderBottom:BORDER, padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
