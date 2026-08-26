@@ -7,6 +7,7 @@ import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useToast } from "./Toast";
 import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtDateKey } from "@/lib/time";
 import RemoveImageButton from "./RemoveImageButton";
+import SidebarToggleIcon from "./SidebarToggleIcon";
 
 const BORDER = "1px solid var(--gray-200)";
 
@@ -590,6 +591,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // means the frame has room and can only ever collide with itself.
   const [openFrameKey, setOpenFrameKey] = useState<string | null>(null);
   const [hoverFrameKey, setHoverFrameKey] = useState<string | null>(null);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
   // Ticks only while a route is on screen. The newest sighting's pill reads "how long since we
   // last saw them", measured against the real clock, so it has to keep counting rather than sit
   // at whatever the gap was when the search ran. Starts null so the server-rendered pass has
@@ -1177,7 +1179,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             preview, not only after a search — the results half stays hidden until a search runs.
             Originally gated on hasSearched alone;
             the landing state is just the search bar + full-width map, no side panels. */}
-        {(hasSearched || hasSearchTargets) && (
+        {(hasSearched || hasSearchTargets) && !leftCollapsed && (
         <div style={{
           width: "320px", backgroundColor: "white", borderRight: BORDER,
           display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden",
@@ -1429,6 +1431,24 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
 
         {/* CENTER: Leaflet Map */}
         <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+          {/* Collapse handle for the results panel, floating over the map's left edge exactly as
+              the Dashboard's does — it lives here rather than in the panel so it stays reachable
+              once the panel is gone. Only offered when there IS a panel to collapse. */}
+          {(hasSearched || hasSearchTargets) && (
+            <div
+              onClick={() => setLeftCollapsed(c => !c)}
+              role="button"
+              tabIndex={0}
+              aria-label={leftCollapsed ? "Show search results" : "Hide search results"}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setLeftCollapsed(c => !c); } }}
+              style={{
+                position: "absolute", top: "50%", left: "-3px", transform: "translateY(-50%)",
+                zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+              }}
+            >
+              <SidebarToggleIcon collapsed={leftCollapsed} />
+            </div>
+          )}
           <RedmapMap
             hits={trackingActive ? results.map((h) => ({
               lat: h.lat, lng: h.lng,
@@ -1537,6 +1557,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                         >
                           <div style={{
                             width: "36px", height: "36px", borderRadius: "999px", flexShrink: 0,
+                            // Selection is just this ring — a thicker one in the route's colour.
+                            // Filling the circle was tried and read as a different kind of thing
+                            // altogether rather than "this row is selected".
                             border: isActive ? `2px solid ${node.color}` : "1px solid var(--gray-300)",
                             backgroundColor: "white",
                             display: "flex", alignItems: "center", justifyContent: "center",
@@ -1546,22 +1569,22 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                               {String(num).padStart(2, "0")}
                             </span>
                           </div>
-                          {/* The selected ring is an outline, not a border+padding pair. Padding
-                              that only existed while active shifted the photo and text 12px on
-                              every click, and pushed the row's own numbered circle out of line with
-                              the photo it labels. outline (with an offset standing in for the
-                              padding) draws the same ring without occupying layout, so selecting a
-                              row moves nothing and the timeline keeps its density. */}
+                          {/* No ring on the card. Selection is shown on the numbered circle alone:
+                              a ring out here had to sit 8px clear of the content to breathe, which
+                              put it straight through the circle and the connector line beside it.
+                              The circle is already this row's marker, so it carries the state. */}
                           <div style={{
                             flex: 1, display: "flex", flexDirection: "column", gap: "8px", minWidth: 0,
-                            borderRadius: "12px",
-                            outline: isActive ? "1px solid var(--primary-200)" : "none",
-                            outlineOffset: "8px",
-                            // No shadow. With the padding gone it hugged the content box instead of
-                            // the ring, drawing a second card edge 8px inside the outline.
-                            transition: "outline-color 0.2s",
                           }}>
-                            <div style={{ display: "flex", gap: "10px", alignItems: "center", justifyContent: "space-between" }}>
+                            {/* relative, and the detach button below is absolute inside it: keeping
+                                that button in the flow cost the text column 32px, which was the
+                                difference between "Clarke Quay Riverside" fitting and being clipped
+                                to "Clarke Quay Riversi…". Centred vertically rather than pinned to a
+                                line: level with the timestamp it read as deleting the time, and
+                                level with the name it covered the end of a long one. The middle
+                                lands beside the short camera line, where nothing is in its way and
+                                it reads as the row's action rather than any one line's. */}
+                            <div style={{ display: "flex", gap: "10px", alignItems: "center", position: "relative" }}>
                               {/* Every row is the same height on purpose — a photo that grew only on
                                   the rows whose camera name wrapped read as ragged. So the text
                                   block is pinned to a fixed three lines (two for the name, one for
@@ -1600,16 +1623,15 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                       height either way, but this way the reserved line carries
                                       information instead of the tail of a long place name. Each
                                       line clips to one line so the height can't vary. */}
-                                  {/* The short label, the same one the map pin shows — the panel used
-                                      to carry the full site name and clip it, so a route read
-                                      "Clarke Quay" on the map and "Clarke Quay Riversi…" beside it.
-                                      Nothing is lost by shortening: the camera on the next line
-                                      already identifies which one it was, and the full name is on
-                                      the tooltip and in the opened frame's caption. */}
+                                  {/* The full site name. This is the detail panel — it's where the
+                                      formal name belongs, and the map pin's short label is the
+                                      concession to a pin having no room, not the other way round.
+                                      Still clipped with an ellipsis as a backstop for a name longer
+                                      than any in the data, with the full text on the tooltip. */}
                                   <p title={node.fullLocation} style={{
                                     fontSize: "14px", fontWeight: 700, color: "var(--gray-900)", margin: 0, marginBottom: "2px",
                                     lineHeight: "20px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                                  }}>{node.location}</p>
+                                  }}>{node.fullLocation}</p>
                                   {/* Blank when there's no camera (the trace's origin isn't a sighting),
                                       icon included — but the line still takes its 16px so that row
                                       doesn't come out shorter than the rest. */}
@@ -1666,8 +1688,8 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                     e.currentTarget.style.color = "var(--gray-500)";
                                   }}
                                   style={{
+                                    position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)",
                                     width: "22px", height: "22px", borderRadius: "999px", flexShrink: 0,
-                                    alignSelf: "center",
                                     // Grey, borderless, and quiet. This is a secondary action on a
                                     // reversible change — it drops a hit from this one route, leaves
                                     // it restorable in the left list, and raises a toast with Undo.
@@ -1681,6 +1703,22 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                 </button>
                               )}
                             </div>
+                            {/* The frame itself, 16:9 at the panel's full width. Opening it here
+                                rather than navigating to Best Frame keeps the trace alive —
+                                RedmapPage unmounts on a tab change, so leaving would discard the
+                                upload, the results and the route the operator is working through.
+                                Same reason it's an accordion and not a map overlay: one open at a
+                                time, with room to be looked at. Pulled left under the
+                                numbered-circle column so it gets the panel's full 296px rather than
+                                the card's 248px — 20% more of the one thing here that is actual
+                                evidence, without taking width off the map. It covers the connector
+                                line while open, the same way the circles sit on top of it. */}
+                            {openFrameKey === node.key && (
+                              <div style={{ marginLeft: "-48px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--gray-200)" }}>
+                                <img src={frameImageSrc(node.faceUrl)} alt={`Captured frame — ${node.fullLocation} ${node.date} ${node.time}`}
+                                     style={{ display: "block", width: "100%", aspectRatio: "16 / 9", objectFit: "cover" }} />
+                              </div>
+                            )}
                             {/* Renders for the newest sighting even with no duration to show. The
                                 LAST SEEN badge used to live inside this block, so a result set whose
                                 newest hit carries no elapsed value dropped the badge along with the
@@ -1713,30 +1751,6 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                   </span>
                                 ) : <span />}
                                 {isLatest && <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--primary-400)" }}>LAST SEEN</span>}
-                              </div>
-                            )}
-                            {/* The frame itself, 16:9 at the panel's full width. Opening it here
-                                rather than navigating to Best Frame keeps the trace alive —
-                                RedmapPage unmounts on a tab change, so leaving would discard the
-                                upload, the results and the route the operator is working through.
-                                Same reason it's an accordion and not a map overlay: one open at a
-                                time, with room to be looked at. */}
-                            {openFrameKey === node.key && (
-                              <div style={{ borderRadius: "8px", overflow: "hidden", border: "1px solid var(--gray-200)" }}>
-                                <img src={frameImageSrc(node.faceUrl)} alt={`Captured frame — ${node.location} ${node.date} ${node.time}`}
-                                     style={{ display: "block", width: "100%", aspectRatio: "16 / 9", objectFit: "cover" }} />
-                                <div style={{
-                                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px",
-                                  padding: "6px 8px", backgroundColor: "var(--gray-50)",
-                                }}>
-                                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--gray-600)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    <span style={{ fontFamily: "monospace" }}>{node.date} {node.time}</span>
-                                    {" · "}{node.fullLocation}
-                                  </span>
-                                  {node.camera && (
-                                    <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--gray-500)" }}>{node.camera}</span>
-                                  )}
-                                </div>
                               </div>
                             )}
                           </div>

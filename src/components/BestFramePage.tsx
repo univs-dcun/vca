@@ -8,6 +8,7 @@ import type { DetType, MonitorState, Camera, Detection, CamData, HUDState } from
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { VIP_SIMULATION_CAMERAS } from "@/lib/vcaStore";
 import { recentSgtClockTime, sgtHour, sgtMinute } from "@/lib/time";
+import SidebarToggleIcon from "./SidebarToggleIcon";
 
 const BORDER = "1px solid var(--gray-200)";
 
@@ -308,33 +309,6 @@ function PinIcon({ active }: { active: boolean }) {
       <path d="M6 8.5V11" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M4.5 5.38C4.4999 5.56604 4.44791 5.74837 4.34986 5.90648C4.25181 6.06459 4.11161 6.19221 3.945 6.275L3.055 6.725C2.88839 6.80779 2.74819 6.93541 2.65014 7.09352C2.55209 7.25163 2.5001 7.43396 2.5 7.62V8C2.5 8.13261 2.55268 8.25979 2.64645 8.35355C2.74021 8.44732 2.86739 8.5 3 8.5H9C9.13261 8.5 9.25979 8.44732 9.35355 8.35355C9.44732 8.25979 9.5 8.13261 9.5 8V7.62C9.4999 7.43396 9.44791 7.25163 9.34986 7.09352C9.25181 6.93541 9.11161 6.80779 8.945 6.725L8.055 6.275C7.88839 6.19221 7.74819 6.06459 7.65014 5.90648C7.55209 5.74837 7.5001 5.56604 7.5 5.38V3.5C7.5 3.36739 7.55268 3.24021 7.64645 3.14645C7.74021 3.05268 7.86739 3 8 3C8.26522 3 8.51957 2.89464 8.70711 2.70711C8.89464 2.51957 9 2.26522 9 2C9 1.73478 8.89464 1.48043 8.70711 1.29289C8.51957 1.10536 8.26522 1 8 1H4C3.73478 1 3.48043 1.10536 3.29289 1.29289C3.10536 1.48043 3 1.73478 3 2C3 2.26522 3.10536 2.51957 3.29289 2.70711C3.48043 2.89464 3.73478 3 4 3C4.13261 3 4.25979 3.05268 4.35355 3.14645C4.44732 3.24021 4.5 3.36739 4.5 3.5V5.38Z"
         fill={active ? color : "none"} stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
-
-function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
-  // Right-pointing triangle = "펼치기" (expand, shown while collapsed); left-pointing = "접기"
-  // (collapse, shown while expanded) — same box+shadow shell either way, just the triangle flips.
-  const trianglePath = collapsed ? "M19 29L13 23.8038L13 34.1962L19 29Z" : "M11 29L17 23.8038L17 34.1962L11 29Z";
-  const filterId = collapsed ? "sidebar-toggle-shadow-expand" : "sidebar-toggle-shadow-collapse";
-  return (
-    <svg width="34" height="62" viewBox="0 0 34 62" fill="none">
-      <g filter={`url(#${filterId})`}>
-        <path d="M3 1H19C25.6274 1 31 6.37258 31 13V45C31 51.6274 25.6274 57 19 57H3V1Z" fill="white"/>
-        <path d={trianglePath} fill="var(--gray-600)"/>
-      </g>
-      <defs>
-        <filter id={filterId} x="0" y="0" width="34" height="62" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
-          <feFlood floodOpacity="0" result="BackgroundImageFix"/>
-          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-          <feOffset dy="2"/>
-          <feGaussianBlur stdDeviation="1.5"/>
-          <feComposite in2="hardAlpha" operator="out"/>
-          <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.03 0"/>
-          <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
-          <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
-        </filter>
-      </defs>
     </svg>
   );
 }
