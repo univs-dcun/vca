@@ -13,4 +13,9 @@ export interface MatchItem {
   gender: "M" | "F";
   age: string;
   plate?: string | null;
+  // 데이터 연결(UV-39): 라이브 매치 전용 — 상세 팝업의 이동 경로(Track on Map)·Analyze Frame
+  // 딥링크용. targetId = 감지 eventId. mock 항목에는 없다(옵셔널 → 팝업이 mock 타임라인 유지)
+  targetId?: string;
+  cameraId?: string;
+  capturedMs?: number;
 }

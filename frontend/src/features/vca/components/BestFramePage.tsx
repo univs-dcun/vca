@@ -722,7 +722,7 @@ function getGridLayout(n: number): { cols: number; rows: number; sidePanelOnHove
 }
 
 /* ── Main component ──────────────────────────────────────────── */
-export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedmapTrace, analyzeFrameLocation, onAnalyzeFrameConsumed }: { focusLocation?: string | null; onFocusConsumed?: () => void; onGoRedmapTrace?: (name: string, ref?: TrackTargetRef) => void; analyzeFrameLocation?: string | null; onAnalyzeFrameConsumed?: () => void } = {}) {
+export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedmapTrace, analyzeFrameLocation, analyzeFrameEntryMs, onAnalyzeFrameConsumed }: { focusLocation?: string | null; onFocusConsumed?: () => void; onGoRedmapTrace?: (name: string, ref?: TrackTargetRef) => void; analyzeFrameLocation?: string | null; analyzeFrameEntryMs?: number | null; onAnalyzeFrameConsumed?: () => void } = {}) {
   const [normalCams, setNormalCams] = useState<Camera[]>(NORMAL_CAMS_INIT);
   const [videoCams,  setVideoCams]  = useState<Camera[]>(VIDEO_CAMS_INIT);
   const [imageCams,  setImageCams]  = useState<Camera[]>(IMAGE_CAMS_INIT);
@@ -735,8 +735,9 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   const [highlightCamId, setHighlightCamId] = useState<string | null>(null);
   // Tracks the last `focusLocation` value already processed, following React's "adjusting
   // state when a prop changes" pattern (state, not a ref, so it's safe to read during render).
-  const [prevFocusLocation, setPrevFocusLocation] = useState(focusLocation ?? null);
-  const [prevAnalyzeFrameLocation, setPrevAnalyzeFrameLocation] = useState(analyzeFrameLocation ?? null);
+  // 데이터 연결(UV-39): 초기값을 undefined 센티널로 — prop과 같은 값으로 시작하면 딥링크로 페이지가
+  // 새로 마운트되는 일반 경로에서 블록이 아예 발화하지 않는다 (RedmapPage consumedSearchName과 동일 패턴)
+  const [prevFocusLocation, setPrevFocusLocation] = useState<string | null | undefined>(undefined);
 
   const mainRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -808,36 +809,70 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     if (focusLocation) onFocusConsumed?.();
   }, [focusLocation, onFocusConsumed]);
 
-  // Deep-link from Dashboard's map popup ("Analyze Frame") — same camera-isolate as above, but
-  // also jumps straight to that camera's Inspection Detail (its first detection) instead of just
-  // maximizing the live tile, since the whole point of this entry point is to land on analysis.
-  if ((analyzeFrameLocation ?? null) !== prevAnalyzeFrameLocation) {
-    setPrevAnalyzeFrameLocation(analyzeFrameLocation ?? null);
-    if (analyzeFrameLocation) {
-      const hint = analyzeFrameLocation.toLowerCase();
-      const match = normalCams.find(c => {
-        // Cameras with no real CAM_DATA entry (the bulk-generated ~1000) fall back to "" here —
-        // "" is a substring of every string, so without this guard the very first such camera
-        // would silently "match" any unmatched hint instead of correctly falling through to no-match.
-        const loc = camDataFor(c.id)?.location.toLowerCase();
-        return !!loc && (loc.includes(hint) || hint.includes(loc));
-      });
-      if (match) {
-        setNormalCams(prev => prev.map(c => ({ ...c, checked: c.id === match.id })));
-        setVideoCams(prev => prev.map(c => ({ ...c, checked: false })));
-        setImageCams(prev => prev.map(c => ({ ...c, checked: false })));
-        setHighlightCamId(match.id);
-        const data = camDataFor(match.id) ?? DEFAULT_DATA;
-        if (data.detections[0]) setDetailView({ camId: match.id, data, det: data.detections[0], autoOpenDetail: true, analyzeSource: analyzeSourceFor(match.id) });
-      } else {
-        showToast({ variant:"warning", title:"No matching camera", desc:`No Best Frame camera is set up yet for "${analyzeFrameLocation}".` });
-      }
-    }
-  }
-
+  // Deep-link from Dashboard's map popup / DATA 상세 팝업 ("Analyze Frame") — same camera-isolate
+  // as above, but also jumps straight to that camera's Inspection Detail (its first detection)
+  // instead of just maximizing the live tile, since the whole point is to land on analysis.
+  //
+  // 데이터 연결(UV-39): 렌더 단계 블록 → effect로 교체. 두 가지 수정:
+  // 1. prev 초기값이 prop과 같아 첫 마운트(딥링크로 페이지가 새로 열리는 일반 경로)에서 아예
+  //    발화하지 않던 버그 — 소비 기준을 ref로 관리해 마운트 시에도 발화한다
+  // 2. 라이브 시각(entryMs)이 실린 딥링크(DATA Re-ID 매치)는 라이브 카메라 목록이 도착한 뒤
+  //    매칭한다 — 마운트 직후 mock 목록의 유사 이름에 잘못 매칭되는 레이스 방지. 라이브가 끝내
+  //    안 오면(백엔드 다운) 짧은 대기 후 mock 목록으로 폴백
+  const analyzeHandled = useRef<string | null>(null);
+  const [analyzeWaitExpired, setAnalyzeWaitExpired] = useState(false);
   useEffect(() => {
-    if (analyzeFrameLocation) onAnalyzeFrameConsumed?.();
-  }, [analyzeFrameLocation, onAnalyzeFrameConsumed]);
+    if (!analyzeFrameLocation) return;
+    setAnalyzeWaitExpired(false);
+    const t = setTimeout(() => setAnalyzeWaitExpired(true), 2500);
+    return () => clearTimeout(t);
+  }, [analyzeFrameLocation]);
+  useEffect(() => {
+    if (!analyzeFrameLocation) { analyzeHandled.current = null; return; }
+    if (analyzeHandled.current === analyzeFrameLocation) return;
+    // 라이브 대기: 목록 도착뿐 아니라 normalCams에 실제 반영(동기화 effect의 setState는 다음
+    // 렌더에 적용)까지 기다린다 — 도착 커밋에서 mock 목록에 매칭해 버리는 레이스 방지
+    const liveApplied = !!liveCameras?.length && normalCams.some(c => c.id === liveCameras[0].id);
+    if (analyzeFrameEntryMs != null && !liveApplied && !analyzeWaitExpired) return; // 라이브 목록 대기
+    analyzeHandled.current = analyzeFrameLocation;
+    const hint = analyzeFrameLocation.toLowerCase();
+    const match = normalCams.find(c => {
+      // Cameras with no real CAM_DATA entry (the bulk-generated ~1000) fall back to "" here —
+      // "" is a substring of every string, so without this guard the very first such camera
+      // would silently "match" any unmatched hint instead of correctly falling through to no-match.
+      // 라이브 카메라는 선택 전까지 dataFor가 null(bestframe 미구독)이라 location을 못 얻는다 —
+      // 라이브 목록의 카메라만 이름(=계약상 location과 동일)으로 폴백 매칭한다 (UV-39)
+      const loc = camDataFor(c.id)?.location.toLowerCase()
+        ?? (liveCameras?.some(lc => lc.id === c.id) ? c.name.toLowerCase() : undefined);
+      return !!loc && (loc.includes(hint) || hint.includes(loc));
+    });
+    if (match) {
+      setNormalCams(prev => prev.map(c => ({ ...c, checked: c.id === match.id })));
+      setVideoCams(prev => prev.map(c => ({ ...c, checked: false })));
+      setImageCams(prev => prev.map(c => ({ ...c, checked: false })));
+      setHighlightCamId(match.id);
+      // 시딩 전 라이브 카메라는 dataFor가 null — 기본 데이터에 카메라 이름을 입혀 breadcrumb가
+      // "Unknown"으로 나오지 않게 한다 (UV-39)
+      const data = camDataFor(match.id) ?? { ...DEFAULT_DATA, camLabel: match.name, location: match.name };
+      // 목격 시각이 실려 있으면 그 시각이 속한 분(minute)의 이력으로 진입 — 없으면 기존(현재 시각)
+      const src = analyzeSourceFor(match.id);
+      const analyzeSource = src && analyzeFrameEntryMs != null ? { ...src, entryMs: analyzeFrameEntryMs } : src;
+      // 시딩 전 라이브 카메라는 detections가 비어 있다 — Analyze 화면의 스트립·릴은 라이브
+      // 타임라인이 자체 조회하므로, 초기 감지는 플레이스홀더로 채워 진입을 막지 않는다.
+      // 인스펙션 패널 자동 오픈은 실제 감지가 있을 때만 (플레이스홀더를 열어 보이지 않게) (UV-39)
+      const det = data.detections[0] ?? {
+        id: `analyze-${match.id}`, type: "Unknown" as DetType, name: "—", group: "unknown",
+        confidence: 0, time: "", top: "0%", left: "0%", width: "0%", height: "0%",
+      };
+      setDetailView({ camId: match.id, data, det, autoOpenDetail: data.detections.length > 0, analyzeSource });
+    } else {
+      showToast({ variant:"warning", title:"No matching camera", desc:`No Best Frame camera is set up yet for "${analyzeFrameLocation}".` });
+    }
+    onAnalyzeFrameConsumed?.();
+    // 함수류(camDataFor 등)는 렌더마다 새 identity지만 ref 가드로 재실행이 멱등이라 deps에서 제외 —
+    // 재평가가 필요한 신호(딥링크 값·라이브 목록 도착·대기 만료)만 나열한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyzeFrameLocation, analyzeFrameEntryMs, liveCameras, normalCams, analyzeWaitExpired]);
 
   // Auto-clear the highlight a few seconds after it's set (setState inside the timer's
   // callback, not synchronously in the effect body, so this is the sanctioned effect pattern).

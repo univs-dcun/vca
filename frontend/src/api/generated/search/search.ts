@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.6.0
+ * OpenAPI spec version: 0.7.0
  */
 import {
   useMutation,
@@ -36,6 +36,9 @@ import type {
 import type {
   ErrorResponse,
   PersonSearchResponse,
+  ReidSearchPersonsBody,
+  ReidSearchPersonsParams,
+  ReidSearchResponse,
   SearchPersonsBody,
   SearchPersonsParams,
   TrackOnMapRequest,
@@ -122,6 +125,84 @@ export const useSearchPersons = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getSearchPersonsMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * DATA 화면 Re-ID Analysis 탭의 Search. 검색 대상 인물과 유사한 목격을 유사도 내림차순 상위 maxResults(기본·최대 20)로 반환한다.
+- 검색 대상 지정은 두 방식 중 하나 필수: ① 이미지 업로드(face·body 중 1개 이상) ② vipId 참조(VIP Quick Select — 이미지 업로드 불필요)
+- 기간·similarity·카메라·성별·복장·소지품 필터는 전부 백엔드(모듈)가 적용 — 프론트 후처리 없음. apparel/props 배열은 OR
+- 동기 요청 — 프록시 타임아웃 60초 (프론트도 이 요청만 타임아웃 연장 필요, /persons/search와 동일)
+- 각 매치의 targetId는 감지 eventId — Track on Map(팝업 이동 경로)·Analyze Frame 딥링크·크롭 조회에 그대로 사용
+ * @summary Re-ID 인물 검색 (DATA Re-ID Analysis) — 유사도 상위 최대 20 매치 (v1.7, UV-39)
+ */
+export const reidSearchPersons = (
+    params: ReidSearchPersonsParams,
+    reidSearchPersonsBody?: ReidSearchPersonsBody,
+ signal?: AbortSignal
+) => {
+      
+      const formData = new FormData();
+if(reidSearchPersonsBody?.face !== undefined) {
+ formData.append(`face`, reidSearchPersonsBody.face)
+ }
+if(reidSearchPersonsBody?.body !== undefined) {
+ formData.append(`body`, reidSearchPersonsBody.body)
+ }
+
+      return customInstance<ReidSearchResponse>(
+      {url: `/persons/reid-search`, method: 'POST',
+      headers: {'Content-Type': 'multipart/form-data', },
+       data: formData,
+        params, signal
+    },
+      );
+    }
+  
+
+
+export const getReidSearchPersonsMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reidSearchPersons>>, TError,{params: ReidSearchPersonsParams;data: ReidSearchPersonsBody}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof reidSearchPersons>>, TError,{params: ReidSearchPersonsParams;data: ReidSearchPersonsBody}, TContext> => {
+
+const mutationKey = ['reidSearchPersons'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reidSearchPersons>>, {params: ReidSearchPersonsParams;data: ReidSearchPersonsBody}> = (props) => {
+          const {params,data} = props ?? {};
+
+          return  reidSearchPersons(params,data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReidSearchPersonsMutationResult = NonNullable<Awaited<ReturnType<typeof reidSearchPersons>>>
+    export type ReidSearchPersonsMutationBody = ReidSearchPersonsBody
+    export type ReidSearchPersonsMutationError = ErrorResponse
+
+    /**
+ * @summary Re-ID 인물 검색 (DATA Re-ID Analysis) — 유사도 상위 최대 20 매치 (v1.7, UV-39)
+ */
+export const useReidSearchPersons = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reidSearchPersons>>, TError,{params: ReidSearchPersonsParams;data: ReidSearchPersonsBody}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reidSearchPersons>>,
+        TError,
+        {params: ReidSearchPersonsParams;data: ReidSearchPersonsBody},
+        TContext
+      > => {
+
+      const mutationOptions = getReidSearchPersonsMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

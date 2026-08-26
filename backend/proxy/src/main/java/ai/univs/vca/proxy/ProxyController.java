@@ -185,6 +185,43 @@ public class ProxyController {
 	}
 
 	/**
+	 * Re-ID 인물 검색 중계 (계약 v1.7, UV-39). 중계 방식은 /persons/search와 동일 — 쿼리 파라미터
+	 * (vipId·필터)와 multipart 본문을 파싱 없이 그대로 스트리밍하고 searchTimeout(60초)을 쓴다.
+	 * vipId 참조 검색은 본문이 없을 수 있다(Content-Type null 허용).
+	 */
+	@PostMapping("/api/persons/reid-search")
+	public Mono<ResponseEntity<ApiEnvelope>> reidSearchPersons(ServerHttpRequest request) {
+		String query = request.getURI().getRawQuery();
+		String uri = query == null ? "/persons/reid-search" : "/persons/reid-search?" + query;
+		MediaType contentType = request.getHeaders().getContentType();
+
+		return moduleApi.post()
+				.uri(uri)
+				.headers(h -> {
+					if (contentType != null) h.setContentType(contentType);
+					long len = request.getHeaders().getContentLength();
+					if (len >= 0) h.set(HttpHeaders.CONTENT_LENGTH, Long.toString(len));
+				})
+				.body(BodyInserters.fromDataBuffers(request.getBody()))
+				.retrieve()
+				.bodyToMono(JsonNode.class)
+				.timeout(props.searchTimeout())
+				.map(body -> ResponseEntity.ok(ApiEnvelope.ok(ModuleUrlRewriter.rewrite(body))))
+				.onErrorResume(WebClientResponseException.class, e -> Mono.just(moduleError(e)))
+				.onErrorResume(this::isConnectionError, e -> Mono.just(
+						ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+								.body(ApiEnvelope.error("VCA-5020", "모듈 API에 연결할 수 없습니다"))))
+				.onErrorResume(TimeoutException.class, e -> Mono.just(
+						ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+								.body(ApiEnvelope.error("VCA-5040", "Re-ID 검색 응답 시간 초과 — 기간을 줄여 다시 시도하세요"))))
+				.onErrorResume(e -> {
+					log.error("프록시 내부 오류: POST /persons/reid-search", e);
+					return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+							.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류")));
+				});
+	}
+
+	/**
 	 * Track on Map 중계 (계약 v1.4). JSON 본문(대상 참조)을 그대로 전달한다 — 시간 창·유사도는
 	 * 모듈 소유 정책이라 파라미터가 없다. 검색 계열이므로 searchTimeout(60초) 적용, 응답은
 	 * envelope 포장 + URL 재작성(faceUrl/bodyUrl/cropUrl → /api).

@@ -5,6 +5,11 @@ import { useEscapeKey } from "@/hooks/useEscapeKey";
 // 데이터 연결(UV-38): Live Monitoring 라이브 피드(REST 시딩 + MQTT 델타) — lib/vca-bridge 소유
 import { useLiveMonitoring } from "../../../lib/vca-bridge/useLiveMonitoring";
 import type { TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
+// 데이터 연결(UV-39): Re-ID 검색·VIP Quick Select·최근 검색 대상·팝업 이동 경로 — lib/vca-bridge 소유
+import {
+  searchReid, useReidRecentTargets, useReidVips, reidTrajectory,
+  type ReidSearchView, type ReidTrajectoryRow,
+} from "../../../lib/vca-bridge/reidAnalysis";
 
 const BORDER = "1px solid #E2E8F0";
 type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
@@ -66,8 +71,20 @@ function ScoreBadge({ score }: { score: number }) {
 
 
 // ── Person Detail Modal ────────────────────────────────────────
-function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:MatchItem; onClose:()=>void; onGoRedmap?:()=>void; onGoAnalyzeFrame?:(location:string)=>void }) {
+function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:MatchItem; onClose:()=>void; onGoRedmap?:()=>void; onGoAnalyzeFrame?:(location:string, entryMs?:number)=>void }) {
   useEscapeKey(onClose);
+  // 데이터 연결(UV-39): 라이브 항목(targetId=감지 eventId 보유)이면 이동 경로를 Track on Map
+  // (계약 v1.4 — 감지 당일 00:00→감지 시각)으로 조회해 mock 타임라인을 대체한다.
+  // mock 항목·미응답이면 기존 TRAJECTORY 그대로 (폴백 규칙).
+  const [liveTraj, setLiveTraj] = useState<ReidTrajectoryRow[] | null>(null);
+  useEffect(() => {
+    setLiveTraj(null);
+    if (!item.targetId || !item.cameraId) return;
+    let stale = false;
+    void reidTrajectory(item.cameraId, item.targetId).then(rows => { if (!stale && rows) setLiveTraj(rows); });
+    return () => { stale = true; };
+  }, [item.targetId, item.cameraId]);
+  const traj = liveTraj ?? TRAJECTORY;
   return (
     <div onClick={e => { if (e.target===e.currentTarget) onClose(); }}
       style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.4)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
@@ -127,12 +144,12 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
               <p style={{ fontSize:"11px", fontWeight:800, color:"#0e162a" }}>Camera Detection Movement Timeline</p>
-              <span style={{ fontSize:"9px", fontWeight:700, color:"#5a3dfb", backgroundColor:"#ece9ff", padding:"2px 7px", borderRadius:"999px" }}>{TRAJECTORY.length} Detections Total</span>
+              <span style={{ fontSize:"9px", fontWeight:700, color:"#5a3dfb", backgroundColor:"#ece9ff", padding:"2px 7px", borderRadius:"999px" }}>{traj.length} Detections Total</span>
             </div>
             <div style={{ position:"relative", paddingLeft:"20px" }}>
               <div style={{ position:"absolute", left:"6px", top:"8px", bottom:"8px", width:"2px", backgroundColor:"#c4b5fd" }} />
               <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-                {TRAJECTORY.map((t,i) => (
+                {traj.map((t,i) => (
                   <div key={i} style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", backgroundColor:"white", padding:"8px 12px", borderRadius:"10px", border:BORDER }}>
                     <div style={{ position:"absolute", left:"-17px", width:"10px", height:"10px", borderRadius:"50%", backgroundColor:"#5a3dfb", border:"3px solid #ece9ff" }} />
                     <div>
@@ -151,8 +168,10 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
             screen action, so it doesn't live here; Analyze Frame (same wording as Best Frame's
             own popup button) deep-links to that camera's Inspection Detail instead. */}
         <div style={{ padding:"12px 16px", borderTop:BORDER, backgroundColor:"#f8fafc", display:"flex", justifyContent:"flex-end", gap:"8px", flexShrink:0 }}>
+          {/* 데이터 연결(UV-39): 라이브 매치는 목격 시각(capturedMs)을 함께 전달 — Analyze Frame이
+              그 카메라의 그 분(minute) 이력으로 진입한다. mock 항목은 시각 없이(현재 시각) 기존 동작 */}
           <button
-            onClick={() => onGoAnalyzeFrame?.(item.cam)}
+            onClick={() => onGoAnalyzeFrame?.(item.cam, item.capturedMs)}
             style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", border:BORDER, backgroundColor:"white", fontSize:"11px", fontWeight:600, color:"#64748a", cursor:"pointer" }}
           >
             Analyze Frame
@@ -443,7 +462,10 @@ function reidToMatchItem(p: MonitorItem): MatchItem {
   // the person's own photo, so DetailModal's "Face Detection Crop" would show a different
   // person's face than the "Full-Body Object Crop" (body:p.url) right next to it.
   // 데이터 연결(UV-38): 라이브 카드는 실제 얼굴 크롭(faceCrop)이 있으면 그걸 쓴다.
-  return { id:p.id, face:p.faceCrop ?? p.url, body:p.url, cam:p.cam, time:p.time, similarity:p.score ?? 0, gender:p.gender as "M"|"F", age:p.age, plate:p.plate };
+  // 데이터 연결(UV-39): 대상 참조(eventId·카메라·시각)를 함께 넘겨 팝업의 이동 경로(Track on Map)와
+  // Analyze Frame 시각 딥링크가 라이브로 동작하게 한다 — mock 항목은 undefined(기존 동작).
+  return { id:p.id, face:p.faceCrop ?? p.url, body:p.url, cam:p.cam, time:p.time, similarity:p.score ?? 0, gender:p.gender as "M"|"F", age:p.age, plate:p.plate,
+    targetId:p.eventId, cameraId:p.cameraId, capturedMs:p.ms };
 }
 
 const LIVE_FEED_STATUS_CYCLE: ReIDStatus[] = ["VIP","Unknown","Unknown"];
@@ -491,7 +513,7 @@ function seedLiveFeed(): Record<string, (typeof REID_DATA)> {
 }
 
 // ── Live Monitoring Tab (wrapper: landing ↔ per-camera detail) ──
-function LiveMonitoringTab({ onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: (name?: string, ref?: TrackTargetRef) => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
+function LiveMonitoringTab({ onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: (name?: string, ref?: TrackTargetRef) => void; onGoAnalyzeFrame?: (location: string, entryMs?: number) => void } = {}) {
   const [openCam, setOpenCam]   = useState<string>(ALL_CAMERAS_ID);
   const [detailId, setDetailId] = useState<number|null>(null);
   const [feed, setFeed]         = useState(seedLiveFeed);
@@ -758,7 +780,9 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
   );
 }
 
-function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP:number; onSelect:(i:number)=>void; compact?:boolean }) {
+// 데이터 연결(UV-39): vips prop — Re-ID 탭이 라이브 등록 VIP 목록(GET /vips)을 넘긴다.
+// 미전달(다른 탭)·백엔드 미응답이면 기존 mock 목록 그대로.
+function VipQuickSelectRow({ activeVIP, onSelect, compact = false, vips }: { activeVIP:number; onSelect:(i:number)=>void; compact?:boolean; vips?: typeof VIP_QUICK | null }) {
   const avatarSize = compact ? 28 : 32;
   const fontSize = compact ? "11px" : "12px";
 
@@ -767,7 +791,7 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
   // scroll away instead of an extra click into a flyout.
   return (
     <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"8px", overflowX:"auto", width:"100%" }}>
-      {VIP_QUICK.map((v, i) => {
+      {(vips ?? VIP_QUICK).map((v, i) => {
         const active = activeVIP === i;
         return (
           <button key={v.name} onClick={() => onSelect(i)} style={{
@@ -818,7 +842,9 @@ function FilterChip({ children, icon, avatar, onRemove }: { children:React.React
 
 // Shared by Re-ID Analysis, Smart Search, and RedFace's picker — lets a search start from
 // "who/what was captured on this specific camera" instead of only attribute/image matching.
-function CameraSelect({ value, onChange, size = "md" }: { value:string; onChange:(v:string)=>void; size?:"md"|"sm" }) {
+// 데이터 연결(UV-39): options prop — Re-ID 탭이 라이브 카메라 목록(cameraId)을 넘긴다.
+// 미전달(다른 탭)·백엔드 미응답이면 기존 mock 옵션 그대로.
+function CameraSelect({ value, onChange, size = "md", options }: { value:string; onChange:(v:string)=>void; size?:"md"|"sm"; options?: string[] }) {
   const compact = size === "sm";
   return (
     <select
@@ -831,7 +857,7 @@ function CameraSelect({ value, onChange, size = "md" }: { value:string; onChange
       }}
     >
       <option value="">All Cameras</option>
-      {CAMERA_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+      {(options ?? CAMERA_OPTIONS).map(c => <option key={c} value={c}>{c}</option>)}
     </select>
   );
 }
@@ -1178,9 +1204,16 @@ interface SearchFilterState {
   licensePlate: string; setLicensePlate:(v:string)=>void;
   camera: string; setCamera:(v:string)=>void;
   reset: () => void;
+  // 데이터 연결(UV-39): Re-ID 탭 전용 라이브 확장 — 다른 탭(Smart Search 등)은 미전달(옵셔널).
+  // recentList/vipList는 화면이 렌더할 최종 목록(라이브 우선, mock 폴백)을 ReIDContent가 결정해 넘긴다.
+  faceFile?: File | null; setFaceFile?: (f: File | null) => void;
+  bodyFile?: File | null; setBodyFile?: (f: File | null) => void;
+  recentList?: typeof RECENT_TARGETS_EN;
+  vipList?: typeof VIP_QUICK;
+  cameraOptions?: string[];
 }
 
-function SmartSearchContent({ seedCard, onSeedConsumed, onGoRedmap, onGoAnalyzeFrame }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
+function SmartSearchContent({ seedCard, onSeedConsumed, onGoRedmap, onGoAnalyzeFrame }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string, entryMs?: number) => void } = {}) {
   const [searched, setSearched]         = useState(false);
   const [detailId, setDetailId]         = useState<number|null>(null);
   const [searchType, setSearchType]     = useState<"PERSON"|"VEHICLE">("PERSON");
@@ -1705,10 +1738,19 @@ function SearchPanel({ state, onSearch, onCollapse }: { state: SearchFilterState
     searchType, setSearchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP,
     threshold, setThreshold, gender, setGender, apparel, toggleApparel, props, toggleProps,
     dateRange, setDateRange, licensePlate, setLicensePlate, camera, setCamera, reset,
+    faceFile, setFaceFile, bodyFile, setBodyFile,
   } = state;
   const [attrOpen, setAttrOpen] = useState(false);
-  const target = selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : activeVIP >= 0 ? VIP_QUICK[activeVIP] : null;
+  // 데이터 연결(UV-39): ReIDContent가 라이브 목록(등록 VIP·세션 최근 검색)을 넘기면 그걸 쓴다
+  const recentList = state.recentList ?? RECENT_TARGETS_EN;
+  const vipList = state.vipList ?? VIP_QUICK;
+  const target = selectedTarget >= 0 ? recentList[selectedTarget] : activeVIP >= 0 ? vipList[activeVIP] : null;
   const isVehicle = searchType === "VEHICLE";
+  // 업로드 파일 미리보기 URL — 파일이 바뀔 때만 재생성
+  const facePreview = React.useMemo(() => (faceFile ? URL.createObjectURL(faceFile) : null), [faceFile]);
+  const bodyPreview = React.useMemo(() => (bodyFile ? URL.createObjectURL(bodyFile) : null), [bodyFile]);
+  const faceInputRef = useRef<HTMLInputElement>(null);
+  const bodyInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div style={{ width:"320px", flexShrink:0, backgroundColor:"white", borderRadius:"12px", padding:"24px 16px",
@@ -1751,7 +1793,10 @@ function SearchPanel({ state, onSearch, onCollapse }: { state: SearchFilterState
               <span style={{ fontSize:"13px", fontWeight:700, color:"#324055" }}>Recent Targets</span>
             </div>
             <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"8px", overflowX:"auto" }}>
-              {RECENT_TARGETS_EN.map((t, i) => (
+              {recentList.length === 0 && (
+                <span style={{ fontSize:"11px", color:"#94a3b8", padding:"8px 0" }}>No recent searches yet</span>
+              )}
+              {recentList.map((t, i) => (
                 <button key={i} onClick={() => selectRecentTarget(i)} style={{
                   display:"flex", alignItems:"center", gap:"8px", padding:"8px 12px", borderRadius:"8px",
                   backgroundColor: selectedTarget === i ? "#f0f0ff" : "#f1f5f9",
@@ -1773,7 +1818,7 @@ function SearchPanel({ state, onSearch, onCollapse }: { state: SearchFilterState
               <StarIconSm />
               <span style={{ fontSize:"13px", fontWeight:700, color:"#324055" }}>VIP Quick Select</span>
             </div>
-            <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} />
+            <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} vips={state.vipList} />
           </div>
         </>
       )}
@@ -1801,7 +1846,7 @@ function SearchPanel({ state, onSearch, onCollapse }: { state: SearchFilterState
 
         <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
           <span style={{ fontSize:"13px", fontWeight:600, color:"#475469" }}>Camera</span>
-          <CameraSelect value={camera} onChange={setCamera} />
+          <CameraSelect value={camera} onChange={setCamera} options={state.cameraOptions} />
         </div>
 
         {isVehicle ? (
@@ -1823,22 +1868,40 @@ function SearchPanel({ state, onSearch, onCollapse }: { state: SearchFilterState
           <>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
               <span style={{ fontSize:"13px", fontWeight:600, color:"#475469" }}>Search by Image</span>
+              {/* 데이터 연결(UV-39): 드롭존에 실제 파일 업로드 배선 — 업로드 파일이 검색 대상이 된다.
+                  setFaceFile 미전달(다른 탭 재사용 시)이면 기존 장식 동작 그대로 */}
               <div style={{ display:"flex", gap:"12px" }}>
-                <div style={{ flex:1, height:"126px", borderRadius:"12px", border:"1px dashed #94a3b8", backgroundColor:"#f8fafc",
-                  display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", overflow:"hidden", position:"relative" }}>
-                  {target && <img src={target.face} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.15 }} />}
-                  <span style={{ position:"relative", display:"flex", alignItems:"center", gap:"4px", fontSize:"13px", fontWeight:700, color:"#324055" }}>
-                    <DropzoneFaceIconSm /> Face
-                  </span>
-                  <span style={{ position:"relative", fontSize:"12px", color:"#94a3b8", textAlign:"center" }}>Click or drop image<br/>to upload</span>
+                <div onClick={() => faceInputRef.current?.click()} style={{ flex:1, height:"126px", borderRadius:"12px", border: facePreview ? "1px solid #5a3dfb" : "1px dashed #94a3b8", backgroundColor:"#f8fafc",
+                  display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", overflow:"hidden", position:"relative", cursor: setFaceFile ? "pointer" : "default" }}>
+                  {setFaceFile && <input ref={faceInputRef} type="file" accept="image/*" style={{ display:"none" }}
+                    onChange={e => { setFaceFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />}
+                  {facePreview
+                    ? <img src={facePreview} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />
+                    : target && <img src={target.face} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.15 }} />}
+                  {!facePreview && (
+                    <>
+                      <span style={{ position:"relative", display:"flex", alignItems:"center", gap:"4px", fontSize:"13px", fontWeight:700, color:"#324055" }}>
+                        <DropzoneFaceIconSm /> Face
+                      </span>
+                      <span style={{ position:"relative", fontSize:"12px", color:"#94a3b8", textAlign:"center" }}>Click or drop image<br/>to upload</span>
+                    </>
+                  )}
                 </div>
-                <div style={{ flex:1, height:"126px", borderRadius:"12px", border:"1px dashed #94a3b8", backgroundColor:"#f8fafc",
-                  display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", overflow:"hidden", position:"relative" }}>
-                  {target && <img src={target.body} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.15 }} />}
-                  <span style={{ position:"relative", display:"flex", alignItems:"center", gap:"4px", fontSize:"13px", fontWeight:700, color:"#324055" }}>
-                    <DropzoneBodyIconSm /> Body
-                  </span>
-                  <span style={{ position:"relative", fontSize:"12px", color:"#94a3b8", textAlign:"center" }}>Click or drop image<br/>to upload</span>
+                <div onClick={() => bodyInputRef.current?.click()} style={{ flex:1, height:"126px", borderRadius:"12px", border: bodyPreview ? "1px solid #5a3dfb" : "1px dashed #94a3b8", backgroundColor:"#f8fafc",
+                  display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", overflow:"hidden", position:"relative", cursor: setBodyFile ? "pointer" : "default" }}>
+                  {setBodyFile && <input ref={bodyInputRef} type="file" accept="image/*" style={{ display:"none" }}
+                    onChange={e => { setBodyFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />}
+                  {bodyPreview
+                    ? <img src={bodyPreview} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />
+                    : target && <img src={target.body} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.15 }} />}
+                  {!bodyPreview && (
+                    <>
+                      <span style={{ position:"relative", display:"flex", alignItems:"center", gap:"4px", fontSize:"13px", fontWeight:700, color:"#324055" }}>
+                        <DropzoneBodyIconSm /> Body
+                      </span>
+                      <span style={{ position:"relative", fontSize:"12px", color:"#94a3b8", textAlign:"center" }}>Click or drop image<br/>to upload</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1896,7 +1959,7 @@ function SearchPanel({ state, onSearch, onCollapse }: { state: SearchFilterState
   );
 }
 
-function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onNavigateTab?: (tab: DataTab) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
+function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onNavigateTab?: (tab: DataTab) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string, entryMs?: number) => void } = {}) {
   const [expanded, setExpanded]         = useState(false);
   const [hasSearched, setHasSearched]   = useState(false);
   const [detailId, setDetailId]         = useState<number | null>(null);
@@ -1910,6 +1973,19 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
   const [dateRange, setDateRange]       = useState<DateRangeValue>({ start:null, end:null });
   const [licensePlate, setLicensePlate] = useState("");
   const [camera, setCamera]             = useState("");
+  // 데이터 연결(UV-39): 라이브 검색 상태 — 백엔드 응답이 오면 mock 결과 대신 이 결과를 렌더.
+  // liveVips가 null이면 백엔드 미연결 → 목록·검색 전부 기존 mock 흐름 유지.
+  const liveVips = useReidVips();
+  const liveRecent = useReidRecentTargets();
+  const [faceFile, setFaceFile] = useState<File | null>(null);
+  const [bodyFile, setBodyFile] = useState<File | null>(null);
+  const [liveResults, setLiveResults] = useState<ReidSearchView | null>(null);
+  const searchSeq = useRef(0); // 늦게 도착한 이전 검색 응답이 최신 결과를 덮지 않게
+  const recentList = liveVips ? liveRecent : RECENT_TARGETS_EN;
+  const vipList = liveVips ?? VIP_QUICK;
+  // 라이브 모드에서 카메라 필터 옵션 = 실제 카메라(스토어 — 라이브에서는 code=cameraId)
+  const storeCams = useVcaStore(s => s.cameras);
+  const cameraOptions = liveVips ? storeCams.map(c => c.code) : undefined;
   // "UNSET" (not seedCard's own initial value) so the block below still fires on this
   // component's very first render even when seedCard is ALREADY set at mount time — this tab
   // mounts fresh on every deep-link (it doesn't exist until activeTab switches to it), so
@@ -1918,7 +1994,7 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
 
   const toggleApparel = (a: string) => setApparel(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
   const toggleProps   = (a: string) => setProps(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
-  const reset = () => { setSearchType("PERSON"); setThreshold(30); setGender(""); setApparel([]); setProps([]); setSelectedTarget(-1); setActiveVIP(-1); setDateRange({ start:null, end:null }); setLicensePlate(""); setCamera(""); setHasSearched(false); };
+  const reset = () => { setSearchType("PERSON"); setThreshold(30); setGender(""); setApparel([]); setProps([]); setSelectedTarget(-1); setActiveVIP(-1); setDateRange({ start:null, end:null }); setLicensePlate(""); setCamera(""); setHasSearched(false); setFaceFile(null); setBodyFile(null); setLiveResults(null); };
 
   // Deep-link from a Live Monitoring card's "Re-ID" hover button — seed the filters that
   // actually narrow filterReidData() (camera/gender/date) so this lands on that person's
@@ -1942,25 +2018,46 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
   const selectRecentTarget = (i: number) => {
     if (selectedTarget === i) { setSelectedTarget(-1); setGender(""); setApparel([]); setProps([]); return; }
     setSelectedTarget(i); setActiveVIP(-1);
-    const t = RECENT_TARGETS_EN[i];
-    setGender(t.gender); setApparel([t.apparel]); setProps(t.props);
+    const t = recentList[i];
+    // 라이브 최근 대상은 프로필 캐스케이드 값이 비어 있다 — 빈 값은 필터를 건드리지 않는다 (UV-39)
+    if (t.gender) setGender(t.gender);
+    if (t.apparel) setApparel([t.apparel]);
+    if (t.props.length) setProps(t.props);
   };
   const selectVIP = (i: number) => {
     if (activeVIP === i) { setActiveVIP(-1); return; }
     setActiveVIP(i); setSelectedTarget(-1);
   };
 
+  // 데이터 연결(UV-39): Search 실행 — 라이브 검색(계약 v1.7)을 먼저 시도하고, 성립 불가/미응답이면
+  // null → 기존 mock 결과(searchResultCluster)가 그대로 렌더된다 (폴백 규칙)
+  const runSearch = () => {
+    setHasSearched(true);
+    setLiveResults(null);
+    const vipSel = activeVIP >= 0 ? vipList[activeVIP] : null;
+    const recentSel = selectedTarget >= 0 ? recentList[selectedTarget] : null;
+    const seq = ++searchSeq.current;
+    void searchReid({
+      vipId: (vipSel && "vipId" in vipSel ? vipSel.vipId : null)
+        ?? (recentSel && "input" in recentSel ? recentSel.input.vipId : null),
+      face: (recentSel && "input" in recentSel ? recentSel.input.face : null) ?? faceFile,
+      body: (recentSel && "input" in recentSel ? recentSel.input.body : null) ?? bodyFile,
+      dateRange, threshold, camera, gender, apparel, props,
+    }).then(v => { if (v && searchSeq.current === seq) setLiveResults(v); });
+  };
+
   const state: SearchFilterState = {
     searchType, setSearchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP,
     threshold, setThreshold, gender, setGender, apparel, toggleApparel, props, toggleProps,
     dateRange, setDateRange, licensePlate, setLicensePlate, camera, setCamera, reset,
+    faceFile, setFaceFile, bodyFile, setBodyFile, recentList, vipList, cameraOptions,
   };
 
   // Before a search runs, show the two illustrative example clusters (unchanged from before).
   // Once Search is clicked, replace them with one real cluster built from the actual filter
   // state and the live-filtered dataset — the target's face if one was picked, else a generic
   // "Search Result" placeholder.
-  const searchTarget = activeVIP >= 0 ? VIP_QUICK[activeVIP] : selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : null;
+  const searchTarget = activeVIP >= 0 ? vipList[activeVIP] : selectedTarget >= 0 ? recentList[selectedTarget] : null;
   // A named target (VIP Quick Select / Recent Targets) means "find this specific person
   // elsewhere" — the results should be that one identity re-appearing, not just anyone who shares
   // the filter attributes. Only the attribute-only search (no target picked) falls back to
@@ -1997,13 +2094,30 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
     matches: targetMatches ?? filterReidData({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera }).slice(0, 20)
       .map(p => ({ ...reidToMatchItem(p), similarity: p.similarity })),
   } : null;
-  const clusters = hasSearched ? (searchResultCluster ? [searchResultCluster] : []) : CLUSTERS;
+  // 데이터 연결(UV-39): 라이브 검색 결과가 도착하면 mock 클러스터 대신 계약 결과(유사도 내림차순
+  // 상위 최대 20, 빈 배열 가능)를 그대로 렌더한다. 기간·유사도는 백엔드 에코(applied) 값 표시.
+  const liveCluster: ReidCluster | null = hasSearched && liveResults ? {
+    id: "live-search-result",
+    thumbnail: liveResults.matches[0]?.face ?? searchTarget?.face ?? MATCH_DATA[0].face,
+    title: liveResults.targetName
+      ?? (searchTarget ? ("label" in searchTarget ? searchTarget.label : searchTarget.name) : "Search Result"),
+    meta: [
+      { label:"Type", value:"PERSON" },
+      { label:"Period", value:`${liveResults.applied.from.slice(0, 10)} ~ ${liveResults.applied.to.slice(0, 10)}` },
+      ...(camera ? [{ label:"Camera", value:camera }] : []),
+      { label:"Min. Similarity", value:`${Math.round(liveResults.applied.similarity * 100)}%` },
+      { label:"Matches", value:`${liveResults.matches.length}` },
+    ],
+    action: "RedFace",
+    matches: liveResults.matches,
+  } : null;
+  const clusters = hasSearched ? (liveCluster ? [liveCluster] : searchResultCluster ? [searchResultCluster] : []) : CLUSTERS;
   const detailItem = detailId !== null ? clusters.flatMap(c => c.matches).find(m => m.id === detailId) ?? null : null;
 
   return (
     <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"24px 24px 12px", backgroundColor:"#f1f5f9", boxSizing:"border-box" }}>
       {expanded
-        ? <SearchPanel state={state} onSearch={() => setHasSearched(true)} onCollapse={() => setExpanded(false)} />
+        ? <SearchPanel state={state} onSearch={runSearch} onCollapse={() => setExpanded(false)} />
         : (
           <button onClick={() => setExpanded(true)} style={{
             width:"48px", height:"48px", borderRadius:"16px", backgroundColor:"white", border:"none",
@@ -3031,7 +3145,8 @@ const TAB_ICONS: Record<DataTab, React.ReactNode> = {
 const DATA_TABS: DataTab[] = ["Live Monitoring","Re-ID Analysis","Smart Search","RedFace"];
 
 // 데이터 연결(UV-38): onGoRedmap이 카드의 대상 참조(name+ref)를 함께 전달 — ref 없으면 플레인 이동
-export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?: (name?: string, ref?: TrackTargetRef) => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
+// 데이터 연결(UV-39): onGoAnalyzeFrame이 목격 시각(entryMs)을 함께 전달 — 없으면 현재 시각 진입(기존)
+export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?: (name?: string, ref?: TrackTargetRef) => void; onGoAnalyzeFrame?: (location: string, entryMs?: number) => void } = {}) {
   // Always lands on Live Monitoring — deliberately not persisted, unlike Best Frame's
   // camera selection. Switching sub-tabs while on this screen is normal component state;
   // leaving Data and coming back should start fresh at Live Monitoring.

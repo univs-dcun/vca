@@ -160,6 +160,9 @@ export default function ClientLayout() {
   // 데이터 연결(UV-36): Track on Map 딥링크의 대상 참조 — 이름과 함께 REDMAP으로 전달
   const [redmapTrackTarget, setRedmapTrackTarget] = useState<TrackTargetRef | null>(null);
   const [bestFrameAnalyzeLocation, setBestFrameAnalyzeLocation] = useState<string | null>(null);
+  // 데이터 연결(UV-39): Analyze Frame 딥링크의 진입 시각 — Re-ID 매치의 목격 시각(그 분의 이력으로
+  // 진입). null이면 기존과 같이 현재 시각 기준
+  const [bestFrameAnalyzeMs, setBestFrameAnalyzeMs] = useState<number | null>(null);
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 700);
     return () => clearTimeout(timer);
@@ -177,8 +180,9 @@ export default function ClientLayout() {
     setSelectedEvent(event);
     setActivePage("DASHBOARD");
   };
-  const handleGoAnalyzeFrame = (location: string) => {
+  const handleGoAnalyzeFrame = (location: string, entryMs?: number) => {
     setBestFrameAnalyzeLocation(location);
+    setBestFrameAnalyzeMs(entryMs ?? null); // (UV-39) 시각 없는 기존 호출은 현재 시각 진입 유지
     setActivePage("BEST FRAME");
   };
 
@@ -299,7 +303,8 @@ export default function ClientLayout() {
               onFocusConsumed={() => setBestFrameFocusLocation(null)}
               onGoRedmapTrace={handleGoRedmapTrace}
               analyzeFrameLocation={bestFrameAnalyzeLocation}
-              onAnalyzeFrameConsumed={() => setBestFrameAnalyzeLocation(null)}
+              analyzeFrameEntryMs={bestFrameAnalyzeMs}
+              onAnalyzeFrameConsumed={() => { setBestFrameAnalyzeLocation(null); setBestFrameAnalyzeMs(null); }}
             />
           </div>
         )}
