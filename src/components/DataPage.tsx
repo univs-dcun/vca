@@ -3134,11 +3134,11 @@ type TierMeta = {
 type PyramidRow = { key:string; weight:number; nodes:RedfaceNode[]; meta: TierMeta|null };
 
 const PYRAMID_TIER_META: Record<"tier1"|"tier2"|"tier3", TierMeta> = {
-  tier1: { bg:"var(--danger-100)", labelBg:"var(--danger-100)", labelColor:"var(--danger-400)", label:"TIER 1 · RED ZONE", sublabel:">100 CO-OCCURRENCES",
+  tier1: { bg:"var(--danger-100)", labelBg:"var(--danger-100)", labelColor:"var(--danger-400)", label:"TIER 1 · RED ZONE", sublabel:">100 CO-CAPTURES",
     nodeSize:52, nodeBorder:3, nodeColor:"var(--danger-400)", step:16, lineWidth:1.4, dashFlow:true, lineOpacity:0.85 },
-  tier2: { bg:"var(--warning-100)", labelBg:"var(--warning-200)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-OCCURRENCES",
+  tier2: { bg:"var(--warning-100)", labelBg:"var(--warning-200)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-CAPTURES",
     nodeSize:52, nodeBorder:2, nodeColor:"var(--warning-400)", step:11, lineWidth:1, dashed:true, lineOpacity:0.7 },
-  tier3: { bg:"var(--gray-50)", labelBg:"var(--gray-200)", labelColor:"var(--gray-600)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-OCCURRENCES",
+  tier3: { bg:"var(--gray-50)", labelBg:"var(--gray-200)", labelColor:"var(--gray-600)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-CAPTURES",
     // Same 52px as Tier 2. Tier 3 was drawn smaller to signal a weaker link, but the faces here
     // will be low-resolution CCTV crops in practice, and 42px left too little of them to tell
     // people apart — which is the one thing these nodes are for.
@@ -3286,10 +3286,13 @@ function MapPinIconSm() {
   );
 }
 
-const TIER_LINK_META: Record<string, { label:string; correlation:string }> = {
-  tier1: { label:"TIER 1 LINK", correlation:"Strong correlation" },
-  tier2: { label:"TIER 2 LINK", correlation:"Moderate correlation" },
-  tier3: { label:"TIER 3 LINK", correlation:"Weak correlation" },
+// Strong/Moderate/Weak "correlation" used to sit under the link icon, but it only restated the
+// tier printed directly above it and named a statistic nothing computes. The co-capture count is
+// what the tier is derived FROM, so it says more in the same space.
+const TIER_LINK_META: Record<string, { label:string }> = {
+  tier1: { label:"TIER 1 LINK" },
+  tier2: { label:"TIER 2 LINK" },
+  tier3: { label:"TIER 3 LINK" },
 };
 
 const COOCCUR_CAMERAS = [
@@ -3303,19 +3306,19 @@ function assocId(n: RedfaceNode) {
   return `AS${String((100000 + n.id * 6421) % 900000 + 100000).padStart(6,"0")}`;
 }
 
-// gapSec is how many seconds AFTER the primary target the associate passed the same camera —
-// the actual signal for "walking together" (a couple of seconds apart, same stride) versus
-// "trailing" (tens of seconds to a couple of minutes back, consistent with following rather than
-// walking side by side).
+// An associate co-appearance is ONE FRAME with both people in it. Not "passed the same camera
+// within N seconds": at a busy station 90 seconds is several hundred people, so a time-gap window
+// makes the whole foot traffic of that camera an associate and a count of 148 means nothing. Same
+// frame is a fact the footage can be held to, and it is what the row below draws.
+//
+// This puts a hard requirement on the backend: per-frame detections carrying every person found in
+// that frame. Without them there is no honest version of this feature — a gap-based stand-in would
+// only look like one.
 type CooccurEvent = {
   location: string;
   camCode: string;
   date: string;
   time: string;
-  /** Seconds between the Primary's detection and the associate's at this camera. */
-  gapSec: number;
-  /** Both detections carry the same timestamp, so they are one frame — see buildCooccurEvents. */
-  sameFrame: boolean;
   /** Left edge of the Primary's box, as a % of frame width; the associate's sits beside it. */
   boxLeft: number;
 };
@@ -3333,38 +3336,32 @@ const DEFAULT_REDFACE_RANGE: DateRangeValue = (() => {
 })();
 
 const COOCCUR_DATES = Array.from({ length: 8 }, (_, i) => recentSgtStamp(i * 24 * 60).date);
-const COOCCUR_TIMES = ["07:52","08:30","08:42","12:05","14:18","18:15","19:40","21:40"];
+// Hours a pair actually gets seen together on a street camera — commute, lunch, evening.
+const COOCCUR_HOURS = [7, 8, 8, 12, 14, 18, 19, 21];
 
+// Every co-capture the pair has, not a sample of it: the timeline pages through them instead of
+// truncating, so a count of 148 in the grid means 148 rows here.
 function buildCooccurEvents(node: RedfaceNode): CooccurEvent[] {
-  const total = Math.min(7, Math.max(3, Math.round(node.count / 15) + 3));
   const primaryIdx = node.id % COOCCUR_CAMERAS.length;
-  return Array.from({ length: total }, (_, i) => {
-    const isPrimary = i < Math.ceil(total * 0.6);
+  return Array.from({ length: node.count }, (_, i) => {
+    // 3 in 5 at the pair's usual camera, the rest scattered — that skew is what makes "Peak
+    // location" mean anything rather than just naming whichever camera came first.
+    const isPrimary = i % 5 < 3;
     const idx = isPrimary ? primaryIdx : (primaryIdx + 1 + (i % (COOCCUR_CAMERAS.length - 1))) % COOCCUR_CAMERAS.length;
     const cam = COOCCUR_CAMERAS[idx];
-    const date = COOCCUR_DATES[(node.id + i * 3) % COOCCUR_DATES.length];
-    const time = COOCCUR_TIMES[(node.id + i * 5) % COOCCUR_TIMES.length];
-    // ~2/3 of events land in the 0-3s "walking together" band, the rest in a 30-120s "trailing" band.
-    const walkingTogether = (node.id + i) % 3 !== 0;
-    const gapSec = walkingTogether ? (node.id + i * 7) % 4 : 30 + ((node.id + i * 11) % 91);
-    // Same frame only when the two detections carry the SAME timestamp. A 1-3s gap is a different
-    // frame at the same camera, and nothing in a gap that size says how far apart they stood —
-    // see the note on the relationship analytics. Boxes are stand-ins for what a backend that
-    // returns per-frame detections would supply; without that, sameFrame is never true and the
-    // event falls back to one crop per person.
-    const sameFrame = gapSec === 0;
+    // Dates cycle, so `seq` is the nth capture on that one date. Minutes step by 7 (coprime with
+    // 60) against seq, which keeps timestamps distinct up to 60 captures a day — no two rows in
+    // the timeline can collide and read as one frame counted twice.
+    const date = COOCCUR_DATES[i % COOCCUR_DATES.length];
+    const seq = Math.floor(i / COOCCUR_DATES.length);
+    const hh = COOCCUR_HOURS[(node.id + seq * 3) % COOCCUR_HOURS.length];
+    const mm = (node.id * 11 + seq * 7) % 60;
+    const ss = (node.id + seq * 13) % 60;
+    const two = (n: number) => String(n).padStart(2, "0");
+    // Stand-in for the box coordinates a per-frame detection would carry.
     const boxLeft = 22 + ((node.id + i * 13) % 18);
-    return { location: cam.location, camCode: cam.code, date, time, gapSec, sameFrame, boxLeft };
+    return { location: cam.location, camCode: cam.code, date, time: `${two(hh)}:${two(mm)}:${two(ss)}`, boxLeft };
   });
-}
-
-// Just the measurement. "Walking together" / "Trailing" read as conclusions about how the two
-// moved, which a gap between detections at one camera cannot support — a 2s gap may be shoulder to
-// shoulder or several metres apart.
-function gapLabel(gapSec: number): { text:string; color:string } {
-  return gapSec === 0
-    ? { text:"same frame", color:"var(--success-400)" }
-    : { text:`${gapSec}s apart`, color: gapSec <= 3 ? "var(--gray-600)" : "var(--warning-500)" };
 }
 
 function groupCooccurEvents(events: CooccurEvent[]) {
@@ -3397,6 +3394,59 @@ const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string 
   Unknown: { bg:"var(--gray-100)", text:"var(--gray-500)" },
 };
 
+const TIMELINE_PAGE_SIZE = 10;
+
+/**
+ * Page numbers with gaps: first, last, and a window around the current page. A tier-1 pair can
+ * have 150+ co-captures, i.e. 15+ pages — printing every number would wrap to three lines inside
+ * a 460px panel, and the numbers nobody can act on are the ones far from where they are.
+ */
+function pageWindow(current: number, total: number): Array<number | "gap"> {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const near = [current - 1, current, current + 1].filter(n => n > 1 && n < total);
+  const out: Array<number | "gap"> = [1];
+  if (near[0] > 2) out.push("gap");
+  out.push(...near);
+  if (near[near.length - 1] < total - 1) out.push("gap");
+  out.push(total);
+  return out;
+}
+
+function PagerArrow({ dir }: { dir: -1 | 1 }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: dir === 1 ? "none" : "rotate(180deg)" }}>
+      <path d="M4.5 2.5L8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TimelinePager({ page, pageCount, onPage }: {
+  page: number; pageCount: number; onPage: (p: number) => void;
+}) {
+  const cell = (active: boolean, disabled: boolean) => ({
+    minWidth: "24px", height: "24px", padding: "0 5px",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: "11px", fontWeight: active ? 800 : 600,
+    color: disabled ? "var(--gray-300)" : active ? "white" : "var(--gray-600)",
+    backgroundColor: active ? "var(--gray-800)" : "transparent",
+    border: active ? "none" : BORDER, borderRadius: "6px",
+    cursor: disabled ? "default" : "pointer",
+  });
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", paddingTop:"4px" }}>
+      <button onClick={() => onPage(page - 1)} disabled={page === 1} aria-label="Previous page"
+        style={cell(false, page === 1)}><PagerArrow dir={-1} /></button>
+      {pageWindow(page, pageCount).map((n, i) =>
+        n === "gap"
+          ? <span key={`gap${i}`} style={{ ...cell(false, true), border:"none" }}>…</span>
+          : <button key={n} onClick={() => onPage(n)} style={cell(n === page, false)}>{n}</button>
+      )}
+      <button onClick={() => onPage(page + 1)} disabled={page === pageCount} aria-label="Next page"
+        style={cell(false, page === pageCount)}><PagerArrow dir={1} /></button>
+    </div>
+  );
+}
+
 function JointEvidencePanel({ primary, tier, node, onClose }: {
   primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode;
   onClose: () => void;
@@ -3414,6 +3464,21 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
   const newestFirst = [...sortedByDate].reverse();
 
   const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
+  const [page, setPage] = useState(1);
+  // Picking a different associate keeps this panel mounted, so page 7 of the last pair's timeline
+  // would carry over into a pair that may only have one page. Compare during render rather than in
+  // an effect so the first paint is already page 1.
+  const [pagedNodeId, setPagedNodeId] = useState(node.id);
+  if (pagedNodeId !== node.id) {
+    setPagedNodeId(node.id);
+    setPage(1);
+    setExpandedIdx(0);
+  }
+
+  const pageCount = Math.max(1, Math.ceil(newestFirst.length / TIMELINE_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageStart = (safePage - 1) * TIMELINE_PAGE_SIZE;
+  const pageRows = newestFirst.slice(pageStart, pageStart + TIMELINE_PAGE_SIZE);
 
   return (
     <div className="vca-hide-scrollbar" style={{ width:"460px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER,
@@ -3434,7 +3499,10 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         </button>
       </div>
 
-      <div style={{ border:BORDER, borderRadius:"8px", backgroundColor:"var(--gray-50)", padding:"16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      {/* No card around the pair — the border and gray fill drew a box whose only content was two
+          faces and the link between them, and it competed with the analytics card right below it
+          for the same "this is a grouped block" reading. */}
+      <div style={{ padding:"4px 0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", width:"96px" }}>
           <img src={primary.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid var(--danger-400)" }} />
           <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)" }}>{primaryId}</span>
@@ -3445,7 +3513,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           <div style={{ width:"32px", height:"32px", borderRadius:"50%", backgroundColor:"var(--danger-100)", display:"flex", alignItems:"center", justifyContent:"center", color:"var(--danger-400)" }}>
             <LinkChainIconSm size={19} />
           </div>
-          <span style={{ fontSize:"10px", color:"var(--gray-500)", whiteSpace:"nowrap" }}>{meta.correlation}</span>
+          <span style={{ fontSize:"10px", color:"var(--gray-500)", whiteSpace:"nowrap" }}>{node.count} co-captures</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", width:"96px" }}>
           <img src={node.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid var(--danger-400)" }} />
@@ -3463,7 +3531,9 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           the value is the commonest one, since "Time of day" over "morning" left it ambiguous
           whether that was the busiest band or simply a band — and peak hours / peak traffic is
           already how this reads in a monitoring tool. */}
-      <div style={{ display:"flex", flexDirection:"column", gap:"10px", border:BORDER, borderRadius:"8px", padding:"14px", backgroundColor:"var(--gray-50)" }}>
+      {/* Same as the pair block above: no card. Two bordered stat tiles inside a third bordered,
+          filled card gave three nested boxes for two numbers. */}
+      <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
         <span title="함께 감지된 이벤트가 어느 장소·시간대에 몰려 있는지" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
         <div style={{ display:"flex", gap:"10px" }}>
           <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
@@ -3493,22 +3563,21 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
       <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
           <span title="최신 감지 순으로 정렬된 동시 포착 이벤트 목록" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Event timeline</span>
-          <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>Showing {events.length} most recent of {node.count}</span>
+          <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {events.length}</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-          {newestFirst.map((e, i) => {
-            const gap = gapLabel(e.gapSec);
-            const open = expandedIdx === i;
+          {pageRows.map((e, i) => {
+            const rowIdx = pageStart + i;
+            const open = expandedIdx === rowIdx;
             return (
-              <div key={i} style={{ border:BORDER, borderRadius:"8px", overflow:"hidden" }}>
-                <button onClick={() => setExpandedIdx(open ? null : i)} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
+              <div key={rowIdx} style={{ border:BORDER, borderRadius:"8px", overflow:"hidden" }}>
+                <button onClick={() => setExpandedIdx(open ? null : rowIdx)} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
                   gap:"8px", padding:"9px 12px", background: open ? "var(--gray-50)" : "white", border:"none", cursor:"pointer" }}>
                   <span style={{ display:"flex", alignItems:"center", gap:"8px", minWidth:0 }}>
                     <span style={{ fontSize:"11px", fontWeight:700, color:"var(--gray-900)", whiteSpace:"nowrap" }}>{e.date} {e.time}</span>
                     <span style={{ fontSize:"10px", color:"var(--gray-400)", whiteSpace:"nowrap" }}>{e.camCode}</span>
                   </span>
                   <span style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
-                    <span style={{ fontSize:"10px", fontWeight:700, color:gap.color, whiteSpace:"nowrap" }}>{gap.text}</span>
                     <span style={{ display:"flex", color:"var(--gray-400)", transform: open ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}><ChevronDownIconSm /></span>
                   </span>
                 </button>
@@ -3518,51 +3587,41 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                 {open && (
                   <div style={{ padding:"8px 12px 12px", display:"flex", flexDirection:"column", gap:"8px" }}>
                     <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-700)" }}>
-                      <CameraGlyph size={12} /> {e.location} — {assocId(node)} detected {e.gapSec}s after Primary at this camera
+                      <CameraGlyph size={12} /> {e.location}
                     </span>
-                    {e.sameFrame ? (
-                      /* One capture, both people boxed in it — the honest rendering when the two
-                         detections carry the same timestamp. Also the only way to show WHERE in the
-                         scene each stood; two cropped thumbnails throw that away, and squeezed side
-                         by side in a 460px panel they cropped the faces too. The scene image is the
-                         same CCTV still Best Frame uses for its camera feeds. */
-                      <div style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
-                        <img src="/cctv-sample.png" alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
-                        <span style={{ position:"absolute", top:6, left:6, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", letterSpacing:"0.4px" }}>
-                          {e.camCode} · {e.time}
-                        </span>
-                        {[
-                          { label:"TARGET", color:"var(--primary-400)", left:e.boxLeft },
-                          { label:assocId(node), color:"var(--danger-400)", left:e.boxLeft + 17 },
-                        ].map(box => (
-                          <div key={box.label} style={{ position:"absolute", left:`${box.left}%`, top:"34%", width:"14%", height:"44%",
-                            border:`2px solid ${box.color}`, borderRadius:"2px" }}>
-                            <span style={{ position:"absolute", bottom:"100%", left:-2, marginBottom:"2px", whiteSpace:"nowrap",
-                              fontSize:"8px", fontWeight:800, color:"white", backgroundColor:box.color, padding:"1px 4px", borderRadius:"2px" }}>
-                              {box.label}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      /* Different timestamps — genuinely two moments at this camera, so one crop
-                         each. Taller than it was: at 78px in a two-up split the faces were cut off
-                         top and bottom. */
-                      <div style={{ display:"flex", gap:"8px" }}>
-                        {[{ label:"Primary", face:primary.face }, { label:assocId(node), face:node.face }].map((shot, si) => (
-                          <div key={si} style={{ flex:1, borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"var(--gray-900)" }}>
-                            <img src={shot.face} alt="" style={{ width:"100%", height:"130px", objectFit:"cover", display:"block" }} />
-                            <span style={{ position:"absolute", top:4, left:4, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.6)", padding:"2px 5px", borderRadius:"3px" }}>{shot.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {/* One frame with both people boxed. There is no second rendering any more —
+                        an associate co-appearance IS a shared frame, so every row has one to show,
+                        and the box positions are the only thing that says where each stood. Scene
+                        still is the one Best Frame uses for its camera feeds. */}
+                    <div style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
+                      <img src="/cctv-sample.png" alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
+                      <span style={{ position:"absolute", top:6, left:6, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", letterSpacing:"0.4px" }}>
+                        {e.camCode} · {e.time}
+                      </span>
+                      {[
+                        { label:"TARGET", color:"var(--primary-400)", left:e.boxLeft },
+                        { label:assocId(node), color:"var(--danger-400)", left:e.boxLeft + 17 },
+                      ].map(box => (
+                        <div key={box.label} style={{ position:"absolute", left:`${box.left}%`, top:"34%", width:"14%", height:"44%",
+                          border:`2px solid ${box.color}`, borderRadius:"2px" }}>
+                          <span style={{ position:"absolute", bottom:"100%", left:-2, marginBottom:"2px", whiteSpace:"nowrap",
+                            fontSize:"8px", fontWeight:800, color:"white", backgroundColor:box.color, padding:"1px 4px", borderRadius:"2px" }}>
+                            {box.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             );
           })}
         </div>
+        {/* Only when there is somewhere to go — a pair with 6 co-captures fits on one page, and a
+            lone "1" button below it just looks broken. */}
+        {pageCount > 1 && (
+          <TimelinePager page={safePage} pageCount={pageCount} onPage={(p) => { setPage(p); setExpandedIdx(null); }} />
+        )}
       </div>
     </div>
   );
