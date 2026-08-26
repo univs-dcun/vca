@@ -7,10 +7,19 @@ import {
   DISTRICT_ALERT_THRESHOLD_KEY, DISTRICT_MODERATE_THRESHOLD_KEY,
   DEFAULT_DISTRICT_ALERT_THRESHOLD, DEFAULT_DISTRICT_MODERATE_THRESHOLD,
 } from "@/lib/mockData";
+import { SIGNED_IN_USER } from "@/lib/vcaStore";
 import { LockFieldIcon, EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 const CARD_BORDER = "1px solid var(--gray-200)";
+
+// This browser only. A real list — other devices, their last activity — comes from the backend's
+// session store, which is also what makes ending one possible: with stateless tokens alone there
+// is nothing to revoke before expiry, and a control offering it would be lying. Shaped as a list
+// so the UI is already right when that arrives.
+const LOGIN_SESSIONS: { id: string; device: string; where: string; current: boolean; lastActive?: string }[] = [
+  { id: "current", device: "MacBook Pro (Chrome)", where: "Singapore · 1.3521, 103.8198", current: true },
+];
 
 function UserCheckIcon() {
   return (
@@ -430,6 +439,7 @@ export default function MyPage() {
   const [passwordJustChanged, setPasswordJustChanged] = useState(false);
   const [showThresholdModal, setShowThresholdModal] = useState(false);
   const [sessionsTerminated, setSessionsTerminated] = useState(false);
+  const otherSessions = LOGIN_SESSIONS.filter(sn => !sn.current);
   const [language, setLanguage] = useState("English");
   // Only one session is ever listed here (this mock has no other-device data to actually
   // terminate) — the confirmation is honest about that rather than pretending to have revoked
@@ -484,18 +494,18 @@ export default function MyPage() {
                 <CardHeader icon={<UserCheckIcon />} title="Profile information" />
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-                    <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>John Doe</span>
-                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-500)", letterSpacing: "-0.24px" }}>Smart City Operations Manager</span>
+                    <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>{SIGNED_IN_USER.name}</span>
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-500)", letterSpacing: "-0.24px" }}>{SIGNED_IN_USER.role}</span>
                   </div>
                   <div style={{ backgroundColor: "var(--gray-50)", borderRadius: "4px", padding: "4px 8px" }}>
-                    <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--gray-600)", letterSpacing: "-0.2px" }}>VCA-ADMIN-8821</span>
+                    <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--gray-600)", letterSpacing: "-0.2px" }}>{SIGNED_IN_USER.accountId}</span>
                   </div>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "var(--gray-200)", width: "100%" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                  <ReadOnlyField label="Full name" value="John Doe" />
-                  <ReadOnlyField label="Email address" value="johndoe@email.com" />
-                  <ReadOnlyField label="Department / team" value="Operational Control Team Alpha" />
+                  <ReadOnlyField label="Full name" value={SIGNED_IN_USER.name} />
+                  <ReadOnlyField label="Email address" value={SIGNED_IN_USER.email} />
+                  <ReadOnlyField label="Department / team" value={SIGNED_IN_USER.team} />
                 </div>
               </Card>
             </div>
@@ -525,29 +535,42 @@ export default function MyPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <CardHeader icon={<MonitorIcon />} title="Active login sessions" />
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      {sessionsTerminated && (
-                        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--success-400)" }}>No other sessions found</span>
-                      )}
-                      <button
-                        onClick={() => setSessionsTerminated(true)}
-                        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "11px", color: "var(--danger-400)", textDecoration: "underline" }}
-                      >
-                        Terminate All Others
-                      </button>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "var(--gray-50)", borderRadius: "10px", padding: "12px" }}>
-                    <div style={{ display: "flex", gap: "10px", alignItems: "center", flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
-                        <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-700)", letterSpacing: "-0.26px" }}>MacBook Pro (Chrome)</span>
-                        <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.2px" }}>Singapore · 1.3521, 103.8198</span>
+                    {/* The control only appears when there is something for it to end. A standing
+                        "Terminate All Others" over a list of one asks the operator whether something
+                        else is signed in and then answers nothing — and revoking a session needs the
+                        backend to hold sessions as state at all, which is not yet confirmed. When
+                        the list is one, the line beside the heading says so outright. */}
+                    {otherSessions.length > 0 ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        {sessionsTerminated && (
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--success-400)" }}>
+                            {otherSessions.length} session{otherSessions.length === 1 ? "" : "s"} ended
+                          </span>
+                        )}
+                        <button
+                          onClick={() => setSessionsTerminated(true)}
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "11px", color: "var(--danger-400)", textDecoration: "underline", fontWeight: 600 }}
+                        >
+                          Sign out other sessions
+                        </button>
                       </div>
-                    </div>
-                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--success-400)", backgroundColor: "var(--success-100)", borderRadius: "4px", padding: "2px 8px", letterSpacing: "-0.24px", flexShrink: 0 }}>
-                      Active now
-                    </span>
+                    ) : (
+                      <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--gray-400)" }}>Only this device</span>
+                    )}
                   </div>
+                  {LOGIN_SESSIONS.map(session => (
+                    <div key={session.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "var(--gray-50)", borderRadius: "10px", padding: "12px 14px", width: "100%" }}>
+                      <div style={{ display: "flex", gap: "10px", alignItems: "center", flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
+                          <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-700)", letterSpacing: "-0.26px" }}>{session.device}</span>
+                          <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.2px" }}>{session.where}</span>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: "12px", fontWeight: 700, color: session.current ? "var(--success-400)" : "var(--gray-500)", backgroundColor: session.current ? "var(--success-100)" : "var(--gray-100)", borderRadius: "4px", padding: "3px 8px" }}>
+                        {session.current ? "Active now" : session.lastActive}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </Card>
             </div>

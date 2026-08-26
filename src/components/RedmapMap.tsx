@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { DISTRICTS } from "@/lib/mockData";
 
 export interface TrackingHit {
   lat: number;
@@ -52,25 +53,37 @@ interface StatusZone {
   cam?: boolean;
 }
 
-const STATUS_ZONES: StatusZone[] = [
-  { id: "amk",  label: "Angmokio",     count: 0,   lat: 1.3691, lng: 103.8454 },
-  { id: "sea",  label: "Serangoon",    count: 0,   lat: 1.3554, lng: 103.8679 },
-  { id: "geo1", label: "Geylang",      count: 0,   lat: 1.3202, lng: 103.8649, cam: true },
-  { id: "aug",  label: "August",       count: 0,   lat: 1.3380, lng: 103.8840, cam: true },
-  { id: "houg", label: "Hougang",      count: 0,   lat: 1.3717, lng: 103.8927 },
-  { id: "geo2", label: "Geylang",      count: 0,   lat: 1.3108, lng: 103.8572 },
-  { id: "bis",  label: "Bishan",       count: 0,   lat: 1.3517, lng: 103.8490 },
-  { id: "bkt",  label: "Bukit",        count: 0,   lat: 1.3522, lng: 103.7786, cam: true },
-  { id: "tp",   label: "Toa payoh",    count: 0,   lat: 1.3343, lng: 103.8565 },
-  { id: "nov",  label: "Novena",       count: 30,  lat: 1.3195, lng: 103.8410 },
-  { id: "kal1", label: "Kallang",      count: 12,  lat: 1.3108, lng: 103.8715 },
-  { id: "geo3", label: "Geylang",      count: 80,  lat: 1.3158, lng: 103.8920 },
-  { id: "bdk",  label: "Bedok",        count: 0,   lat: 1.3250, lng: 103.9291 },
-  { id: "tam",  label: "Tampines",     count: 0,   lat: 1.3527, lng: 103.9442 },
-  { id: "cen",  label: "Central area", count: 0,   lat: 1.2895, lng: 103.8500 },
-  { id: "mar",  label: "Marine",       count: 180, lat: 1.3020, lng: 103.9090, isAlert: true },
-  { id: "kal2", label: "Kallang",      count: 50,  lat: 1.3088, lng: 103.8648 },
-];
+// Per-district status for Redmap's overview: how many hits, whether it's an alert, whether it's a
+// single camera rather than a district. The districts themselves — id, label, coordinates — come
+// from DISTRICTS. All seventeen were typed out again here, identical down to the decimals, so a
+// corrected coordinate would have moved the pin on the Dashboard map and left this one behind.
+const ZONE_STATUS: Record<string, { count: number; cam?: boolean; isAlert?: boolean }> = {
+  amk:     { count: 0 },
+  sea:     { count: 0 },
+  geo1:    { count: 0, cam: true },
+  aug:     { count: 0, cam: true },
+  houg:    { count: 0 },
+  geo2:    { count: 0 },
+  bis:     { count: 0 },
+  bkt:     { count: 0, cam: true },
+  tp:      { count: 0 },
+  nov:     { count: 30 },
+  kal1:    { count: 12 },
+  geo3:    { count: 80 },
+  bdk:     { count: 0 },
+  tam:     { count: 0 },
+  cen:     { count: 0 },
+  mar:     { count: 180, isAlert: true },
+  kal2:    { count: 50 },
+};
+
+const STATUS_ZONES: StatusZone[] = DISTRICTS.map(d => ({
+  id: d.id, label: d.label, lat: d.lat, lng: d.lng,
+  count: ZONE_STATUS[d.id]?.count ?? 0,
+  cam: ZONE_STATUS[d.id]?.cam,
+  isAlert: ZONE_STATUS[d.id]?.isAlert,
+}));
+
 
 function statusMarkerHtml(zone: StatusZone): string {
   const isDark   = !zone.cam && !zone.isAlert && zone.count >= 20;

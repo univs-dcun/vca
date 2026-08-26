@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatTimeAgo, LiveEvent } from "@/lib/mockData";
-import { useVcaStore, vcaEventsToLiveEvents } from "@/lib/vcaStore";
+import { SIGNED_IN_USER, useVcaStore, vcaEventsToLiveEvents } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useApiData } from "@/hooks/useApiData";
 import { getDashboardStats } from "@/lib/api/dashboard";
@@ -416,8 +416,8 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 overflow: "hidden", padding: "8px",
               }}>
                 <div style={{ padding: "8px 8px 12px" }}>
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>John Doe</div>
-                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", marginTop: "2px" }}>johndoe@email.com</div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{SIGNED_IN_USER.name}</div>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", marginTop: "2px" }}>{SIGNED_IN_USER.email}</div>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "var(--gray-200)", margin: "0 4px 6px" }} />
                 <button

@@ -162,6 +162,27 @@ const PROJECTS: Project[] = [
 export type PortalPermission = "admin" | "operator";
 export type PortalUserStatus = "active" | "invited";
 
+// Who is signed in. Stands in for the login response — login is still a no-op that routes on an
+// email lookup, so there is no session to read this from yet. One object rather than the same
+// name, email and id typed into the navbar menu and My Page separately: those drifted apart once
+// already, and when a real auth store lands this is the single place it replaces.
+export interface SignedInUser {
+  name: string;
+  email: string;
+  /** Operator-facing account id, shown on the profile card. */
+  accountId: string;
+  role: string;
+  team: string;
+}
+
+export const SIGNED_IN_USER: SignedInUser = {
+  name: "John Doe",
+  email: "johndoe@email.com",
+  accountId: "VCA-ADMIN-8821",
+  role: "Smart City Operations Manager",
+  team: "Operational Control Team Alpha",
+};
+
 export interface PortalUser {
   id: string;
   name: string;
