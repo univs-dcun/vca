@@ -3109,18 +3109,18 @@ function buildRedfaceTiers(seed: number) {
 
 type RedfaceNode = { id:number; face:string; count:number; status:"VIP"|"Suspect"|"Unknown" };
 type TierMeta = {
-  weight:number; bg:string; labelBg:string; labelColor:string; label:string; sublabel:string;
+  bg:string; labelBg:string; labelColor:string; label:string; sublabel:string;
   nodeSize:number; nodeBorder:number; nodeColor:string; step:number; lineWidth:number;
   dashed?:boolean; dashFlow?:boolean; lineOpacity:number; stagger?:boolean;
 };
 type PyramidRow = { key:string; weight:number; nodes:RedfaceNode[]; meta: TierMeta|null };
 
 const PYRAMID_TIER_META: Record<"tier1"|"tier2"|"tier3", TierMeta> = {
-  tier1: { weight:2.2, bg:"var(--danger-100)", labelBg:"var(--danger-100)", labelColor:"var(--danger-400)", label:"TIER 1 · RED ZONE", sublabel:">100 CO-OCCURRENCES",
+  tier1: { bg:"var(--danger-100)", labelBg:"var(--danger-100)", labelColor:"var(--danger-400)", label:"TIER 1 · RED ZONE", sublabel:">100 CO-OCCURRENCES",
     nodeSize:52, nodeBorder:3, nodeColor:"var(--danger-400)", step:16, lineWidth:1.4, dashFlow:true, lineOpacity:0.85 },
-  tier2: { weight:2.6, bg:"var(--warning-100)", labelBg:"var(--warning-200)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-OCCURRENCES",
+  tier2: { bg:"var(--warning-100)", labelBg:"var(--warning-200)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-OCCURRENCES",
     nodeSize:52, nodeBorder:2, nodeColor:"var(--warning-400)", step:11, lineWidth:1, dashed:true, lineOpacity:0.7 },
-  tier3: { weight:3.4, bg:"var(--gray-50)", labelBg:"var(--gray-200)", labelColor:"var(--gray-600)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-OCCURRENCES",
+  tier3: { bg:"var(--gray-50)", labelBg:"var(--gray-200)", labelColor:"var(--gray-600)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-OCCURRENCES",
     // Same 52px as Tier 2. Tier 3 was drawn smaller to signal a weaker link, but the faces here
     // will be low-resolution CCTV crops in practice, and 42px left too little of them to tell
     // people apart — which is the one thing these nodes are for.
@@ -3686,11 +3686,19 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   // with nothing in it, reading as broken empty space rather than "nothing here anymore." Only
   // the pre-search landing state (no primaryTarget) still shows every toggled-on tier as an empty
   // band on purpose (see comment above) — that placeholder case is left alone.
+  // Zone height follows how many associates are actually in it, rather than the fixed 2.2/2.6/3.4
+  // the tiers used to carry. Tier 3 holding 15 nodes needs the room and Tier 1 holding two does
+  // not, and that balance keeps shifting as tiers are toggled or the date range narrows — a fixed
+  // ratio was right for one particular distribution and wrong the rest of the time.
+  // sqrt rather than linear: nodes spread sideways, so the eighth one adds far less to the height
+  // a band needs than the second does, and a linear weight let one crowded tier squash the others
+  // to slivers. The floor keeps a band tall enough for a 52px node plus its count badge.
+  const zoneWeight = (count: number) => Math.max(1.5, 1.1 + Math.sqrt(count) * 0.75);
   const visibleRows: PyramidRow[] = [
     { key:"apex", weight:1.3, nodes:[], meta:null },
-    ...(tier1On && (!primaryTarget || tier1.length > 0) ? [{ key:"tier1", weight:PYRAMID_TIER_META.tier1.weight, nodes: primaryTarget ? tier1 : [], meta:PYRAMID_TIER_META.tier1 }] : []),
-    ...(tier2On && (!primaryTarget || tier2.length > 0) ? [{ key:"tier2", weight:PYRAMID_TIER_META.tier2.weight, nodes: primaryTarget ? tier2 : [], meta:PYRAMID_TIER_META.tier2 }] : []),
-    ...(tier3On && (!primaryTarget || tier3.length > 0) ? [{ key:"tier3", weight:PYRAMID_TIER_META.tier3.weight, nodes: primaryTarget ? tier3 : [], meta:PYRAMID_TIER_META.tier3 }] : []),
+    ...(tier1On && (!primaryTarget || tier1.length > 0) ? [{ key:"tier1", weight:zoneWeight(primaryTarget ? tier1.length : 0), nodes: primaryTarget ? tier1 : [], meta:PYRAMID_TIER_META.tier1 }] : []),
+    ...(tier2On && (!primaryTarget || tier2.length > 0) ? [{ key:"tier2", weight:zoneWeight(primaryTarget ? tier2.length : 0), nodes: primaryTarget ? tier2 : [], meta:PYRAMID_TIER_META.tier2 }] : []),
+    ...(tier3On && (!primaryTarget || tier3.length > 0) ? [{ key:"tier3", weight:zoneWeight(primaryTarget ? tier3.length : 0), nodes: primaryTarget ? tier3 : [], meta:PYRAMID_TIER_META.tier3 }] : []),
   ];
   const hasVisibleTier = tier1On || tier2On || tier3On;
   const gridRows: Array<{ tier:"tier1"|"tier2"|"tier3"; node:RedfaceNode }> = !primaryTarget ? [] : [
@@ -3732,20 +3740,24 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
               toolbar like every other tab's, and a "min co-captures" stepper that duplicated the
               tier cutoffs it sat under (>100 / 10-99 / <10). The tiers are the one filter this
               screen genuinely needs — 15 of 23 associates are Tier 3 — so they stay, as chips. */}
-          <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
             {tierRows.map(row => (
               <button key={row.short} onClick={row.toggle} title={row.label} style={{
                 display:"flex", alignItems:"center", gap:"6px", height:"30px", padding:"0 10px", borderRadius:"999px",
-                backgroundColor: row.on ? row.bg : "white", border: row.on ? "none" : BORDER, cursor:"pointer",
+                backgroundColor: row.on ? row.bg : "white", border: row.on ? "none" : BORDER, cursor:"pointer", flexShrink:0,
               }}>
                 <span style={{ fontSize:"12px", fontWeight:700, color: row.on ? row.text : "var(--gray-400)", whiteSpace:"nowrap" }}>{row.short}</span>
                 <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor: row.on ? row.badgeBg : "var(--gray-300)", padding:"1px 6px", borderRadius:"999px" }}>{row.count}</span>
               </button>
             ))}
-            <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" size="sm" emptyText="All time" />
+            {/* Boxed to a fixed width: the trigger's own style is flex:1, which in a row of chips
+                grows it to the full line and pushes everything after it onto the next one. */}
+            <div style={{ width:"172px", display:"flex", flexShrink:0 }}>
+              <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" size="sm" emptyText="All time" />
+            </div>
             <button onClick={reset} title="Reset filters" style={{ display:"flex", alignItems:"center", gap:"6px",
               height:"30px", padding:"0 10px", borderRadius:"6px", border:BORDER, backgroundColor:"white", cursor:"pointer",
-              fontSize:"12px", fontWeight:600, color:"var(--gray-600)" }}>
+              fontSize:"12px", fontWeight:600, color:"var(--gray-600)", flexShrink:0, whiteSpace:"nowrap" }}>
               <ResetIconSm /> Reset
             </button>
           </div>
