@@ -3580,8 +3580,16 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
             </p>
           </div>
         </div>
-        <div style={{ display:"flex", justifyContent:"space-between", fontSize:"11px" }}>
+        {/* The badge sits between the two ends because that is what it counts — how many shared
+            frames fall inside this span. Without it the row states a range and leaves the density
+            of it unsaid: seven days could hold 3 co-captures or 148. Gray, not the link colour —
+            the number is context for the span, not the panel's headline. */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", fontSize:"11px" }}>
           <span style={{ color:"var(--gray-400)" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time}</strong></span>
+          <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--gray-700)", backgroundColor:"var(--gray-100)",
+            padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
+            {events.length} FRAMES
+          </span>
           <span style={{ color:"var(--gray-400)" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time}</strong></span>
         </div>
       </div>
