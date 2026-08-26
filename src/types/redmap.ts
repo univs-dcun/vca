@@ -19,6 +19,7 @@ export interface HitResult {
   mapLabel: string;
   lat: number;
   lng: number;
+  /** Duration only, e.g. "30m 32s" — the "Elapsed" label is the UI's, not the data's. */
   elapsed?: string;
   elapsedAlert?: boolean;
   // Which real-world person this sighting belongs to. A low-similarity or lookalike-heavy search

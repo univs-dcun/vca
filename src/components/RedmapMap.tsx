@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { recentSgtStamp } from "@/lib/time";
 
 export interface TrackingHit {
   lat: number;
   lng: number;
   mapLabel: string;
+  date: string;
   time: string;
   isAlert: boolean;
   // Both optional — when omitted, every hit is treated as one trail (today's only case: one
@@ -44,8 +46,9 @@ export const TRACKING_ORIGIN = {
   lat: 1.3691,
   lng: 103.8454,
   label: "Ang Mo Kio",
-  date: "2026-06-11",
-  time: "10:15:20",
+  // Relative, like every sighting in RedmapPage — a fixed calendar date here would drift until
+  // the trace's own starting point read as months before the sightings that follow it.
+  ...recentSgtStamp(4479, 49),
   faceUrl: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=100&h=100&q=80",
 };
 
@@ -237,7 +240,7 @@ export default function RedmapMap({
       if (!trackingActive) return;
 
       // ── TRACKING VIEW ─────────────────────────────────────────
-      type RouteNode = { lat: number; lng: number; label: string; time: string; color: string; hitIndex: number };
+      type RouteNode = { lat: number; lng: number; label: string; date: string; time: string; color: string; hitIndex: number };
 
       // Normally every hit belongs to one trail (a single target's full path, anchored at
       // TRACKING_ORIGIN). Redmap's person-filter chips can have more than one distinct person
@@ -263,10 +266,10 @@ export default function RedmapMap({
 
         const nodes: RouteNode[] = isSingleGroup
           ? [
-              { lat: TRACKING_ORIGIN.lat, lng: TRACKING_ORIGIN.lng, label: TRACKING_ORIGIN.label, time: TRACKING_ORIGIN.time, color, hitIndex: -1 },
-              ...groupHits.map(({ h, hitIndex }) => ({ lat: h.lat, lng: h.lng, label: h.mapLabel, time: h.time, color, hitIndex })),
+              { lat: TRACKING_ORIGIN.lat, lng: TRACKING_ORIGIN.lng, label: TRACKING_ORIGIN.label, date: TRACKING_ORIGIN.date, time: TRACKING_ORIGIN.time, color, hitIndex: -1 },
+              ...groupHits.map(({ h, hitIndex }) => ({ lat: h.lat, lng: h.lng, label: h.mapLabel, date: h.date, time: h.time, color, hitIndex })),
             ]
-          : groupHits.map(({ h, hitIndex }) => ({ lat: h.lat, lng: h.lng, label: h.mapLabel, time: h.time, color, hitIndex }));
+          : groupHits.map(({ h, hitIndex }) => ({ lat: h.lat, lng: h.lng, label: h.mapLabel, date: h.date, time: h.time, color, hitIndex }));
 
         const line = L.polyline(nodes.map((n) => [n.lat, n.lng]), {
           color,
@@ -334,7 +337,7 @@ export default function RedmapMap({
               : bubbleTailHtml(tailCenterY, "white", "var(--gray-200)");
 
           const cardHtml = isLast
-            ? `<div style="position:relative;font-family:'SUIT',sans-serif;filter:drop-shadow(0 4px 10px ${hexToRgba(color, 0.25)})">
+            ? `<div class="vca-pin-card" style="position:relative;font-family:'SUIT',sans-serif;filter:drop-shadow(0 4px 10px ${hexToRgba(color, 0.25)})">
                  ${tailHtml}
                  <div style="position:relative;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1.5px solid ${color}">
                    <div style="background:${color};color:white;font-size:11px;font-weight:800;padding:6px 12px;display:flex;align-items:center;gap:4px;white-space:nowrap">
@@ -343,15 +346,15 @@ export default function RedmapMap({
                    </div>
                    <div style="background:white;padding:8px 12px 10px;white-space:nowrap">
                      <div style="font-size:15px;font-weight:800;color:var(--gray-900)">${node.label}</div>
-                     <div style="font-size:13px;color:var(--gray-500);margin-top:2px">${node.time}</div>
+                     <div style="font-size:13px;color:var(--gray-500);margin-top:2px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${node.date.slice(5)} ${node.time}</div>
                    </div>
                  </div>
                </div>`
-            : `<div style="position:relative;background:white;border:1px solid var(--gray-200);border-radius:16px;padding:10px 14px;white-space:nowrap;
+            : `<div class="vca-pin-card" style="position:relative;background:white;border:1px solid var(--gray-200);border-radius:16px;padding:10px 14px;white-space:nowrap;
                           font-family:'SUIT',sans-serif;box-shadow:0 4px 10px rgba(14, 22, 42,0.08);cursor:${hitIndex >= 0 ? "pointer" : "default"}">
                  ${tailHtml}
                  <div style="font-size:15px;font-weight:800;color:var(--gray-900)">${node.label}</div>
-                 <div style="font-size:13px;color:var(--gray-500);margin-top:2px">${node.time}</div>
+                 <div style="font-size:13px;color:var(--gray-500);margin-top:2px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${node.date.slice(5)} ${node.time}</div>
                </div>`;
 
           const html = cardBelow

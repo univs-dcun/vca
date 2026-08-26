@@ -79,3 +79,35 @@ export function recentSgtClockTime(minutesAgo: number, secondsAgo: number = 0): 
   const t = new Date(coarseNow().getTime() - minutesAgo * 60000 - secondsAgo * 1000);
   return sgtClockTime(t);
 }
+
+/** A canned sighting timestamp `minutesAgo` (+ optional `secondsAgo`) before the same coarse,
+ * hydration-safe "now" `recentSgtClockTime` uses, as the `{ date, time }` pair mock hit records
+ * carry. Seeded sightings written as fixed calendar dates drift further into the past every week
+ * until "time since last seen" reads in months; anchoring them to now keeps a demo honest. */
+export function recentSgtStamp(minutesAgo: number, secondsAgo: number = 0): { date: string; time: string } {
+  const t = new Date(coarseNow().getTime() - minutesAgo * 60000 - secondsAgo * 1000);
+  return { date: sgtDateKey(t), time: sgtClockTime(t) };
+}
+
+/** Turns a `{ date, time }` Singapore-time pair back into a Date, so the gap between two
+ * sightings can be measured from the sightings themselves instead of hand-written beside them —
+ * where it drifts out of agreement with the timestamps it's supposed to describe. */
+export function parseSgtStamp(date: string, time: string): Date {
+  return new Date(`${date}T${time}+08:00`);
+}
+
+/** Human duration for a gap between sightings: "1d 55m", "2h 05m", "30m 32s", "45s". Two units at
+ * most — a seconds figure on a multi-day gap is noise, and the smaller unit is zero-padded so a
+ * column of these doesn't jitter as it ticks. */
+export function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (d > 0) return h > 0 ? `${d}d ${pad(h)}h` : `${d}d ${pad(m)}m`;
+  if (h > 0) return `${h}h ${pad(m)}m`;
+  if (m > 0) return `${m}m ${pad(sec)}s`;
+  return `${sec}s`;
+}
