@@ -10,6 +10,11 @@ import {
   searchReid, useReidRecentTargets, useReidVips, reidTrajectory,
   type ReidSearchView, type ReidTrajectoryRow,
 } from "../../../lib/vca-bridge/reidAnalysis";
+// 데이터 연결(UV-40): RedFace 동반 감지 동료 목록·Joint Evidence 집계 — lib/vca-bridge 소유
+import {
+  fetchRedfaceAssociates, fetchRedfaceEvidence,
+  type RedfaceAssociatesView, type RedfaceEvidenceView, type RedfacePrimaryRef,
+} from "../../../lib/vca-bridge/redfaceAssociates";
 
 const BORDER = "1px solid #E2E8F0";
 type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
@@ -2178,7 +2183,9 @@ function CheckIconSm() {
   );
 }
 
-interface RedfaceCandidate { id:number; url:string; cam:string; time:string; similarity:number; plate?: string | null }
+// 데이터 연결(UV-40): 라이브 후보(reid-search 매치)만 targetId/cameraId/label을 가진다 —
+// primary target 확정 시 동료 목록(v1.8)의 대상 참조가 된다. mock 후보는 없음(기존 mock 그래프 유지)
+interface RedfaceCandidate { id:number; url:string; cam:string; time:string; similarity:number; plate?: string | null; targetId?:string; cameraId?:string; label?:string }
 
 function candidatesFromFilters(f: {
   searchType: "PERSON" | "VEHICLE"; gender: string; apparel: string[]; props: string[];
@@ -2249,7 +2256,7 @@ function TableIconSm() {
 }
 
 function PrimaryTargetPickerModal({ onConfirm, onCancel }:
-  { onConfirm:(c:RedfaceCandidate)=>void; onCancel:()=>void }) {
+  { onConfirm:(c:RedfaceCandidate, period:DateRangeValue)=>void; onCancel:()=>void }) {
   useEscapeKey(onCancel);
   const [searchType, setSearchType]         = useState<"PERSON"|"VEHICLE">("PERSON");
   const [selectedTarget, setSelectedTarget] = useState(-1);
@@ -2266,31 +2273,42 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   const [camera, setCamera]                 = useState("");
   const [uploadedFace, setUploadedFace]     = useState<string|null>(null);
   const [uploadedBody, setUploadedBody]     = useState<string|null>(null);
+  // 데이터 연결(UV-40): 후보 검색은 v1.7 reid-search 재사용 — Re-ID 탭과 같은 소스(VIP 목록·
+  // 최근 검색 대상 공유)·같은 폴백 규칙. liveVips가 null이면 전부 기존 mock 흐름 유지.
+  const liveVips = useReidVips();
+  const liveRecent = useReidRecentTargets();
+  const storeCams = useVcaStore(s => s.cameras);
+  const cameraOptions = liveVips ? storeCams.map(c => c.code) : undefined;
+  const vipList = liveVips ?? VIP_QUICK;
+  const recentList = liveVips ? liveRecent.slice(0, 2) : RECENT_TARGETS_EN.slice(0, 2);
+  const [faceFile, setFaceFile] = useState<File|null>(null);
+  const [bodyFile, setBodyFile] = useState<File|null>(null);
+  const [liveCands, setLiveCands] = useState<RedfaceCandidate[]|null>(null);
   const faceInputRef = useRef<HTMLInputElement>(null);
   const bodyInputRef = useRef<HTMLInputElement>(null);
   const handleFaceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setUploadedFace(URL.createObjectURL(file));
+    if (file) { setUploadedFace(URL.createObjectURL(file)); setFaceFile(file); }
   };
   const handleBodyUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setUploadedBody(URL.createObjectURL(file));
+    if (file) { setUploadedBody(URL.createObjectURL(file)); setBodyFile(file); }
   };
 
   // Same cascade/toggle/mutual-exclusivity behavior as Re-ID Analysis and Smart Search — see
-  // those for the rationale.
+  // those for the rationale. (라이브 최근 대상은 속성 캐스케이드 값이 비어 있어 그대로 빈 필터)
   const selectRecentTarget = (i: number) => {
     if (selectedTarget === i) { setSelectedTarget(-1); setGender(""); setApparel([]); setProps([]); return; }
     setSelectedTarget(i); setActiveVIP(-1);
-    const t = RECENT_TARGETS_EN[i];
-    setGender(t.gender); setApparel([t.apparel]); setProps(t.props);
+    const t = recentList[i];
+    setGender(t.gender); setApparel(t.apparel ? [t.apparel] : []); setProps(t.props);
   };
   const selectVIP = (i: number) => {
     if (activeVIP === i) { setActiveVIP(-1); return; }
     setActiveVIP(i); setSelectedTarget(-1);
   };
 
-  const target = selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : activeVIP >= 0 ? VIP_QUICK[activeVIP] : null;
+  const target = selectedTarget >= 0 ? recentList[selectedTarget] : activeVIP >= 0 ? vipList[activeVIP] : null;
   const hasFace = !!uploadedFace || !!target;
   const faceSrc = uploadedFace ?? target?.face;
   const hasBody = !!uploadedBody || !!target;
@@ -2301,6 +2319,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
     setSearchType("PERSON"); setThreshold(80); setGender(""); setApparel([]); setProps([]);
     setSelectedTarget(-1); setActiveVIP(-1); setUploadedFace(null); setUploadedBody(null);
     setDateRange({ start:null, end:null }); setLicensePlate(""); setCamera(""); setSearched(false);
+    setFaceFile(null); setBodyFile(null); setLiveCands(null);
   };
   // Same reasoning as Smart Search / Re-ID Analysis: a named target's cascaded gender/apparel/
   // props/date can coincidentally match nothing in REID_DATA, even though we already have a photo
@@ -2310,11 +2329,31 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
         .filter(r => r.similarity >= threshold)
         .map(p => ({ id: p.id, url: p.url, cam: p.cam, time: p.time, similarity: p.similarity, plate: p.plate }))
     : null;
-  const candidates = searched ? (targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera })) : [];
+  const candidates = searched ? (liveCands ?? targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera })) : [];
+  // 데이터 연결(UV-40): 라이브 후보 검색(reid-search) 우선, null이면 기존 mock 흐름 그대로.
+  // Re-ID 탭 runSearch와 같은 입력 구성 — VIP는 vipId 참조, 최근 대상은 저장된 원본 입력 재사용
   const handleSearch = () => {
-    const c = targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera });
-    setSearched(true);
-    setSelectedCandidate(c[0]?.id ?? null);
+    setLiveCands(null);
+    void (async () => {
+      let live: ReidSearchView | null = null;
+      if (searchType === "PERSON") {
+        const vipSel = activeVIP >= 0 ? vipList[activeVIP] : null;
+        const recentSel = selectedTarget >= 0 ? recentList[selectedTarget] : null;
+        const recentInput = recentSel && "input" in recentSel ? recentSel.input : null;
+        live = await searchReid({
+          face: recentInput ? recentInput.face : faceFile,
+          body: recentInput ? recentInput.body : bodyFile,
+          vipId: vipSel && "vipId" in vipSel ? vipSel.vipId : recentInput?.vipId ?? null,
+          dateRange, threshold, camera, gender, apparel, props,
+        });
+      }
+      const c = live
+        ? live.matches.map(m => ({ id: m.id, url: m.body, cam: m.cam, time: m.time, similarity: m.similarity, plate: null, targetId: m.targetId, cameraId: m.cameraId, label: m.label }))
+        : targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, camera });
+      if (live) setLiveCands(c);
+      setSearched(true);
+      setSelectedCandidate(c[0]?.id ?? null);
+    })();
   };
   const selectedObj = candidates.find(c => c.id === selectedCandidate) ?? null;
   const isVehicle = searchType === "VEHICLE";
@@ -2368,7 +2407,10 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                   <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Recent Targets</span>
                 </div>
                 <div style={{ display:"flex", gap:"8px" }}>
-                  {RECENT_TARGETS_EN.slice(0, 2).map((t, i) => (
+                  {recentList.length === 0 && (
+                    <span style={{ fontSize:"11px", color:"#94a3b8", padding:"8px 0" }}>No recent searches yet</span>
+                  )}
+                  {recentList.map((t, i) => (
                     <button key={i} onClick={() => selectRecentTarget(i)} style={{
                       flex:1, display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"8px", cursor:"pointer",
                       backgroundColor:"white",
@@ -2390,7 +2432,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                   <StarIconSm />
                   <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>VIP Quick Select</span>
                 </div>
-                <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} compact />
+                <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} compact vips={vipList} />
               </div>
 
               <div style={{ height:"1px", backgroundColor:"#e2e8f0" }} />
@@ -2446,7 +2488,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
 
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
             <span style={{ fontSize:"10px", fontWeight:800, color:"#324055", letterSpacing:"-0.2px" }}>Camera</span>
-            <CameraSelect value={camera} onChange={setCamera} size="sm" />
+            <CameraSelect value={camera} onChange={setCamera} size="sm" options={cameraOptions} />
           </div>
 
           {isVehicle && (
@@ -2561,7 +2603,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
         </button>
         <div style={{ display:"flex", gap:"8px" }}>
           <button onClick={onCancel} style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid #ccd5e1", backgroundColor:"white", fontSize:"13px", fontWeight:700, color:"#475469", cursor:"pointer" }}>Cancel</button>
-          <button disabled={!selectedObj} onClick={() => selectedObj && onConfirm(selectedObj)} style={{ padding:"8px 12px", borderRadius:"8px", border:"none",
+          <button disabled={!selectedObj} onClick={() => selectedObj && onConfirm(selectedObj, dateRange)} style={{ padding:"8px 12px", borderRadius:"8px", border:"none",
             backgroundColor: selectedObj ? "#5a3dfb" : "#c4b5fd", color:"white", fontSize:"13px", fontWeight:700,
             cursor: selectedObj ? "pointer" : "default" }}>
             Set as Primary Target
@@ -2578,7 +2620,9 @@ const REDFACE_TIER1 = [510, 142].map((count, i) => ({ id: i, face: faceAt(i), co
 const REDFACE_TIER2 = [84, 62, 45, 31, 19, 12].map((count, i) => ({ id: i + 2, face: faceAt(i + 2), count }));
 const REDFACE_TIER3 = [4,3,3,2,2,1,1,1,1,1,1,1,1,1,1].map((count, i) => ({ id: i + 8, face: faceAt(i + 8), count }));
 
-type RedfaceNode = { id:number; face:string; count:number };
+// 데이터 연결(UV-40): 라이브 노드(RedfaceLiveNode)만 associateId 이하 확장 필드를 가진다 —
+// associateId는 Joint Evidence 조회 키, 나머지는 Data Grid 실값. mock 노드는 기존 합성 유지
+type RedfaceNode = { id:number; face:string; count:number; associateId?:string; label?:string; topCameraLabel?:string; firstSeen?:string; lastSeen?:string };
 type TierMeta = {
   weight:number; bg:string; labelBg:string; labelColor:string; label:string; sublabel:string;
   nodeSize:number; nodeBorder:number; nodeColor:string; step:number; lineWidth:number;
@@ -2760,11 +2804,22 @@ function dominantTimeBucket(events: CooccurEvent[]) {
   return { bucket, pct: Math.round((count / events.length) * 100) };
 }
 
-function JointEvidencePanel({ primary, tier, node }: {
-  primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode;
+function JointEvidencePanel({ primary, tier, node, liveRef }: {
+  primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode; liveRef?: RedfacePrimaryRef | null;
 }) {
   const meta = TIER_LINK_META[tier];
   const primaryId = primary.name.match(/\(([^)]+)\)/)?.[1] ?? "TS------";
+  // 데이터 연결(UV-40): 라이브 노드(associateId 보유)면 Joint Evidence 집계(v1.8)를 조회한다.
+  // 통계(최다 장소·주 시간대·비율)는 전수 데이터를 가진 백엔드 계산 값 — 화면은 문구 조립만.
+  // 미응답이거나 mock 노드면 기존 합성(buildCooccurEvents) 흐름 유지
+  const [liveEv, setLiveEv] = useState<RedfaceEvidenceView | null>(null);
+  useEffect(() => {
+    setLiveEv(null);
+    if (!liveRef || !node.associateId) return;
+    let alive = true;
+    void fetchRedfaceEvidence(liveRef, node.associateId).then(v => { if (alive && v) setLiveEv(v); });
+    return () => { alive = false; };
+  }, [liveRef, node.associateId]);
   const events = buildCooccurEvents(node);
   const groups = groupCooccurEvents(events);
   const topGroup = groups[0];
@@ -2772,13 +2827,22 @@ function JointEvidencePanel({ primary, tier, node }: {
   const sortedByDate = [...events].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   const firstSeen = sortedByDate[0];
   const lastSeen = sortedByDate[sortedByDate.length - 1];
+  // 라이브·mock을 같은 렌더 형태로 정규화 — 아래 JSX는 이 값만 본다
+  const view = liveEv
+    ? { topLabel: liveEv.topLocation.label, topCount: liveEv.topLocation.count, bucket: liveEv.bucket, pct: liveEv.pct,
+        first: liveEv.firstSeen, last: liveEv.lastSeen,
+        groups: liveEv.groups.map(g => ({ location: g.location, count: g.count, events: g.events })) }
+    : { topLabel: topGroup.location, topCount: topGroup.events.length, bucket, pct,
+        first: `${firstSeen.date} ${firstSeen.time}`, last: `${lastSeen.date} ${lastSeen.time}`,
+        groups: groups.map(g => ({ location: g.location, count: g.events.length,
+          events: g.events.map(e => ({ camCode: e.camCode, date: e.date, time: e.time })) })) };
 
   return (
     <div className="vca-hide-scrollbar" style={{ width:"330px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER,
       padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"20px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span style={{ fontSize:"16px", fontWeight:800, color:"#0e162a", letterSpacing:"-0.32px" }}>Joint Evidence Inspector</span>
-        <span style={{ fontSize:"11px", fontWeight:800, color:"#f43f5e", backgroundColor:"#ffeaea", padding:"3px 10px", borderRadius:"999px", whiteSpace:"nowrap" }}>{node.count} EVENTS</span>
+        <span style={{ fontSize:"11px", fontWeight:800, color:"#f43f5e", backgroundColor:"#ffeaea", padding:"3px 10px", borderRadius:"999px", whiteSpace:"nowrap" }}>{liveEv?.totalEvents ?? node.count} EVENTS</span>
       </div>
 
       <div style={{ border:BORDER, borderRadius:"8px", backgroundColor:"#f8fafc", padding:"16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -2795,7 +2859,7 @@ function JointEvidencePanel({ primary, tier, node }: {
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
           <img src={node.face} alt="" style={{ width:"54px", height:"54px", borderRadius:"5px", objectFit:"cover", border:"2px solid #ef4444" }} />
-          <span style={{ fontSize:"12px", fontWeight:800, color:"#0e162a" }}>{assocId(node)}</span>
+          <span style={{ fontSize:"12px", fontWeight:800, color:"#0e162a" }}>{node.associateId ?? assocId(node)}</span>
         </div>
       </div>
 
@@ -2805,29 +2869,29 @@ function JointEvidencePanel({ primary, tier, node }: {
         <div style={{ display:"flex", alignItems:"flex-start", gap:"8px", backgroundColor:"#f0f0ff", border:"1px solid #ded9ff", borderRadius:"8px", padding:"10px 12px" }}>
           <span style={{ color:"#5a3dfb", flexShrink:0, marginTop:"1px" }}><LinkChainIconSm /></span>
           <span style={{ fontSize:"12px", color:"#324055", lineHeight:1.5 }}>
-            Mostly seen together at <strong>{topGroup.location}</strong> ({topGroup.events.length}x), mainly during <strong>{bucket}</strong> hours ({pct}%)
+            Mostly seen together at <strong>{view.topLabel}</strong> ({view.topCount}x), mainly during <strong>{view.bucket}</strong> hours ({view.pct}%)
           </span>
         </div>
 
         <div style={{ display:"flex", justifyContent:"space-between" }}>
           <div>
             <p style={{ margin:0, fontSize:"11px", color:"#94a3b8" }}>First seen</p>
-            <p style={{ margin:"2px 0 0", fontSize:"13px", fontWeight:700, color:"#0e162a" }}>{firstSeen.date} {firstSeen.time}</p>
+            <p style={{ margin:"2px 0 0", fontSize:"13px", fontWeight:700, color:"#0e162a" }}>{view.first}</p>
           </div>
           <div style={{ textAlign:"right" }}>
             <p style={{ margin:0, fontSize:"11px", color:"#94a3b8" }}>Last seen</p>
-            <p style={{ margin:"2px 0 0", fontSize:"13px", fontWeight:700, color:"#0e162a" }}>{lastSeen.date} {lastSeen.time}</p>
+            <p style={{ margin:"2px 0 0", fontSize:"13px", fontWeight:700, color:"#0e162a" }}>{view.last}</p>
           </div>
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-          {groups.map(g => (
+          {view.groups.map(g => (
             <div key={g.location} style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"12px", fontWeight:700, color:"#0e162a" }}>
                   <CameraGlyph size={13} /> {g.location}
                 </span>
-                <span style={{ fontSize:"10px", fontWeight:800, color:"#475469", backgroundColor:"#f1f5f9", padding:"2px 7px", borderRadius:"999px" }}>{g.events.length}x</span>
+                <span style={{ fontSize:"10px", fontWeight:800, color:"#475469", backgroundColor:"#f1f5f9", padding:"2px 7px", borderRadius:"999px" }}>{g.count}x</span>
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:"4px", paddingLeft:"20px" }}>
                 {g.events.map((e, i) => (
@@ -2883,15 +2947,17 @@ function DataGridView({ rows, onInspect, selectedNodeId }: {
             <span style={{ width:"50px", flexShrink:0, fontSize:"12px", fontWeight:700, color:"#64748a" }}>{`#${String(i+1).padStart(2,"0")}`}</span>
             <div style={{ flex:1, display:"flex", alignItems:"center", gap:"10px", minWidth:0 }}>
               <img src={r.node.face} alt="" style={{ width:"28px", height:"28px", borderRadius:"999px", objectFit:"cover", flexShrink:0 }} />
-              <span style={{ fontSize:"13px", fontWeight:700, color:"#0e162a", whiteSpace:"nowrap" }}>{`Associate #${String(i+1).padStart(2,"0")}`}</span>
+              {/* 데이터 연결(UV-40): 등록 인물이면 이름 — 그 외엔 기존 익명 표기 */}
+              <span style={{ fontSize:"13px", fontWeight:700, color:"#0e162a", whiteSpace:"nowrap" }}>{r.node.label || `Associate #${String(i+1).padStart(2,"0")}`}</span>
             </div>
             <div style={{ width:"180px", flexShrink:0 }}>
               <span style={{ fontSize:"10px", fontWeight:800, color:badge.text, backgroundColor:badge.bg, padding:"2px 6px", borderRadius:"4px" }}>{badge.label}</span>
             </div>
             <span style={{ width:"110px", flexShrink:0, fontSize:"13px", fontWeight:700, color:COCAPTURE_COLOR[r.tier] }}>{r.node.count} Events</span>
-            <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#0e162a" }}>{`C0${(r.node.id % 5) + 1} ${cam.location.split(" ")[0]} (${visits}x)`}</span>
-            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#64748a" }}>{dates.first}</span>
-            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#64748a" }}>{dates.last}</span>
+            {/* 데이터 연결(UV-40): 라이브 노드는 계약 실값(topCamera·first/lastSeenAt) — mock은 기존 합성 */}
+            <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#0e162a" }}>{r.node.topCameraLabel ?? `C0${(r.node.id % 5) + 1} ${cam.location.split(" ")[0]} (${visits}x)`}</span>
+            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#64748a" }}>{r.node.firstSeen ?? dates.first}</span>
+            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"#64748a" }}>{r.node.lastSeen ?? dates.last}</span>
             <div style={{ width:"80px", flexShrink:0, display:"flex", justifyContent:"center" }}>
               <button onClick={() => onInspect(r.tier, r.node)} style={{ padding:"4px 10px", borderRadius:"6px", border:"none",
                 backgroundColor: r.node.id === selectedNodeId ? "#5a3dfb" : "#0e162a", color:"white", cursor:"pointer",
@@ -2906,7 +2972,7 @@ function DataGridView({ rows, onInspect, selectedNodeId }: {
   );
 }
 
-function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{ name:string; face:string }; onSwitchTarget:()=>void }) {
+function AssociateGraphView({ primaryTarget, onSwitchTarget, liveRef }: { primaryTarget:{ name:string; face:string }; onSwitchTarget:()=>void; liveRef?: RedfacePrimaryRef | null }) {
   const [tier1On, setTier1On] = useState(true);
   const [tier2On, setTier2On] = useState(true);
   const [tier3On, setTier3On] = useState(true);
@@ -2916,10 +2982,25 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{
   const toggleSelectedNode = (tier: string, node: RedfaceNode) =>
     setSelectedNode(prev => prev && prev.node.id === node.id ? null : { tier: tier as "tier1"|"tier2"|"tier3", node });
 
-  const tier1 = REDFACE_TIER1.filter(n => n.count >= minHits);
-  const tier2 = REDFACE_TIER2.filter(n => n.count >= minHits);
-  const tier3 = REDFACE_TIER3.filter(n => n.count >= minHits);
-  const totalAll = REDFACE_TIER1.length + REDFACE_TIER2.length + REDFACE_TIER3.length;
+  // 데이터 연결(UV-40): 라이브 참조가 있으면 동료 목록(v1.8)을 조회해 mock 티어를 대체.
+  // Zone 분류(>100 / 10~99 / <10)는 계약대로 화면이 coCaptures로 나눈다. 미응답이면 mock 유지
+  const [liveAssoc, setLiveAssoc] = useState<RedfaceAssociatesView | null>(null);
+  useEffect(() => {
+    setLiveAssoc(null);
+    setSelectedNode(null);
+    if (!liveRef) return;
+    let alive = true;
+    void fetchRedfaceAssociates(liveRef).then(v => { if (alive && v) { setLiveAssoc(v); } });
+    return () => { alive = false; };
+  }, [liveRef]);
+  const allTier1: RedfaceNode[] = liveAssoc ? liveAssoc.nodes.filter(n => n.count > 100) : REDFACE_TIER1;
+  const allTier2: RedfaceNode[] = liveAssoc ? liveAssoc.nodes.filter(n => n.count >= 10 && n.count <= 100) : REDFACE_TIER2;
+  const allTier3: RedfaceNode[] = liveAssoc ? liveAssoc.nodes.filter(n => n.count < 10) : REDFACE_TIER3;
+
+  const tier1 = allTier1.filter(n => n.count >= minHits);
+  const tier2 = allTier2.filter(n => n.count >= minHits);
+  const tier3 = allTier3.filter(n => n.count >= minHits);
+  const totalAll = allTier1.length + allTier2.length + allTier3.length;
   const totalVisible = (tier1On ? tier1.length : 0) + (tier2On ? tier2.length : 0) + (tier3On ? tier3.length : 0);
   const reset = () => { setTier1On(true); setTier2On(true); setTier3On(true); setMinHits(1); };
 
@@ -2937,9 +3018,9 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{
   ];
 
   const tierRows = [
-    { on:tier1On, toggle:() => setTier1On(o => !o), bg:"#ffebee", text:"#e11d48", label:"Tier 1 Red Zone (>100)", count:REDFACE_TIER1.length, badgeBg:"#f43f5e" },
-    { on:tier2On, toggle:() => setTier2On(o => !o), bg:"#fffbeb", text:"#ea580c", label:"Tier 2 Orange Zone (10~99)", count:REDFACE_TIER2.length, badgeBg:"#f59e0b" },
-    { on:tier3On, toggle:() => setTier3On(o => !o), bg:"#f1f5f9", text:"#324055", label:"Tier 3 Slate Zone (<10)", count:REDFACE_TIER3.length, badgeBg:"#475569" },
+    { on:tier1On, toggle:() => setTier1On(o => !o), bg:"#ffebee", text:"#e11d48", label:"Tier 1 Red Zone (>100)", count:allTier1.length, badgeBg:"#f43f5e" },
+    { on:tier2On, toggle:() => setTier2On(o => !o), bg:"#fffbeb", text:"#ea580c", label:"Tier 2 Orange Zone (10~99)", count:allTier2.length, badgeBg:"#f59e0b" },
+    { on:tier3On, toggle:() => setTier3On(o => !o), bg:"#f1f5f9", text:"#324055", label:"Tier 3 Slate Zone (<10)", count:allTier3.length, badgeBg:"#475569" },
   ];
 
   return (
@@ -3060,14 +3141,16 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: { primaryTarget:{
       </div>
 
       {selectedNode && (
-        <JointEvidencePanel primary={primaryTarget} tier={selectedNode.tier} node={selectedNode.node} />
+        <JointEvidencePanel primary={primaryTarget} tier={selectedNode.tier} node={selectedNode.node} liveRef={liveRef} />
       )}
     </div>
   );
 }
 
 function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void } = {}) {
-  const [primaryTarget, setPrimaryTarget] = useState<{ name:string; face:string } | null>(null);
+  // 데이터 연결(UV-40): ref가 있으면 라이브 primary target — 동료 목록(v1.8)의 대상 참조.
+  // 라이브 후보(팝업)·Live Monitoring 카드에서만 채워지고, mock 후보면 없음(기존 mock 그래프)
+  const [primaryTarget, setPrimaryTarget] = useState<{ name:string; face:string; ref?: RedfacePrimaryRef } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(true);
   // "UNSET" (not seedCard's own initial value) so the block below still fires on this
   // component's very first render even when seedCard is ALREADY set at mount time — this tab
@@ -3075,19 +3158,31 @@ function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_
   // seeding it from "the previous seedCard" would just equal the incoming one and never fire.
   const [prevSeedCard, setPrevSeedCard] = useState<typeof seedCard | "UNSET">("UNSET");
 
-  const handleConfirm = (c: RedfaceCandidate) => {
-    setPrimaryTarget({ name:`Suspect #1 (TS${String(c.id).padStart(6,"0")})`, face:c.url });
+  const handleConfirm = (c: RedfaceCandidate, period: DateRangeValue) => {
+    setPrimaryTarget({
+      name: c.label ? `${c.label} (${c.targetId ?? `TS${String(c.id).padStart(6,"0")}`})` : `Suspect #1 (TS${String(c.id).padStart(6,"0")})`,
+      face: c.url,
+      // 팝업 Search Period가 그대로 동반 감지 집계 구간이 된다 (미지정이면 계약 기본 최근 7일)
+      ref: c.targetId && c.cameraId ? { cameraId: c.cameraId, targetId: c.targetId, from: period.start, to: period.end } : undefined,
+    });
     setPickerOpen(false);
   };
 
   // Deep-link from a Live Monitoring card's "RedFace" hover button — skip the picker and go
   // straight to this person as the confirmed primary target. Uses the card's full photo (url),
   // not its unrelated `face` stock-photo field, so the "same person" stays visually consistent.
+  // 데이터 연결(UV-40): 라이브 카드는 eventId/cameraId를 실어 오므로 그대로 대상 참조로 —
+  // 팝업 없이 진입하는 경로라 기간은 계약 기본(최근 7일)
   if (seedCard !== prevSeedCard) {
     setPrevSeedCard(seedCard);
     if (seedCard) {
-      const label = seedCard.status === "VIP" ? "VIP Match" : `Suspect (TS${String(seedCard.id).padStart(6,"0")})`;
-      setPrimaryTarget({ name: label, face: seedCard.url });
+      const live = seedCard as (typeof REID_DATA)[number] & LiveCardExtras;
+      const label = live.label ? live.label : seedCard.status === "VIP" ? "VIP Match" : `Suspect (TS${String(seedCard.id).padStart(6,"0")})`;
+      setPrimaryTarget({
+        name: live.eventId ? `${label} (${live.eventId})` : label,
+        face: seedCard.url,
+        ref: live.eventId && live.cameraId ? { cameraId: live.cameraId, targetId: live.eventId } : undefined,
+      });
       setPickerOpen(false);
     }
   }
@@ -3097,7 +3192,7 @@ function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_
 
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", position:"relative", backgroundColor:"#f8fafc", overflow:"hidden" }}>
-      {primaryTarget && <AssociateGraphView primaryTarget={primaryTarget} onSwitchTarget={() => setPickerOpen(true)} />}
+      {primaryTarget && <AssociateGraphView primaryTarget={primaryTarget} onSwitchTarget={() => setPickerOpen(true)} liveRef={primaryTarget.ref ?? null} />}
       {pickerOpen && (
         <div
           onClick={e => { if (e.target === e.currentTarget && primaryTarget) setPickerOpen(false); }}

@@ -198,13 +198,15 @@
 | `GET /v1/videos/{videoId}/bestframes/{frameId}/image` | **(v1.5)** 비디오 베스트 프레임 이미지 바이너리 (카메라는 v1.1 frames 라우트 재사용) |
 | `GET /v1/detections/{eventId}/face` | **(v1.6)** 감지 얼굴 크롭 바이너리 — 감지 이벤트 faceUrl의 대상. faceUrl null인 이벤트는 404. 보존은 snapshot과 동일 |
 | `POST /v1/persons/reid-search` | **(v1.7)** Re-ID 인물 검색 — 이미지 업로드(face/body) 또는 `vipId` 참조 + 필터(기간·유사도·카메라·성별·복장·소지품) 전부 모듈 적용 → 유사도 내림차순 상위 최대 20 (빈 결과 허용, 동기 60초) |
+| `POST /v1/targets/associates` | **(v1.8)** RedFace 동반 감지 인물 목록 — primary target 참조(source + targetId=감지 eventId) + 기간 → 같은 프레임에 함께 감지된 인물 상위 최대 30 (coCaptures 내림차순, 빈 결과 허용, 동기 60초) |
+| `POST /v1/targets/associate-evidence` | **(v1.8)** Joint Evidence — 페어(targetId + associateId) 동반 감지 집계 요약 (총 횟수·최초/최종·최다 장소·주 시간대 비율·장소별 최근 5건, 동기 60초) |
 
 지킬 규칙:
 
 1. **응답은 데이터 그대로** — envelope 없음 (envelope은 프록시가 씌운다). 오류는 HTTP 상태코드 + `{ "code": "MOD-XXXX", "message": "..." }`
 2. **MQTT 발행 값과 일관성** — `eventId`는 MQTT 감지 이벤트와 동일한 값 (브라우저가 두 채널을 이 값으로 병합한다). 카메라 status·locationId·좌표도 MQTT 발행분과 같아야 함
 3. **날짜 파라미터** 기본값은 사이트 로컬(Asia/Singapore) 오늘, 응답의 시각 필드는 ISO-8601 UTC
-4. **성능 분리** — 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리(프로세스 또는 저장소). 프록시는 5초 타임아웃으로 호출하므로 통상 2초 이내 응답 목표 (예외: v1.2 인물 검색·v1.4 Track on Map·v1.7 Re-ID 검색은 60초)
+4. **성능 분리** — 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리(프로세스 또는 저장소). 프록시는 5초 타임아웃으로 호출하므로 통상 2초 이내 응답 목표 (예외: v1.2 인물 검색·v1.4 Track on Map·v1.7 Re-ID 검색·v1.8 동반 감지 집계 2종은 60초)
 5. **보존 기간** — 최소 당일+전일 데이터는 조회 가능해야 함 (증감 계산·date 파라미터 지원 범위). 장기 보존 정책은 모듈 재량
 
 ### (v1.2) REDMAP 인물 검색 — 구현 전 알아둘 것
@@ -288,10 +290,25 @@
   (v1.4 track-on-map 재호출), ② Analyze Frame 딥링크(카메라+capturedAt의 분), ③ 크롭 조회
   (`/detections/{id}/snapshot`·`/face`)를 전부 해결한다. 새 ID 체계를 만들면 셋 다 깨진다
 
+### (v1.8) RedFace 동반 감지 분석 — 구현 전 알아둘 것
+
+- **화면의 후보 검색은 v1.7 reid-search 재사용** — v1.8의 새 계약은 집계 2종뿐이다.
+  primary target 참조는 v1.4와 같은 `{ source, targetId }` 방식 (targetId = 감지 eventId)
+- **동료 목록은 기간 내 같은 프레임 동반 감지의 인물 단위 집계** — coCaptures 내림차순
+  **상위 최대 30명**만 반환. Zone 분류(>100 / 10~99 / <10)·최소 횟수·정렬·이름 검색은
+  화면이 로컬 처리하므로 모듈은 필터 파라미터가 없다. 기간 생략 시 최근 7일 (`applied` 에코)
+- **`associateId`는 모듈 발급 인물 키** — 같은 조건에서 같은 인물이면 같은 값이어야 하고
+  (상세 조회의 참조 키), 응답 후 최소 1시간 유효. `faceUrl`은 신규 라우트가 아니라 **대표
+  동반 감지의 기존 크롭 라우트**(`/detections/{eventId}/face`, 얼굴 미검출 대표면 `/snapshot`)
+- **Joint Evidence는 집계 요약** — 원본 이벤트 전량이 아니라 총 횟수·최초/최종 시각·
+  최다 동반 장소·주 시간대(비율)·장소별 최근 5건 표본만. 통계는 전수 데이터를 가진 모듈
+  책임이고 화면은 문구 조립만 한다. `totalEvents`는 목록의 `coCaptures`와 같은 값이어야 한다
+- 시간대 구분(사이트 로컬): morning 05~12 / afternoon 12~17 / evening 17~21 / night 21~05
+
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 32개 엔드포인트 전부**를
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 34개 엔드포인트 전부**를
 계약 그대로 구현한 Node 시뮬레이터. v1.3 비디오는 `sim/assets/`의 실제 H.264 MP4를 Range로
 서빙하며, **frames의 bbox 수식이 MP4 속 박스 움직임과 동일**해 재생 오버레이가 영상 속 박스를
 따라가는지 눈으로 검증할 수 있다 (수식·재생성 ffmpeg 명령은 sim.mjs 주석 참조). v1.2 인물 검색은 두 경로로 응답한다:
@@ -308,7 +325,7 @@ cd sim && npm install && npm start   # MQTT 발행 + :8081 모듈 API 서빙
 
 이 참조 구현 + 실제 프록시 + 실제 대시보드 조합으로 **전 화면 E2E가 검증 완료**된 상태다 —
 DASHBOARD(08-12), BEST FRAME(08-18), REDMAP(08-19), Video/Image·Track on Map(08-21),
-Analyze Frame·DATA Live Monitoring(08-24), Re-ID Analysis(08-25). 즉 모듈이 이 계약대로만
+Analyze Frame·DATA Live Monitoring(08-24), Re-ID Analysis(08-25), RedFace(08-26). 즉 모듈이 이 계약대로만
 구현하면 화면 연결에 추가 작업이 없다. 검증 과정에서 확인된 구현 포인트:
 
 - **URL 경로 규칙 (혼동 주의)** — REST 응답의 리소스 URL(`photoUrl`, `snapshotUrl`)은
@@ -374,6 +391,9 @@ curl "http://localhost:8081/v1/dashboard/live-analytics?page=0&size=20&type=ALL"
   - [ ] (v1.6) faceUrl null인 이벤트의 `/v1/detections/{id}/face`가 404를 주는가
   - [ ] (v1.7) `/v1/persons/reid-search`에 vipId·face·body 모두 없으면 400, 미등록 vipId면 404인가
   - [ ] (v1.7) results가 유사도 내림차순·최대 20건이고 targetId가 감지 eventId와 같은 값인가 (track-on-map 역참조 가능)
+  - [ ] (v1.8) associates가 coCaptures 내림차순·최대 30명이고 faceUrl이 기존 감지 크롭 라우트인가
+  - [ ] (v1.8) 같은 조건에서 associate-evidence의 totalEvents가 목록 coCaptures와 같고, locations count 합계 = totalEvents인가
+  - [ ] (v1.8) 다른 대상의 associateId로 evidence를 조회하면 404인가
 
 ### 대시보드 E2E
 
