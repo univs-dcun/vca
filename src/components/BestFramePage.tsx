@@ -1040,7 +1040,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     return () => clearTimeout(timer);
   }, []);
   const atGridCap = gridCams.length >= MAX_GRID_CAMS;
-  // Sidebar "Enter Source" search — filters each list's visible rows only; the counts/badges
+  // Sidebar "Enter source" search — filters each list's visible rows only; the counts/badges
   // above (activeCams.length etc.) stay based on the full unfiltered lists.
   const camNameMatches = (c: Camera) => c.name.toLowerCase().includes(camSearch.trim().toLowerCase());
   // With ~1,000 cameras, scrolling to find "whatever's happening right now" isn't realistic —
@@ -1167,7 +1167,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                 ref={camSearchInputRef}
                 value={camSearch}
                 onChange={e => setCamSearch(e.target.value)}
-                placeholder="Enter Source"
+                placeholder="Enter source"
                 style={{ flex:1, border:"none", background:"none", outline:"none", fontSize:"13px", color:"var(--gray-900)" }}
               />
               <Search size={14} color="var(--gray-600)" />

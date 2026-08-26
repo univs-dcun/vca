@@ -271,7 +271,7 @@ export default function PortalSignupWizard() {
                 />
                 <FieldError text={passwordError} />
                 <div style={{ backgroundColor: "var(--primary-100)", borderRadius: "10px", padding: "8px 14px", marginTop: "6px" }}>
-                  <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--primary-400)" }}>Password Requirements</p>
+                  <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--primary-400)" }}>Password requirements</p>
                   <p style={{ fontSize: "10px", color: "var(--primary-400)", marginTop: "2px" }}>Upper &amp; lowercase letters · at least 1 number · at least 1 symbol (@#$%) · minimum 8 characters</p>
                 </div>
               </div>

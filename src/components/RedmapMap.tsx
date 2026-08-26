@@ -273,7 +273,7 @@ export default function RedmapMap({
 
         const line = L.polyline(nodes.map((n) => [n.lat, n.lng]), {
           color,
-          weight: 3,
+          weight: 2,
           opacity: 1,
           lineJoin: "round",
           className: "vca-route-line",

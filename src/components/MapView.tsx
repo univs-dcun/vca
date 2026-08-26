@@ -561,7 +561,7 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
         map.flyTo([nodes[nodes.length - 1].lat, nodes[nodes.length - 1].lng], 14, { duration: 0.8, easeLinearity: 0.5 });
 
         const line = L.polyline(nodes.map(n => [n.lat, n.lng]), {
-          color: "var(--primary-400)", weight: 3, opacity: 1, lineJoin: "round", className: "vca-route-line",
+          color: "var(--primary-400)", weight: 2, opacity: 1, lineJoin: "round", className: "vca-route-line",
         }).addTo(map);
         trackingRouteLayersRef.current.push(line);
 

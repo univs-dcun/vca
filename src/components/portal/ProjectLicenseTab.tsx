@@ -68,18 +68,18 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
           </select>
         </div>
         <div style={{ marginBottom: "16px" }}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Camera Channel Limit</label>
+          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Camera channel limit</label>
           <input value={channelLimit} onChange={e => setChannelLimit(e.target.value)} placeholder="e.g. 50"
             style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: "10px", border: BORDER, fontSize: "13px", fontFamily: "inherit" }} />
         </div>
         <div style={{ marginBottom: "20px" }}>
-          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Expires On</label>
+          <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Expires on</label>
           <input type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)}
             style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: "10px", border: BORDER, fontSize: "13px", fontFamily: "inherit" }} />
         </div>
         <button onClick={save}
           style={{ width: "100%", padding: "12px", borderRadius: "999px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}>
-          {saved ? "✓ Saved" : "Save License"}
+          {saved ? "✓ Saved" : "Save license"}
         </button>
       </div>
     </div>

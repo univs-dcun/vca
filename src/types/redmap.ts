@@ -21,7 +21,6 @@ export interface HitResult {
   lng: number;
   /** Duration only, e.g. "30m 32s" — the "Elapsed" label is the UI's, not the data's. */
   elapsed?: string;
-  elapsedAlert?: boolean;
   // Which real-world person this sighting belongs to. A low-similarity or lookalike-heavy search
   // can legitimately return sightings of more than one distinct person, not just multiple sightings
   // of the same one — this is what the person-filter chips group/color by.

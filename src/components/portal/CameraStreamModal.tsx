@@ -55,7 +55,7 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
             )}
             {!online && (
               <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: "12px", fontWeight: 700, color: "white" }}>Stream Offline</span>
+                <span style={{ fontSize: "12px", fontWeight: 700, color: "white" }}>Stream offline</span>
               </div>
             )}
             {online && aiFeatures.map((feature, i) => (
@@ -91,7 +91,7 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
 
           {/* AI features */}
           <div>
-            <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", marginBottom: "8px" }}>Mapped AI Engines</p>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", marginBottom: "8px" }}>Mapped AI engines</p>
             {aiFeatures.length === 0 ? (
               <p style={{ fontSize: "12px", color: "var(--gray-400)" }}>No AI engines mapped to this camera yet.</p>
             ) : (
@@ -105,7 +105,7 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
 
           {/* Recent activity — real detection events tied to this camera */}
           <div>
-            <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", marginBottom: "8px" }}>Recent Activity</p>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", marginBottom: "8px" }}>Recent activity</p>
             {recentEvents.length === 0 ? (
               <p style={{ fontSize: "12px", color: "var(--gray-400)" }}>No recent detections at this camera.</p>
             ) : (

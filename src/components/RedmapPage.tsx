@@ -35,7 +35,7 @@ export const MOCK_RESULTS: HitResult[] = [
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
     mapLabel: "Novena",
     lat: 1.3200, lng: 103.8440,
-    elapsed: "20m 12s", elapsedAlert: false,
+    elapsed: "20m 12s",
     personId: "p1", personLabel: "Match 1",
   },
   {
@@ -50,7 +50,7 @@ export const MOCK_RESULTS: HitResult[] = [
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
     mapLabel: "Geylang",
     lat: 1.3131, lng: 103.8600,
-    elapsed: "30m 32s", elapsedAlert: false,
+    elapsed: "30m 32s",
     personId: "p1", personLabel: "Match 1",
   },
   {
@@ -63,7 +63,7 @@ export const MOCK_RESULTS: HitResult[] = [
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "Marine",
+    mapLabel: "Marine Parade",
     lat: 1.3015, lng: 103.9070,
     personId: "p1", personLabel: "Match 1",
   },
@@ -88,7 +88,7 @@ const RESULT_SET_MODERATE: HitResult[] = [
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
     mapLabel: "Jurong",
     lat: 1.3329, lng: 103.7436,
-    elapsed: "1h 40m", elapsedAlert: true,
+    elapsed: "1h 40m",
     personId: "p1", personLabel: "Match 1",
   },
   {
@@ -927,7 +927,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                   boxShadow: "0 4px 4px rgba(29,41,59,0.1)",
                 }}
               >
-                Choose Image
+                Choose image
               </button>
             </div>
           </div>
@@ -1165,7 +1165,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
               fontFamily: "'SUIT', sans-serif", flexShrink: 0,
             }}
           >
-            {searching ? "Searching…" : mode === "car" ? "Search Vehicle" : "Search Persons"}
+            {searching ? "Searching…" : mode === "car" ? "Search vehicle" : "Search persons"}
           </button>
         </div>
       </div>
@@ -1307,8 +1307,8 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 </svg>
                 <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "var(--gray-400)" }}>
                   {mode === "person"
-                    ? <>Upload a face or body image<br />above and click <strong style={{ color: "var(--gray-700)" }}>Search Persons</strong></>
-                    : <>Enter a license plate and click<br /><strong style={{ color: "var(--gray-700)" }}>Search Vehicle</strong></>
+                    ? <>Upload a face or body image<br />above and click <strong style={{ color: "var(--gray-700)" }}>Search persons</strong></>
+                    : <>Enter a license plate and click<br /><strong style={{ color: "var(--gray-700)" }}>Search vehicle</strong></>
                   }
                 </p>
               </div>
@@ -1498,15 +1498,17 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                     const showOrigin = tracedHits.length > 0 && new Set(tracedHits.map((t) => t.hit.personId)).size <= 1;
                     const nodes = [
                       ...(showOrigin ? [{
-                        key: "origin", location: TRACKING_ORIGIN.label, camera: undefined as string | undefined,
+                        key: "origin", location: TRACKING_ORIGIN.label, fullLocation: TRACKING_ORIGIN.label,
+                        camera: undefined as string | undefined,
                         date: TRACKING_ORIGIN.date, time: TRACKING_ORIGIN.time,
-                        faceUrl: TRACKING_ORIGIN.faceUrl, elapsed: undefined as string | undefined, elapsedAlert: false,
+                        faceUrl: TRACKING_ORIGIN.faceUrl, elapsed: undefined as string | undefined,
                         hitIndex: -1, color: PERSON_COLORS[0],
                       }] : []),
                       ...tracedHits.map(({ hit, hitIndex }) => ({
-                        key: hit.id, location: hit.location, camera: hit.camera as string | undefined,
+                        key: hit.id, location: hit.mapLabel, fullLocation: hit.location,
+                        camera: hit.camera as string | undefined,
                         date: hit.date, time: hit.time, faceUrl: hit.faceUrl,
-                        elapsed: hit.elapsed, elapsedAlert: hit.elapsedAlert, hitIndex, color: personColor(hit.personId),
+                        elapsed: hit.elapsed, hitIndex, color: personColor(hit.personId),
                       })),
                     ];
                     const ordered = timelineNewestFirst ? [...nodes].reverse() : nodes;
@@ -1521,9 +1523,6 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                       // happened), while the newest shows how long it has been since that sighting
                       // — counted against the real clock, next to LAST SEEN. Falls back to the
                       // recorded gap until the clock starts on the client.
-                      // The alert tint marks an unusually long GAP between two sightings; the
-                      // newest node's number is a running clock, not a gap, so it stays neutral.
-                      const alertStyled = node.elapsedAlert && !(isLatest && nowMs !== null);
                       const elapsedText = isLatest && nowMs !== null
                         ? formatElapsed(nowMs - parseSgtStamp(node.date, node.time).getTime())
                         : node.elapsed;
@@ -1601,7 +1600,13 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                       height either way, but this way the reserved line carries
                                       information instead of the tail of a long place name. Each
                                       line clips to one line so the height can't vary. */}
-                                  <p title={node.location} style={{
+                                  {/* The short label, the same one the map pin shows — the panel used
+                                      to carry the full site name and clip it, so a route read
+                                      "Clarke Quay" on the map and "Clarke Quay Riversi…" beside it.
+                                      Nothing is lost by shortening: the camera on the next line
+                                      already identifies which one it was, and the full name is on
+                                      the tooltip and in the opened frame's caption. */}
+                                  <p title={node.fullLocation} style={{
                                     fontSize: "14px", fontWeight: 700, color: "var(--gray-900)", margin: 0, marginBottom: "2px",
                                     lineHeight: "20px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                                   }}>{node.location}</p>
@@ -1646,7 +1651,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                     // its own Undo gives an immediate way to reverse a misclick without
                                     // hunting for that hit in the grid.
                                     showToast({
-                                      variant: "default", title: `Removed "${node.location}" from this trace`,
+                                      variant: "default", title: `Removed "${node.fullLocation}" from this trace`,
                                       actionLabel: "Undo",
                                       onAction: () => setExcludedHitIds(prev => { const next = new Set(prev); next.delete(node.key); return next; }),
                                     });
@@ -1683,20 +1688,26 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                 marker. */}
                             {(elapsedText || isLatest) && (
                               <div style={{
-                                backgroundColor: alertStyled ? "var(--danger-100)" : "var(--primary-100)", borderRadius: "8px",
+                                backgroundColor: "var(--primary-100)", borderRadius: "8px",
                                 padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between",
                               }}>
-                                {/* Duration and label are styled apart: the duration is the number
+                                {/* No alert tint. A hand-set flag in the data turned one row red with
+                                    no threshold in the code, no legend, and no tooltip — an operator
+                                    had no way to know why that row and not another, and a warning
+                                    colour nobody can explain is one they learn to ignore. The number
+                                    says how long it was; that's the information.
+
+                                    Duration and label are styled apart: the duration is the number
                                     being read, so it keeps the accent and the monospace figures that
                                     let two rows' times line up. "elapsed" is just the unit — lower
                                     case, body font, no accent, so it doesn't double the emphasis.
                                     Only the duration lives in the data; the word is the UI's. */}
                                 {elapsedText ? (
                                   <span style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                                    <span style={{ fontSize: "12px", fontWeight: 700, fontFamily: "monospace", color: alertStyled ? "var(--danger-400)" : "var(--primary-400)" }}>
+                                    <span style={{ fontSize: "12px", fontWeight: 700, fontFamily: "monospace", color: "var(--primary-400)" }}>
                                       {elapsedText}
                                     </span>
-                                    <span style={{ fontSize: "12px", fontWeight: 600, color: alertStyled ? "var(--danger-400)" : "var(--gray-700)" }}>
+                                    <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-700)" }}>
                                       elapsed
                                     </span>
                                   </span>
@@ -1718,8 +1729,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                   display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px",
                                   padding: "6px 8px", backgroundColor: "var(--gray-50)",
                                 }}>
-                                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--gray-600)", fontFamily: "monospace" }}>
-                                    {node.date} {node.time}
+                                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--gray-600)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    <span style={{ fontFamily: "monospace" }}>{node.date} {node.time}</span>
+                                    {" · "}{node.fullLocation}
                                   </span>
                                   {node.camera && (
                                     <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--gray-500)" }}>{node.camera}</span>

@@ -434,7 +434,7 @@ function LocationPickerModal({ current, onSelect, onClose }: { current: string |
               padding:"9px 10px", borderRadius:"8px", border:"none", cursor:"pointer",
               backgroundColor: !current ? "var(--primary-50)" : "transparent",
               fontSize:"13px", fontWeight:700, color: !current ? "var(--primary-400)" : "var(--gray-700)", transition:"background-color 0.1s",
-            }}>All Locations</button>
+            }}>All locations</button>
           {locations.map(loc => {
             const active = current === loc;
             return (
@@ -925,7 +925,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
       {/* Search */}
       <div style={{ padding:"20px 20px 12px", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"8px", border:BORDER, borderRadius:"8px", padding:"9px 18px", backgroundColor:"white" }}>
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Enter Device Name"
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Enter device name"
             style={{ flex:1, border:"none", background:"none", outline:"none", fontSize:"12px", fontWeight:600, color:"var(--gray-700)" }} />
           <Search size={18} color="var(--gray-600)" />
         </div>

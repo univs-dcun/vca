@@ -6,12 +6,12 @@ import { BORDER } from "./PortalShared";
 // card wires up automatically once the file exists. Until then the card just shows its label on
 // a plain placeholder background (the <img> hides itself via onError, no broken-image icon).
 const GALLERY_ITEMS: { label: string; file: string; height: number }[] = [
-  { label: "VIP / Watchlist Detection", file: "vip-detection.jpg", height: 150 },
-  { label: "Cross-Camera Tracking", file: "cross-camera-tracking.jpg", height: 190 },
-  { label: "Vehicle Recognition", file: "vehicle-recognition.jpg", height: 170 },
-  { label: "Campus Attendance (Face Recognition)", file: "campus-attendance.jpg", height: 210 },
-  { label: "Blind-Spot Monitoring", file: "blind-spot-monitoring.jpg", height: 150 },
-  { label: "Public Area Crowd Monitoring", file: "crowd-monitoring.jpg", height: 180 },
+  { label: "VIP / watchlist detection", file: "vip-detection.jpg", height: 150 },
+  { label: "Cross-camera tracking", file: "cross-camera-tracking.jpg", height: 190 },
+  { label: "Vehicle recognition", file: "vehicle-recognition.jpg", height: 170 },
+  { label: "Campus attendance (face recognition)", file: "campus-attendance.jpg", height: 210 },
+  { label: "Blind-spot monitoring", file: "blind-spot-monitoring.jpg", height: 150 },
+  { label: "Public area crowd monitoring", file: "crowd-monitoring.jpg", height: 180 },
 ];
 
 function GalleryCard({ label, file, height }: { label: string; file: string; height: number }) {

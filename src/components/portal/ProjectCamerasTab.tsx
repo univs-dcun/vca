@@ -78,7 +78,7 @@ function CameraFormModal({
 
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)" }}>Transport Protocol</label>
+              <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)" }}>Transport protocol</label>
               <div style={{ display: "flex", gap: "12px" }}>
                 {(["TCP", "UDP"] as const).map(p => (
                   <label key={p} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "12px", color: "var(--gray-600)" }}>
@@ -173,7 +173,7 @@ function ConfirmStatusModal({
               backgroundColor: goingOffline ? "var(--danger-400)" : "var(--primary-400)", color: "white",
               fontSize: "13px", fontWeight: 700, cursor: "pointer",
             }}>
-            {goingOffline ? "Mark Offline" : "Reconnect"}
+            {goingOffline ? "Mark offline" : "Reconnect"}
           </button>
         </div>
       </div>
@@ -321,7 +321,7 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
           <button onClick={() => setShowAdd(true)}
             style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "999px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
             <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 2.9V11.1M2.9 7H11.1" stroke="white" strokeWidth="1.4" strokeLinecap="round"/></svg>
-            Add Camera
+            Add camera
           </button>
         </div>
       </div>
@@ -371,16 +371,16 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
           />
         </div>
         <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)} style={filterSelectStyle}>
-          <option value="ALL">All Zones</option>
+          <option value="ALL">All zones</option>
           {zones.map(z => <option key={z} value={z}>{z}</option>)}
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)} style={filterSelectStyle}>
-          <option value="ALL">All Status</option>
+          <option value="ALL">All status</option>
           <option value="online">Online</option>
           <option value="offline">Offline</option>
         </select>
         <select value={aiFilter} onChange={e => setAiFilter(e.target.value as typeof aiFilter)} style={filterSelectStyle}>
-          <option value="ALL">All AI Engines</option>
+          <option value="ALL">All AI engines</option>
           {AI_FEATURES.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
         <div style={{ display: "flex", backgroundColor: "var(--gray-50)", border: BORDER, borderRadius: "10px", padding: "3px" }}>
@@ -484,11 +484,11 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
       )}
 
       {showAdd && (
-        <CameraFormModal title="Add Camera" initial={EMPTY_FORM} onClose={() => setShowAdd(false)} onSubmit={createCamera} />
+        <CameraFormModal title="Add camera" initial={EMPTY_FORM} onClose={() => setShowAdd(false)} onSubmit={createCamera} />
       )}
       {editingCamera && (
         <CameraFormModal
-          title="Edit Camera"
+          title="Edit camera"
           initial={{
             name: editingCamera.name, code: editingCamera.code, rtspUrl: editingCamera.rtspUrl,
             location: editingCamera.location, zone: editingCamera.zone,
