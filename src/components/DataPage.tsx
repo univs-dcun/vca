@@ -768,16 +768,24 @@ function LiveSearchSidebar({
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
               <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>Target face</span>
+              {/* Three sources feed these previews: an upload, a chosen Recent target, or the card
+                  this sidebar opened from. Only the first two are the user's to remove — clearing a
+                  chosen target reuses its own toggle rather than a second code path, and the card
+                  photo is the context, not a selection. */}
               <ImageDropzoneBox icon={<DefaultFaceIconSm />} label="Face" previewSrc={faceSrc} aspect="square"
                 onClick={() => faceInputRef.current?.click()}
-                onClear={uploadedFace ? clearUploadedFace : undefined} />
+                onClear={uploadedFace ? clearUploadedFace
+                  : selectedTarget >= 0 ? () => selectRecentTarget(selectedTarget)
+                  : undefined} />
               <input ref={faceInputRef} type="file" accept="image/*" onChange={handleFaceUpload} style={{ display:"none" }} />
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
               <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>Target body</span>
               <ImageDropzoneBox icon={<FullBodyIconSm />} label="Body" previewSrc={bodySrc} aspect="portrait"
                 onClick={() => bodyInputRef.current?.click()}
-                onClear={uploadedBody ? clearUploadedBody : undefined} />
+                onClear={uploadedBody ? clearUploadedBody
+                  : selectedTarget >= 0 ? () => selectRecentTarget(selectedTarget)
+                  : undefined} />
               <input ref={bodyInputRef} type="file" accept="image/*" onChange={handleBodyUpload} style={{ display:"none" }} />
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
@@ -2732,6 +2740,15 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   const toggleTopColor    = (c: string) => setTopColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
   const toggleBottomColor = (c: string) => setBottomColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
   const toggleShoesColor  = (c: string) => setShoesColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+  // Clearing an image that came from a chosen target means un-choosing the target: both slots show
+  // the same person, so there is no "just this one" to remove. Mirrors the deselect branches in
+  // selectRecentTarget/selectVIP — a Recent target also filled in gender/apparel/props, and those
+  // have to go with it, while a VIP set none and the user's own filters must be left alone.
+  const clearSelectedTarget = () => {
+    if (selectedTarget >= 0) { setSelectedTarget(-1); setGender(""); setApparel([]); setProps([]); }
+    else setActiveVIP(-1);
+  };
+
   const reset = () => {
     setSearchType("PERSON"); setThreshold(70); setGender(""); setApparel([]); setProps([]);
     setTopColors([]); setBottomColors([]); setShoesColors([]);
@@ -2869,8 +2886,11 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                           backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
                           <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>Click to change</span>
                         </div>
-                        {uploadedFace && hoverImageBox === "face" && (
-                          <RemoveImageButton label="Remove face image" onRemove={clearUploadedFace} />
+                        {hoverImageBox === "face" && (
+                          <RemoveImageButton
+                            label={uploadedFace ? "Remove face image" : "Clear the selected target"}
+                            onRemove={uploadedFace ? clearUploadedFace : clearSelectedTarget}
+                          />
                         )}
                       </>
                     ) : (
@@ -2896,8 +2916,11 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                           backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
                           <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>Click to change</span>
                         </div>
-                        {uploadedBody && hoverImageBox === "body" && (
-                          <RemoveImageButton label="Remove body image" onRemove={clearUploadedBody} />
+                        {hoverImageBox === "body" && (
+                          <RemoveImageButton
+                            label={uploadedBody ? "Remove body image" : "Clear the selected target"}
+                            onRemove={uploadedBody ? clearUploadedBody : clearSelectedTarget}
+                          />
                         )}
                       </>
                     ) : (
