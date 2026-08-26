@@ -3311,11 +3311,16 @@ function companionAnalytics(events: CooccurEvent[]) {
   const walkingCount = events.filter(e => e.gapSec <= 3).length;
   const probability = Math.round((walkingCount / events.length) * 100);
   const avgGapSec = Math.round(events.reduce((s, e) => s + e.gapSec, 0) / events.length);
+  // Worded to what a time gap can actually establish. gapSec is the difference between two
+  // detections at the same camera, which cannot tell "side by side in one frame" from "three
+  // seconds and several metres behind" — that needs same-frame detections with boxes, and metric
+  // distance needs calibrated cameras. Until the backend is known to supply either, the copy
+  // stays on the measurement and off the inference.
   const interpretation = probability >= 80
-    ? "Strong walking-companion pattern"
+    ? "Consistently within seconds of each other at the same camera"
     : probability >= 50
-    ? "Mixed — sometimes together, sometimes trailing"
-    : "Mostly trailing, rarely side-by-side";
+    ? "Mixed — some passes within seconds, some minutes apart"
+    : "Mostly minutes apart, rarely within seconds";
   return { walkingCount, total: events.length, avgGapSec, interpretation };
 }
 
@@ -3391,10 +3396,19 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           spell out what "mixed" means is on the tooltip, where it costs nothing to leave unread. */}
       <div style={{ display:"flex", flexDirection:"column", gap:"10px", border:BORDER, borderRadius:"8px", padding:"14px", backgroundColor:"var(--gray-50)" }}>
         <span title={`함께 감지된 시간 간격·장소·시간대 분석 — ${interpretation}`} style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
-        <div style={{ display:"flex", alignItems:"baseline", gap:"8px", backgroundColor:"var(--primary-100)", border:"1px solid var(--primary-200)", borderRadius:"8px", padding:"10px 12px" }}>
-          <span style={{ fontSize:"20px", fontWeight:800, color:"var(--primary-400)", lineHeight:1 }}>{walkingCount}</span>
-          <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>of {total} together</span>
-          <span style={{ marginLeft:"auto", fontSize:"11px", fontWeight:600, color:"var(--gray-500)" }}>{avgGapSec}s avg gap</span>
+        {/* Label and value, not a headline figure. "5 of 7 within 3s" left the reader to work out
+            within 3s of WHAT — the whole point of the number is that it is measured against the
+            Primary's detection at the same camera, and a figure nobody can attribute is worse than
+            no figure. */}
+        <div style={{ display:"flex", flexDirection:"column", gap:"6px", backgroundColor:"var(--primary-100)", border:"1px solid var(--primary-200)", borderRadius:"8px", padding:"10px 12px" }}>
+          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
+            <span style={{ fontSize:"11px", fontWeight:600, color:"var(--gray-600)" }}>Within 3s of Primary</span>
+            <span style={{ fontSize:"13px", fontWeight:800, color:"var(--primary-400)", whiteSpace:"nowrap" }}>{walkingCount} of {total} passes</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
+            <span style={{ fontSize:"11px", fontWeight:600, color:"var(--gray-600)" }}>Average gap</span>
+            <span style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-700)", whiteSpace:"nowrap" }}>{avgGapSec}s</span>
+          </div>
         </div>
         <div style={{ display:"flex", gap:"10px" }}>
           <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
@@ -3449,30 +3463,22 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                 {open && (
                   <div style={{ padding:"8px 12px 12px", display:"flex", flexDirection:"column", gap:"8px" }}>
                     <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-700)" }}>
-                      <CameraGlyph size={12} /> {e.location} — {assocId(node)} detected {e.gapSec}s {e.gapSec <= 3 ? "after" : "behind"} Primary at this camera
+                      <CameraGlyph size={12} /> {e.location} — {assocId(node)} detected {e.gapSec}s after Primary at this camera
                     </span>
-                    {e.gapSec <= 3 ? (
-                      // Walking together (within 3s) — close enough to be the same camera frame,
-                      // so this is one capture with both people in it, not two. Primary shows as a
-                      // small avatar overlaid on the associate's capture rather than its own
-                      // equal-sized image alongside it.
-                      <div style={{ borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"var(--gray-900)" }}>
-                        <img src={node.face} alt="" style={{ width:"100%", height:"96px", objectFit:"cover", display:"block" }} />
-                        <span style={{ position:"absolute", top:4, left:4, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.6)", padding:"1px 5px", borderRadius:"3px" }}>{e.camCode} · {assocId(node)}</span>
-                        <img src={primary.face} alt="" title="Primary" style={{ position:"absolute", bottom:6, left:6, width:"28px", height:"28px", borderRadius:"50%", objectFit:"cover", border:"2px solid var(--danger-400)" }} />
-                      </div>
-                    ) : (
-                      // Trailing (tens of seconds to minutes behind) — genuinely two different
-                      // moments at this camera, so two separate frames, one per person.
-                      <div style={{ display:"flex", gap:"8px" }}>
-                        {[{ label:"Primary", face:primary.face }, { label:assocId(node), face:node.face }].map((shot, si) => (
-                          <div key={si} style={{ flex:1, borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"var(--gray-900)" }}>
-                            <img src={shot.face} alt="" style={{ width:"100%", height:"64px", objectFit:"cover", display:"block" }} />
-                            <span style={{ position:"absolute", top:4, left:4, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.6)", padding:"1px 5px", borderRadius:"3px" }}>{shot.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {/* Two frames, always. This used to draw a gap of 3s or less as ONE capture
+                        with both people in it — Primary overlaid on the associate's frame — but a
+                        time gap can't establish that: two detections 3s apart at one camera may be
+                        a single frame or may be metres apart. Same-frame co-presence needs
+                        detections with boxes from the backend, so until that's known, each person's
+                        capture is shown as its own. */}
+                    <div style={{ display:"flex", gap:"8px" }}>
+                      {[{ label:"Primary", face:primary.face }, { label:assocId(node), face:node.face }].map((shot, si) => (
+                        <div key={si} style={{ flex:1, borderRadius:"6px", overflow:"hidden", position:"relative", backgroundColor:"var(--gray-900)" }}>
+                          <img src={shot.face} alt="" style={{ width:"100%", height:"78px", objectFit:"cover", display:"block" }} />
+                          <span style={{ position:"absolute", top:4, left:4, fontSize:"8px", fontWeight:800, color:"white", backgroundColor:"rgba(14,22,42,0.6)", padding:"2px 5px", borderRadius:"3px" }}>{shot.label}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
