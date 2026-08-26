@@ -100,6 +100,11 @@ BestFramePage analyzeFrameEntryMs prop. BestFramePage — Analyze Frame 딥링�
 카메라 목록 반영 전 mock 매칭 레이스) + 라이브 카메라 이름 폴백 매칭 + 시딩 전 카메라
 플레이스홀더 감지로 진입 보장(autoOpenDetail은 실감지 있을 때만) + prevFocusLocation 초기값
 undefined 센티널(동일 잠재 버그).
+Re-ID 팝업 RedMap Trace 배선(UV-39 확장): DataPage — matchTrackRefOf() 헬퍼(MatchItem →
+TrackTargetRef, targetId=감지 eventId·sourceType camera — 라이브 매치만, mock은 undefined로
+플레인 이동) + ReIDContent onGoRedmap 시그니처 (name?, ref?) + DetailModal 호출부 래핑
+(detailItem.label || undefined, matchTrackRefOf) — Live Monitoring 팝업(UV-38)과 동일 딥링크.
+types/reid.ts — MatchItem에 optional label(matchedVip 이름, Tracing 라벨용).
 
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)

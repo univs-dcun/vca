@@ -18,4 +18,6 @@ export interface MatchItem {
   targetId?: string;
   cameraId?: string;
   capturedMs?: number;
+  /** matchedVip 이름 (미등록·mock이면 없음) — RedMap Trace 딥링크의 Tracing 라벨 */
+  label?: string;
 }
