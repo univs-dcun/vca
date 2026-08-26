@@ -3195,6 +3195,24 @@ function LinkChainIconSm({ size = 14 }: { size?: number } = {}) {
     </svg>
   );
 }
+function SunIconSm({ size = 12 }: { size?: number } = {}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
+      <circle cx="6" cy="6" r="2.5" stroke="currentColor" strokeWidth="1" />
+      <path d="M6 0.8V2M6 10V11.2M1.5 6H0.3M11.7 6H10.5M2.8 2.8L2 2M10 10L9.2 9.2M9.2 2.8L10 2M2 10L2.8 9.2"
+            stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MoonIconSm({ size = 12 }: { size?: number } = {}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
+      <path d="M9.5 7.4A4.2 4.2 0 0 1 4.6 2.5 4.2 4.2 0 1 0 9.5 7.4Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function SwapIconSm() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -3304,12 +3322,11 @@ const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string 
   Unknown: { bg:"var(--gray-100)", text:"var(--gray-500)" },
 };
 
-function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchToPrimary }: {
+function JointEvidencePanel({ primary, tier, node, onClose }: {
   primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode;
-  onClose: () => void; onExclude: () => void; onSwitchToPrimary: () => void;
+  onClose: () => void;
 }) {
   const meta = TIER_LINK_META[tier];
-  const badge = TIER_BADGE_META[tier];
   const statusBadge = STATUS_BADGE_META[node.status];
   const primaryId = primary.name.match(/\(([^)]+)\)/)?.[1] ?? "TS------";
   const events = buildCooccurEvents(node);
@@ -3331,26 +3348,16 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
       {/* ── Section 1: header, profile comparison, badges, actions ── */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span title="Primary Target와 선택한 연관자가 함께 감지된 증거(시간·장소)를 보여줌" style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</span>
-        {/* Both actions used to be full-width buttons below the profile comparison, which gave a
-            "promote this associate" and a "dismiss this associate" the same weight as the evidence
-            they sit on. They belong to the associate this panel is already about, so they live in
-            its header as icons — reachable, not shouting. */}
-        <div style={{ display:"flex", alignItems:"center", gap:"2px" }}>
-          <button onClick={onSwitchToPrimary} title="Trace this associate instead — makes them the Primary Target, so the graph rebuilds around who THEY were seen with"
-            style={{ display:"flex", background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", padding:"4px" }}>
-            <SwapIconSm />
-          </button>
-          <button onClick={onExclude} title="Not the same person — hide from this associate list"
-            style={{ display:"flex", background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", padding:"4px" }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4"/>
-              <path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-            </svg>
-          </button>
-          <button onClick={onClose} title="Close" style={{ display:"flex", background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", padding:"4px" }}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-          </button>
-        </div>
+        {/* Same close control as Redmap's image-upload popup — a 37px tinted square rather than a
+            bare glyph, so the one action in this header has a hit area to match. */}
+        <button onClick={onClose} aria-label="Close" style={{
+          width:"37px", height:"37px", borderRadius:"8px", backgroundColor:"var(--gray-50)",
+          border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M4 4L14 14M14 4L4 14" stroke="var(--gray-400)" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
 
       <div style={{ border:BORDER, borderRadius:"8px", backgroundColor:"var(--gray-50)", padding:"16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -3373,42 +3380,40 @@ function JointEvidencePanel({ primary, tier, node, onClose, onExclude, onSwitchT
         </div>
       </div>
 
-      <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
-        <span style={{ fontSize:"10px", fontWeight:800, color:badge.text, backgroundColor:badge.bg, padding:"3px 9px", borderRadius:"999px" }}>{badge.label}</span>
-        <span style={{ fontSize:"10px", fontWeight:800, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"3px 9px", borderRadius:"999px" }}>{node.count} events</span>
-        <span style={{ fontSize:"10px", fontWeight:800, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"3px 9px", borderRadius:"999px" }}>Last seen {lastSeen.date}</span>
-      </div>
-
-      {/* ── Section 2: relationship analytics ── */}
+      {/* ── Section 2: relationship analytics ──────────────────────
+          Trimmed hard. This was a paragraph of prose in a highlighted box, then two cards each
+          carrying a value and an "N of M sampled events" line under it, then a first/last row —
+          enough text that the section read as something to skip rather than read. What an
+          investigator takes from it is three figures and two labels; the sentence that used to
+          spell out what "mixed" means is on the tooltip, where it costs nothing to leave unread. */}
       <div style={{ display:"flex", flexDirection:"column", gap:"10px", border:BORDER, borderRadius:"8px", padding:"14px", backgroundColor:"var(--gray-50)" }}>
-        <span title="함께 감지된 시간 간격, 주요 장소, 시간대 패턴을 종합한 관계 분석" style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
-        <div style={{ display:"flex", alignItems:"flex-start", gap:"8px", backgroundColor:"var(--primary-100)", border:"1px solid var(--primary-200)", borderRadius:"8px", padding:"10px 12px" }}>
-          <span style={{ color:"var(--primary-400)", flexShrink:0, marginTop:"1px" }}><LinkChainIconSm /></span>
-          <span style={{ fontSize:"12px", color:"var(--gray-700)", lineHeight:1.5 }}>
-            Avg. <strong>{avgGapSec}s</strong> gap between passes → <strong>{probability}%</strong> companion probability. {interpretation}.
-          </span>
+        <span title={`함께 감지된 시간 간격·장소·시간대 분석 — ${interpretation}`} style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
+        <div style={{ display:"flex", alignItems:"baseline", gap:"8px", backgroundColor:"var(--primary-100)", border:"1px solid var(--primary-200)", borderRadius:"8px", padding:"10px 12px" }}>
+          <span style={{ fontSize:"20px", fontWeight:800, color:"var(--primary-400)", lineHeight:1 }}>{probability}%</span>
+          <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>companion</span>
+          <span style={{ marginLeft:"auto", fontSize:"11px", fontWeight:600, color:"var(--gray-500)" }}>{avgGapSec}s avg gap</span>
         </div>
         <div style={{ display:"flex", gap:"10px" }}>
-          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"10px 12px", backgroundColor:"white" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)", display:"flex", alignItems:"center", gap:"4px" }}><MapPinIconSm /> Top location</p>
-            <p style={{ margin:"4px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{topGroup.location}</p>
-            <p style={{ margin:"1px 0 0", fontSize:"10px", color:"var(--gray-500)" }}>{topGroup.events.length} of {events.length} sampled events</p>
+          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
+            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Top location</p>
+            {/* The glyph belongs on the value, not the label — a pin next to the words "Top
+                location" only restates them, next to "Novena" it marks what kind of thing that is. */}
+            <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", display:"flex", alignItems:"center", gap:"4px" }}>
+              <MapPinIconSm /> {topGroup.location}
+            </p>
           </div>
-          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"10px 12px", backgroundColor:"white" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Time-of-day pattern</p>
-            <p style={{ margin:"4px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize" }}>{bucket}</p>
-            <p style={{ margin:"1px 0 0", fontSize:"10px", color:"var(--gray-500)" }}>{pct}% of sampled events</p>
+          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
+            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Time of day</p>
+            {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
+                glyph at all. */}
+            <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize", display:"flex", alignItems:"center", gap:"4px" }}>
+              {bucket === "evening" || bucket === "night" ? <MoonIconSm /> : <SunIconSm />} {bucket} · {pct}%
+            </p>
           </div>
         </div>
-        <div style={{ display:"flex", justifyContent:"space-between" }}>
-          <div>
-            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>First seen</p>
-            <p style={{ margin:"2px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{firstSeen.date} {firstSeen.time}</p>
-          </div>
-          <div style={{ textAlign:"right" }}>
-            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Last seen</p>
-            <p style={{ margin:"2px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{lastSeen.date} {lastSeen.time}</p>
-          </div>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:"11px" }}>
+          <span style={{ color:"var(--gray-400)" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time}</strong></span>
+          <span style={{ color:"var(--gray-400)" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time}</strong></span>
         </div>
       </div>
 
@@ -3545,8 +3550,8 @@ function DataGridView({ rows, onInspect, selectedNodeId }: {
   );
 }
 
-function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
-  primaryTarget:{ name:string; face:string } | null; onSwitchTarget:()=>void; onSwitchToNode:(node:RedfaceNode)=>void;
+function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
+  primaryTarget:{ name:string; face:string } | null; onSwitchTarget:()=>void;
 }) {
   const [tier1On, setTier1On] = useState(true);
   const [tier2On, setTier2On] = useState(true);
@@ -3584,10 +3589,9 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
     { id:"desc", label:"Co-occurrence frequency (high → low)" },
     { id:"asc",  label:"Co-occurrence frequency (low → high)" },
   ];
-  const handleExcludeNode = (id: number) => {
-    setExcludedIds(prev => new Set(prev).add(id));
-    setSelectedNode(null);
-  };
+  // Nothing writes to excludedIds any more — its entry point (the joint-evidence panel's exclude
+  // action) is gone. Kept so an entry point can be added back without rethreading the filter,
+  // but as it stands this always returns true.
   const notExcluded = (n: RedfaceNode) => !excludedIds.has(n.id);
   // Reuses buildCooccurEvents' own dates rather than a separate fabricated "last activity" field —
   // a node passes the filter if ANY of its sampled co-capture events fall inside the range.
@@ -3799,8 +3803,6 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onSwitchToNode }: {
       {selectedNode && primaryTarget && (
         <JointEvidencePanel primary={primaryTarget} tier={selectedNode.tier} node={selectedNode.node}
           onClose={() => setSelectedNode(null)}
-          onExclude={() => handleExcludeNode(selectedNode.node.id)}
-          onSwitchToPrimary={() => onSwitchToNode(selectedNode.node)}
         />
       )}
     </div>
@@ -3825,10 +3827,6 @@ function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_
   // new Primary Target, so the whole graph recomputes around them instead of just relabeling the
   // header photo. Reuses the same assocId() the panel already displays for that node, so the
   // person the investigator just saw stays the same identifier after the switch.
-  const handleSwitchToNode = (node: RedfaceNode) => {
-    setPrimaryTarget({ name:`Suspect (${assocId(node)})`, face: node.face });
-  };
-
   // Deep-link from a Live Monitoring card's "RedFace" hover button — skip the picker and go
   // straight to this person as the confirmed primary target. Uses the card's full photo (url),
   // not its unrelated `face` stock-photo field, so the "same person" stays visually consistent.
@@ -3850,7 +3848,7 @@ function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_
           (empty zone bands, filter sidebar, no primary-target header) that sits behind the blur
           while the picker is open, instead of a bare empty page. */}
       <AssociateGraphView primaryTarget={primaryTarget} onSwitchTarget={() => setPickerOpen(true)}
-        onSwitchToNode={handleSwitchToNode} />
+        />
       {pickerOpen && (
         // backdropFilter/backgroundColor live on the scrolling container itself now, not on a
         // separate inset:0 sibling sized to just one screen's height — that sibling stayed pinned
