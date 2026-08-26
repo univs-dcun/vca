@@ -70,9 +70,14 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
   const lastReadNotifAt = useVcaStore(s => s.lastReadNotifAt);
   const markNotificationsRead = useVcaStore(s => s.markNotificationsRead);
   const vipEvents = events.filter(e => e.personType === "VIP");
+  // 8 loaded against a 320px scroll box, so the sixth row sits half-cut and the list reads as
+  // having more below it — the same cue Dovetail and Air use rather than a scrollbar nobody looks
+  // for. The count is a constant because the footer below states it: a hardcoded "8" in the copy
+  // and a different slice here is the kind of pair that drifts.
+  const NOTIF_LIMIT = 8;
   const notifications = vcaEventsToLiveEvents(vipEvents)
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-    .slice(0, 8);
+    .slice(0, NOTIF_LIMIT);
   const unreadCount = vipEvents.filter(e => e.timestamp > lastReadNotifAt).length;
 
   useEffect(() => {
@@ -327,6 +332,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                     <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-400)" }}>No new notifications</span>
                   </div>
                 ) : (
+                  <>
                   <div style={{ maxHeight: "320px", overflowY: "auto" }}>
                     {notifications.map((ev) => (
                       <button
@@ -349,6 +355,18 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                       </button>
                     ))}
                   </div>
+                  {/* Says what the list is, the way Slite's "those were all your notifications in
+                      the last month" and folk's unread count do. Without it a badge reading 23 over
+                      a list of 8 leaves the operator wondering what they can't see — which in a
+                      monitoring tool is the wrong thing to leave them wondering. */}
+                  <div style={{ padding: "9px 16px", borderTop: "1px solid var(--gray-200)", backgroundColor: "var(--gray-50)" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--gray-500)" }}>
+                      {vipEvents.length > NOTIF_LIMIT
+                        ? `Showing ${NOTIF_LIMIT} most recent of ${vipEvents.length}`
+                        : `All ${vipEvents.length} shown`}
+                    </span>
+                  </div>
+                  </>
                 )}
               </div>
             )}
