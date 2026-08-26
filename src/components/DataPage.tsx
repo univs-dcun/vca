@@ -3557,7 +3557,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           same boundary drawn twice. 2px of margin on top of the column's 18px gap keeps the 20px
           of air the block had when the rules were doing the separating. */}
       <div style={{ display:"flex", flexDirection:"column", gap:"10px", margin:"2px 0",
-        backgroundColor:"var(--primary-100)", borderRadius:"8px", padding:"14px" }}>
+        backgroundColor:"var(--gray-50)", borderRadius:"8px", padding:"14px" }}>
         <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지" color="var(--primary-400)">Relationship analytics</PanelHeading>
         <div style={{ display:"flex", gap:"10px" }}>
           <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
