@@ -107,7 +107,10 @@ function VipAlertTicker({ onNavigate }: { onNavigate: (event: LiveEvent) => void
           showToast({
             variant: "warning",
             title: "VIP Detected",
-            desc: `${person.name} · ${camera.name}`,
+            // Match confidence in the alert itself: it decides whether this is worth acting on
+            // right now, and it was already computed above for the event record while the toast —
+            // the thing the operator actually sees first — left it out.
+            desc: `${person.name} · ${camera.name} · ${confidence}%`,
             actionLabel: "View on Map",
             onAction: () => onNavigate(liveEvent),
           });
