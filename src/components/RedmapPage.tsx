@@ -455,7 +455,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
   const ed = formatDisplay(value.end);
 
   return (
-    <div ref={containerRef} style={{ position: "relative" }}>
+    <div ref={containerRef} style={{ position: "relative", flexShrink: 0 }}>
       {/* Trigger button */}
       <div
         onClick={() => { setOpen(o=>!o); setStep("start"); }}
@@ -967,9 +967,20 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
         display: "flex", alignItems: "center", gap: "20px", flexShrink: 0,
       }}>
 
+        {/* Filters scroll, actions don't. Everything used to sit in one non-wrapping row with the
+            buttons last and flexShrink:0, so on anything narrower than ~1900px the row overflowed
+            and the page's own overflow:hidden simply cut Reset and Search off the right edge — on a
+            14" laptop the primary action of the screen was invisible. Now the filter band is the
+            only thing that gives way. */}
+        <div className="vca-hide-scrollbar" style={{
+          flex: 1, minWidth: 0, height: "100%",
+          display: "flex", alignItems: "center", gap: "20px",
+          overflowX: "auto", overflowY: "hidden",
+        }}>
+
         {/* Mode toggle */}
         <div style={{
-          display: "flex", alignItems: "center",
+          display: "flex", alignItems: "center", flexShrink: 0,
           backgroundColor: "var(--gray-100)", borderRadius: "999px",
           padding: "2px", gap: "12px", height: "36px", boxSizing: "border-box",
         }}>
@@ -980,7 +991,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 key={m}
                 onClick={() => setMode(m)}
                 style={{
-                  width: "160px", height: "32px", padding: "0 28px",
+                  height: "32px", padding: "0 20px", flexShrink: 0,
                   borderRadius: "999px", border: "none",
                   cursor: "pointer",
                   backgroundColor: active ? "white" : "transparent",
@@ -1005,10 +1016,10 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           <>
             <DateRangePicker value={dateRange} onChange={setDateRange} />
 
-            <div style={{ width: "1px", height: "24px", backgroundColor: "var(--gray-200)" }} />
+            <div style={{ width: "1px", height: "24px", flexShrink: 0, backgroundColor: "var(--gray-200)" }} />
 
             {/* License plate */}
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
               <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", whiteSpace: "nowrap" }}>License plate</span>
               <div style={{
                 display: "flex", alignItems: "center", gap: "6px",
@@ -1039,10 +1050,10 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
           <>
             <DateRangePicker value={dateRange} onChange={setDateRange} />
 
-            <div style={{ width: "1px", height: "24px", backgroundColor: "var(--gray-200)" }} />
+            <div style={{ width: "1px", height: "24px", flexShrink: 0, backgroundColor: "var(--gray-200)" }} />
 
             {/* Search by image chips */}
-            <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "20px", flexShrink: 0 }}>
               {([
                 { key: "face" as const, label: "Face", image: faceImage },
                 { key: "body" as const, label: "Body", image: bodyImage },
@@ -1114,11 +1125,11 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
               })}
             </div>
 
-            <div style={{ width: "1px", height: "24px", backgroundColor: "var(--gray-200)" }} />
+            <div style={{ width: "1px", height: "24px", flexShrink: 0, backgroundColor: "var(--gray-200)" }} />
 
             {/* Similarity — quick presets plus a slider for anything in between, so landing on
                 e.g. 65% doesn't require picking the nearest preset and living with it. */}
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
               <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-600)", whiteSpace: "nowrap" }}
                 title={bodyOnly ? "Body-only search: matching on build and clothing alone is looser than a face match, so a low threshold here returns many false positives." : undefined}
               >Similarity</span>
@@ -1158,14 +1169,14 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 className="vca-similarity-slider"
                 type="range" min={0} max={100} value={similarity}
                 onChange={e => setSimilarity(Number(e.target.value))}
-                style={{ width: "100px", cursor: "pointer" }}
+                style={{ width: "100px", flexShrink: 0, cursor: "pointer" }}
               />
               <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary-400)", width: "30px", flexShrink: 0 }}>{similarity}%</span>
             </div>
           </>
         )}
 
-        <div style={{ flex: 1 }} />
+        </div>
 
         <div style={{ display: "flex", gap: "12px", flexShrink: 0 }}>
           <button
