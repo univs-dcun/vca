@@ -3247,6 +3247,31 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
 
 
 
+function SunIconSm({ size = 12 }: { size?: number } = {}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
+      <circle cx="6" cy="6" r="2.5" stroke="currentColor" strokeWidth="1" />
+      <path d="M6 0.8V2M6 10V11.2M1.5 6H0.3M11.7 6H10.5M2.8 2.8L2 2M10 10L9.2 9.2M9.2 2.8L10 2M2 10L2.8 9.2"
+            stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  );
+}
+function MoonIconSm({ size = 12 }: { size?: number } = {}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
+      <path d="M9.5 7.4A4.2 4.2 0 0 1 4.6 2.5 4.2 4.2 0 1 0 9.5 7.4Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function MapPinIconSm() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+      <path d="M8 14.5s5-4.4 5-8.2A5 5 0 003 6.3c0 3.8 5 8.2 5 8.2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+      <circle cx="8" cy="6.2" r="1.6" stroke="currentColor" strokeWidth="1.3"/>
+    </svg>
+  );
+}
+
 function SwapIconSm() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -3385,20 +3410,6 @@ function PanelHeading({ children, title }: { children: React.ReactNode; title?: 
   );
 }
 
-/**
- * Key/value row in the app's own shape: label in a fixed-width left column, value left-aligned
- * beside it, so values line up down the panel. Same sizes as the Camera name / Event time rows in
- * Best Frame detail.
- */
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div style={{ display:"flex", alignItems:"center", padding:"3px 0" }}>
-      <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)", width:"92px", flexShrink:0 }}>{label}</span>
-      <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>{value}</span>
-    </div>
-  );
-}
-
 // 5, not 10: with every frame rendered a page of ten scrolled nearly 3000px, which makes the
 // pager decorative — you'd scroll past it before using it.
 const TIMELINE_PAGE_SIZE = 5;
@@ -3512,7 +3523,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           circle, with TIER 2 LINK above it and a correlation line below — was a relationship
           *diagram*, and no monitoring tool draws one for two rows of data. Every record panel that
           does this for real (Clay, folk, Attio) puts the subject top-left, the faces at reading
-          size, and the rest in key/value rows. The status badge moves down into those rows. */}
+          size, and the rest below. The status badge rides the line under the names. */}
       <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
         <div style={{ display:"flex", gap:"3px", flexShrink:0 }}>
           <img src={primary.face} alt="" style={{ width:"40px", height:"40px", borderRadius:"5px", objectFit:"cover" }} />
@@ -3524,8 +3535,12 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px" }}>
             {primaryId} + {assocId(node)}
           </span>
-          <span style={{ fontSize:"11px", color:"var(--gray-500)" }}>
+          {/* Status rides this line now that the analytics block is back to two stat cards —
+              it has nowhere else to sit, and it belongs to the associate, not to the pattern. */}
+          <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-500)" }}>
             {meta.label} · {node.count} co-captures
+            <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
+              padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{node.status.toUpperCase()}</span>
           </span>
         </div>
       </div>
@@ -3538,25 +3553,35 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           whole of what detection times at a camera can support: a gap-based "companion
           probability" also lived here, but a time gap cannot separate walking side by side from
           passing three seconds and several metres apart. "Peak" rather than "Time of day" because
-          the label has to say the value is the commonest one. The pin/sun/moon glyphs went with the
-          stat tiles — in a key/value row the label already says what kind of thing the value is. */}
-      <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+          the label has to say the value is the commonest one. */}
+      <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
         <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지">Relationship analytics</PanelHeading>
-        <div style={{ paddingTop:"2px" }}>
-          <DetailRow label="Status" value={
-            <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
-              padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{node.status.toUpperCase()}</span>
-          } />
-          <DetailRow label="Peak location" value={topGroup.location} />
-          <DetailRow label="Peak time" value={<span style={{ textTransform:"capitalize" }}>{bucket} · {pct}%</span>} />
-          <DetailRow label="First seen" value={`${firstSeen.date} ${firstSeen.time}`} />
-          <DetailRow label="Last seen" value={`${lastSeen.date} ${lastSeen.time}`} />
+        <div style={{ display:"flex", gap:"10px" }}>
+          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
+            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
+            {/* The glyph belongs on the value, not the label — a pin next to the words "Peak
+                location" only restates them, next to "Novena" it marks what kind of thing that is. */}
+            <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", display:"flex", alignItems:"center", gap:"4px" }}>
+              <MapPinIconSm /> {topGroup.location}
+            </p>
+          </div>
+          <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
+            <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak time</p>
+            {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
+                glyph at all. */}
+            <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize", display:"flex", alignItems:"center", gap:"4px" }}>
+              {bucket === "evening" || bucket === "night" ? <MoonIconSm /> : <SunIconSm />} {bucket} · {pct}%
+            </p>
+          </div>
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:"11px" }}>
+          <span style={{ color:"var(--gray-400)" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time}</strong></span>
+          <span style={{ color:"var(--gray-400)" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time}</strong></span>
         </div>
       </div>
 
-      {/* Section break. The two blocks lost their cards, so nothing separated the analytics
-          numbers from the frame list except the column gap — and 18px of gap reads as spacing
-          within one block, not between two. */}
+      {/* Section break — 18px of column gap alone reads as spacing within one block, not
+          between two. */}
       <div style={{ height:"1px", backgroundColor:"var(--gray-200)" }} />
 
       {/* ── Section 4: accordion timeline ── */}
