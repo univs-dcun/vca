@@ -3301,10 +3301,13 @@ function dominantTimeBucket(events: CooccurEvent[]) {
   return { bucket, pct: Math.round((count / events.length) * 100) };
 }
 
-// Companion-probability read: of the sampled co-capture events, what share fall in the 0-3s
-// "walking together" gap band versus the 30s+ "trailing" band. This is a real aggregate over
-// buildCooccurEvents' own gapSec field, not an independently fabricated number.
+// Of the sampled co-capture events, how many fall in the 0-3s "walking together" band versus
+// trailing behind. `probability` stays internal — it only picks the interpretation string; what
+// the panel shows is the two counts, since a share over a handful of events reads as more precise
+// than it is.
 function companionAnalytics(events: CooccurEvent[]) {
+  // Counts, not a percentage. The sample is 3-7 events, and "71%" over seven of them claims a
+  // precision the data doesn't have — five out of seven says the same thing and shows its working.
   const walkingCount = events.filter(e => e.gapSec <= 3).length;
   const probability = Math.round((walkingCount / events.length) * 100);
   const avgGapSec = Math.round(events.reduce((s, e) => s + e.gapSec, 0) / events.length);
@@ -3313,7 +3316,7 @@ function companionAnalytics(events: CooccurEvent[]) {
     : probability >= 50
     ? "Mixed — sometimes together, sometimes trailing"
     : "Mostly trailing, rarely side-by-side";
-  return { probability, avgGapSec, interpretation };
+  return { walkingCount, total: events.length, avgGapSec, interpretation };
 }
 
 const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string }> = {
@@ -3337,7 +3340,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
   const firstSeen = sortedByDate[0];
   const lastSeen = sortedByDate[sortedByDate.length - 1];
   const newestFirst = [...sortedByDate].reverse();
-  const { probability, avgGapSec, interpretation } = companionAnalytics(events);
+  const { walkingCount, total, avgGapSec, interpretation } = companionAnalytics(events);
 
   const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
 
@@ -3389,8 +3392,8 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
       <div style={{ display:"flex", flexDirection:"column", gap:"10px", border:BORDER, borderRadius:"8px", padding:"14px", backgroundColor:"var(--gray-50)" }}>
         <span title={`함께 감지된 시간 간격·장소·시간대 분석 — ${interpretation}`} style={{ fontSize:"13px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Relationship analytics</span>
         <div style={{ display:"flex", alignItems:"baseline", gap:"8px", backgroundColor:"var(--primary-100)", border:"1px solid var(--primary-200)", borderRadius:"8px", padding:"10px 12px" }}>
-          <span style={{ fontSize:"20px", fontWeight:800, color:"var(--primary-400)", lineHeight:1 }}>{probability}%</span>
-          <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>companion</span>
+          <span style={{ fontSize:"20px", fontWeight:800, color:"var(--primary-400)", lineHeight:1 }}>{walkingCount}</span>
+          <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>of {total} together</span>
           <span style={{ marginLeft:"auto", fontSize:"11px", fontWeight:600, color:"var(--gray-500)" }}>{avgGapSec}s avg gap</span>
         </div>
         <div style={{ display:"flex", gap:"10px" }}>
