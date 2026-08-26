@@ -1514,7 +1514,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0,
           }}>
             <h3 style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>
-              Multi-Track Route History
+              Route history
             </h3>
             <button onClick={() => setTimelineNewestFirst(v => !v)} style={{
               display: "flex", alignItems: "center", gap: "4px", background: "none", border: "none",
