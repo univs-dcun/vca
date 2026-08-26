@@ -131,20 +131,14 @@ function PersonThumb({ isSelected, photoUrl }: { isSelected:boolean; photoUrl:st
   );
 }
 
-// The percentage is the VIP match confidence, so it belongs on the VIP label. It used to sit in
-// its own pill beside the person's name, where it read as a stat about the row rather than about
-// the match — and took width off a name that ellipsizes. Optional: the registered-persons list
-// shows the badge with no per-event match behind it.
-function VipBadge({ confidence }: { confidence?: number } = {}) {
+function VipBadge() {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:"4px", flexShrink:0 }}>
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
         <path d="M5.781 1.633C5.80258 1.5938 5.83429 1.56112 5.87281 1.53835C5.91133 1.51559 5.95525 1.50358 6 1.50358C6.04475 1.50358 6.08867 1.51559 6.12719 1.53835C6.16571 1.56112 6.19742 1.5938 6.219 1.633L7.695 4.435C7.7302 4.49988 7.77933 4.55617 7.83885 4.59981C7.89838 4.64345 7.96684 4.67338 8.0393 4.68743C8.11176 4.70148 8.18644 4.69932 8.25797 4.68109C8.3295 4.66286 8.3961 4.62902 8.453 4.582L10.5915 2.75C10.6326 2.71661 10.6831 2.69711 10.736 2.6943C10.7888 2.69149 10.8412 2.70552 10.8855 2.73437C10.9299 2.76322 10.964 2.8054 10.9828 2.85485C11.0017 2.90429 11.0044 2.95844 10.9905 3.0095L9.5735 8.1325C9.54458 8.23733 9.48226 8.32988 9.396 8.39611C9.30975 8.46233 9.20425 8.49863 9.0955 8.4995H2.905C2.79617 8.49874 2.69055 8.46249 2.6042 8.39626C2.51784 8.33002 2.45545 8.23742 2.4265 8.1325L1.01 3.01C0.996125 2.95894 0.998811 2.90479 1.01767 2.85535C1.03653 2.8059 1.07059 2.76372 1.11495 2.73487C1.15931 2.70602 1.21168 2.69199 1.26452 2.6948C1.31736 2.69761 1.36795 2.71711 1.409 2.7505L3.547 4.5825C3.6039 4.62952 3.6705 4.66336 3.74203 4.68159C3.81356 4.69982 3.88824 4.70198 3.9607 4.68793C4.03316 4.67388 4.10162 4.64395 4.16115 4.60031C4.22067 4.55666 4.2698 4.50038 4.305 4.4355L5.781 1.633Z" stroke="var(--primary-400)" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M2.5 10.5H9.5" stroke="var(--primary-400)" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
-      <span style={{ fontSize:"10px", fontWeight:600, color:"var(--primary-400)", whiteSpace:"nowrap" }}>
-        {confidence === undefined ? "VIP" : `VIP · ${confidence}%`}
-      </span>
+      <span style={{ fontSize:"10px", fontWeight:600, color:"var(--primary-400)" }}>VIP</span>
     </div>
   );
 }
@@ -642,6 +636,10 @@ function VipEventRow({ event, isSelected, photoUrl, onClick, locationFilter }: {
             <span title={event.name} style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-900)", letterSpacing:"-0.26px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
               {event.name}
             </span>
+            <span style={{
+              fontSize:"10px", fontWeight:600, color:"var(--gray-500)", flexShrink:0,
+              border:"1px solid var(--gray-300)", borderRadius:"999px", padding:"1px 8px",
+            }}>{event.confidence}%</span>
           </div>
           <div style={{ display:"flex", gap:"5px", alignItems:"center" }}>
             <LocationPinIcon color="var(--gray-700)" />
@@ -654,7 +652,7 @@ function VipEventRow({ event, isSelected, photoUrl, onClick, locationFilter }: {
         </div>
       </div>
       <div style={{ marginLeft:"8px", flexShrink:0, alignSelf:"flex-start", marginTop:"10px" }}>
-        <VipBadge confidence={event.confidence} />
+        <VipBadge />
       </div>
     </div>
   );
