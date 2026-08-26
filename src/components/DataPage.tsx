@@ -3259,9 +3259,9 @@ function SwapIconSm() {
 // tier printed directly above it and named a statistic nothing computes. The co-capture count is
 // what the tier is derived FROM, so it says more in the same space.
 const TIER_LINK_META: Record<string, { label:string }> = {
-  tier1: { label:"TIER 1 LINK" },
-  tier2: { label:"TIER 2 LINK" },
-  tier3: { label:"TIER 3 LINK" },
+  tier1: { label:"Tier 1 link" },
+  tier2: { label:"Tier 2 link" },
+  tier3: { label:"Tier 3 link" },
 };
 
 // One scene per camera. Until the backend serves the actual still behind each detection, every
@@ -3371,25 +3371,30 @@ const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string 
 };
 
 /**
- * Micro section label, the shape Clay/folk/Attio use in their record panels: 10px uppercase gray
- * rather than a 13px bold heading. Three bold headings stacked in a 460px panel made every block
- * look equally important, which is how a generated mockup reads.
+ * Section heading inside a right-hand panel. 13px/700 with -0.26px tracking is what the other
+ * panels in the app already use ("Analysis results", "Also captured in this frame" in Best Frame
+ * detail), so this panel reads as the same product rather than a screen borrowed from a CRM — the
+ * 10px uppercase micro-label that briefly lived here appears nowhere else in the service.
  */
-function PanelLabel({ children, title }: { children: React.ReactNode; title?: string }) {
+function PanelHeading({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
-    <span title={title} style={{ fontSize:"10px", fontWeight:700, color:"var(--gray-400)",
-      letterSpacing:"0.6px", textTransform:"uppercase", cursor: title ? "help" : "default" }}>
+    <p style={{ margin:0, fontSize:"13px", fontWeight:700, color:"var(--gray-900)",
+      letterSpacing:"-0.26px", cursor: title ? "help" : "default" }} title={title}>
       {children}
-    </span>
+    </p>
   );
 }
 
-/** label on the left, value right-aligned — the key/value row every CRM record panel uses. */
+/**
+ * Key/value row in the app's own shape: label in a fixed-width left column, value left-aligned
+ * beside it, so values line up down the panel. Same sizes as the Camera name / Event time rows in
+ * Best Frame detail.
+ */
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"12px", minHeight:"21px" }}>
-      <span style={{ fontSize:"11px", color:"var(--gray-500)", flexShrink:0 }}>{label}</span>
-      <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textAlign:"right" }}>{value}</span>
+    <div style={{ display:"flex", alignItems:"center", padding:"3px 0" }}>
+      <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)", width:"92px", flexShrink:0 }}>{label}</span>
+      <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>{value}</span>
     </div>
   );
 }
@@ -3484,6 +3489,25 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
     <div className="vca-hide-scrollbar" style={{ width:"460px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER,
       padding:"20px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"18px" }}>
 
+      {/* Panel title, then the subject — the shape Route history (Redmap) and Inspection detail
+          (Best Frame) already use: a 16px/800 title row with its one control on the right. Dropping
+          this row made the panel quieter but also made it the only right-hand panel in the app
+          without a name. The ✕ stays a bare glyph, which is what Best Frame's own close control
+          is; the 37px filled square was the outlier. */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px" }}>
+        <p title="Primary Target와 선택한 연관자가 같은 프레임에 함께 찍힌 증거" style={{ margin:0, fontSize:"16px", fontWeight:800,
+          color:"var(--gray-900)", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</p>
+        <button onClick={onClose} aria-label="Close" style={{
+          width:"26px", height:"26px", flexShrink:0, padding:0,
+          backgroundColor:"transparent", border:"none", cursor:"pointer",
+          display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)",
+        }}>
+          <svg width="15" height="15" viewBox="0 0 18 18" fill="none">
+            <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
       {/* The pair, left-aligned. What was here — two faces mirrored around a chain icon in a
           circle, with TIER 2 LINK above it and a correlation line below — was a relationship
           *diagram*, and no monitoring tool draws one for two rows of data. Every record panel that
@@ -3504,21 +3528,11 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
             {meta.label} · {node.count} co-captures
           </span>
         </div>
-        {/* Close sits on the subject row, not on a title row of its own. A separate
-            "Co-capture evidence" heading at 16px/800 sat directly above these two names and read
-            as a second title competing with them, and the 37px filled square made dismissing the
-            panel the most prominent control in it. Every record panel in the references (Pin,
-            Juicebox, Circle) does it this way: subject as the header, bare ✕ beside it. */}
-        <button onClick={onClose} aria-label="Close" style={{
-          marginLeft:"auto", width:"26px", height:"26px", flexShrink:0, padding:0,
-          backgroundColor:"transparent", border:"none", cursor:"pointer",
-          display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)",
-        }}>
-          <svg width="15" height="15" viewBox="0 0 18 18" fill="none">
-            <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </button>
       </div>
+
+      {/* Blocks are separated by rules rather than boxed containers, the same way Best Frame's
+          detail panel separates its photo comparison / meta / analysis blocks. */}
+      <div style={{ height:"1px", backgroundColor:"var(--gray-200)" }} />
 
       {/* Where and when the two were captured together most, plus the span they cover. That is the
           whole of what detection times at a camera can support: a gap-based "companion
@@ -3526,9 +3540,9 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           passing three seconds and several metres apart. "Peak" rather than "Time of day" because
           the label has to say the value is the commonest one. The pin/sun/moon glyphs went with the
           stat tiles — in a key/value row the label already says what kind of thing the value is. */}
-      <div style={{ display:"flex", flexDirection:"column", gap:"3px" }}>
-        <PanelLabel title="함께 감지된 이벤트가 어느 장소·시간대에 몰려 있는지">Pattern</PanelLabel>
-        <div style={{ display:"flex", flexDirection:"column", gap:"1px", paddingTop:"4px" }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+        <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지">Capture pattern</PanelHeading>
+        <div style={{ paddingTop:"2px" }}>
           <DetailRow label="Status" value={
             <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
               padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{node.status.toUpperCase()}</span>
@@ -3550,7 +3564,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
           {/* "Event timeline" named the shape of the list, not its contents — every row here is
               one frame with both people in it, which is the whole reason the row exists. */}
-          <PanelLabel title="두 사람이 같은 프레임에 함께 찍힌 기록 — 최신순">Shared frames</PanelLabel>
+          <PanelHeading title="두 사람이 같은 프레임에 함께 찍힌 기록 — 최신순">Shared frames</PanelHeading>
           <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {events.length}</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
