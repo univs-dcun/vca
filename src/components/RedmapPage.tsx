@@ -994,6 +994,10 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
         {mode === "car" ? (
           /* ── VEHICLE mode fields ── */
           <>
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+
+            <div style={{ width: "1px", height: "24px", backgroundColor: "var(--gray-200)" }} />
+
             {/* License plate */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", whiteSpace: "nowrap" }}>License plate</span>
@@ -1020,10 +1024,6 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 )}
               </div>
             </div>
-
-            <div style={{ width: "1px", height: "24px", backgroundColor: "var(--gray-200)" }} />
-
-            <DateRangePicker value={dateRange} onChange={setDateRange} />
           </>
         ) : (
           /* ── PERSON mode fields ── */
