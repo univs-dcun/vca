@@ -259,19 +259,31 @@ function ExpandFrameIcon() {
 }
 
 function CameraIconXs() {
+  // The same glyph the BEST FRAME tab uses (public/icons/nav-bestframe.svg), paths and 22-unit
+  // viewBox unchanged so the two can't drift into being almost-the-same camera. That file is
+  // loaded as an <img> in the navbar with its stroke baked in, which is why the paths are inlined
+  // here instead: at this size the icon has to take its colour from the line of text beside it.
+  // Stroke is 2.2 rather than the original 1.5 — rendered at 12px the 22-unit viewBox scales by
+  // 0.55, so 1.5 would come out under a pixel wide.
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
-      <rect x="1.5" y="3.5" width="7" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M8.5 5.5L11 4V8L8.5 6.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" />
+    <svg width="12" height="12" viewBox="1 1 22 22" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M16 13L21.223 16.482C21.2983 16.5321 21.3858 16.5608 21.4761 16.5652C21.5664 16.5695 21.6563 16.5492 21.736 16.5065C21.8157 16.4639 21.8824 16.4003 21.9289 16.3228C21.9754 16.2452 22 16.1564 22 16.066V7.87C22 7.78202 21.9768 7.6956 21.9328 7.61945C21.8887 7.5433 21.8253 7.48012 21.7491 7.4363C21.6728 7.39248 21.5863 7.36956 21.4983 7.36985C21.4103 7.37015 21.324 7.39366 21.248 7.438L16 10.5"
+            stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14 6H4C2.89543 6 2 6.89543 2 8V16C2 17.1046 2.89543 18 4 18H14C15.1046 18 16 17.1046 16 16V8C16 6.89543 15.1046 6 14 6Z"
+            stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
 function ClockIconXs() {
+  // Same geometry as the clock on Best Frame's "Jump to" time control
+  // (BestFrameDetailPage), so the two screens don't each carry their own slightly different
+  // clock face. Stroke is 1.6 rather than that one's 1.4: this renders a 16-unit viewBox at
+  // 12px, so it scales by 0.75 and a 1.4 would come out lighter than the camera glyph beside it.
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
-      <circle cx="6" cy="6" r="4.4" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M6 3.8V6L7.8 7.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8 5v3l2 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -1548,6 +1560,12 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                       const index = timelineNewestFirst ? nodes.length - 1 - i : i;
                       const num = index + 1; // chronological step number — stable regardless of sort direction
                       const isLatest = index === nodes.length - 1;
+                      // Nothing precedes the oldest sighting, so it has no gap to report. Enforced
+                      // here rather than in the data because person-filter chips and per-hit
+                      // exclusions both change which sighting is first at runtime — and because the
+                      // values the mock data still carries on its earliest hits were gaps measured
+                      // from a synthetic origin node that no longer exists.
+                      const isOldest = index === 0;
                       // Two different measurements share one label, which the row makes clear:
                       // every other node shows the gap from the sighting before it (fixed once it
                       // happened), while the newest shows how long it has been since that sighting
@@ -1555,7 +1573,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                       // recorded gap until the clock starts on the client.
                       const elapsedText = isLatest && nowMs !== null
                         ? formatElapsed(nowMs - parseSgtStamp(node.date, node.time).getTime())
-                        : node.elapsed;
+                        : isOldest ? undefined : node.elapsed;
                       const isActive = node.hitIndex >= 0 && activeNode === node.hitIndex;
                       return (
                         <div
