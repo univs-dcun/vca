@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { recentSgtStamp } from "@/lib/time";
 
 export interface TrackingHit {
   lat: number;
@@ -42,15 +41,6 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-export const TRACKING_ORIGIN = {
-  lat: 1.3691,
-  lng: 103.8454,
-  label: "Ang Mo Kio",
-  // Relative, like every sighting in RedmapPage — a fixed calendar date here would drift until
-  // the trace's own starting point read as months before the sightings that follow it.
-  ...recentSgtStamp(4479, 49),
-  faceUrl: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=100&h=100&q=80",
-};
 
 interface StatusZone {
   id: string;
@@ -242,14 +232,12 @@ export default function RedmapMap({
       // ── TRACKING VIEW ─────────────────────────────────────────
       type RouteNode = { lat: number; lng: number; label: string; date: string; time: string; color: string; hitIndex: number };
 
-      // Normally every hit belongs to one trail (a single target's full path, anchored at
-      // TRACKING_ORIGIN). Redmap's person-filter chips can have more than one distinct person
-      // selected at once (see TrackingHit.groupId) — those draw as separate trails, each in its
-      // own color with no shared origin, instead of being stitched into one connected line
-      // between unrelated people.
+      // Normally every hit belongs to one trail (a single target's full path). Redmap's
+      // person-filter chips can have more than one distinct person selected at once (see
+      // TrackingHit.groupId) — those draw as separate trails, each in its own colour, instead of
+      // being stitched into one connected line between unrelated people.
       const allGroupIds = Array.from(new Set(hits.map((h) => h.groupId ?? "__default__")));
       const groupIds = visibleGroupIds ? allGroupIds.filter((gid) => visibleGroupIds.includes(gid)) : allGroupIds;
-      const isSingleGroup = groupIds.length <= 1;
 
       // Below this zoom level, nearby nodes crowd together — decluttering kicks in:
       // non-last nodes drop their label card (circle only), and the last node's
@@ -264,12 +252,12 @@ export default function RedmapMap({
         if (groupHits.length === 0) return;
         const color = groupHits[0].h.color ?? "var(--primary-400)";
 
-        const nodes: RouteNode[] = isSingleGroup
-          ? [
-              { lat: TRACKING_ORIGIN.lat, lng: TRACKING_ORIGIN.lng, label: TRACKING_ORIGIN.label, date: TRACKING_ORIGIN.date, time: TRACKING_ORIGIN.time, color, hitIndex: -1 },
-              ...groupHits.map(({ h, hitIndex }) => ({ lat: h.lat, lng: h.lng, label: h.mapLabel, date: h.date, time: h.time, color, hitIndex })),
-            ]
-          : groupHits.map(({ h, hitIndex }) => ({ lat: h.lat, lng: h.lng, label: h.mapLabel, date: h.date, time: h.time, color, hitIndex }));
+        // Sightings only. A fixed TRACKING_ORIGIN was prepended to single-target routes — the same
+        // hardcoded place and time for every search — and drew as an ordinary node, so a route
+        // appeared to begin at a camera that had never seen anyone.
+        const nodes: RouteNode[] = groupHits.map(({ h, hitIndex }) => ({
+          lat: h.lat, lng: h.lng, label: h.mapLabel, date: h.date, time: h.time, color, hitIndex,
+        }));
 
         const line = L.polyline(nodes.map((n) => [n.lat, n.lng]), {
           color,
@@ -297,7 +285,9 @@ export default function RedmapMap({
             iconSize: [14, 14], iconAnchor: [7, 7], className: "",
           });
           const arrowMarker = L.marker([lat, lng], { icon: arrowIcon, interactive: false }).addTo(map);
-          arrowMarker.setZIndexOffset(50);
+          // Below every node card. Cards are offset by index*100, so the first node's card sits at
+          // 0 — an arrow at 50 drew on top of it, through the label and the timestamp.
+          arrowMarker.setZIndexOffset(-1000);
           overlayLayersRef.current.push(arrowMarker);
         }
 

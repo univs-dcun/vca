@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import RedmapMap, { TRACKING_ORIGIN } from "./RedmapMap";
+import RedmapMap from "./RedmapMap";
 import type { RedmapMode as Mode, SimilarityLimit, HitResult, DateRange } from "@/types/redmap";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useToast } from "./Toast";
@@ -10,6 +10,17 @@ import RemoveImageButton from "./RemoveImageButton";
 import SidebarToggleIcon from "./SidebarToggleIcon";
 
 const BORDER = "1px solid var(--gray-200)";
+
+// The search window a screen opens with. An unbounded search — which is what an empty range meant
+// — is rarely what an operator wants and gives no clue why a result set is as large or as empty as
+// it is; with a window on the toolbar, the answer is visible without asking. Widen it to look
+// further back. Dates only, computed once, so a server pass and the client agree except across an
+// SGT midnight, and even then only on a default the user can see and change.
+const DEFAULT_SEARCH_DAYS = 7;
+const DEFAULT_DATE_RANGE: DateRange = {
+  start: recentSgtStamp(DEFAULT_SEARCH_DAYS * 24 * 60).date,
+  end: recentSgtStamp(0).date,
+};
 
 // Unlike BestFramePage's camera list (now sourced from the shared VIP_SIMULATION_CAMERAS pool —
 // see vcaStore.ts), these hits are intentionally hand-authored narrative content (specific face/
@@ -369,8 +380,12 @@ const DAY_HEADS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: DateRange) => void }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"start"|"end">("start");
-  const [viewYear, setViewYear] = useState(2026);
-  const [viewMonth, setViewMonth] = useState(5); // 0-indexed
+  // Opens on the month being edited, not a hardcoded one. This was pinned to June 2026 back when
+  // the mock sightings carried fixed June dates; they are relative to now since, so the calendar
+  // was opening three months away from anything it could select.
+  const initialView = (value.start ?? value.end ?? recentSgtStamp(0).date).split("-");
+  const [viewYear, setViewYear] = useState(parseInt(initialView[0], 10));
+  const [viewMonth, setViewMonth] = useState(parseInt(initialView[1], 10) - 1); // 0-indexed
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   useEscapeKey(() => setOpen(false), open);
@@ -568,7 +583,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   const { showToast } = useToast();
   const [mode, setMode] = useState<Mode>("person");
   const [similarity, setSimilarity] = useState<SimilarityLimit>(70);
-  const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
+  const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE);
   const [licensePlate, setLicensePlate] = useState("");
   const [faceImage, setFaceImage] = useState<string | null>(null);
   const [bodyImage, setBodyImage] = useState<string | null>(null);
@@ -819,7 +834,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   const handleReset = () => {
     setMode("person");
     setSimilarity(70);
-    setDateRange({ start: null, end: null });
+    setDateRange(DEFAULT_DATE_RANGE);
     setLicensePlate("");
     setFaceImage(null);
     setBodyImage(null);
@@ -1508,22 +1523,17 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                   {(() => {
                     // Only the currently-traced person(s) get a row here — an untraced lookalike's
                     // sightings would otherwise sit in the same flat list with nothing to show they
-                    // don't belong to who's actually being traced. The shared TRACKING_ORIGIN node
-                    // only makes sense for ONE target, so it's dropped once more than one distinct
-                    // person is being traced at once (see RedmapMap's identical rule).
+                    // don't belong to who's actually being traced.
                     const tracedHits = results
                       .map((hit, hitIndex) => ({ hit, hitIndex }))
                       .filter(({ hit }) => !showPersonChips || selectedPersonIds.has(hit.personId))
                       .filter(({ hit }) => !excludedHitIds.has(hit.id));
-                    const showOrigin = tracedHits.length > 0 && new Set(tracedHits.map((t) => t.hit.personId)).size <= 1;
+                    // Every node is a sighting from the results — no synthetic starting point.
+                    // A fixed TRACKING_ORIGIN used to be prepended here, the same hardcoded place,
+                    // photo and timestamp for every search regardless of who was being traced. It
+                    // was indistinguishable from a real detection, so a one-hit result read as two
+                    // and the route appeared to start somewhere nobody had been seen.
                     const nodes = [
-                      ...(showOrigin ? [{
-                        key: "origin", location: TRACKING_ORIGIN.label, fullLocation: TRACKING_ORIGIN.label,
-                        camera: undefined as string | undefined,
-                        date: TRACKING_ORIGIN.date, time: TRACKING_ORIGIN.time,
-                        faceUrl: TRACKING_ORIGIN.faceUrl, elapsed: undefined as string | undefined,
-                        hitIndex: -1, color: PERSON_COLORS[0],
-                      }] : []),
                       ...tracedHits.map(({ hit, hitIndex }) => ({
                         key: hit.id, location: hit.mapLabel, fullLocation: hit.location,
                         camera: hit.camera as string | undefined,
@@ -1638,7 +1648,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                   <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "16px", marginBottom: "2px", color: "var(--gray-500)" }}>
                                     {node.camera && <CameraIconXs />}
                                     <span title={node.camera} style={{
-                                      fontSize: "12px", fontWeight: 600, color: "var(--gray-500)",
+                                      fontSize: "12px", fontWeight: 700, fontFamily: "monospace", color: "var(--gray-500)",
                                       whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                                     }}>{node.camera ?? ""}</span>
                                   </div>
@@ -1651,8 +1661,8 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                        style={{ display: "flex", alignItems: "center", gap: "4px", height: "16px", color: "var(--gray-500)" }}>
                                     <ClockIconXs />
                                     <span style={{
-                                      fontSize: "12px", fontWeight: 700, color: "var(--gray-500)",
-                                      fontFamily: "monospace", whiteSpace: "nowrap",
+                                      fontSize: "12px", fontWeight: 600, color: "var(--gray-500)",
+                                      whiteSpace: "nowrap",
                                     }}>
                                       {(sgtYear !== null && node.date.slice(0, 4) !== sgtYear ? node.date : node.date.slice(5))} {node.time}
                                     </span>
