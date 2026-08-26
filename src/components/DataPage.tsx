@@ -3545,22 +3545,17 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         </div>
       </div>
 
-      {/* Blocks are separated by rules rather than boxed containers, the same way Best Frame's
-          detail panel separates its photo comparison / meta / analysis blocks.
-
-          The negative margins cancel part of the column's own 18px gap: 18 + rule + 18 put 37px
-          between the block above and the analytics heading, which read as a page break rather than
-          a section one. 9 above + 1px rule + 10 below = 20px exactly; the 1px asymmetry keeps both
-          edges on whole pixels so the rule stays crisp. Negative margin rather than a smaller
-          column gap because 18px is right everywhere else in the panel. */}
-      <div style={{ height:"1px", backgroundColor:"var(--gray-200)", margin:"-9px 0 -8px" }} />
-
       {/* Where and when the two were captured together most, plus the span they cover. That is the
           whole of what detection times at a camera can support: a gap-based "companion
           probability" also lived here, but a time gap cannot separate walking side by side from
           passing three seconds and several metres apart. "Peak" rather than "Time of day" because
           the label has to say the value is the commonest one. */}
-      <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+      {/* Filled instead of ruled. A fill already says "these belong together", so the 1px rules
+          that used to bracket this block went with it — a tinted box between two rules was the
+          same boundary drawn twice. 2px of margin on top of the column's 18px gap keeps the 20px
+          of air the block had when the rules were doing the separating. */}
+      <div style={{ display:"flex", flexDirection:"column", gap:"10px", margin:"2px 0",
+        backgroundColor:"var(--gray-50)", borderRadius:"8px", padding:"14px" }}>
         <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지">Relationship analytics</PanelHeading>
         <div style={{ display:"flex", gap:"10px" }}>
           <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
@@ -3586,7 +3581,9 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
             the number is context for the span, not the panel's headline. */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", fontSize:"11px" }}>
           <span style={{ color:"var(--gray-400)" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time}</strong></span>
-          <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--gray-700)", backgroundColor:"var(--gray-100)",
+          {/* gray-200, not gray-100: on the block's gray-50 fill a gray-100 chip was one step of
+              tint away from invisible. */}
+          <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--gray-700)", backgroundColor:"var(--gray-200)",
             padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
             {events.length} FRAMES
           </span>
@@ -3594,11 +3591,6 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         </div>
       </div>
 
-      {/* Section break, same margins as the rule above so the analytics block sits in an even
-          20px of air top and bottom. */}
-      <div style={{ height:"1px", backgroundColor:"var(--gray-200)", margin:"-9px 0 -8px" }} />
-
-      {/* ── Section 4: accordion timeline ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
           {/* "Event timeline" named the shape of the list, not its contents — every row here is
