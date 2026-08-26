@@ -3546,8 +3546,13 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
       </div>
 
       {/* Blocks are separated by rules rather than boxed containers, the same way Best Frame's
-          detail panel separates its photo comparison / meta / analysis blocks. */}
-      <div style={{ height:"1px", backgroundColor:"var(--gray-200)" }} />
+          detail panel separates its photo comparison / meta / analysis blocks.
+
+          The -6px cancels part of the column's own 18px gap: 18 + rule + 18 put 37px between the
+          block above and the analytics heading, which read as a page break rather than a section
+          one. Negative margin rather than a smaller column gap because the gap is right everywhere
+          else in the panel. */}
+      <div style={{ height:"1px", backgroundColor:"var(--gray-200)", margin:"-6px 0" }} />
 
       {/* Where and when the two were captured together most, plus the span they cover. That is the
           whole of what detection times at a camera can support: a gap-based "companion
@@ -3580,9 +3585,9 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
         </div>
       </div>
 
-      {/* Section break — 18px of column gap alone reads as spacing within one block, not
-          between two. */}
-      <div style={{ height:"1px", backgroundColor:"var(--gray-200)" }} />
+      {/* Section break, same -6px as the rule above so the analytics block sits in an even 24px
+          of air top and bottom. */}
+      <div style={{ height:"1px", backgroundColor:"var(--gray-200)", margin:"-6px 0" }} />
 
       {/* ── Section 4: accordion timeline ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
