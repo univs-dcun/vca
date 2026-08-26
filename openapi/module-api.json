@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA Module API (내부 계약)",
-    "version": "0.8.0",
-    "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표 (예외: POST /persons/search·POST /targets/track-on-map·POST /persons/reid-search는 60초(v1.2/v1.4/v1.7), GET /videos/{id}/content는 스트리밍이라 최초 응답까지만 적용(v1.3))\n- (v1.3) GET /videos/{videoId}/content는 HTTP Range 요청(206 Partial Content)을 반드시 지원 — 브라우저 video 시킹의 전제. 브라우저 재생 가능한 H.264 MP4 서빙은 모듈 책임(원본 코덱 상이 시 트랜스코딩 포함)\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
+    "version": "0.9.0",
+    "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표 (예외: POST /persons/search·POST /targets/track-on-map·POST /persons/reid-search·POST /targets/associates·POST /targets/associate-evidence는 60초(v1.2/v1.4/v1.7/v1.8), GET /videos/{id}/content는 스트리밍이라 최초 응답까지만 적용(v1.3))\n- (v1.3) GET /videos/{videoId}/content는 HTTP Range 요청(206 Partial Content)을 반드시 지원 — 브라우저 video 시킹의 전제. 브라우저 재생 가능한 H.264 MP4 서빙은 모듈 책임(원본 코덱 상이 시 트랜스코딩 포함)\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
     "contact": { "name": "계약 담당: 박상훈 (백엔드/브로커)" }
   },
   "servers": [
@@ -16,7 +16,7 @@
     { "name": "cameras" },
     { "name": "stats" },
     { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33). v1.6(UV-38)에서 DATA Live Monitoring용으로 확장 — 감지 이벤트에 faceUrl(얼굴 크롭)·gender·age(모듈 추정) 추가, 얼굴 크롭 바이너리 1종 신설. 전신 크롭은 기존 snapshotUrl 재사용" },
-    { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34) + Track on Map 대상 추적 검색 (계약 v1.4, UV-36) + Re-ID 인물 검색 (계약 v1.7, UV-39 — 유사도 내림차순 상위 최대 20, 필터는 전부 모듈 적용). 차량 번호 검색은 구현 방식 미확정으로 범위 제외 — 확정 시 별도 계약 추가" },
+    { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34) + Track on Map 대상 추적 검색 (계약 v1.4, UV-36) + Re-ID 인물 검색 (계약 v1.7, UV-39 — 유사도 내림차순 상위 최대 20, 필터는 전부 모듈 적용) + RedFace 동반 감지 분석 (계약 v1.8, UV-40 — 동료 목록 상위 최대 30·페어 집계 요약). 차량 번호 검색은 구현 방식 미확정으로 범위 제외 — 확정 시 별도 계약 추가" },
     { "name": "analyze", "description": "Analyze Frame 베스트 프레임 이력 (계약 v1.5, UV-37) — 사이트 로컬 분(minute) 단위 베스트 프레임 목록(초당 1장·최대 60장)과 프레임 내 tracked 대상 조회. 카메라·업로드 비디오 공통(비디오는 recordedAt 절대 시각 축), 이미지는 대상 아님" },
     { "name": "images", "description": "BEST FRAME Image list (계약 v1.3, UV-35) — 타 서비스가 업로드하고 모듈이 저장·분석하는 이미지의 조회" },
     { "name": "videos", "description": "BEST FRAME Video list (계약 v1.3, UV-35) — 업로드 영상의 목록·MP4 재생·프레임별 대상 조회" }
@@ -484,6 +484,64 @@
           },
           "404": {
             "description": "source 매체 또는 targetId를 찾을 수 없음 (만료·삭제 포함)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/targets/associates": {
+      "post": {
+        "operationId": "listTargetAssociates",
+        "summary": "RedFace 동반 감지 인물 목록 — primary target과 함께 감지된 인물 집계",
+        "description": "DATA RedFace 탭의 관계 그래프 데이터 (계약 v1.8). primary target(카메라 감지)과 기간 내 **같은 프레임에서 함께 감지된 인물**을 인물 단위로 집계해 동반 감지 횟수(coCaptures) 내림차순 **상위 최대 30명**을 반환한다.\n- 대상 참조는 v1.4 Track on Map과 동일 방식(source + targetId, 이미지 업로드 없음) — targetId는 감지 eventId. RedFace 진입 경로(Re-ID 검색 결과·Live Monitoring 카드)가 모두 이 값을 이미 가진다\n- 기간(from/to)을 생략하면 사이트 로컬(Asia/Singapore) 최근 7일 — 실제 적용 구간은 응답 applied로 에코\n- Zone 분류(>100 / 10~99 / <10)·최소 횟수 슬라이더·정렬 전환·이름 검색은 화면 책임 — 모듈은 정렬된 상위 목록만 제공한다\n- 동반 감지 인물이 없으면 빈 associates (오류 아님)\n- associateId는 모듈 발급 인물 키 — 같은 요청 조건에서 같은 인물이면 같은 값이어야 하고(상세 조회 /targets/associate-evidence의 참조 키), 응답 후 최소 1시간 유효\n- faceUrl은 **대표 동반 감지의 기존 크롭 라우트 재사용** — /detections/{eventId}/face(v1.6), 그 인물의 얼굴 검출 감지가 없으면 /detections/{eventId}/snapshot. 신규 바이너리 라우트 없음, 프록시가 /api로 재작성\n- 동기 처리: 프록시가 60초 타임아웃으로 호출 (검색·집계 계열 공통 예외)",
+        "tags": ["search"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/AssociatesRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK — 동반 감지 인물이 없으면 빈 associates 배열",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AssociatesResult" } }
+            }
+          },
+          "404": {
+            "description": "source 매체 또는 targetId를 찾을 수 없음 (만료·삭제 포함)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/targets/associate-evidence": {
+      "post": {
+        "operationId": "getAssociateEvidence",
+        "summary": "RedFace Joint Evidence — primary target·동료 페어의 동반 감지 집계 요약",
+        "description": "동료 1명 클릭(피라미드 노드·Data Grid Inspect) 시 우측 인스펙터에 보여줄 페어 요약 (계약 v1.8). 원본 이벤트 전체(수백 건 가능)가 아닌 **모듈이 계산한 집계 요약**을 반환한다 — 전수 데이터는 모듈만 가지므로 통계도 모듈 책임.\n- 요청은 /targets/associates와 같은 컨텍스트(source·targetId·기간)에 associateId를 더한 것 — 모듈이 무상태여도 페어를 재특정할 수 있다\n- pattern.peakPeriod의 시간대 구분은 사이트 로컬 기준: morning 05~12시 / afternoon 12~17시 / evening 17~21시 / night 21~05시\n- locations는 동반 감지 장소별 그룹 — count 내림차순, 각 그룹의 events는 최신순 최대 5건(대표 표본). count 합계는 totalEvents와 같고 events에 담긴 건수와는 무관하다\n- 화면 문구('Mostly seen together at … mainly during … hours')는 pattern 값으로 화면이 조립한다\n- 동기 처리: 프록시가 60초 타임아웃으로 호출 (검색·집계 계열 공통 예외)",
+        "tags": ["search"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/AssociateEvidenceRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AssociateEvidence" } }
+            }
+          },
+          "404": {
+            "description": "source·targetId 또는 associateId를 찾을 수 없음 (만료 포함 — 목록 재조회 필요)",
             "content": {
               "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
             }
@@ -1317,6 +1375,128 @@
           "truncated": { "type": "boolean", "default": false, "description": "상한(기본 50)에 걸려 잘렸으면 true" },
           "applied": { "$ref": "#/components/schemas/TrackOnMapApplied" },
           "target": { "$ref": "#/components/schemas/TrackedTargetSummary" }
+        }
+      },
+      "AssociatesRequest": {
+        "type": "object",
+        "description": "RedFace 동료 목록 요청 (계약 v1.8). 대상 참조는 v1.4와 동일(source + targetId=감지 eventId), 기간 생략 시 사이트 로컬 최근 7일",
+        "required": ["source", "targetId"],
+        "properties": {
+          "source": { "$ref": "#/components/schemas/TrackSource" },
+          "targetId": { "type": "string", "description": "primary target의 감지 eventId — Re-ID 검색 매치·Live Monitoring 카드가 가진 값 그대로" },
+          "from": { "type": "string", "format": "date-time", "nullable": true, "description": "집계 시작 (생략 시 최근 7일)" },
+          "to": { "type": "string", "format": "date-time", "nullable": true, "description": "집계 끝 (생략 시 지금)" }
+        }
+      },
+      "AssociateTopCamera": {
+        "type": "object",
+        "description": "이 동료와 가장 많이 함께 잡힌 카메라 — Data Grid의 Top camera node 열",
+        "required": ["cameraId", "cameraName", "count"],
+        "properties": {
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "cameraName": { "type": "string" },
+          "count": { "type": "integer", "minimum": 1, "description": "이 카메라에서의 동반 감지 횟수" }
+        }
+      },
+      "Associate": {
+        "type": "object",
+        "description": "동반 감지 인물 1명 (계약 v1.8). Zone 배치(>100/10~99/<10)는 화면이 coCaptures로 분류한다",
+        "required": ["associateId", "faceUrl", "coCaptures", "topCamera", "firstSeenAt", "lastSeenAt"],
+        "properties": {
+          "associateId": { "type": "string", "description": "모듈 발급 인물 키 — /targets/associate-evidence 참조 키, 화면 표시 ID로도 사용. 응답 후 최소 1시간 유효" },
+          "faceUrl": { "type": "string", "description": "대표 동반 감지의 크롭 상대경로 — /detections/{eventId}/face (얼굴 검출 감지가 없으면 /detections/{eventId}/snapshot). 프록시가 /api로 재작성" },
+          "coCaptures": { "type": "integer", "minimum": 1, "description": "기간 내 동반 감지 총횟수 — 정렬 키(내림차순)이자 Zone 분류 기준" },
+          "topCamera": { "$ref": "#/components/schemas/AssociateTopCamera" },
+          "firstSeenAt": { "type": "string", "format": "date-time", "description": "기간 내 첫 동반 감지 시각" },
+          "lastSeenAt": { "type": "string", "format": "date-time", "description": "기간 내 마지막 동반 감지 시각" },
+          "matchedVip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }], "description": "동료가 등록 인물이면 매칭 정보 — null이면 미등록" }
+        }
+      },
+      "AssociatesResult": {
+        "type": "object",
+        "description": "RedFace 동료 목록 (계약 v1.8). associates는 coCaptures 내림차순 상위 최대 30명",
+        "required": ["searchId", "applied", "target", "associates"],
+        "properties": {
+          "searchId": { "type": "string", "description": "집계 실행 ID — 로그 추적·향후 비동기 전환 대비" },
+          "applied": {
+            "type": "object",
+            "description": "모듈이 실제 적용한 집계 구간 에코",
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "type": "string", "format": "date-time" },
+              "to": { "type": "string", "format": "date-time" }
+            }
+          },
+          "target": { "$ref": "#/components/schemas/TrackedTargetSummary" },
+          "associates": { "type": "array", "items": { "$ref": "#/components/schemas/Associate" }, "description": "coCaptures 내림차순, 최대 30명 — 없으면 빈 배열" }
+        }
+      },
+      "AssociateEvidenceRequest": {
+        "type": "object",
+        "description": "Joint Evidence 요청 (계약 v1.8) — 동료 목록 요청과 같은 컨텍스트 + associateId",
+        "required": ["source", "targetId", "associateId"],
+        "properties": {
+          "source": { "$ref": "#/components/schemas/TrackSource" },
+          "targetId": { "type": "string", "description": "primary target의 감지 eventId" },
+          "associateId": { "type": "string", "description": "/targets/associates 응답의 associateId" },
+          "from": { "type": "string", "format": "date-time", "nullable": true, "description": "집계 시작 (생략 시 최근 7일) — 목록 요청과 같은 값을 보낼 것" },
+          "to": { "type": "string", "format": "date-time", "nullable": true, "description": "집계 끝 (생략 시 지금)" }
+        }
+      },
+      "EvidenceLocationEvent": {
+        "type": "object",
+        "description": "장소 그룹 내 동반 감지 표본 1건",
+        "required": ["cameraId", "capturedAt"],
+        "properties": {
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "capturedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "EvidenceLocation": {
+        "type": "object",
+        "description": "동반 감지 장소 그룹 — count 내림차순. events는 최신순 최대 5건 표본(전량 아님)",
+        "required": ["locationId", "label", "count", "events"],
+        "properties": {
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "label": { "type": "string", "description": "장소 표시명 (해당 위치 카메라의 대표 이름)" },
+          "count": { "type": "integer", "minimum": 1, "description": "이 장소의 동반 감지 총횟수 — 전 그룹 합계 = totalEvents" },
+          "events": { "type": "array", "items": { "$ref": "#/components/schemas/EvidenceLocationEvent" }, "description": "최신순 최대 5건" }
+        }
+      },
+      "EvidencePattern": {
+        "type": "object",
+        "description": "동반 패턴 집계 — 화면이 'Mostly seen together at {topLocation.label} ({count}x), mainly during {peakPeriod.bucket} hours ({ratio}%)' 문구를 조립한다",
+        "required": ["topLocation", "peakPeriod"],
+        "properties": {
+          "topLocation": {
+            "type": "object",
+            "required": ["locationId", "label", "count"],
+            "properties": {
+              "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+              "label": { "type": "string" },
+              "count": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "peakPeriod": {
+            "type": "object",
+            "required": ["bucket", "ratio"],
+            "properties": {
+              "bucket": { "type": "string", "enum": ["morning", "afternoon", "evening", "night"], "description": "사이트 로컬 기준 최다 시간대 — morning 05~12 / afternoon 12~17 / evening 17~21 / night 21~05" },
+              "ratio": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "description": "전체 동반 감지 중 해당 시간대 비율" }
+            }
+          }
+        }
+      },
+      "AssociateEvidence": {
+        "type": "object",
+        "description": "Joint Evidence 집계 요약 (계약 v1.8) — 원본 이벤트 전량이 아닌 모듈 계산 요약",
+        "required": ["totalEvents", "firstSeenAt", "lastSeenAt", "pattern", "locations"],
+        "properties": {
+          "totalEvents": { "type": "integer", "minimum": 1, "description": "기간 내 페어 동반 감지 총횟수 — 목록의 coCaptures와 동일 값" },
+          "firstSeenAt": { "type": "string", "format": "date-time" },
+          "lastSeenAt": { "type": "string", "format": "date-time" },
+          "pattern": { "$ref": "#/components/schemas/EvidencePattern" },
+          "locations": { "type": "array", "items": { "$ref": "#/components/schemas/EvidenceLocation" }, "description": "장소 그룹 — count 내림차순" }
         }
       },
       "AnalysisTags": {
