@@ -120,6 +120,17 @@ firstSeen/lastSeen/label 실값 폴백) + JointEvidencePanel(liveRef+associateId
 Live Monitoring hover RedFace 버튼 = 위 seedCard 딥링크로 라이브 배선 완료 (UV-38 주입의
 onNavigateTab 경로 재사용 — 별도 변경 없음).
 
+BEST FRAME 실영상 타일 주입(UV-43, 계약 v0.9.0 Camera.streamUrl): types/detection.ts CamData에
+optional streamUrl + BestFramePage CameraCard 피드 분기 확장(videoUrl → streamUrl(CameraStreamFeed,
+WHEP 재생·실패 시 bestframe img 폴백) → img). 데이터 공급은 useBestFrameLive(getCameras 1회 조회로
+streamUrl 맵 구성 → dataFor에 동봉). 플레이어는 lib/vca-bridge/CameraStreamFeed.tsx(백엔드 소유,
+기획자 정식 타일이 대체할 임시 구현) — 시작 400ms 지연(그리드 전환·StrictMode의 순간 마운트가
+WHEP 유령 세션을 만들지 않게), requestVideoFrameCallback 첫 프레임 감지, connectionState 워치독,
+15초 재시도. vite.config.ts에 /streams 프록시(:8889 MediaMTX) 추가.
+DataPage 타입 수정(UV-40 잔여): recentList/vipList 라이브·mock 유니언에서 `in` 내로잉이 TS
+미선언 속성 규칙으로 깨지던 것을 isLiveRecentTarget/isLiveVipOption 타입 프레디킷으로 교체
+(tsc -b 0 errors — npm run build 전제).
+
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)
 - `lib/vcaStore.ts` addEvent — 확정 행 규칙(VIP 누적 + 카메라 전환 기준 Tracking 별개 1행, UV-31)

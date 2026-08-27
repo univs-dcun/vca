@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA Admin API (초안 — 기획자 협의 대상)",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "VCA Admin 화면 ↔ Admin 백엔드 계약 초안 (docs/design-vca-admin.md §6.1, UV-41/UV-42).\n\n구조: [Admin 화면] --이 계약--> [Admin 백엔드] --provisioning(module-api.json v0.10.0)--> [분석 모듈]\n\n상태: **P1 초안** — Admin 화면은 기획자가 기획·개발 중이라 이 계약은 협의 후 확정한다. 확정 전까지 필드 추가·이름 변경 가능. P2(미디어 서버 동기화)·P3(동영상·이미지 업로드)에서 리소스가 추가된다.\n\n공통 규약:\n- 응답 envelope은 플랫폼 공통 { success, data, message, code } — VCA 공개 계약(openapi.json)과 동일\n- 오류 코드는 ADM-XXXX 대역 (ADM-4001 본문 검증, ADM-4040 카메라 없음, ADM-5000 내부 오류)\n- cameraId·locationId는 ^[a-z0-9-]{1,64}$ (플랫폼 공통), cameraId 발급 주체는 Admin\n\n민감정보 경계 (설계 §3):\n- password는 쓰기 전용 — 어떤 응답에도 없고 hasCredential로 설정 여부만 알린다\n- rtspUrl·ip·자격증명은 Admin 화면·Admin DB·모듈 내부 채널 전용 — VCA 공개 계약(브라우저 대시보드)에는 절대 노출하지 않는다\n\n미결 (설계 §8): Admin 인증(로그인/권한) — 방식 확정 시 이 계약에 보안 스킴 추가",
     "contact": { "name": "계약 담당: 박상훈 (백엔드)" }
   },
@@ -11,7 +11,7 @@
   ],
   "tags": [
     { "name": "cameras", "description": "카메라 원장 CRUD — Old VCA Add New Camera 폼 기준. Source Type(AI Camera)·Associated Server는 확정(2026-08-27)에 따라 제외, 필요 시 additive로 확장" },
-    { "name": "provision", "description": "모듈 provisioning 동기화 — 원장 변경 시 자동 push되므로 평상시 호출 불필요. 모듈이 내려가 있던 동안의 변경을 따라잡는 수동 재동기화·상태 확인용" }
+    { "name": "provision", "description": "동기화 — 원장 변경 시 두 대상(분석 모듈 provisioning + 미디어 서버 스트림 path, v0.2.0/UV-43)에 자동 push되므로 평상시 호출 불필요. 대상이 내려가 있던 동안의 변경을 따라잡는 수동 재동기화·상태 확인용" }
   ],
   "paths": {
     "/admin/api/cameras": {
@@ -137,11 +137,11 @@
     "/admin/api/provision/sync": {
       "post": {
         "operationId": "syncProvision",
-        "summary": "모듈 provisioning 수동 재동기화",
+        "summary": "수동 재동기화 (모듈 provisioning + 미디어 서버 path)",
         "tags": ["provision"],
         "responses": {
           "200": {
-            "description": "OK — synced가 false면 모듈 미응답 (원장은 그대로, 재시도 가능)",
+            "description": "OK — synced가 false면 둘 중 하나 이상 미응답 (원장은 그대로, 재시도 가능)",
             "content": {
               "application/json": {
                 "schema": {
@@ -160,7 +160,7 @@
     "/admin/api/provision/status": {
       "get": {
         "operationId": "getProvisionStatus",
-        "summary": "마지막 provisioning 동기화 상태",
+        "summary": "마지막 동기화 상태 (대상별)",
         "tags": ["provision"],
         "responses": {
           "200": {
@@ -170,7 +170,7 @@
                 "schema": {
                   "allOf": [
                     { "$ref": "#/components/schemas/Envelope" },
-                    { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/ProvisionSyncState" } } }
+                    { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SyncTargets" } } }
                   ]
                 }
               }
@@ -252,12 +252,22 @@
           "synced": { "type": "boolean", "description": "마지막 시도가 성공했고 이후 실패가 없는지" }
         }
       },
+      "SyncTargets": {
+        "type": "object",
+        "description": "동기화 대상별 상태 — module: 분석 모듈 provisioning (계약 v1.9), media: 미디어 서버 스트림 path (v0.2.0, UV-43)",
+        "required": ["module", "media"],
+        "properties": {
+          "module": { "$ref": "#/components/schemas/ProvisionSyncState" },
+          "media": { "$ref": "#/components/schemas/ProvisionSyncState" }
+        }
+      },
       "ProvisionSyncResult": {
         "type": "object",
-        "required": ["synced", "state"],
+        "required": ["synced", "module", "media"],
         "properties": {
-          "synced": { "type": "boolean" },
-          "state": { "$ref": "#/components/schemas/ProvisionSyncState" }
+          "synced": { "type": "boolean", "description": "두 대상 모두 성공했는지" },
+          "module": { "$ref": "#/components/schemas/ProvisionSyncState" },
+          "media": { "$ref": "#/components/schemas/ProvisionSyncState" }
         }
       }
     }

@@ -8,7 +8,7 @@ import type { TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
 // 데이터 연결(UV-39): Re-ID 검색·VIP Quick Select·최근 검색 대상·팝업 이동 경로 — lib/vca-bridge 소유
 import {
   searchReid, useReidRecentTargets, useReidVips, reidTrajectory,
-  type ReidSearchView, type ReidTrajectoryRow,
+  type ReidRecentTarget, type ReidSearchView, type ReidTrajectoryRow, type ReidVipOption,
 } from "../../../lib/vca-bridge/reidAnalysis";
 // 데이터 연결(UV-40): RedFace 동반 감지 동료 목록·Joint Evidence 집계 — lib/vca-bridge 소유
 import {
@@ -1217,7 +1217,8 @@ interface SearchFilterState {
   // recentList/vipList는 화면이 렌더할 최종 목록(라이브 우선, mock 폴백)을 ReIDContent가 결정해 넘긴다.
   faceFile?: File | null; setFaceFile?: (f: File | null) => void;
   bodyFile?: File | null; setBodyFile?: (f: File | null) => void;
-  recentList?: typeof RECENT_TARGETS_EN;
+  // 라이브 항목(ReidRecentTarget)은 재검색용 원본 입력(input)을 가진다 — mock 항목과의 구분 키
+  recentList?: Array<(typeof RECENT_TARGETS_EN)[number] | ReidRecentTarget>;
   vipList?: typeof VIP_QUICK;
   cameraOptions?: string[];
 }
@@ -1616,6 +1617,13 @@ const RECENT_TARGETS_EN = [
   { face: RECENT_TARGETS[2].face, body: RECENT_TARGETS[2].body, label:"Target #092",  time:"yesterday 18:30", gender:"Female", apparel:"Long Sleeve", props: ["Hat"] },
 ];
 
+// 라이브 최근 검색·VIP 항목 판별 (UV-39) — 라이브 항목만 원본 입력(input)·vipId를 가진다.
+// `in` 단독으로는 mock 멤버가 유니언에서 제거되지 않아(TS 미선언 속성 내로잉) 프레디킷으로 좁힌다
+const isLiveRecentTarget = (t: (typeof RECENT_TARGETS_EN)[number] | ReidRecentTarget): t is ReidRecentTarget =>
+  "input" in t;
+const isLiveVipOption = (v: (typeof VIP_QUICK)[number] | ReidVipOption): v is ReidVipOption =>
+  "vipId" in v;
+
 function PersonIconSm() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -1990,7 +1998,8 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
   const [bodyFile, setBodyFile] = useState<File | null>(null);
   const [liveResults, setLiveResults] = useState<ReidSearchView | null>(null);
   const searchSeq = useRef(0); // 늦게 도착한 이전 검색 응답이 최신 결과를 덮지 않게
-  const recentList = liveVips ? liveRecent : RECENT_TARGETS_EN;
+  const recentList: Array<(typeof RECENT_TARGETS_EN)[number] | ReidRecentTarget> =
+    liveVips ? liveRecent : RECENT_TARGETS_EN;
   const vipList = liveVips ?? VIP_QUICK;
   // 라이브 모드에서 카메라 필터 옵션 = 실제 카메라(스토어 — 라이브에서는 code=cameraId)
   const storeCams = useVcaStore(s => s.cameras);
@@ -2047,10 +2056,10 @@ function ReIDContent({ seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGo
     const recentSel = selectedTarget >= 0 ? recentList[selectedTarget] : null;
     const seq = ++searchSeq.current;
     void searchReid({
-      vipId: (vipSel && "vipId" in vipSel ? vipSel.vipId : null)
-        ?? (recentSel && "input" in recentSel ? recentSel.input.vipId : null),
-      face: (recentSel && "input" in recentSel ? recentSel.input.face : null) ?? faceFile,
-      body: (recentSel && "input" in recentSel ? recentSel.input.body : null) ?? bodyFile,
+      vipId: (vipSel && isLiveVipOption(vipSel) ? vipSel.vipId : null)
+        ?? (recentSel && isLiveRecentTarget(recentSel) ? recentSel.input.vipId : null),
+      face: (recentSel && isLiveRecentTarget(recentSel) ? recentSel.input.face : null) ?? faceFile,
+      body: (recentSel && isLiveRecentTarget(recentSel) ? recentSel.input.body : null) ?? bodyFile,
       dateRange, threshold, camera, gender, apparel, props,
     }).then(v => { if (v && searchSeq.current === seq) setLiveResults(v); });
   };
@@ -2280,7 +2289,8 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   const storeCams = useVcaStore(s => s.cameras);
   const cameraOptions = liveVips ? storeCams.map(c => c.code) : undefined;
   const vipList = liveVips ?? VIP_QUICK;
-  const recentList = liveVips ? liveRecent.slice(0, 2) : RECENT_TARGETS_EN.slice(0, 2);
+  const recentList: Array<(typeof RECENT_TARGETS_EN)[number] | ReidRecentTarget> =
+    liveVips ? liveRecent.slice(0, 2) : RECENT_TARGETS_EN.slice(0, 2);
   const [faceFile, setFaceFile] = useState<File|null>(null);
   const [bodyFile, setBodyFile] = useState<File|null>(null);
   const [liveCands, setLiveCands] = useState<RedfaceCandidate[]|null>(null);
@@ -2339,11 +2349,11 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
       if (searchType === "PERSON") {
         const vipSel = activeVIP >= 0 ? vipList[activeVIP] : null;
         const recentSel = selectedTarget >= 0 ? recentList[selectedTarget] : null;
-        const recentInput = recentSel && "input" in recentSel ? recentSel.input : null;
+        const recentInput = recentSel && isLiveRecentTarget(recentSel) ? recentSel.input : null;
         live = await searchReid({
           face: recentInput ? recentInput.face : faceFile,
           body: recentInput ? recentInput.body : bodyFile,
-          vipId: vipSel && "vipId" in vipSel ? vipSel.vipId : recentInput?.vipId ?? null,
+          vipId: vipSel && isLiveVipOption(vipSel) ? vipSel.vipId : recentInput?.vipId ?? null,
           dateRange, threshold, camera, gender, apparel, props,
         });
       }

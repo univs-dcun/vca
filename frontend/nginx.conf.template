@@ -24,4 +24,14 @@ server {
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto $scheme;
     }
+
+    # /streams → 미디어 서버(MediaMTX WebRTC/WHEP)로 프록시 — 계약 v0.9.0 Camera.streamUrl (UV-43).
+    # 브라우저는 /streams/{cameraId}/whep 하나만 바라본다 (dev에서는 Vite 프록시가 동일 역할).
+    location /streams/ {
+        proxy_pass         ${MEDIA_UPSTREAM}/;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
 }

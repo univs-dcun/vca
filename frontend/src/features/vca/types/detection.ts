@@ -37,6 +37,8 @@ export interface CamData {
   bgUrl?: string;
   /** 업로드 비디오 타일 (라이브, 계약 v1.3 — vca-bridge가 공급). 있으면 bgUrl 대신 video로 재생 */
   videoUrl?: string;
+  /** 카메라 실시간 스트림 (라이브, 계약 v0.9.0 — vca-bridge가 공급, UV-43). 있으면 bestframe 대신 WHEP 재생, 실패 시 bgUrl 폴백 */
+  streamUrl?: string | null;
   /** 업로드 비디오 촬영 시작 시각 (라이브, 계약 v1.5) — Analyze Frame의 절대 시각 축 */
   recordedAt?: string;
   detections: Detection[];

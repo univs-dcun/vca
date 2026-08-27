@@ -9,7 +9,7 @@
 // - 타일 프레임: 선택된 카메라만 bestframe 토픽 개별 구독 (SPEC §3.5 — 와일드카드 금지)
 // - 타깃 패널: REST 최근 감지 시딩(카메라 선택 시 1회) + detections 델타를 eventId로 병합
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getCameraDetections } from '../../api/generated/cameras/cameras'
+import { getCameraDetections, getCameras } from '../../api/generated/cameras/cameras'
 import type { DetectionEventRow } from '../../api/generated/model'
 import type { CamData, Camera as ScreenCamera, DetType, Detection as ScreenDetection } from '../../features/vca/types/detection'
 import { useVcaStore } from '../../features/vca/lib/vcaStore'
@@ -76,6 +76,23 @@ export function useBestFrameLive(selectedIds: string[]): {
 
   useEffect(() => onConnectionStatusChange(setConn), [])
   const isLive = conn === 'connected'
+
+  // 카메라 streamUrl 조회 (계약 v0.9.0, UV-43) — REST에만 있는 additive 필드라 MQTT status로는
+  // 못 받는다. 1회 스냅샷이면 충분 — 스트림 path의 등장/소멸은 재접속 주기의 관심사가 아니다.
+  // REST 미기동·구버전 프록시(필드 없음)면 빈 맵 → 전 카메라 bestframe 폴백.
+  const [streamUrls, setStreamUrls] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    if (!isLive) return
+    getCameras({ size: 200 })
+      .then((res) => {
+        const map = new Map<string, string>()
+        for (const c of res.data?.content ?? []) {
+          if (c.streamUrl) map.set(c.cameraId, c.streamUrl)
+        }
+        setStreamUrls(map)
+      })
+      .catch(() => { /* REST 미기동 — streamUrl 없이 bestframe만으로 동작 */ })
+  }, [isLive])
 
   // 구독 effect의 의존성으로 쓸 안정 키 — 배열 리터럴은 렌더마다 identity가 바뀐다
   const idsKey = [...selectedIds].sort().join(',')
@@ -168,10 +185,12 @@ export function useBestFrameLive(selectedIds: string[]): {
         camLabel: frame.cameraName,
         location: storeCameras.find((c) => c.id === camId)?.location ?? frame.cameraName,
         bgUrl: frame.imageUrl,
+        // 실시간 스트림 (UV-43) — 있으면 화면이 WHEP 재생, 없거나 실패하면 bgUrl(bestframe) 폴백
+        streamUrl: streamUrls.get(camId) ?? null,
         detections: events.map((e) => toScreenDetection(e, frame)),
       }
     },
-    [isLive, frames, recent, storeCameras],
+    [isLive, frames, recent, storeCameras, streamUrls],
   )
 
   return { cameras, dataFor }

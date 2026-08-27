@@ -1,16 +1,43 @@
-# VCA Admin 로컬 DB — 호스트 5433 (기본 5432와 충돌 회피)
+# VCA Admin 로컬 스택 — 원장 DB + 미디어 서버 + 개발 모의 스트림 (설계 docs/design-vca-admin.md)
 services:
   postgres:
     image: postgres:17-alpine
     container_name: vca-admin-db
     ports:
-      - "5433:5432"
+      - "5433:5432" # 호스트 기본 5432와 충돌 회피
     environment:
       POSTGRES_DB: vca_admin
       POSTGRES_USER: vca
       POSTGRES_PASSWORD: vca
     volumes:
       - vca-admin-db-data:/var/lib/postgresql/data
+
+  # 미디어 서버 (P2, UV-43) — 카메라 RTSP를 브라우저 재생 가능(WebRTC/WHEP)으로 중계.
+  # 스트림 path는 Admin 백엔드가 제어 API(:9997)로 원장과 동기화한다 (카메라당 path 1개, 이름 = cameraId)
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    container_name: vca-media
+    volumes:
+      # API·WebRTC ICE·개발용 인증 설정 — mediamtx.yml 주석 참조 (운영에서는 인증 제한 필수)
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      - "8554:8554"     # RTSP 수신 (카메라/테스트 소스 발행)
+      - "8889:8889"     # WebRTC HTTP (WHEP) — nginx/Vite가 /streams로 프록시
+      - "9997:9997"     # 제어 API — Admin(동기화)·프록시(가용성 조회) 내부용, 외부 노출 금지
+      - "8189:8189/udp" # WebRTC ICE/UDP
+
+  # 개발 모의 스트림 — 실카메라 없이 실영상 E2E를 돌리기 위한 합성 RTSP 소스 (test path).
+  # 시드 카메라의 rtspUrl(rtsp://127.0.0.1:8554/test)이 이 스트림을 가리킨다 — 운영에서는 제거
+  test-stream:
+    image: linuxserver/ffmpeg:latest
+    container_name: vca-media-testsrc
+    command: >-
+      -re -f lavfi -i testsrc2=size=640x360:rate=15
+      -c:v libx264 -profile:v baseline -pix_fmt yuv420p -preset ultrafast -tune zerolatency
+      -g 30 -b:v 600k -f rtsp rtsp://mediamtx:8554/test
+    restart: unless-stopped
+    depends_on:
+      - mediamtx
 
 volumes:
   vca-admin-db-data:

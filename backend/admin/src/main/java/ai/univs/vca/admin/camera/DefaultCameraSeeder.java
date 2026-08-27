@@ -50,9 +50,11 @@ public class DefaultCameraSeeder implements ApplicationRunner {
 	@Override
 	public void run(ApplicationArguments args) {
 		if (props.seedDefaultCameras() && repository.count() == 0) {
+			// rtspUrl은 개발 모의 스트림(docker-compose test-stream이 발행하는 test path를 미디어 서버가
+			// 자기 자신에서 당긴다) — 실카메라 확보·이관 시 실제 RTSP 주소로 교체할 자리 (UV-43)
 			repository.saveAll(DEFAULT_CAMERAS.stream()
 				.map(s -> new CameraEntity(s.cameraId(), s.name(), null, null, null, null, null,
-						"rtsp://media.local:8554/" + s.cameraId(), s.locationId(), s.lat(), s.lng()))
+						"rtsp://127.0.0.1:8554/test", s.locationId(), s.lat(), s.lng()))
 				.toList());
 			log.info("기본 카메라 {}대 시드 완료 (원장 비어 있음)", DEFAULT_CAMERAS.size());
 		}

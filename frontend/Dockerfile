@@ -18,6 +18,8 @@ RUN chmod +x /docker-entrypoint.d/40-vca-config.sh
 # 앱은 항상 상대경로 /api 를 호출한다. nginx가 API_UPSTREAM 으로 프록시.
 ENV API_BASE_URL=/api
 ENV API_UPSTREAM=http://backend:8080
+# /streams(실시간 영상, UV-43)는 미디어 서버(MediaMTX WebRTC/WHEP :8889)로 프록시
+ENV MEDIA_UPSTREAM=http://mediamtx:8889
 
 EXPOSE 80
 # nginx 공식 이미지의 기본 entrypoint가 /docker-entrypoint.d/*.sh 를 실행 후 nginx 를 띄운다.
