@@ -3545,9 +3545,94 @@ function TimelinePager({ page, pageCount, onPage }: {
   );
 }
 
-function JointEvidencePanel({ primary, tier, node, onClose }: {
+/**
+ * Full-size view of one shared frame. The grid cell is ~203px wide, which is enough to see THAT
+ * two people were boxed together and not much else — no faces, no read of what either was doing.
+ * This is where the frame is actually looked at, so it also carries the one onward action the
+ * frame supports: hand this camera and moment to Best Frame's inspection view.
+ */
+function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose, onAnalyze }: {
+  event: CooccurEvent; assocLabel: string; index: number; total: number;
+  onStep: (delta: number) => void; onClose: () => void; onAnalyze?: (location: string) => void;
+}) {
+  useEscapeKey(onClose);
+  const step = (delta: number, label: string) => (
+    <button onClick={() => onStep(delta)} aria-label={label} title={label}
+      disabled={delta < 0 ? index === 0 : index === total - 1}
+      style={{ width:"32px", height:"32px", borderRadius:"8px", border:"none", flexShrink:0,
+        display:"flex", alignItems:"center", justifyContent:"center",
+        backgroundColor:"var(--gray-100)", cursor:"pointer",
+        color: (delta < 0 ? index === 0 : index === total - 1) ? "var(--gray-300)" : "var(--gray-600)" }}>
+      <svg width="14" height="14" viewBox="0 0 12 12" fill="none" style={{ transform: delta > 0 ? "none" : "rotate(180deg)" }}>
+        <path d="M4.5 2.5L8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.55)", zIndex:200,
+        display:"flex", alignItems:"center", justifyContent:"center", padding:"24px" }}>
+      <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, width:"100%", maxWidth:"920px",
+        display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+        <div style={{ padding:"12px 16px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px" }}>
+          <div style={{ minWidth:0 }}>
+            <p style={{ margin:0, fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px" }}>{event.location}</p>
+            <p style={{ margin:"2px 0 0", fontSize:"11px", color:"var(--gray-500)" }}>{event.camCode} · {event.date} {event.time}</p>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
+            <span style={{ fontSize:"11px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{index + 1} / {total}</span>
+            {step(-1, "Previous frame")}
+            {step(1, "Next frame")}
+            <button onClick={onClose} aria-label="Close" style={{ width:"32px", height:"32px", padding:0, border:"none",
+              backgroundColor:"transparent", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)" }}>
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Labels come back onto the boxes here — at this width they have the room the grid cell
+            denied them, and a label on the box is more direct than a legend to cross-reference. */}
+        <div style={{ position:"relative", backgroundColor:"var(--gray-900)" }}>
+          <img src={event.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
+          {[
+            { label:"TARGET", color:"var(--primary-300)", left:event.boxLeft },
+            { label:assocLabel, color:"var(--danger-400)", left:event.boxLeft + 17 },
+          ].map(box => (
+            <div key={box.label} style={{ position:"absolute", left:`${box.left}%`, top:"30%", width:"14%", height:"40%",
+              border:`2px solid ${box.color}`, borderRadius:"3px" }}>
+              <span style={{ position:"absolute", bottom:"100%", left:-2, marginBottom:"3px", whiteSpace:"nowrap",
+                fontSize:"11px", fontWeight:800, color:"white", backgroundColor:box.color, padding:"2px 6px", borderRadius:"4px" }}>
+                {box.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding:"12px 16px", borderTop:BORDER, backgroundColor:"var(--gray-50)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px" }}>
+          <span style={{ fontSize:"11px", color:"var(--gray-500)" }}>
+            Both people detected in this one frame.
+          </span>
+          {/* Same wording and destination as Re-ID's detail popup — this deep-links the camera to
+              Best Frame's inspection view rather than duplicating that screen here. */}
+          <button onClick={() => onAnalyze?.(event.location)} disabled={!onAnalyze}
+            style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 14px", borderRadius:"8px",
+              border:"none", backgroundColor: onAnalyze ? "var(--gray-900)" : "var(--gray-300)", color:"white",
+              fontSize:"12px", fontWeight:800, cursor: onAnalyze ? "pointer" : "default", whiteSpace:"nowrap" }}>
+            Analyze frame
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
   primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode;
   onClose: () => void;
+  onAnalyzeFrame?: (location: string) => void;
 }) {
   const meta = TIER_LINK_META[tier];
   const statusBadge = STATUS_BADGE_META[node.status];
@@ -3566,9 +3651,13 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
   // are mutually exclusive rather than combinable: "Orchard Rd Junction AND evening" is a third
   // claim the cards never made, and an empty result from crossing them would read as a bug.
   const [focus, setFocus] = useState<null | "location" | "time">(null);
+  // Index into `shown`, so stepping through the lightbox follows whatever filter is active rather
+  // than jumping back into the unfiltered list.
+  const [zoomIdx, setZoomIdx] = useState<number | null>(null);
   const toggleFocus = (next: "location" | "time") => {
     setFocus(f => (f === next ? null : next));
     setPage(1);
+    setZoomIdx(null);
   };
   // Picking a different associate keeps this panel mounted, so page 7 of the last pair's timeline
   // would carry over into a pair that may only have one page. Compare during render rather than in
@@ -3578,6 +3667,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
     setPagedNodeId(node.id);
     setPage(1);
     setFocus(null);
+    setZoomIdx(null);
   }
 
   // Measured from the list band itself. Reading its own box is safe rather than circular: the
@@ -3781,7 +3871,10 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                only thing that says where each person stood, and the frames are already the
                strongest edges on the page, so any border drawn around them is a second one.
                Scene still is the one Best Frame uses for its camera feeds. */
-            <div key={rowIdx} style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
+            <button key={rowIdx} onClick={() => setZoomIdx(rowIdx)}
+              title="Open this frame full size"
+              style={{ position:"relative", padding:0, border:"none", borderRadius:"6px", overflow:"hidden",
+                backgroundColor:"var(--gray-900)", cursor:"zoom-in", display:"block", width:"100%" }}>
               <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
               {/* Burned into the frame, the way a camera stamps its own still — the caption
                   belongs to the image, and pulling it out left every cell with a line of text
@@ -3821,10 +3914,22 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                 <div key={box.key} style={{ position:"absolute", left:`${box.left}%`, top:"30%", width:"14%", height:"40%",
                   border:`2px solid ${box.color}`, borderRadius:"2px" }} />
               ))}
-            </div>
+            </button>
           );
         })}
       </div>
+
+      {zoomIdx !== null && shown[zoomIdx] && (
+        <SharedFrameLightbox
+          event={shown[zoomIdx]}
+          assocLabel={assocId(node)}
+          index={zoomIdx}
+          total={shown.length}
+          onStep={d => setZoomIdx(i => Math.min(shown.length - 1, Math.max(0, (i ?? 0) + d)))}
+          onClose={() => setZoomIdx(null)}
+          onAnalyze={onAnalyzeFrame}
+        />
+      )}
 
       {/* Only when there is somewhere to go — a pair whose co-captures all fit on one page would
           get a lone "1" button and a border for nothing. */}
@@ -3918,8 +4023,9 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
   );
 }
 
-function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
+function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }: {
   primaryTarget:{ name:string; face:string } | null; onSwitchTarget:()=>void;
+  onGoAnalyzeFrame?: (location: string) => void;
 }) {
   const [tier1On, setTier1On] = useState(true);
   const [tier2On, setTier2On] = useState(true);
@@ -4105,6 +4211,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
           primaryTarget exists (see visibleRows above), so primaryTarget is guaranteed here too. */}
       {selectedNode && primaryTarget && (
         <JointEvidencePanel primary={primaryTarget} tier={selectedNode.tier} node={selectedNode.node}
+          onAnalyzeFrame={onGoAnalyzeFrame}
           onClose={() => setSelectedNode(null)}
         />
       )}
@@ -4112,7 +4219,10 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
   );
 }
 
-function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void } = {}) {
+function RedFaceContent({ seedCard, onSeedConsumed, onGoAnalyzeFrame }: {
+  seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void;
+  onGoAnalyzeFrame?: (location: string) => void;
+} = {}) {
   const [primaryTarget, setPrimaryTarget] = useState<{ name:string; face:string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(true);
   // "UNSET" (not seedCard's own initial value) so the block below still fires on this
@@ -4151,7 +4261,7 @@ function RedFaceContent({ seedCard, onSeedConsumed }: { seedCard?: (typeof REID_
           (empty zone bands, filter sidebar, no primary-target header) that sits behind the blur
           while the picker is open, instead of a bare empty page. */}
       <AssociateGraphView primaryTarget={primaryTarget} onSwitchTarget={() => setPickerOpen(true)}
-        />
+        onGoAnalyzeFrame={onGoAnalyzeFrame} />
       {pickerOpen && (
         // backdropFilter/backgroundColor live on the scrolling container itself now, not on a
         // separate inset:0 sibling sized to just one screen's height — that sibling stayed pinned
@@ -4296,7 +4406,7 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
 
       {activeTab==="Live Monitoring" && <LiveMonitoringTab openCam={liveCam} onOpenCamChange={setLiveCam} onNavigateTab={handleNavigateFromCard} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
       {activeTab==="Re-ID Analysis"   && <ReIDContent camera={reidCam} onCameraChange={setReidCam} seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} onNavigateTab={setActiveTab} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
-      {activeTab==="RedFace"          && <RedFaceContent seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} />}
+      {activeTab==="RedFace"          && <RedFaceContent seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
     </div>
   );
 }
