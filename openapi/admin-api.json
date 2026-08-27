@@ -1,0 +1,265 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "VCA Admin API (초안 — 기획자 협의 대상)",
+    "version": "0.1.0",
+    "description": "VCA Admin 화면 ↔ Admin 백엔드 계약 초안 (docs/design-vca-admin.md §6.1, UV-41/UV-42).\n\n구조: [Admin 화면] --이 계약--> [Admin 백엔드] --provisioning(module-api.json v0.10.0)--> [분석 모듈]\n\n상태: **P1 초안** — Admin 화면은 기획자가 기획·개발 중이라 이 계약은 협의 후 확정한다. 확정 전까지 필드 추가·이름 변경 가능. P2(미디어 서버 동기화)·P3(동영상·이미지 업로드)에서 리소스가 추가된다.\n\n공통 규약:\n- 응답 envelope은 플랫폼 공통 { success, data, message, code } — VCA 공개 계약(openapi.json)과 동일\n- 오류 코드는 ADM-XXXX 대역 (ADM-4001 본문 검증, ADM-4040 카메라 없음, ADM-5000 내부 오류)\n- cameraId·locationId는 ^[a-z0-9-]{1,64}$ (플랫폼 공통), cameraId 발급 주체는 Admin\n\n민감정보 경계 (설계 §3):\n- password는 쓰기 전용 — 어떤 응답에도 없고 hasCredential로 설정 여부만 알린다\n- rtspUrl·ip·자격증명은 Admin 화면·Admin DB·모듈 내부 채널 전용 — VCA 공개 계약(브라우저 대시보드)에는 절대 노출하지 않는다\n\n미결 (설계 §8): Admin 인증(로그인/권한) — 방식 확정 시 이 계약에 보안 스킴 추가",
+    "contact": { "name": "계약 담당: 박상훈 (백엔드)" }
+  },
+  "servers": [
+    { "url": "http://localhost:8082", "description": "개발 기본값 — backend/admin (./gradlew bootRun)" }
+  ],
+  "tags": [
+    { "name": "cameras", "description": "카메라 원장 CRUD — Old VCA Add New Camera 폼 기준. Source Type(AI Camera)·Associated Server는 확정(2026-08-27)에 따라 제외, 필요 시 additive로 확장" },
+    { "name": "provision", "description": "모듈 provisioning 동기화 — 원장 변경 시 자동 push되므로 평상시 호출 불필요. 모듈이 내려가 있던 동안의 변경을 따라잡는 수동 재동기화·상태 확인용" }
+  ],
+  "paths": {
+    "/admin/api/cameras": {
+      "get": {
+        "operationId": "listAdminCameras",
+        "summary": "카메라 원장 목록",
+        "description": "정렬: name 오름차순. P1은 전량 반환 — 페이징은 원장 규모 확정 시 추가.",
+        "tags": ["cameras"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    { "type": "object", "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/AdminCamera" } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "post": {
+        "operationId": "createAdminCamera",
+        "summary": "카메라 등록",
+        "description": "cameraId는 Admin이 발급한다 (cam-{name 슬러그}-{4hex}). locationId 생략 시 loc-{name 슬러그}로 발급. 등록 즉시 모듈 provisioning이 push된다 (실패해도 등록은 성공 — provision/status 확인).",
+        "tags": ["cameras"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminCameraRequest" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "생성됨",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/AdminCamera" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/admin/api/cameras/{cameraId}": {
+      "parameters": [
+        { "name": "cameraId", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" } }
+      ],
+      "get": {
+        "operationId": "getAdminCamera",
+        "summary": "카메라 단건",
+        "tags": ["cameras"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/AdminCamera" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/Error" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "put": {
+        "operationId": "updateAdminCamera",
+        "summary": "카메라 수정 (전체 갱신)",
+        "description": "password가 null이면 기존 자격증명 유지 (쓰기 전용 필드 — 화면은 '변경 시에만 입력' UX 권장). locationId 생략 시 기존 값 유지. 수정 즉시 provisioning push.",
+        "tags": ["cameras"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminCameraRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/AdminCamera" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAdminCamera",
+        "summary": "카메라 삭제",
+        "description": "삭제 즉시 provisioning push — 모듈은 이 카메라의 분석을 중단하고 retained 토픽을 지운다 (계약 v1.9).",
+        "tags": ["cameras"],
+        "responses": {
+          "200": {
+            "description": "삭제됨 (data: null)",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } }
+          },
+          "404": { "$ref": "#/components/responses/Error" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/admin/api/provision/sync": {
+      "post": {
+        "operationId": "syncProvision",
+        "summary": "모듈 provisioning 수동 재동기화",
+        "tags": ["provision"],
+        "responses": {
+          "200": {
+            "description": "OK — synced가 false면 모듈 미응답 (원장은 그대로, 재시도 가능)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/ProvisionSyncResult" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/admin/api/provision/status": {
+      "get": {
+        "operationId": "getProvisionStatus",
+        "summary": "마지막 provisioning 동기화 상태",
+        "tags": ["provision"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/ProvisionSyncState" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Error": {
+        "description": "오류 — { success: false, code: ADM-XXXX, message }",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } }
+      }
+    },
+    "schemas": {
+      "Envelope": {
+        "type": "object",
+        "required": ["success"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string", "description": "성공 시 OK, 오류 시 ADM-XXXX" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "nullable": true }
+        }
+      },
+      "LatLng": {
+        "type": "object",
+        "required": ["lat", "lng"],
+        "properties": {
+          "lat": { "type": "number", "format": "double" },
+          "lng": { "type": "number", "format": "double" }
+        }
+      },
+      "AdminCameraRequest": {
+        "type": "object",
+        "description": "등록·수정 공용 본문 — Old VCA Add New Camera 폼 기준 (Source Type·Associated Server 제외)",
+        "required": ["name", "rtspUrl", "location"],
+        "properties": {
+          "name": { "type": "string" },
+          "ip": { "type": "string", "nullable": true },
+          "maker": { "type": "string", "nullable": true },
+          "model": { "type": "string", "nullable": true },
+          "username": { "type": "string", "nullable": true },
+          "password": { "type": "string", "nullable": true, "description": "쓰기 전용 — 응답에 없다. 수정 시 null이면 기존 값 유지. AES-GCM 암호화 저장" },
+          "rtspUrl": { "type": "string", "description": "rtsp:// 또는 rtsps:// — 분석·중계 입력 스트림 (민감정보)" },
+          "locationId": { "type": "string", "nullable": true, "pattern": "^[a-z0-9-]{1,64}$", "description": "생략 시 등록은 loc-{name 슬러그} 발급, 수정은 기존 값 유지" },
+          "location": { "$ref": "#/components/schemas/LatLng" }
+        }
+      },
+      "AdminCamera": {
+        "type": "object",
+        "required": ["cameraId", "name", "hasCredential", "rtspUrl", "locationId", "location", "createdAt", "updatedAt"],
+        "properties": {
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "name": { "type": "string" },
+          "ip": { "type": "string", "nullable": true },
+          "maker": { "type": "string", "nullable": true },
+          "model": { "type": "string", "nullable": true },
+          "username": { "type": "string", "nullable": true },
+          "hasCredential": { "type": "boolean", "description": "password 설정 여부 — 평문·암호문 모두 응답에 없다" },
+          "rtspUrl": { "type": "string" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "location": { "$ref": "#/components/schemas/LatLng" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ProvisionSyncState": {
+        "type": "object",
+        "required": ["synced"],
+        "properties": {
+          "lastAttemptAt": { "type": "string", "format": "date-time", "nullable": true },
+          "lastSuccessAt": { "type": "string", "format": "date-time", "nullable": true },
+          "moduleAccepted": { "type": "integer", "nullable": true, "description": "모듈이 마지막으로 수리한 카메라 수" },
+          "lastError": { "type": "string", "nullable": true },
+          "synced": { "type": "boolean", "description": "마지막 시도가 성공했고 이후 실패가 없는지" }
+        }
+      },
+      "ProvisionSyncResult": {
+        "type": "object",
+        "required": ["synced", "state"],
+        "properties": {
+          "synced": { "type": "boolean" },
+          "state": { "$ref": "#/components/schemas/ProvisionSyncState" }
+        }
+      }
+    }
+  }
+}

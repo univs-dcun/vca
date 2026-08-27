@@ -1,0 +1,31 @@
+# VCA Admin 백엔드 — 카메라 원장의 단일 원천 (docs/design-vca-admin.md, UV-41/UV-42)
+# 로컬 DB: backend/admin/docker-compose.yml (PostgreSQL, 호스트 5433)
+server:
+  port: 8082
+
+spring:
+  datasource:
+    url: ${VCA_ADMIN_DB_URL:jdbc:postgresql://localhost:5433/vca_admin}
+    username: ${VCA_ADMIN_DB_USER:vca}
+    password: ${VCA_ADMIN_DB_PASSWORD:vca}
+  jpa:
+    # P1 골격 단계라 스키마는 엔티티에서 생성 — 운영 이관 전에 마이그레이션 도구(Flyway 등)로 대체할 것
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+vca:
+  admin:
+    # 분석 모듈 API (provisioning 대상, 계약 v1.9) — 프록시와 같은 모듈을 바라본다
+    module-base-url: ${VCA_MODULE_API_BASE_URL:http://localhost:8081/v1}
+    module-timeout: 5s
+    # 자격증명 암호화 키 — 운영에서는 반드시 환경변수로 주입 (키 변경 시 기존 암호문 복호화 불가)
+    enc-key: ${VCA_ADMIN_ENC_KEY:vca-admin-dev-only-key}
+    # 원장이 비어 있으면 기존 기본 카메라 8대 시드 (Old VCA 이관 확정 전 자리)
+    seed-default-cameras: ${VCA_ADMIN_SEED:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
