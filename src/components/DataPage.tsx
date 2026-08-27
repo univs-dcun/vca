@@ -3188,16 +3188,20 @@ type TierMeta = {
 };
 type PyramidRow = { key:string; weight:number; nodes:RedfaceNode[]; meta: TierMeta|null };
 
-// Zone fills sit on the 200 step, not 100. At 100 all three bands were within a few RGB steps of
-// white: the pyramid read as one pale surface with faces floating on it, and the connector lines
-// drawn across them had nothing to be seen against. The label chips go white in exchange — a
-// danger-100 chip on a danger-100 field was invisible, and on the 200 field white is the contrast.
+// Zone fills land between the library's 100 and 200 steps: 100 put all four bands within a few RGB
+// steps of white (one pale surface, connector lines with nothing to be seen against), and 200 was
+// heavier than a full-width band wants to be. 70% of the 200 token over white is the step in
+// between — written as a mix of the token rather than a new hex, so there is exactly one place to
+// change if the library gains a real 150 step. Resulting values, if it does:
+//   danger #fdd6dd · warning #fef7d9 · gray #ecf0f5 · primary #d9d7ff
+// The label chips go white in exchange — a danger-100 chip on a danger-100 field was invisible.
+const ZONE_TINT = (token: string) => `color-mix(in srgb, var(${token}) 70%, white)`;
 const PYRAMID_TIER_META: Record<"tier1"|"tier2"|"tier3", TierMeta> = {
-  tier1: { bg:"var(--danger-200)", labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--danger-500)", label:"TIER 1 · RED ZONE", sublabel:">100 CO-CAPTURES",
+  tier1: { bg:ZONE_TINT("--danger-200"), labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--danger-500)", label:"TIER 1 · RED ZONE", sublabel:">100 CO-CAPTURES",
     nodeSize:52, nodeBorder:3, nodeColor:"var(--danger-400)", step:16, lineWidth:1.4, dashFlow:true, lineOpacity:0.85 },
-  tier2: { bg:"var(--warning-200)", labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-CAPTURES",
+  tier2: { bg:ZONE_TINT("--warning-200"), labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-CAPTURES",
     nodeSize:52, nodeBorder:2, nodeColor:"var(--warning-400)", step:11, lineWidth:1, dashed:true, lineOpacity:0.7 },
-  tier3: { bg:"var(--gray-200)", labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--gray-700)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-CAPTURES",
+  tier3: { bg:ZONE_TINT("--gray-200"), labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--gray-700)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-CAPTURES",
     // Same 52px as Tier 2. Tier 3 was drawn smaller to signal a weaker link, but the faces here
     // will be low-resolution CCTV crops in practice, and 42px left too little of them to tell
     // people apart — which is the one thing these nodes are for.
@@ -3244,7 +3248,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
              are placed from those pure weight percentages, so they were drawing up to 30px above
              the band they belong to. Zeroing the basis makes one calculation govern both. */
           <div key={r.key} style={{ flexGrow:r.weight, flexShrink:0, flexBasis:0, position:"relative",
-            backgroundColor: r.meta?.bg ?? "var(--primary-200)", borderBottom: r.key !== tierRows[tierRows.length-1]?.key ? "1px solid rgba(14, 22, 42,0.05)" : "none",
+            backgroundColor: r.meta?.bg ?? ZONE_TINT("--primary-200"), borderBottom: r.key !== tierRows[tierRows.length-1]?.key ? "1px solid rgba(14, 22, 42,0.05)" : "none",
             display:"flex", alignItems:"flex-start", justifyContent:"space-between", padding:"24px 24px 0", boxSizing:"border-box" }}>
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
               backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.85)", color: r.meta?.labelColor ?? "var(--primary-400)",
@@ -3573,7 +3577,8 @@ function TimelinePager({ page, pageCount, onPage }: {
  */
 function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose, onAnalyze }: {
   event: CooccurEvent; assocLabel: string; index: number; total: number;
-  onStep: (delta: number) => void; onClose: () => void; onAnalyze?: (location: string) => void;
+  onStep: (delta: number) => void; onClose: () => void;
+  onAnalyze?: (location: string, at: { date: string; time: string }) => void;
 }) {
   useEscapeKey(onClose);
   const step = (delta: number, label: string) => (
@@ -3637,7 +3642,9 @@ function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose,
           </span>
           {/* Same wording and destination as Re-ID's detail popup — this deep-links the camera to
               Best Frame's inspection view rather than duplicating that screen here. */}
-          <button onClick={() => onAnalyze?.(event.location)} disabled={!onAnalyze}
+          {/* Carries the frame's own date and time, not just its camera: without them Best Frame
+              opened on that camera's live position, which is a different frame entirely. */}
+          <button onClick={() => onAnalyze?.(event.location, { date: event.date, time: event.time })} disabled={!onAnalyze}
             style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 14px", borderRadius:"8px",
               border:"none", backgroundColor: onAnalyze ? "var(--gray-900)" : "var(--gray-300)", color:"white",
               fontSize:"12px", fontWeight:800, cursor: onAnalyze ? "pointer" : "default", whiteSpace:"nowrap" }}>
@@ -3652,7 +3659,7 @@ function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose,
 function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
   primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode;
   onClose: () => void;
-  onAnalyzeFrame?: (location: string) => void;
+  onAnalyzeFrame?: (location: string, at: { date: string; time: string }) => void;
 }) {
   const meta = TIER_LINK_META[tier];
   const statusBadge = STATUS_BADGE_META[node.status];
@@ -4047,7 +4054,7 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
 
 function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }: {
   primaryTarget:{ name:string; face:string } | null; onSwitchTarget:()=>void;
-  onGoAnalyzeFrame?: (location: string) => void;
+  onGoAnalyzeFrame?: (location: string, at?: { date: string; time: string }) => void;
 }) {
   const [tier1On, setTier1On] = useState(true);
   const [tier2On, setTier2On] = useState(true);
@@ -4243,7 +4250,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
 
 function RedFaceContent({ seedCard, onSeedConsumed, onGoAnalyzeFrame }: {
   seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void;
-  onGoAnalyzeFrame?: (location: string) => void;
+  onGoAnalyzeFrame?: (location: string, at?: { date: string; time: string }) => void;
 } = {}) {
   const [primaryTarget, setPrimaryTarget] = useState<{ name:string; face:string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(true);
@@ -4357,7 +4364,7 @@ const DATA_TABS: DataTab[] = ["Live Monitoring","Re-ID Analysis","RedFace"];
 const DATA_TAB_TOOLTIPS: Partial<Record<DataTab, string>> = {
   "RedFace": "Finds who shares camera frames with a chosen person, across every camera",
 };
-export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
+export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string, at?: { date: string; time: string }) => void } = {}) {
   // Always lands on Live Monitoring — deliberately not persisted, unlike Best Frame's
   // camera selection. Switching sub-tabs while on this screen is normal component state;
   // leaving Data and coming back should start fresh at Live Monitoring.

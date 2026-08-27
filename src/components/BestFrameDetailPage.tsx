@@ -17,6 +17,10 @@ export interface DetailProps {
   data: CamData;
   initialDet: Detection;
   onBack: () => void;
+  /** Date (YYYY-MM-DD) and time (HH:MM:SS) to open on, for deep links that name a specific frame
+   *  rather than a camera. Without them the view opens on today at the current second. */
+  initialDate?: string;
+  initialTime?: string;
   onGoRedmapTrace?: (name: string) => void;
   /** Opens the AI Inspection Detail panel immediately instead of requiring a bounding-box click
    *  first — for deep links (e.g. Dashboard's "Analyze Frame") whose whole point is landing on
@@ -545,10 +549,10 @@ function TrackDateCalendar({ selected, onPick }: { selected: string; onPick: (da
 }
 
 /* ── Main component ──────────────────────────────────────────── */
-export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedmapTrace, autoOpenDetail }: DetailProps) {
+export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedmapTrace, autoOpenDetail, initialDate, initialTime }: DetailProps) {
   const [selectedPerson, setSelectedPerson] = useState<Detection | null>(autoOpenDetail ? initialDet : null);
   const [focusedDet, setFocusedDet] = useState<Detection>(initialDet);
-  const [trackDate, setTrackDate] = useState(() => sgtDateKey(new Date()));
+  const [trackDate, setTrackDate] = useState(() => initialDate ?? sgtDateKey(new Date()));
   const [dateOpen, setDateOpen] = useState(false);
   const [cameraHovered, setCameraHovered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -557,6 +561,10 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
   // grid, so the 1s/10s step controls and arrow keys move by exactly that much regardless of
   // where the sampled thumbnails happen to fall within the fixed 10-minute view.
   const [selectedSec, setSelectedSec] = useState(() => {
+    if (initialTime) {
+      const [h, m, sec] = initialTime.split(":").map(Number);
+      return h * 3600 + m * 60 + (sec || 0);
+    }
     const now = new Date();
     return now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
   });

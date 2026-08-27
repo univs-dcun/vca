@@ -174,6 +174,10 @@ export default function ClientLayout() {
   const [bestFrameFocusLocation, setBestFrameFocusLocation] = useState<string | null>(null);
   const [redmapAutoSearchName, setRedmapAutoSearchName] = useState<string | null>(null);
   const [bestFrameAnalyzeLocation, setBestFrameAnalyzeLocation] = useState<string | null>(null);
+  // Optional moment that goes with the location. RedFace's shared-frame lightbox names one exact
+  // frame, so Best Frame should open on that second rather than on the camera's live position;
+  // Dashboard's map popup still sends a location alone.
+  const [bestFrameAnalyzeAt, setBestFrameAnalyzeAt] = useState<{ date: string; time: string } | null>(null);
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 700);
     return () => clearTimeout(timer);
@@ -190,8 +194,9 @@ export default function ClientLayout() {
     setSelectedEvent(event);
     setActivePage("DASHBOARD");
   };
-  const handleGoAnalyzeFrame = (location: string) => {
+  const handleGoAnalyzeFrame = (location: string, at?: { date: string; time: string }) => {
     setBestFrameAnalyzeLocation(location);
+    setBestFrameAnalyzeAt(at ?? null);
     setActivePage("BEST FRAME");
   };
 
@@ -314,7 +319,8 @@ export default function ClientLayout() {
               onFocusConsumed={() => setBestFrameFocusLocation(null)}
               onGoRedmapTrace={handleGoRedmapTrace}
               analyzeFrameLocation={bestFrameAnalyzeLocation}
-              onAnalyzeFrameConsumed={() => setBestFrameAnalyzeLocation(null)}
+              analyzeFrameAt={bestFrameAnalyzeAt}
+              onAnalyzeFrameConsumed={() => { setBestFrameAnalyzeLocation(null); setBestFrameAnalyzeAt(null); }}
             />
           </div>
         )}

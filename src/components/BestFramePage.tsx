@@ -739,7 +739,7 @@ function getGridLayout(n: number): { cols: number; rows: number; sidePanelOnHove
 }
 
 /* ── Main component ──────────────────────────────────────────── */
-export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedmapTrace, analyzeFrameLocation, onAnalyzeFrameConsumed }: { focusLocation?: string | null; onFocusConsumed?: () => void; onGoRedmapTrace?: (name: string) => void; analyzeFrameLocation?: string | null; onAnalyzeFrameConsumed?: () => void } = {}) {
+export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedmapTrace, analyzeFrameLocation, analyzeFrameAt, onAnalyzeFrameConsumed }: { focusLocation?: string | null; onFocusConsumed?: () => void; onGoRedmapTrace?: (name: string) => void; analyzeFrameLocation?: string | null; analyzeFrameAt?: { date: string; time: string } | null; onAnalyzeFrameConsumed?: () => void } = {}) {
   const [normalCams, setNormalCams] = useState<Camera[]>(NORMAL_CAMS_INIT);
   const [videoCams,  setVideoCams]  = useState<Camera[]>(VIDEO_CAMS_INIT);
   const [imageCams,  setImageCams]  = useState<Camera[]>(IMAGE_CAMS_INIT);
@@ -749,7 +749,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   const [collapsed, setCollapsed] = useState(false);
   const [filterType, setFilterType] = useState<DetType | "All">("All");
   const [hud, setHud] = useState<HUDState | null>(null);
-  const [detailView, setDetailView] = useState<{ camId: string; data: CamData; det: Detection; autoOpenDetail?: boolean } | null>(null);
+  const [detailView, setDetailView] = useState<{ camId: string; data: CamData; det: Detection; autoOpenDetail?: boolean; date?: string; time?: string } | null>(null);
   const [highlightCamId, setHighlightCamId] = useState<string | null>(null);
   // Tracks the last `focusLocation` value already processed, following React's "adjusting
   // state when a prop changes" pattern (state, not a ref, so it's safe to read during render).
@@ -868,7 +868,15 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         setImageCams(prev => prev.map(c => ({ ...c, checked: false })));
         setHighlightCamId(match.id);
         const data = CAM_DATA[match.id] ?? DEFAULT_DATA;
-        if (data.detections[0]) setDetailView({ camId: match.id, data, det: data.detections[0], autoOpenDetail: true });
+        if (data.detections[0]) setDetailView({
+          camId: match.id, data, det: data.detections[0],
+          // A request that names a moment lands on that moment's frame; the inspection panel is
+          // left closed because the detection it would open is whoever happened to be first in
+          // this camera's list, not the pair the caller was looking at. A request with no
+          // timestamp (Dashboard's map popup) keeps opening the panel as before.
+          autoOpenDetail: !analyzeFrameAt,
+          date: analyzeFrameAt?.date, time: analyzeFrameAt?.time,
+        });
       } else {
         showToast({ variant:"warning", title:"No matching camera", desc:`No Best Frame camera is set up yet for "${analyzeFrameLocation}".` });
       }
@@ -1078,6 +1086,8 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         camLabel={detailView.data.camLabel}
         data={detailView.data}
         initialDet={detailView.det}
+        initialDate={detailView.date}
+        initialTime={detailView.time}
         onBack={() => setDetailView(null)}
         onGoRedmapTrace={onGoRedmapTrace}
         autoOpenDetail={detailView.autoOpenDetail}
