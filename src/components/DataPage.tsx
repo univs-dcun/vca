@@ -3054,9 +3054,13 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
           <div className="vca-hide-scrollbar" style={{ flex:1, overflowY:"auto" }}>
             {candidates.length === 0 ? (
               <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", color:"var(--gray-400)" }}>
+                {/* One glyph, not two. The line used to open with a literal "←" pointing at the
+                    left panel, which sat directly under the magnifier and read as a second icon
+                    competing with it. The controls it pointed at are the only controls on the
+                    screen, so naming the action is enough. */}
                 <SearchIconSm />
                 <span style={{ fontSize:"13px", fontWeight:600 }}>
-                  {hasAnyFilter ? "No candidates match the current filters" : "← Choose a target or set a filter to see candidates"}
+                  {hasAnyFilter ? "No candidates match the current filters" : "Choose a target or set a filter to see candidates"}
                 </span>
               </div>
             ) : (
