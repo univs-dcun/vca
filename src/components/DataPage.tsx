@@ -39,6 +39,7 @@ const RECENT_TARGETS = [
   { face:"https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=200&q=80", label:"Suspect A (Female/20s)", time:"Today 13:40" },
   { face:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80", label:"Target #4012 (Male)",    time:"Today 11:15" },
   { face:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80", label:"Unidentified Trace #092",    time:"Yesterday 18:30" },
+  { face:"https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80", body:"https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?auto=format&fit=crop&w=150&q=80" },
 ];
 
 // ── Re-ID grid data ────────────────────────────────────────────
@@ -1361,9 +1362,17 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
   // RedFace's target picker (compact) it's one of many stacked fields in a fixed-height modal, so
   // it keeps its original single-row horizontal scroll instead.
   if (compact) {
+    // The picked chip is pulled to the front. This row scrolls horizontally in a fixed-width
+    // modal, so a selection made in the middle of the list scrolls out of sight the moment the
+    // panel narrows or the list is scrolled back — and then nothing on screen says which VIP is
+    // loaded. Leading with it means the answer is always at the row's start. Original indices
+    // ride along because onSelect and activeVIP are index-based.
+    const compactOrder = VIP_QUICK.map((v, i) => ({ v, i }));
+    const activeAt = compactOrder.findIndex(o => o.i === activeVIP);
+    if (activeAt > 0) compactOrder.unshift(...compactOrder.splice(activeAt, 1));
     return (
       <div className="vca-thin-scrollbar" style={{ display:"flex", flexWrap:"nowrap", gap:"8px", width:"100%", overflowX:"auto", paddingBottom:"6px" }}>
-        {VIP_QUICK.map((v, i) => {
+        {compactOrder.map(({ v, i }) => {
           const active = activeVIP === i;
           return (
             <button key={v.name} onClick={() => onSelect(i)} title={v.name} style={{
@@ -2150,9 +2159,10 @@ const LIVE_RECOGNITION_FEED_CAP = 8;
 // gender/apparel/props here are what picking this target cascades onto the rest of the filter
 // form — a recent target isn't just a photo, it's "search for someone matching this profile".
 export const RECENT_TARGETS_EN = [
-  { face: RECENT_TARGETS[0].face, body: RECENT_TARGETS[0].body, label:"Target 1024", time:"today 12:50", gender:"Female", apparel:"Skirts", props: [] as string[] },
+  { face: RECENT_TARGETS[0].face, body: RECENT_TARGETS[0].body, label:"Target #1024", time:"today 12:50", gender:"Female", apparel:"Skirts", props: [] as string[] },
   { face: RECENT_TARGETS[1].face, body: RECENT_TARGETS[1].body, label:"Target #254",  time:"today 13:21", gender:"Male", apparel:"Trousers", props: ["Backpack/Bag"] },
   { face: RECENT_TARGETS[2].face, body: RECENT_TARGETS[2].body, label:"Target #092",  time:"yesterday 18:30", gender:"Female", apparel:"Long Sleeve", props: ["Hat"] },
+  { face: RECENT_TARGETS[3].face, body: RECENT_TARGETS[3].body, label:"Target #417",  time:"yesterday 09:12", gender:"Male", apparel:"Short Sleeve", props: ["Backpack/Bag"] },
 ];
 
 function PersonIconSm() {
@@ -2858,10 +2868,13 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                   <HistoryIconSm />
                   <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Recent targets</span>
                 </div>
-                <div style={{ display:"flex", gap:"8px" }}>
-                  {RECENT_TARGETS_EN.slice(0, 2).map((t, i) => (
+                {/* 2x2, not a single row of two: the picker showed the first two of the list and
+                    silently dropped the rest, so a target used an hour ago wasn't reachable from
+                    here at all. Four fits without scrolling and without shrinking the chips. */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+                  {RECENT_TARGETS_EN.map((t, i) => (
                     <button key={i} onClick={() => selectRecentTarget(i)} style={{
-                      flex:1, display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"8px", cursor:"pointer",
+                      minWidth:0, display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"8px", cursor:"pointer",
                       backgroundColor:"white",
                       border: selectedTarget === i ? "1px solid var(--primary-400)" : "1px solid var(--gray-200)",
                       boxShadow: selectedTarget === i ? "0 2px 2px rgba(90,61,251,0.1)" : "none",
