@@ -3476,19 +3476,21 @@ function PanelHeading({ children, title, color = "var(--gray-900)", icon }: {
 // window leaves it, and a fixed count either overflows it on a laptop or wastes half of a tall
 // monitor. This is only the count used for the first paint, before the ResizeObserver reports in.
 const TIMELINE_PAGE_GUESS = 3;
-/** A page never grows past this, however tall the window gets — 10 frames is already a long page. */
-const TIMELINE_PAGE_MAX = 10;
-/** The scene stills are all this shape, so a row's height follows from the panel's width. */
+/** The scene stills are all this shape, so a row's height follows from the cell's width. */
 const FRAME_ASPECT = 1194 / 685;
 /**
- * Frames render at 86% of the band's width, centred. Scaling rather than cropping — the aspect is
- * the camera's, and trimming it would cut scene out from under the bounding boxes. 14% off the
- * width takes ~34px off every row's height, which is what buys the extra frames on a page. Much
- * past this and the TARGET/associate box labels, drawn at 8px, stop being readable.
+ * Two frames a row. One-up read best but put three frames on a page, which turned 129 co-captures
+ * into 43 pages — a summary bought at the cost of making the evidence unscannable. Halving the
+ * width quarters nothing: it drops each row to ~117px, so a page holds 8-12 and the pager becomes
+ * something you use a few times instead of forty. The box labels don't survive at this size (two
+ * 8px labels 34px apart overlap), so they move into a legend baked into the frame's own caption.
  */
-const FRAME_SCALE = 0.86;
-/** Gap between rows, and the list band's own vertical padding — both feed the fit calculation. */
+const LIST_COLS = 2;
+/** A page never grows past this, however tall the window gets. */
+const TIMELINE_PAGE_MAX = 16;
+/** Gap between rows and between columns, and the band's own vertical/horizontal padding. */
 const FRAME_ROW_GAP = 12;
+const LIST_COL_GAP = 12;
 const LIST_PAD_Y = 32;
 const LIST_PAD_X = 40;
 
@@ -3588,7 +3590,8 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
     if (!el) return;
     // ResizeObserver fires once on observe, so this covers the initial measure too.
     const ro = new ResizeObserver(() => {
-      const rowH = ((el.clientWidth - LIST_PAD_X) * FRAME_SCALE) / FRAME_ASPECT + FRAME_ROW_GAP;
+      const cellW = (el.clientWidth - LIST_PAD_X - LIST_COL_GAP * (LIST_COLS - 1)) / LIST_COLS;
+      const rowH = cellW / FRAME_ASPECT + FRAME_ROW_GAP;
       // Padding out, then the gap the last row doesn't have back in.
       const usable = el.clientHeight - LIST_PAD_Y + FRAME_ROW_GAP;
       const fits = usable / rowH;
@@ -3597,7 +3600,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
       // better end: it says there is more below, and the band scrolls. So anything past a third
       // of a row earns that row.
       const rows = Math.floor(fits) + (fits % 1 >= 0.3 ? 1 : 0);
-      setPerPage(Math.max(1, Math.min(TIMELINE_PAGE_MAX, rows)));
+      setPerPage(Math.max(LIST_COLS, Math.min(TIMELINE_PAGE_MAX, rows * LIST_COLS)));
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -3768,53 +3771,59 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           refuses to shrink below its content, so the frames would push the pager off the panel
           again no matter what overflow says. */}
       <div ref={listRef} className="vca-hide-scrollbar" style={{ flex:1, minHeight:0, overflowY:"auto",
-        padding:"12px 20px 20px", display:"flex", flexDirection:"column", gap:"12px" }}>
+        padding:"12px 20px 20px", display:"grid", gridTemplateColumns:`repeat(${LIST_COLS}, 1fr)`,
+        columnGap:`${LIST_COL_GAP}px`, rowGap:`${FRAME_ROW_GAP}px`, alignContent:"start" }}>
         {pageRows.map((e, i) => {
-            const rowIdx = pageStart + i;
-            return (
-              /* No accordion. Opening rows one at a time made the frame — the only thing in the
-                 row that carries evidence — the thing you had to go looking for, and hid four of
-                 five frames on every page. Fewer rows per page pays for it.
-
-                 Neither a box nor a rule between rows: the frame images are the strongest edges on
-                 the page already, so any line drawn between them is a third edge next to two that
-                 are unmissable. 12px of air is enough to say "next row".
-
-                 The row IS the frame: an associate co-appearance is a shared frame, so there is
-                 always one to show, and the box positions are the only thing that says where each
-                 stood. Scene still is the one Best Frame uses for its camera feeds. */
-              <div key={rowIdx} style={{ position:"relative", width:"86%", margin:"0 auto",
-                borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
-                <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
-                {/* Burned into the frame instead of set above it, the way a camera stamps its own
-                    still — the caption belongs to the image, and pulling it out left every row
-                    with a line of text that only described the picture underneath it. 10px, not
-                    the 8px this chip used to be: a place name has to be read, not just seen. */}
-                <span style={{ position:"absolute", top:6, left:6, display:"flex", alignItems:"center", gap:"5px",
-                  maxWidth:"calc(100% - 12px)", fontSize:"10px", fontWeight:700, color:"white",
-                  backgroundColor:"rgba(14,22,42,0.65)", padding:"3px 7px", borderRadius:"4px" }}>
-                  <CameraGlyph size={12} /> {e.location}
-                  <span style={{ opacity:0.7, fontWeight:600 }}>{e.camCode}</span>
-                </span>
-                <span style={{ position:"absolute", bottom:6, right:6, fontSize:"10px", fontWeight:700, color:"white",
-                  backgroundColor:"rgba(14,22,42,0.65)", padding:"3px 7px", borderRadius:"4px", letterSpacing:"0.2px" }}>
-                  {e.date} {e.time}
-                </span>
+          const rowIdx = pageStart + i;
+          return (
+            /* The cell IS the frame — no accordion, no card, no rule between cells. An associate
+               co-appearance is a shared frame, so there is always one to show; the boxes are the
+               only thing that says where each person stood, and the frames are already the
+               strongest edges on the page, so any border drawn around them is a second one.
+               Scene still is the one Best Frame uses for its camera feeds. */
+            <div key={rowIdx} style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
+              <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
+              {/* Burned into the frame, the way a camera stamps its own still — the caption
+                  belongs to the image, and pulling it out left every cell with a line of text
+                  that only described the picture under it. The camera code is gone from here: at
+                  a two-up cell it pushed the place name off the chip, and the place is the part
+                  an operator reads. Date is trimmed to MM-DD for the same reason. */}
+              <span style={{ position:"absolute", top:4, left:4, display:"flex", alignItems:"center", gap:"4px",
+                maxWidth:"calc(100% - 8px)", fontSize:"9px", fontWeight:700, color:"white",
+                backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px",
+                overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
+                <CameraGlyph size={10} /> {e.location}
+              </span>
+              <span style={{ position:"absolute", bottom:4, right:4, fontSize:"9px", fontWeight:700, color:"white",
+                backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", whiteSpace:"nowrap" }}>
+                {e.date.slice(5)} {e.time.slice(0, 5)}
+              </span>
+              {/* Legend rather than labels on the boxes themselves: the two boxes sit 34px apart
+                  in a 203px cell, so two 8px captions above them collided. Colour carries the
+                  identity, the legend says which colour is who. */}
+              <span style={{ position:"absolute", bottom:4, left:4, display:"flex", alignItems:"center", gap:"6px",
+                backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px" }}>
                 {[
-                  { label:"TARGET", color:"var(--primary-400)", left:e.boxLeft },
-                  { label:assocId(node), color:"var(--danger-400)", left:e.boxLeft + 17 },
-                ].map(box => (
-                  <div key={box.label} style={{ position:"absolute", left:`${box.left}%`, top:"34%", width:"14%", height:"44%",
-                    border:`2px solid ${box.color}`, borderRadius:"2px" }}>
-                    <span style={{ position:"absolute", bottom:"100%", left:-2, marginBottom:"2px", whiteSpace:"nowrap",
-                      fontSize:"8px", fontWeight:800, color:"white", backgroundColor:box.color, padding:"1px 4px", borderRadius:"2px" }}>
-                      {box.label}
-                    </span>
-                  </div>
+                  { label:"TARGET", color:"var(--primary-300)" },
+                  { label:assocId(node), color:"var(--danger-400)" },
+                ].map(l => (
+                  <span key={l.label} style={{ display:"flex", alignItems:"center", gap:"3px",
+                    fontSize:"8px", fontWeight:800, color:"white", whiteSpace:"nowrap", letterSpacing:"0.2px" }}>
+                    <span style={{ width:"5px", height:"5px", borderRadius:"1px", backgroundColor:l.color, flexShrink:0 }} />
+                    {l.label}
+                  </span>
                 ))}
-              </div>
+              </span>
+              {[
+                { key:"target", color:"var(--primary-300)", left:e.boxLeft },
+                { key:"assoc", color:"var(--danger-400)", left:e.boxLeft + 17 },
+              ].map(box => (
+                <div key={box.key} style={{ position:"absolute", left:`${box.left}%`, top:"30%", width:"14%", height:"40%",
+                  border:`2px solid ${box.color}`, borderRadius:"2px" }} />
+              ))}
+            </div>
           );
-          })}
+        })}
       </div>
 
       {/* Only when there is somewhere to go — a pair whose co-captures all fit on one page would
