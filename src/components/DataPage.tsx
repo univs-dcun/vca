@@ -3431,7 +3431,7 @@ function dominantTimeBucket(events: CooccurEvent[]) {
   const counts: Record<string, number> = {};
   events.forEach(e => { const b = timeBucket(e.time); counts[b] = (counts[b] ?? 0) + 1; });
   const [bucket, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-  return { bucket, pct: Math.round((count / events.length) * 100) };
+  return { bucket, count, pct: Math.round((count / events.length) * 100) };
 }
 
 const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string }> = {
@@ -3553,7 +3553,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
   const events = buildCooccurEvents(node);
   const groups = groupCooccurEvents(events);
   const topGroup = groups[0];
-  const { bucket, pct } = dominantTimeBucket(events);
+  const { bucket, count: bucketCount, pct } = dominantTimeBucket(events);
   const sortedByDate = [...events].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   const firstSeen = sortedByDate[0];
   const lastSeen = sortedByDate[sortedByDate.length - 1];
@@ -3692,24 +3692,31 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           <div style={{ display:"flex", gap:"10px" }}>
             <button className="vca-peak-card" data-on={focus === "location"}
               onClick={() => toggleFocus("location")}
-              title={`Show only the frames captured at ${topGroup.location}`}
+              title={`${topGroup.events.length} of ${events.length} shared frames were captured here — click to show only those`}
               style={{ flex:1, minWidth:0, borderRadius:"8px", padding:"6px 10px", textAlign:"left", cursor:"pointer" }}>
               <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
               {/* The glyph belongs on the value, not the label — a pin next to the words "Peak
                   location" only restates them, next to "Novena" it marks what kind of thing that is. */}
               <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", display:"flex", alignItems:"center", gap:"4px" }}>
+                {/* The count is the point of calling it "peak" — without it the card names a
+                    place and leaves you to guess whether it won by 60 frames or by one. */}
                 <MapPinIconSm /> {topGroup.location}
+                <span style={{ marginLeft:"auto", fontWeight:800, color:"var(--primary-400)" }}>{topGroup.events.length}</span>
               </p>
             </button>
             <button className="vca-peak-card" data-on={focus === "time"}
               onClick={() => toggleFocus("time")}
-              title={`Show only the frames captured in the ${bucket}`}
+              title={`${bucketCount} of ${events.length} shared frames (${pct}%) were captured in the ${bucket} — click to show only those`}
               style={{ flex:1, minWidth:0, borderRadius:"8px", padding:"6px 10px", textAlign:"left", cursor:"pointer" }}>
               <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak time</p>
               {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
                   glyph at all. */}
               <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize", display:"flex", alignItems:"center", gap:"4px" }}>
-                {bucket === "evening" || bucket === "night" ? <MoonIconSm /> : <SunIconSm />} {bucket} · {pct}%
+                {/* Count, not the percentage that used to sit here: the two cards now say the same
+                    kind of thing, and the total they are out of is the badge two rows down. The
+                    percentage moved into this card's tooltip. */}
+                {bucket === "evening" || bucket === "night" ? <MoonIconSm /> : <SunIconSm />} {bucket}
+                <span style={{ marginLeft:"auto", fontWeight:800, color:"var(--primary-400)" }}>{bucketCount}</span>
               </p>
             </button>
           </div>
