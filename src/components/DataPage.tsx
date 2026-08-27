@@ -4016,7 +4016,10 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
             <ChevronDownIconSm />
           </span>
         </button>
-        <span style={{ width:"160px", flexShrink:0 }}>Top camera node</span>
+        {/* "Top camera node" borrowed "node" from the pyramid view, where nodes are people, not
+            cameras — and "top" didn't say top by what. This is the same number the inspector panel
+            calls Peak location, so it uses that name. */}
+        <span style={{ width:"160px", flexShrink:0 }}>Peak location</span>
         <span style={{ width:"150px", flexShrink:0 }}>First detected</span>
         <span style={{ width:"150px", flexShrink:0 }}>Last detected</span>
         <span style={{ width:"80px", flexShrink:0, textAlign:"center" }}>Action</span>
@@ -4046,7 +4049,7 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
               <span style={{ fontSize:"10px", fontWeight:800, color:badge.text, backgroundColor:badge.bg, padding:"2px 6px", borderRadius:"4px" }}>{badge.label}</span>
             </div>
             <span style={{ width:"110px", flexShrink:0, fontSize:"13px", fontWeight:700, color:COCAPTURE_COLOR[r.tier] }}>{r.node.count} Events</span>
-            <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>{`${topGroup.camCode} ${topGroup.location.split(" ")[0]} (${topGroup.events.length}x)`}</span>
+            <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>{`${topGroup.location} · ${topGroup.events.length}`}</span>
             <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-500)" }}>{firstSeen.date} {firstSeen.time}</span>
             <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-500)" }}>{lastSeen.date} {lastSeen.time}</span>
             <div style={{ width:"80px", flexShrink:0, display:"flex", justifyContent:"center" }}>
