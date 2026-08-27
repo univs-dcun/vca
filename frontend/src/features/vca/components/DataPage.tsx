@@ -17,8 +17,8 @@ import {
 // 데이터 연결(UV-40): RedFace 동반 감지 동료 목록 — lib/vca-bridge 소유.
 // Joint Evidence(Shared frames) 라이브 배선은 계약 확장(동시 포착 프레임 공급) 후 재주입 예정
 import {
-  fetchRedfaceAssociates,
-  type RedfaceAssociatesView, type RedfacePrimaryRef,
+  fetchRedfaceAssociates, fetchRedfaceEvidence, fetchRedfaceFrames,
+  type RedfaceAssociatesView, type RedfaceEvidenceView, type RedfacePrimaryRef,
 } from "../../../lib/vca-bridge/redfaceAssociates";
 
 const BORDER = "1px solid var(--gray-200)";
@@ -3373,6 +3373,8 @@ type RedfaceNode = {
   // 데이터 연결(UV-40): 라이브 노드(RedfaceLiveNode)만 확장 필드를 가진다 — associateId는
   // Joint Evidence 조회 키, 나머지는 Data Grid 실값. mock 노드는 기존 합성 유지
   associateId?:string; label?:string; topCameraLabel?:string; firstSeen?:string; lastSeen?:string;
+  // (v1.10) Data grid 실값 컬럼 — 고유 장소 수·최다 시간대(건수)
+  locationsCount?:number; peakBucket?:string; peakCount?:number;
 };
 type TierMeta = {
   bg:string; labelBg:string; labelColor:string; label:string; sublabel:string;
@@ -3592,7 +3594,17 @@ type CooccurEvent = {
   boxLeft: number;
   /** Scene still for this camera — stands in for the actual frame the detection came from. */
   scene: string;
+  /** 데이터 연결(v1.10): 라이브 프레임 — scene이 실프레임 imageUrl이고 박스는 0~1 정규화 실좌표.
+   *  null 박스는 그 인물 미검출(박스 없이 렌더). 없으면 mock 합성(boxLeft 고정 레이아웃) */
+  live?: {
+    targetBox: { x: number; y: number; w: number; h: number } | null;
+    associateBox: { x: number; y: number; w: number; h: number } | null;
+  };
 };
+
+// 데이터 연결(v1.10): 계약 bbox(0~1) → 절대배치 % 스타일
+const bboxStyle = (b: { x: number; y: number; w: number; h: number }): React.CSSProperties =>
+  ({ left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` });
 
 // Relative to now, like Redmap's sightings. A fixed July pool drifted further from today every
 // week, and once the date filter defaults to a 7-day window it would have matched nothing at all.
@@ -3823,11 +3835,16 @@ function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose,
             denied them, and a label on the box is more direct than a legend to cross-reference. */}
         <div style={{ position:"relative", backgroundColor:"var(--gray-900)" }}>
           <img src={event.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
-          {[
-            { label:"TARGET", color:"var(--primary-300)", left:event.boxLeft },
-            { label:assocLabel, color:"var(--danger-400)", left:event.boxLeft + 17 },
-          ].map(box => (
-            <div key={box.label} style={{ position:"absolute", left:`${box.left}%`, top:"30%", width:"14%", height:"40%",
+          {(event.live
+            ? ([
+                event.live.targetBox ? { label:"TARGET", color:"var(--primary-300)", pos: bboxStyle(event.live.targetBox) } : null,
+                event.live.associateBox ? { label:assocLabel, color:"var(--danger-400)", pos: bboxStyle(event.live.associateBox) } : null,
+              ].filter(Boolean) as Array<{ label:string; color:string; pos:React.CSSProperties }>)
+            : [
+                { label:"TARGET", color:"var(--primary-300)", pos: { left:`${event.boxLeft}%`, top:"30%", width:"14%", height:"40%" } as React.CSSProperties },
+                { label:assocLabel, color:"var(--danger-400)", pos: { left:`${event.boxLeft + 17}%`, top:"30%", width:"14%", height:"40%" } as React.CSSProperties },
+              ]).map(box => (
+            <div key={box.label} style={{ position:"absolute", ...box.pos,
               border:`2px solid ${box.color}`, borderRadius:"3px" }}>
               <span style={{ position:"absolute", bottom:"100%", left:-2, marginBottom:"3px", whiteSpace:"nowrap",
                 fontSize:"11px", fontWeight:800, color:"white", backgroundColor:box.color, padding:"2px 6px", borderRadius:"4px" }}>
@@ -3854,12 +3871,25 @@ function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose,
   );
 }
 
-function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
+function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame, liveRef }: {
   primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode;
   onClose: () => void;
   onAnalyzeFrame?: (location: string, at: { date: string; time: string }) => void;
+  /** 데이터 연결(UV-45, 계약 v1.10): 라이브 primary target 참조 — 있으면 집계·프레임을 계약으로 조회 */
+  liveRef?: RedfacePrimaryRef | null;
 }) {
   const meta = TIER_LINK_META[tier];
+  // 데이터 연결(v1.10): 라이브 노드(associateId 보유)면 집계 요약과 동시 포착 프레임을 백엔드에서
+  // 받는다. 통계·프레임은 전수 데이터를 가진 모듈 계산 값 — 미응답이면 기존 mock 합성 흐름 유지.
+  const liveMode = !!(liveRef && node.associateId);
+  const [liveEv, setLiveEv] = useState<RedfaceEvidenceView | null>(null);
+  useEffect(() => {
+    setLiveEv(null);
+    if (!liveRef || !node.associateId) return;
+    let ok = true;
+    void fetchRedfaceEvidence(liveRef, node.associateId).then(v => { if (ok && v) setLiveEv(v); });
+    return () => { ok = false; };
+  }, [liveRef, node.associateId]);
   const statusBadge = STATUS_BADGE_META[node.status];
   // Names arrive either bare ("TS700005", "Mina") or with the id in parentheses; take the id when
   // it is there, otherwise the name itself is the identifier.
@@ -3867,11 +3897,20 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
   const events = buildCooccurEvents(node);
   const groups = groupCooccurEvents(events);
   const topGroup = groups[0];
-  const { bucket, count: bucketCount, pct } = dominantTimeBucket(events);
+  const { bucket: mockBucket, count: mockBucketCount, pct: mockPct } = dominantTimeBucket(events);
   const sortedByDate = [...events].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-  const firstSeen = sortedByDate[0];
-  const lastSeen = sortedByDate[sortedByDate.length - 1];
+  const firstSeenMock = sortedByDate[0];
+  const lastSeenMock = sortedByDate[sortedByDate.length - 1];
   const newestFirst = [...sortedByDate].reverse();
+  // 데이터 연결(v1.10): 아래 렌더는 이 통합 값만 본다 — 라이브 집계가 오면 그 값, 아니면 mock 합성
+  const topLocationLabel = liveEv?.topLocation.label ?? topGroup.location;
+  const topLocationCount = liveEv?.topLocation.count ?? topGroup.events.length;
+  const bucket = liveEv?.bucket ?? mockBucket;
+  const bucketCount = liveEv?.peakCount ?? mockBucketCount;
+  const pct = liveEv?.pct ?? mockPct;
+  const firstSeenLabel = liveEv ? liveEv.firstSeen : `${firstSeenMock.date} ${firstSeenMock.time.slice(0, 5)}`;
+  const lastSeenLabel = liveEv ? liveEv.lastSeen : `${lastSeenMock.date} ${lastSeenMock.time.slice(0, 5)}`;
+  const totalFrames = liveEv?.totalEvents ?? events.length;
 
   const [page, setPage] = useState(1);
   // Clicking a Peak card narrows the frame list to the frames that produced that number. The two
@@ -3923,15 +3962,40 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
     return () => ro.disconnect();
   }, []);
 
-  const shown = focus === "location" ? newestFirst.filter(e => e.location === topGroup.location)
+  const shown = focus === "location" ? newestFirst.filter(e => e.location === topLocationLabel)
     : focus === "time" ? newestFirst.filter(e => timeBucket(e.time) === bucket)
     : newestFirst;
-  const focusLabel = focus === "location" ? topGroup.location : focus === "time" ? bucket : null;
+  const focusLabel = focus === "location" ? topLocationLabel : focus === "time" ? bucket : null;
 
-  const pageCount = Math.max(1, Math.ceil(shown.length / perPage));
+  // 데이터 연결(v1.10): 라이브면 프레임을 서버 페이징으로 받는다 — Peak 카드 필터도 계약의
+  // locationId/bucket 쿼리로 서버가 적용(totalElements가 필터 기준). 미응답이면 mock 유지.
+  const [liveFrames, setLiveFrames] = useState<{ rows: CooccurEvent[]; total: number } | null>(null);
+  const totalShown = liveMode ? (liveFrames?.total ?? (liveEv?.totalEvents ?? node.count)) : shown.length;
+  const pageCount = Math.max(1, Math.ceil(totalShown / perPage));
   const safePage = Math.min(page, pageCount);
   const pageStart = (safePage - 1) * perPage;
-  const pageRows = shown.slice(pageStart, pageStart + perPage);
+  useEffect(() => {
+    if (!liveRef || !node.associateId) { setLiveFrames(null); return; }
+    // location 필터는 집계 응답의 locationId가 필요하다 — 도착 전에는 미필터 목록을 보여준다
+    const filter = focus === "location" && liveEv ? { locationId: liveEv.topLocation.locationId }
+      : focus === "time" && liveEv ? { bucket: liveEv.bucket }
+      : undefined;
+    let ok = true;
+    void fetchRedfaceFrames(liveRef, node.associateId, safePage - 1, perPage, filter).then(v => {
+      if (!ok || !v) return;
+      setLiveFrames({
+        total: v.totalElements,
+        rows: v.rows.map(r => ({
+          location: r.location, camCode: r.cameraId, date: r.date, time: r.time,
+          boxLeft: 0, scene: r.imageUrl,
+          live: { targetBox: r.targetBox, associateBox: r.associateBox },
+        })),
+      });
+    });
+    return () => { ok = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveRef, node.associateId, safePage, perPage, focus, liveEv]);
+  const pageRows = liveMode ? (liveFrames?.rows ?? []) : shown.slice(pageStart, pageStart + perPage);
 
   return (
     /* Three bands instead of one long scroll: the summary blocks stay put, only the frame list
@@ -4012,7 +4076,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
           <div style={{ display:"flex", gap:"10px" }}>
             <button className="vca-peak-card" data-on={focus === "location"}
               onClick={() => toggleFocus("location")}
-              title={`${topGroup.events.length} of ${events.length} shared frames were captured here — click to show only those`}
+              title={`${topLocationCount} of ${totalFrames} shared frames were captured here — click to show only those`}
               style={{ flex:1, minWidth:0, borderRadius:"8px", padding:"6px 10px", textAlign:"left", cursor:"pointer" }}>
               <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
               {/* The glyph belongs on the value, not the label — a pin next to the words "Peak
@@ -4020,13 +4084,13 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
               <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", display:"flex", alignItems:"center", gap:"4px" }}>
                 {/* The count is the point of calling it "peak" — without it the card names a
                     place and leaves you to guess whether it won by 60 frames or by one. */}
-                <MapPinIconSm /> {topGroup.location}
-                <span style={{ marginLeft:"auto", fontWeight:800, color:"var(--primary-400)" }}>{topGroup.events.length}</span>
+                <MapPinIconSm /> {topLocationLabel}
+                <span style={{ marginLeft:"auto", fontWeight:800, color:"var(--primary-400)" }}>{topLocationCount}</span>
               </p>
             </button>
             <button className="vca-peak-card" data-on={focus === "time"}
               onClick={() => toggleFocus("time")}
-              title={`${bucketCount} of ${events.length} shared frames (${pct}%) were captured in the ${bucket} — click to show only those`}
+              title={`${bucketCount} of ${totalFrames} shared frames (${pct}%) were captured in the ${bucket} — click to show only those`}
               style={{ flex:1, minWidth:0, borderRadius:"8px", padding:"6px 10px", textAlign:"left", cursor:"pointer" }}>
               <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak time</p>
               {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
@@ -4048,14 +4112,14 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
               two full timestamps and the badge left nothing between them. The exact second of the
               first sighting isn't a summary-level fact anyway; the frame rows below carry it. */}
           <div style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px" }}>
-            <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time.slice(0, 5)}</strong></span>
+            <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeenLabel}</strong></span>
             <span style={{ flex:1, minWidth:"12px", height:0, borderTop:"1px dashed var(--gray-300)" }} />
             <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"white",
               padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
-              {events.length} FRAMES
+              {totalFrames} FRAMES
             </span>
             <span style={{ flex:1, minWidth:"12px", height:0, borderTop:"1px dashed var(--gray-300)" }} />
-            <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time.slice(0, 5)}</strong></span>
+            <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeenLabel}</strong></span>
           </div>
         </div>
 
@@ -4079,7 +4143,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
                 </svg>
               </button>
             )}
-            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {shown.length}</span>
+            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {totalShown}</span>
           </span>
         </div>
       </div>
@@ -4134,11 +4198,20 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
                   </span>
                 ))}
               </span>
-              {[
-                { key:"target", color:"var(--primary-300)", left:e.boxLeft },
-                { key:"assoc", color:"var(--danger-400)", left:e.boxLeft + 17 },
-              ].map(box => (
-                <div key={box.key} style={{ position:"absolute", left:`${box.left}%`, top:"30%", width:"14%", height:"40%",
+              {/* 데이터 연결(v1.10): 라이브 프레임은 계약의 0~1 정규화 bbox — null이면 그 인물
+                  미검출로 박스를 그리지 않는다. mock은 기존 합성 레이아웃 */}
+              {/* 데이터 연결(v1.10): 라이브 프레임은 계약의 0~1 정규화 bbox — null이면 그 인물
+                  미검출로 박스를 그리지 않는다. mock은 기존 합성 레이아웃 */}
+              {(e.live
+                ? ([
+                    e.live.targetBox ? { key:"target", color:"var(--primary-300)", pos: bboxStyle(e.live.targetBox) } : null,
+                    e.live.associateBox ? { key:"assoc", color:"var(--danger-400)", pos: bboxStyle(e.live.associateBox) } : null,
+                  ].filter(Boolean) as Array<{ key:string; color:string; pos:React.CSSProperties }>)
+                : [
+                    { key:"target", color:"var(--primary-300)", pos: { left:`${e.boxLeft}%`, top:"30%", width:"14%", height:"40%" } as React.CSSProperties },
+                    { key:"assoc", color:"var(--danger-400)", pos: { left:`${e.boxLeft + 17}%`, top:"30%", width:"14%", height:"40%" } as React.CSSProperties },
+                  ]).map(box => (
+                <div key={box.key} style={{ position:"absolute", ...box.pos,
                   border:`2px solid ${box.color}`, borderRadius:"2px" }} />
               ))}
             </button>
@@ -4146,13 +4219,18 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
         })}
       </div>
 
-      {zoomIdx !== null && shown[zoomIdx] && (
+      {/* 데이터 연결(v1.10): 라이브는 서버 페이징이라 라이트박스 스텝도 로드된 현재 페이지 범위로
+          클램프한다 — 페이지를 넘기면 다음 프레임들이 로드된다. mock은 기존 전체 목록 스텝 유지 */}
+      {zoomIdx !== null && (liveMode ? pageRows[zoomIdx - pageStart] : shown[zoomIdx]) && (
         <SharedFrameLightbox
-          event={shown[zoomIdx]}
+          event={liveMode ? pageRows[zoomIdx - pageStart] : shown[zoomIdx]}
           assocLabel={assocId(node)}
           index={zoomIdx}
-          total={shown.length}
-          onStep={d => setZoomIdx(i => Math.min(shown.length - 1, Math.max(0, (i ?? 0) + d)))}
+          total={totalShown}
+          onStep={d => setZoomIdx(i => {
+            const next = Math.min(totalShown - 1, Math.max(0, (i ?? 0) + d));
+            return liveMode ? Math.min(pageStart + pageRows.length - 1, Math.max(pageStart, next)) : next;
+          })}
           onClose={() => setZoomIdx(null)}
           onAnalyze={onAnalyzeFrame}
         />
@@ -4263,18 +4341,18 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
               <span style={{ fontSize:"10px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
                 padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{r.node.status.toUpperCase()}</span>
             </div>
-            <span style={{ width:"76px", flexShrink:0, fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>{groups.length}</span>
-            {/* 데이터 연결(UV-40): 라이브 노드는 계약 실값(topCamera) — mock은 합성. 나머지 열의
-                라이브 실값(Locations·Peak time)은 Shared frames 계약 확장에서 함께 공급 예정 */}
+            {/* 데이터 연결(UV-40/45, 계약 v1.10): 라이브 노드는 계약 실값(locations·topCamera·
+                peakPeriod·first/lastSeen) — mock은 합성 */}
+            <span style={{ width:"76px", flexShrink:0, fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>{r.node.locationsCount ?? groups.length}</span>
             <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>{r.node.topCameraLabel ?? `${topGroup.location} · ${topGroup.events.length}`}</span>
-            <span style={{ width:"118px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-900)", textTransform:"capitalize" }}>{`${bucket} · ${bucketCount}`}</span>
+            <span style={{ width:"118px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-900)", textTransform:"capitalize" }}>{r.node.peakBucket ? `${r.node.peakBucket} · ${r.node.peakCount}` : `${bucket} · ${bucketCount}`}</span>
             <span style={{ width:"168px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-500)", display:"flex", gap:"6px", whiteSpace:"nowrap" }}>
               {r.node.firstSeen ? `${r.node.firstSeen.slice(5, 10)} → ${r.node.lastSeen?.slice(5, 10) ?? ""}` : `${firstSeen.date.slice(5)} → ${lastSeen.date.slice(5)}`}
               {/* Elapsed is blank until mounted rather than computed during render — the clock is
                   not a pure input, and a server/client mismatch here would flip the one value on
                   the row that changes by itself. */}
               {nowMs !== null && (
-                <span style={{ color:"var(--gray-400)" }}>({formatElapsed(nowMs - parseSgtStamp(lastSeen.date, lastSeen.time).getTime())} ago)</span>
+                <span style={{ color:"var(--gray-400)" }}>({formatElapsed(nowMs - (r.node.lastSeen ? new Date(`${r.node.lastSeen.replace(" ", "T")}:00+08:00`).getTime() : parseSgtStamp(lastSeen.date, lastSeen.time).getTime()))} ago)</span>
               )}
             </span>
             {/* "Inspect" named an activity, not a destination — it opens the Co-capture evidence
@@ -4510,6 +4588,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame, l
         <JointEvidencePanel primary={primaryTarget} tier={selectedNode.tier} node={selectedNode.node}
           onAnalyzeFrame={onGoAnalyzeFrame}
           onClose={() => setSelectedNode(null)}
+          liveRef={liveRef}
         />
       )}
     </div>

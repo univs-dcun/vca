@@ -148,9 +148,14 @@ HANDOFF 주석 참조), REDMAP Route history 재구축, CSS 변수 토큰화. �
   BestFramePage 실영상 3단 분기·BestFrameDetailPage 초 단위 스크럽 모델에 UV-37 재배치(에이전트
   보고 참조), 차트 라이브 시간대 집계(라이브 모드에선 dot 레이어 억제).
 - 소멸(기획 결정 수용): 상세 팝업 이동 경로 타임라인(reidTrajectory 배선 — RedMap Trace가 대체),
-  RedFace Joint Evidence 라이브 집계(fetchRedfaceEvidence — **Shared frames 계약 확장 후 재주입
-  예정**, 브리지 함수는 유지), ReelCard 분석 태그 행, redmap showOrigin/originOffset(mock 시작점
-  자체가 제거됨), SearchPanel·CameraSelect·SmartSearchContent(컴포넌트 삭제).
+  ReelCard 분석 태그 행, redmap showOrigin/originOffset(mock 시작점 자체가 제거됨),
+  SearchPanel·CameraSelect·SmartSearchContent(컴포넌트 삭제).
+- **UV-45 재주입(계약 v1.10)**: JointEvidencePanel(Co-capture evidence)에 liveRef prop —
+  집계(fetchRedfaceEvidence: Peak location/time 카드·First/Last·FRAMES 배지)와 Shared frames
+  (fetchRedfaceFrames: 서버 페이징 + Peak 카드 필터를 계약 locationId/bucket 쿼리로) 라이브 배선.
+  CooccurEvent에 optional live{targetBox,associateBox}(0~1 bbox, null=미검출), bboxStyle 헬퍼,
+  라이트박스는 라이브에서 로드된 페이지 범위로 스텝 클램프. RedfaceNode에 locationsCount/
+  peakBucket/peakCount — Data grid Locations·Peak time 컬럼 라이브 실값.
 - 브리지 정합: redmapSearch HitResult에 personId/personLabel(단일 정체 'p1'), elapsed duration-only
   포맷, elapsedAlert 제거. reidAnalysis ReidMatchCard에 date/status(field 분리). in-내로잉 이슈는
   isLiveRecentTarget/isLiveVipOption 프레디킷 유지.

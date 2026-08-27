@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.9.0
+ * OpenAPI spec version: 0.10.0
  */
 
 export * from './analysisTags';
@@ -21,6 +21,8 @@ export * from './associateEvidence';
 export * from './associateEvidenceRequest';
 export * from './associateEvidenceResponse';
 export * from './associateMatchedVip';
+export * from './associatePeakPeriod';
+export * from './associatePeakPeriodBucket';
 export * from './associateTopCamera';
 export * from './associatesRequest';
 export * from './associatesResponse';
@@ -40,6 +42,10 @@ export * from './camera';
 export * from './cameraDetectionListResponse';
 export * from './cameraListResponse';
 export * from './cameraStatus';
+export * from './coCaptureFrame';
+export * from './coCaptureFrameAssociateBox';
+export * from './coCaptureFrameTargetBox';
+export * from './coCaptureFramesResponse';
 export * from './dateParameter';
 export * from './detectedCamera';
 export * from './detection';
@@ -79,12 +85,15 @@ export * from './imageTargetMatchedVip';
 export * from './imageTargets';
 export * from './imageTargetsResponse';
 export * from './latLng';
+export * from './listAssociateFramesBucket';
+export * from './listAssociateFramesParams';
 export * from './liveAnalyticsListResponse';
 export * from './liveAnalyticsRow';
 export * from './location';
 export * from './locationListResponse';
 export * from './matchedVip';
 export * from './pageCamera';
+export * from './pageCoCaptureFrame';
 export * from './pageDetectionEventRow';
 export * from './pageLiveAnalyticsRow';
 export * from './pageParameter';

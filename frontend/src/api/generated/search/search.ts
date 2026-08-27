@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.9.0
+ * OpenAPI spec version: 0.10.0
  */
 import {
   useMutation,
@@ -38,7 +38,9 @@ import type {
   AssociateEvidenceResponse,
   AssociatesRequest,
   AssociatesResponse,
+  CoCaptureFramesResponse,
   ErrorResponse,
+  ListAssociateFramesParams,
   PersonSearchResponse,
   ReidSearchPersonsBody,
   ReidSearchPersonsParams,
@@ -602,6 +604,77 @@ export const useGetAssociateEvidence = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getGetAssociateEvidenceMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * Co-capture evidence 패널의 Shared frames (계약 v1.10, UV-45) — primary target과 동료가 같은 프레임에 함께 잡힌 프레임의 페이징 목록.
+- 요청 본문은 /targets/associate-evidence와 동일, 페이징은 공통 page/size 쿼리
+- 정렬: capturedAt 내림차순(최신 먼저). data.totalElements는 coCaptures/totalEvents와 동일
+- imageUrl은 /api 상대경로 — <img src>로 직접 사용. targetBox/associateBox는 0~1 정규화 bbox, 검출 실패 시 null(박스 없이 렌더)
+- 동기 요청 — 프록시 타임아웃 60초
+ * @summary RedFace Shared frames — 페어의 동시 포착 프레임 페이징 목록
+ */
+export const listAssociateFrames = (
+    associateEvidenceRequest: AssociateEvidenceRequest,
+    params?: ListAssociateFramesParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<CoCaptureFramesResponse>(
+      {url: `/targets/associate-frames`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: associateEvidenceRequest,
+        params, signal
+    },
+      );
+    }
+  
+
+
+export const getListAssociateFramesMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof listAssociateFrames>>, TError,{data: AssociateEvidenceRequest;params?: ListAssociateFramesParams}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof listAssociateFrames>>, TError,{data: AssociateEvidenceRequest;params?: ListAssociateFramesParams}, TContext> => {
+
+const mutationKey = ['listAssociateFrames'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof listAssociateFrames>>, {data: AssociateEvidenceRequest;params?: ListAssociateFramesParams}> = (props) => {
+          const {data,params} = props ?? {};
+
+          return  listAssociateFrames(data,params,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ListAssociateFramesMutationResult = NonNullable<Awaited<ReturnType<typeof listAssociateFrames>>>
+    export type ListAssociateFramesMutationBody = AssociateEvidenceRequest
+    export type ListAssociateFramesMutationError = ErrorResponse
+
+    /**
+ * @summary RedFace Shared frames — 페어의 동시 포착 프레임 페이징 목록
+ */
+export const useListAssociateFrames = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof listAssociateFrames>>, TError,{data: AssociateEvidenceRequest;params?: ListAssociateFramesParams}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof listAssociateFrames>>,
+        TError,
+        {data: AssociateEvidenceRequest;params?: ListAssociateFramesParams},
+        TContext
+      > => {
+
+      const mutationOptions = getListAssociateFramesMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
