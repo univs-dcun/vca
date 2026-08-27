@@ -111,10 +111,10 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
          62px height of the bar was a bigger object than anything else the header highlights, and it
          had no counterpart anywhere in the app — nothing else paints a full-height band on hover.
          Colouring what you are actually pointing at says the same thing at the size of the thing.
-         primary-200, not 400: 400 is the active tab's colour, and hover must not be mistakable
-         for "you are here". The active tab is excluded so pointing at it can't lighten it. Note
-         that 200 (#c7c4ff) sits around 1.7:1 against white, so the label goes faint while pointed
-         at — 300 reads better if that turns out to be too weak on a bright screen.
+         primary-300, not 400: 400 is the active tab's colour, and hover must not be mistakable
+         for "you are here". The active tab is excluded so pointing at it can't lighten it. 200 was
+         tried and is too faint — around 1.7:1 against white, so the label dimmed while pointed at
+         and read as disabled rather than as reachable.
 
          Every colour here lives in CSS rather than the element's style attribute. Inline
          declarations beat any stylesheet selector short of !important, which is exactly why the
@@ -124,8 +124,8 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
       .navbar-tab-label{color:var(--gray-800);transition:color .15s}
       .navbar-tab[data-active="true"] .navbar-tab-icon{background-color:var(--primary-400)}
       .navbar-tab[data-active="true"] .navbar-tab-label{color:var(--primary-400)}
-      .navbar-tab:not([data-active="true"]):hover .navbar-tab-icon{background-color:var(--primary-200)}
-      .navbar-tab:not([data-active="true"]):hover .navbar-tab-label{color:var(--primary-200)}
+      .navbar-tab:not([data-active="true"]):hover .navbar-tab-icon{background-color:var(--primary-300)}
+      .navbar-tab:not([data-active="true"]):hover .navbar-tab-label{color:var(--primary-300)}
       .navbar-icon-btn{transition:background-color .15s;border-radius:8px;position:relative;background-color:transparent}
       .navbar-icon-btn:hover{background-color:var(--gray-100)}
       .navbar-dropdown-item{position:relative;background-color:transparent;color:var(--gray-800);transition:background-color .12s, color .12s}
