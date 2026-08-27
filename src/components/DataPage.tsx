@@ -2005,7 +2005,7 @@ const CLUSTERS: ReidCluster[] = [
   {
     id: "c1",
     thumbnail: SUSPECT_1.url,
-    title: "Suspect #1 (TS017323)",
+    title: "TS017323",
     meta: [
       { label:"Gender", value:"F" },
       { label:"Age", value:"20s" },
@@ -2018,7 +2018,7 @@ const CLUSTERS: ReidCluster[] = [
   {
     id: "c2",
     thumbnail: SUSPECT_2.url,
-    title: "Suspect #2 (TS015942)",
+    title: "TS015942",
     meta: [
       { label:"Gender", value:"M" },
       { label:"Age", value:"30s" },
@@ -2634,7 +2634,15 @@ function CheckIconSm() {
   );
 }
 
-interface RedfaceCandidate { id:number; url:string; cam:string; time:string; similarity:number; plate?: string | null }
+interface RedfaceCandidate {
+  id:number; url:string; cam:string; time:string; similarity:number; plate?: string | null;
+  /**
+   * Set only when the person is already named — a Recent target or a VIP. Candidate crops from the
+   * grid have no identity beyond their object id, so they leave this empty and get called by that
+   * id. Nothing here invents a designation for them.
+   */
+  label?: string;
+}
 
 function candidatesFromFilters(f: {
   searchType: "PERSON" | "VEHICLE"; gender: string; apparel: string[]; props: string[];
@@ -2814,7 +2822,15 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   // Live — recomputes on every filter change instead of staying empty until a "Search" click, so
   // the results panel never sits disconnected from the filters actually driving it.
   const candidates = targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, topColors, bottomColors, shoesColors });
-  const selectedObj = candidates.find(c => c.id === selectedCandidate) ?? null;
+  // Picking a Recent target or a VIP already names one specific person, so it is the primary
+  // target — the candidate grid below exists for finding someone you DON'T have on hand. Making
+  // you then click a lookalike crop to confirm was busywork, and worse: the crop you clicked
+  // belonged to a different sighting, so confirming replaced the person you picked.
+  const pickedTargetObj: RedfaceCandidate | null = target && faceSrc
+    ? { id: -1, url: faceSrc, cam: "", time: "", similarity: 100,
+        label: "label" in target ? target.label : target.name }
+    : null;
+  const selectedObj = candidates.find(c => c.id === selectedCandidate) ?? pickedTargetObj;
   const isVehicle = searchType === "VEHICLE";
   // Distinguishes a genuinely blank slate (nothing chosen yet) from an active search that
   // happens to match nothing — the two deserve different empty-state wording.
@@ -3080,7 +3096,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
             {/* A muted, easy-to-miss line read as an afterthought — once candidates actually
                 exist, picking one is the ONE thing left to do, so it gets a filled, colored
                 callout instead until a card's actually clicked. */}
-            {candidates.length > 0 && selectedCandidate === null && (
+            {candidates.length > 0 && selectedCandidate === null && !pickedTargetObj && (
               <span style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)", backgroundColor:"var(--primary-100)", padding:"4px 10px", borderRadius:"999px" }}>
                 ↓ Click a candidate below to select
               </span>
@@ -3640,7 +3656,9 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
 }) {
   const meta = TIER_LINK_META[tier];
   const statusBadge = STATUS_BADGE_META[node.status];
-  const primaryId = primary.name.match(/\(([^)]+)\)/)?.[1] ?? "TS------";
+  // Names arrive either bare ("TS700005", "Mina") or with the id in parentheses; take the id when
+  // it is there, otherwise the name itself is the identifier.
+  const primaryId = primary.name.match(/\(([^)]+)\)/)?.[1] ?? primary.name;
   const events = buildCooccurEvents(node);
   const groups = groupCooccurEvents(events);
   const topGroup = groups[0];
@@ -4235,8 +4253,12 @@ function RedFaceContent({ seedCard, onSeedConsumed, onGoAnalyzeFrame }: {
   // seeding it from "the previous seedCard" would just equal the incoming one and never fire.
   const [prevSeedCard, setPrevSeedCard] = useState<typeof seedCard | "UNSET">("UNSET");
 
+  // Named by what is actually known: a Recent target or VIP pick brings its own name, and a crop
+  // chosen from the candidate grid is called by its object id. Every primary target used to be
+  // labelled "Suspect #1" regardless — a designation nothing in the app supports, applied to
+  // whoever happened to be searched for.
   const handleConfirm = (c: RedfaceCandidate) => {
-    setPrimaryTarget({ name:`Suspect #1 (TS${String(c.id).padStart(6,"0")})`, face:c.url });
+    setPrimaryTarget({ name: c.label ?? `TS${String(c.id).padStart(6, "0")}`, face:c.url });
     setPickerOpen(false);
   };
 
@@ -4250,7 +4272,7 @@ function RedFaceContent({ seedCard, onSeedConsumed, onGoAnalyzeFrame }: {
   if (seedCard !== prevSeedCard) {
     setPrevSeedCard(seedCard);
     if (seedCard) {
-      const label = seedCard.status === "VIP" ? "VIP Match" : `Suspect (TS${String(seedCard.id).padStart(6,"0")})`;
+      const label = seedCard.status === "VIP" ? "VIP Match" : `TS${String(seedCard.id).padStart(6, "0")}`;
       setPrimaryTarget({ name: label, face: seedCard.url });
       setPickerOpen(false);
     }
