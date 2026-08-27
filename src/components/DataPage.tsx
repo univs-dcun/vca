@@ -4022,7 +4022,7 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
         <span style={{ width:"160px", flexShrink:0 }}>Peak location</span>
         <span style={{ width:"150px", flexShrink:0 }}>First detected</span>
         <span style={{ width:"150px", flexShrink:0 }}>Last detected</span>
-        <span style={{ width:"80px", flexShrink:0, textAlign:"center" }}>Action</span>
+        <span style={{ width:"96px", flexShrink:0, textAlign:"center" }}>Action</span>
       </div>
       {rows.map((r, i) => {
         const badge = TIER_BADGE_META[r.tier];
@@ -4052,11 +4052,15 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
             <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>{`${topGroup.location} · ${topGroup.events.length}`}</span>
             <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-500)" }}>{firstSeen.date} {firstSeen.time}</span>
             <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-500)" }}>{lastSeen.date} {lastSeen.time}</span>
-            <div style={{ width:"80px", flexShrink:0, display:"flex", justifyContent:"center" }}>
+            {/* "Inspect" named an activity, not a destination — it opens the Co-capture evidence
+                panel, whose content is this pair's shared frames, so that is what it says. The
+                button also toggles that panel shut, and the old label read the same either way:
+                only its fill changed, which tells you a state exists but not which one. */}
+            <div style={{ width:"96px", flexShrink:0, display:"flex", justifyContent:"center" }}>
               <button onClick={() => onInspect(r.tier, r.node)} style={{ padding:"4px 10px", borderRadius:"6px", border:"none",
                 backgroundColor: r.node.id === selectedNodeId ? "var(--primary-400)" : "var(--gray-900)", color:"white", cursor:"pointer",
-                fontSize:"12px", fontWeight:700 }}>
-                Inspect
+                fontSize:"12px", fontWeight:700, whiteSpace:"nowrap" }}>
+                {r.node.id === selectedNodeId ? "Close" : "View frames"}
               </button>
             </div>
           </div>
