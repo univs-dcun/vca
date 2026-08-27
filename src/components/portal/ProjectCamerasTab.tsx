@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useVcaStore, type Camera, type CameraAiFeature } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useToast } from "../Toast";
-import { BORDER, PANEL_SHADOW } from "./PortalShared";
+import { BORDER, PANEL_SHADOW, RowActionsMenu, FilterSelect } from "./PortalShared";
 import CameraStreamModal from "./CameraStreamModal";
 
 const DEFAULT_THUMBNAIL = "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80";
 const AI_FEATURES: CameraAiFeature[] = ["Re-ID Analysis", "License Plate Recognition", "Intrusion Detection"];
+const MAKERS = ["Hanwha", "Hikvision", "Dahua"];
+const RESOLUTIONS = ["FHD (1920×1080)", "4K (3840×2160)"];
 
 interface CameraFormValues {
   name: string;
@@ -17,10 +19,12 @@ interface CameraFormValues {
   location: string;
   zone: string;
   protocol: "TCP" | "UDP";
+  maker: string;
+  resolution: string;
   aiFeatures: CameraAiFeature[];
 }
 
-const EMPTY_FORM: CameraFormValues = { name: "", code: "", rtspUrl: "", location: "", zone: "", protocol: "TCP", aiFeatures: [] };
+const EMPTY_FORM: CameraFormValues = { name: "", code: "", rtspUrl: "", location: "", zone: "", protocol: "TCP", maker: MAKERS[0], resolution: RESOLUTIONS[0], aiFeatures: [] };
 
 function CameraFormModal({
   title, initial, onClose, onSubmit,
@@ -103,6 +107,29 @@ function CameraFormModal({
 
           {field("location", "Location", "e.g. Novena, Singapore")}
           {field("zone", "Zone", "e.g. Novena")}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div>
+              <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Maker</label>
+              <select
+                value={form.maker}
+                onChange={e => setForm(f => ({ ...f, maker: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: "10px", border: BORDER, fontSize: "13px", fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" }}
+              >
+                {MAKERS.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>Resolution</label>
+              <select
+                value={form.resolution}
+                onChange={e => setForm(f => ({ ...f, resolution: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: "10px", border: BORDER, fontSize: "13px", fontFamily: "inherit", backgroundColor: "white", cursor: "pointer" }}
+              >
+                {RESOLUTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          </div>
 
           <div>
             <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "8px" }}>AI Analysis Engines</label>
@@ -244,7 +271,7 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
     addCamera({
       projectId, name: values.name.trim(), code: values.code.trim(), rtspUrl: values.rtspUrl.trim(),
       location: values.location.trim(), zone: values.zone.trim() || values.location.trim(),
-      protocol: values.protocol, aiFeatures: values.aiFeatures,
+      protocol: values.protocol, maker: values.maker, resolution: values.resolution, aiFeatures: values.aiFeatures,
       ip: "", mac: "", status: "offline", thumbnail: DEFAULT_THUMBNAIL, lat: 0, lng: 0,
     });
     setShowAdd(false);
@@ -256,7 +283,7 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
     updateCamera(editingCamera.id, {
       name: values.name.trim(), code: values.code.trim(), rtspUrl: values.rtspUrl.trim(),
       location: values.location.trim(), zone: values.zone.trim() || values.location.trim(),
-      protocol: values.protocol, aiFeatures: values.aiFeatures,
+      protocol: values.protocol, maker: values.maker, resolution: values.resolution, aiFeatures: values.aiFeatures,
     });
     setEditingCamera(null);
     showToast({ variant: "success", title: "Camera updated", desc: values.name.trim() });
@@ -295,11 +322,6 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
     showToast({ variant: "success", title: "Export complete", desc: `${projectCameras.length} camera(s) exported to CSV.` });
   };
 
-  const filterSelectStyle: React.CSSProperties = {
-    padding: "9px 10px", borderRadius: "10px", border: BORDER, fontSize: "12px", fontFamily: "inherit",
-    backgroundColor: "white", color: "var(--gray-600)", cursor: "pointer",
-  };
-
   return (
     <div>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px" }}>
@@ -327,33 +349,35 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
       </div>
 
       {/* Metrics */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
-        <div style={{ backgroundColor: "white", border: overLimit ? "1px solid var(--danger-400)" : BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-          <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>CHANNEL USAGE</p>
-          <p style={{ fontSize: "20px", fontWeight: 800, color: overLimit ? "var(--danger-400)" : "var(--gray-900)", marginTop: "6px" }}>
-            {projectCameras.length}{limit ? ` / ${limit}` : ""}
-          </p>
-          {limit ? (
-            <div style={{ height: "4px", backgroundColor: "var(--gray-100)", borderRadius: "2px", marginTop: "8px" }}>
-              <div style={{ height: "4px", width: `${Math.min(100, (projectCameras.length / limit) * 100)}%`, backgroundColor: overLimit ? "var(--danger-400)" : "var(--primary-400)", borderRadius: "2px" }} />
-            </div>
-          ) : <p style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "8px" }}>No license limit set</p>}
-        </div>
-        <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-          <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>STREAM HEALTH</p>
-          <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--success-400)", marginTop: "6px" }}>{onlineCount} <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)" }}>online</span></p>
-          <p style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "8px" }}>{offlineCount} offline</p>
-        </div>
-        <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-          <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>AI ENGINE COVERAGE</p>
-          <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)", marginTop: "6px" }}>{aiMappedCount} <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)" }}>/ {projectCameras.length} mapped</span></p>
-        </div>
-        <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "16px" }}>
-          <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>ZONE COVERAGE</p>
-          <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)", marginTop: "6px" }}>{zones.length} <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)" }}>zones</span></p>
-          <p style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {zoneCounts.slice(0, 3).map(z => `${z.zone} (${z.count})`).join(" · ") || "—"}
-          </p>
+      <div style={{ backgroundColor: "white", border: overLimit ? "1px solid var(--danger-400)" : BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, marginBottom: "16px", overflow: "hidden" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
+          <div style={{ padding: "16px", borderRight: BORDER }}>
+            <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>CHANNEL USAGE</p>
+            <p style={{ fontSize: "20px", fontWeight: 800, color: overLimit ? "var(--danger-400)" : "var(--gray-900)", marginTop: "6px" }}>
+              {projectCameras.length}{limit ? ` / ${limit}` : ""}
+            </p>
+            {limit ? (
+              <div style={{ height: "4px", backgroundColor: "var(--gray-100)", borderRadius: "2px", marginTop: "8px" }}>
+                <div style={{ height: "4px", width: `${Math.min(100, (projectCameras.length / limit) * 100)}%`, backgroundColor: overLimit ? "var(--danger-400)" : "var(--primary-400)", borderRadius: "2px" }} />
+              </div>
+            ) : <p style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "8px" }}>No license limit set</p>}
+          </div>
+          <div style={{ padding: "16px", borderRight: BORDER }}>
+            <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>STREAM HEALTH</p>
+            <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--success-400)", marginTop: "6px" }}>{onlineCount} <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)" }}>online</span></p>
+            <p style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "8px" }}>{offlineCount} offline</p>
+          </div>
+          <div style={{ padding: "16px", borderRight: BORDER }}>
+            <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>AI ENGINE COVERAGE</p>
+            <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)", marginTop: "6px" }}>{aiMappedCount} <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)" }}>/ {projectCameras.length} mapped</span></p>
+          </div>
+          <div style={{ padding: "16px" }}>
+            <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>ZONE COVERAGE</p>
+            <p style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)", marginTop: "6px" }}>{zones.length} <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)" }}>zones</span></p>
+            <p style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {zoneCounts.slice(0, 3).map(z => `${z.zone} (${z.count})`).join(" · ") || "—"}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -370,19 +394,21 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 10px 9px 30px", borderRadius: "10px", border: BORDER, fontSize: "12px", fontFamily: "inherit", backgroundColor: "white" }}
           />
         </div>
-        <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)} style={filterSelectStyle}>
-          <option value="ALL">All zones</option>
-          {zones.map(z => <option key={z} value={z}>{z}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)} style={filterSelectStyle}>
-          <option value="ALL">All status</option>
-          <option value="online">Online</option>
-          <option value="offline">Offline</option>
-        </select>
-        <select value={aiFilter} onChange={e => setAiFilter(e.target.value as typeof aiFilter)} style={filterSelectStyle}>
-          <option value="ALL">All AI engines</option>
-          {AI_FEATURES.map(f => <option key={f} value={f}>{f}</option>)}
-        </select>
+        <FilterSelect
+          value={zoneFilter}
+          onChange={setZoneFilter}
+          options={[{ value: "ALL", label: "All zones" }, ...zones.map(z => ({ value: z, label: z }))]}
+        />
+        <FilterSelect
+          value={statusFilter}
+          onChange={v => setStatusFilter(v as typeof statusFilter)}
+          options={[{ value: "ALL", label: "All status" }, { value: "online", label: "Online" }, { value: "offline", label: "Offline" }]}
+        />
+        <FilterSelect
+          value={aiFilter}
+          onChange={v => setAiFilter(v as typeof aiFilter)}
+          options={[{ value: "ALL", label: "All AI engines" }, ...AI_FEATURES.map(f => ({ value: f, label: f }))]}
+        />
         <div style={{ display: "flex", backgroundColor: "var(--gray-50)", border: BORDER, borderRadius: "10px", padding: "3px" }}>
           {(["table", "grid"] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
@@ -405,22 +431,30 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
         </div>
       ) : view === "table" ? (
         <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "56px 1.3fr 0.8fr 1.3fr 1.2fr 0.8fr 70px", padding: "10px 16px", backgroundColor: "var(--gray-50)", borderBottom: BORDER }}>
-            {["", "Camera", "Zone", "RTSP Stream", "AI Engines", "Status", ""].map(h => (
+          <div style={{ display: "grid", gridTemplateColumns: "56px 1.3fr 0.7fr 0.7fr 0.7fr 1.1fr 1fr 0.8fr 70px", padding: "10px 16px", backgroundColor: "var(--gray-50)", borderBottom: BORDER }}>
+            {["", "Camera", "Maker", "Resolution", "Zone", "RTSP Stream", "AI Engines", "Status", ""].map(h => (
               <span key={h} style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)", letterSpacing: "0.4px" }}>{h.toUpperCase()}</span>
             ))}
           </div>
           {visibleCameras.map(cam => {
             const online = cam.status === "online";
+            const isAiCamera = (cam.aiFeatures ?? []).length > 0;
             return (
-              <div key={cam.id} style={{ display: "grid", gridTemplateColumns: "56px 1.3fr 0.8fr 1.3fr 1.2fr 0.8fr 70px", padding: "10px 16px", alignItems: "center", borderBottom: BORDER }}>
+              <div key={cam.id} style={{ display: "grid", gridTemplateColumns: "56px 1.3fr 0.7fr 0.7fr 0.7fr 1.1fr 1fr 0.8fr 70px", padding: "10px 16px", alignItems: "center", borderBottom: BORDER }}>
                 <button onClick={() => setInspectingCameraId(cam.id)} style={{ width: "40px", height: "40px", borderRadius: "8px", overflow: "hidden", backgroundColor: "var(--gray-100)", border: "none", cursor: "pointer", padding: 0 }}>
                   <img src={cam.thumbnail || DEFAULT_THUMBNAIL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </button>
                 <div>
-                  <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{cam.name}</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{cam.name}</p>
+                    <span style={{ fontSize: "10px", fontWeight: 600, color: isAiCamera ? "var(--primary-400)" : "var(--gray-500)", backgroundColor: isAiCamera ? "var(--primary-100)" : "var(--gray-100)", padding: "1px 5px", borderRadius: "999px" }}>
+                      {isAiCamera ? "AI CAMERA" : "CCTV"}
+                    </span>
+                  </div>
                   <p style={{ fontSize: "10px", color: "var(--gray-400)", fontFamily: "monospace" }}>{cam.code}</p>
                 </div>
+                <span style={{ fontSize: "12px", color: "var(--gray-600)" }}>{cam.maker ?? "—"}</span>
+                <span style={{ fontSize: "10px", color: "var(--gray-600)" }}>{cam.resolution ?? "—"}</span>
                 <span style={{ fontSize: "12px", color: "var(--gray-600)" }}>{cam.zone}</span>
                 <span style={{ fontSize: "10px", color: "var(--gray-400)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cam.rtspUrl}</span>
                 <AiFeatureBadges features={cam.aiFeatures} />
@@ -428,16 +462,10 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
                   <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: online ? "var(--success-400)" : "var(--gray-400)", flexShrink: 0 }} />
                   <span style={{ fontSize: "12px", fontWeight: 700, color: online ? "var(--success-400)" : "var(--gray-400)" }}>{online ? "Online" : "Offline"}</span>
                 </button>
-                <div style={{ display: "flex", gap: "8px", justifySelf: "end" }}>
-                  <button onClick={() => setEditingCamera(cam)} title="Edit camera" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex", padding: "4px" }}>
-                    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M9.33 1.67a1.18 1.18 0 0 1 1.67 1.67L4.67 9.67 2 10.33l.67-2.67 6.66-6z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
-                  </button>
-                  <button onClick={() => handleDelete(cam)} title="Remove camera" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex", padding: "4px" }}>
-                    <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
-                      <path d="M2.91663 4.08333H11.0833M5.83329 6.41667V9.33333M8.16663 6.41667V9.33333M3.49996 4.08333L4.08329 10.9167C4.08329 11.2261 4.20621 11.5228 4.42501 11.7416C4.6438 11.9604 4.9405 12.0833 5.24996 12.0833H8.74996C9.05942 12.0833 9.35612 11.9604 9.57491 11.7416C9.79371 11.5228 9.91663 11.2261 9.91663 10.9167L10.5 4.08333M5.24996 4.08333V2.33333C5.24996 2.17862 5.31142 2.03025 5.42082 1.92085C5.53022 1.81146 5.67858 1.75 5.83329 1.75H8.16663C8.32134 1.75 8.4697 1.81146 8.5791 1.92085C8.68849 2.03025 8.74996 2.17862 8.74996 2.33333V4.08333" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </button>
-                </div>
+                <RowActionsMenu actions={[
+                  { label: "Edit", onClick: () => setEditingCamera(cam) },
+                  { label: "Remove", onClick: () => handleDelete(cam), danger: true },
+                ]} />
               </div>
             );
           })}
@@ -447,7 +475,7 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
           {visibleCameras.map(cam => {
             const online = cam.status === "online";
             return (
-              <div key={cam.id} style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, overflow: "hidden" }}>
+              <div key={cam.id} style={{ backgroundColor: "white", borderRadius: "12px", boxShadow: PANEL_SHADOW, overflow: "hidden" }}>
                 <button onClick={() => setInspectingCameraId(cam.id)} style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", border: "none", padding: 0, cursor: "pointer", display: "block", backgroundColor: "var(--gray-900)" }}>
                   <img src={cam.thumbnail || DEFAULT_THUMBNAIL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: online ? 1 : 0.4 }} />
                   <span style={{
@@ -492,7 +520,9 @@ export default function ProjectCamerasTab({ projectId }: { projectId: string }) 
           initial={{
             name: editingCamera.name, code: editingCamera.code, rtspUrl: editingCamera.rtspUrl,
             location: editingCamera.location, zone: editingCamera.zone,
-            protocol: editingCamera.protocol ?? "TCP", aiFeatures: editingCamera.aiFeatures ?? [],
+            protocol: editingCamera.protocol ?? "TCP",
+            maker: editingCamera.maker ?? MAKERS[0], resolution: editingCamera.resolution ?? RESOLUTIONS[0],
+            aiFeatures: editingCamera.aiFeatures ?? [],
           }}
           onClose={() => setEditingCamera(null)}
           onSubmit={saveEdit}

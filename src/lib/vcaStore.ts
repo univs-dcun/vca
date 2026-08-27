@@ -62,6 +62,26 @@ export interface Camera {
   // RTSP transport protocol, set from Portal's Add/Edit Camera form. Optional/cosmetic — nothing
   // downstream branches on this yet since there's no real stream to actually transport.
   protocol?: "TCP" | "UDP";
+  // Hardware details shown in Portal's Cameras table — set from the Add/Edit Camera form.
+  // Optional/cosmetic, same as protocol: nothing downstream branches on these.
+  maker?: string;
+  resolution?: string;
+}
+
+// Infrastructure nodes shown in Portal's Server & API Management tab — separate from `Camera`
+// (a stream source) since a project's servers back the pipeline (recognition workers, image
+// stores, databases) rather than capturing footage themselves.
+export type ServerType = "AI Camera" | "Normal Camera" | "Face Recognition" | "Image Store" | "Database";
+export type ServerStatus = "success" | "error";
+
+export interface Server {
+  id: string;
+  projectId: string;
+  name: string;
+  ip: string;
+  type: ServerType;
+  specification?: string;
+  status: ServerStatus;
 }
 
 export type EventSeverity = "critical" | "warning" | "info";
@@ -101,6 +121,11 @@ export interface Person {
   // forward. Optional since the seed data below predates per-project scoping and stays
   // unscoped (visible everywhere) rather than being retroactively assigned to one project.
   projectId?: string;
+  // Free-text classification tags set from Portal's Register VIP form — shown as colored badges
+  // on the VIP Registry card. Optional so existing/seeded persons (none of which have this
+  // configured) still type-check.
+  roleLabel?: string;
+  priorityLabel?: "normal" | "high" | "very_high";
 }
 
 // A cross-component "please navigate" signal — the global command palette (mounted at the
@@ -124,6 +149,7 @@ interface VcaStoreState {
   persons: Person[];
   events: VcaEvent[];
   portalUsers: PortalUser[];
+  servers: Server[];
   // Notifications (header bell) only care about VIP-match events from this point forward —
   // events seeded at load are historical and start out already "read".
   lastReadNotifAt: string;
@@ -144,15 +170,18 @@ interface VcaStoreState {
   updatePortalUserProjects: (userId: string, projectIds: string[]) => void;
   removePortalUser: (userId: string) => void;
   addOrganization: (org: Omit<Organization, "id">) => string;
+  addServer: (server: Omit<Server, "id">) => void;
+  updateServer: (serverId: string, updates: Partial<Omit<Server, "id" | "projectId">>) => void;
+  removeServer: (serverId: string) => void;
 }
 
 const ORGANIZATIONS: Organization[] = [
-  { id: "org-univs", name: "UNIVS Smart City Control Center", region: "Singapore" },
+  { id: "org-univs", name: "City of Singapore — Smart Infrastructure Office", region: "Singapore" },
 ];
 
 const PROJECTS: Project[] = [
-  { id: "proj-sg", orgId: "org-univs", name: "Singapore Smart City Control Project", type: "smart_city" },
-  { id: "proj-riverside", orgId: "org-univs", name: "Riverside International School", type: "smart_school" },
+  { id: "proj-sg", orgId: "org-univs", name: "Marina Bay & CBD Surveillance Network", type: "smart_city", licensePlan: "Enterprise", licenseChannelLimit: 100, licenseExpiresAt: "2029-06-04" },
+  { id: "proj-riverside", orgId: "org-univs", name: "Riverside International School", type: "smart_school", licensePlan: "Professional", licenseChannelLimit: 40, licenseExpiresAt: "2027-09-01" },
 ];
 
 // Portal-managed accounts — separate from `persons` (the VIP/watchlist registry). A PortalUser is
@@ -160,7 +189,7 @@ const PROJECTS: Project[] = [
 // back-office shell or straight into the Smart City/School app (see PortalShell/ClientLayout),
 // and `projectIds` scopes which project(s) an operator can see once inside the app.
 export type PortalPermission = "admin" | "operator";
-export type PortalUserStatus = "active" | "invited";
+export type PortalUserStatus = "active" | "invited" | "suspended";
 
 // Who is signed in. Stands in for the login response — login is still a no-op that routes on an
 // email lookup, so there is no session to read this from yet. One object rather than the same
@@ -191,13 +220,29 @@ export interface PortalUser {
   projectIds: string[];
   permission: PortalPermission;
   status: PortalUserStatus;
+  // Security/audit columns shown in Portal's Users & Permissions table. Optional so existing/seeded
+  // users (none of which have this configured) still type-check.
+  mfaEnabled?: boolean;
+  lastLoginAt?: string;
 }
 
 const PORTAL_USERS: PortalUser[] = [
-  { id: "user-1", name: "Grace Tan", email: "grace.tan@univs.ai", orgId: "org-univs", projectIds: ["proj-sg", "proj-riverside"], permission: "admin", status: "active" },
-  { id: "user-2", name: "Marcus Lee", email: "marcus.lee@univs.ai", orgId: "org-univs", projectIds: ["proj-sg"], permission: "operator", status: "active" },
-  { id: "user-3", name: "Nadia Rahman", email: "nadia.rahman@univs.ai", orgId: "org-univs", projectIds: ["proj-riverside"], permission: "operator", status: "active" },
+  { id: "user-1", name: "Grace Tan", email: "grace.tan@univs.ai", orgId: "org-univs", projectIds: ["proj-sg", "proj-riverside"], permission: "admin", status: "active", mfaEnabled: true, lastLoginAt: "2026-08-25 09:14" },
+  { id: "user-2", name: "Marcus Lee", email: "marcus.lee@univs.ai", orgId: "org-univs", projectIds: ["proj-sg"], permission: "operator", status: "active", mfaEnabled: true, lastLoginAt: "2026-08-24 18:02" },
+  { id: "user-3", name: "Nadia Rahman", email: "nadia.rahman@univs.ai", orgId: "org-univs", projectIds: ["proj-riverside"], permission: "operator", status: "active", mfaEnabled: false, lastLoginAt: "2026-08-20 11:47" },
   { id: "user-4", name: "Wei Chen", email: "wei.chen@univs.ai", orgId: "org-univs", projectIds: ["proj-sg"], permission: "operator", status: "invited" },
+  { id: "user-5", name: "David Ong", email: "david.ong@univs.ai", orgId: "org-univs", projectIds: ["proj-sg"], permission: "operator", status: "suspended", mfaEnabled: false, lastLoginAt: "2026-06-02 08:30" },
+];
+
+const SERVERS: Server[] = [
+  { id: "srv-1", projectId: "proj-sg", name: "FR 2", ip: "192.168.0.36", type: "Face Recognition", status: "success" },
+  { id: "srv-2", projectId: "proj-sg", name: "AI camera 1", ip: "192.168.0.36", type: "AI Camera", status: "success" },
+  { id: "srv-3", projectId: "proj-sg", name: "image store 1", ip: "192.168.0.36", type: "Image Store", status: "success" },
+  { id: "srv-4", projectId: "proj-sg", name: "database 1", ip: "192.168.0.36", type: "Database", status: "success" },
+  { id: "srv-5", projectId: "proj-sg", name: "normal camera 1", ip: "192.168.0.36", type: "Normal Camera", status: "success" },
+  { id: "srv-6", projectId: "proj-sg", name: "testServer", ip: "192.168.0.103", type: "Face Recognition", status: "error" },
+  { id: "srv-7", projectId: "proj-riverside", name: "campus-fr-1", ip: "192.168.1.20", type: "Face Recognition", status: "success" },
+  { id: "srv-8", projectId: "proj-riverside", name: "campus-db-1", ip: "192.168.1.21", type: "Database", status: "success" },
 ];
 
 const CAMERAS: Camera[] = [
@@ -206,56 +251,56 @@ const CAMERAS: Camera[] = [
     ip: "10.20.4.11", mac: "00:1B:44:11:3A:B7", rtspUrl: "rtsp://10.20.4.11:554/stream1",
     status: "online", location: "Novena, Singapore", zone: "Novena",
     thumbnail: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80",
-    lat: 1.3202, lng: 103.8440,
+    lat: 1.3202, lng: 103.8440, maker: "Hanwha", resolution: "4K (3840×2160)",
   },
   {
     id: "cam-geylang", projectId: "proj-sg", code: "CAM-GEY-001", name: "Geylang NC1",
     ip: "10.20.4.12", mac: "00:1B:44:11:3A:B8", rtspUrl: "rtsp://10.20.4.12:554/stream1",
     status: "online", location: "Geylang NC1, Singapore", zone: "Geylang",
     thumbnail: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
-    lat: 1.3148, lng: 103.8778,
+    lat: 1.3148, lng: 103.8778, maker: "Hikvision", resolution: "FHD (1920×1080)",
   },
   {
     id: "cam-orchard", projectId: "proj-sg", code: "CAM-ORC-001", name: "Orchard MRT",
     ip: "10.20.4.13", mac: "00:1B:44:11:3A:B9", rtspUrl: "rtsp://10.20.4.13:554/stream1",
     status: "online", location: "Orchard MRT, Singapore", zone: "Orchard",
     thumbnail: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
-    lat: 1.3044, lng: 103.8321,
+    lat: 1.3044, lng: 103.8321, maker: "Dahua", resolution: "4K (3840×2160)",
   },
   {
     id: "cam-bugis", projectId: "proj-sg", code: "CAM-BGS-001", name: "Bugis MRT",
     ip: "10.20.4.14", mac: "00:1B:44:11:3A:BA", rtspUrl: "rtsp://10.20.4.14:554/stream1",
     status: "online", location: "Bugis MRT, Singapore", zone: "Bugis",
     thumbnail: "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80",
-    lat: 1.3006, lng: 103.8561,
+    lat: 1.3006, lng: 103.8561, maker: "Hanwha", resolution: "FHD (1920×1080)",
   },
   {
     id: "cam-tampines", projectId: "proj-sg", code: "CAM-TPS-001", name: "Tampines Hub",
     ip: "10.20.4.15", mac: "00:1B:44:11:3A:BB", rtspUrl: "rtsp://10.20.4.15:554/stream1",
     status: "online", location: "Tampines Hub, Singapore", zone: "Tampines",
     thumbnail: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80",
-    lat: 1.3528, lng: 103.9440,
+    lat: 1.3528, lng: 103.9440, maker: "Hikvision", resolution: "4K (3840×2160)",
   },
   {
     id: "cam-bedok", projectId: "proj-sg", code: "CAM-BDK-001", name: "Bedok MRT",
     ip: "10.20.4.16", mac: "00:1B:44:11:3A:BC", rtspUrl: "rtsp://10.20.4.16:554/stream1",
     status: "offline", location: "Bedok MRT, Singapore", zone: "Bedok",
     thumbnail: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
-    lat: 1.3240, lng: 103.9302,
+    lat: 1.3240, lng: 103.9302, maker: "Dahua", resolution: "FHD (1920×1080)",
   },
   {
     id: "cam-queenstown", projectId: "proj-sg", code: "CAM-QTN-001", name: "Queenstown",
     ip: "10.20.4.17", mac: "00:1B:44:11:3A:BD", rtspUrl: "rtsp://10.20.4.17:554/stream1",
     status: "online", location: "Queenstown, Singapore", zone: "Queenstown",
     thumbnail: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
-    lat: 1.2942, lng: 103.8060,
+    lat: 1.2942, lng: 103.8060, maker: "Hanwha", resolution: "4K (3840×2160)",
   },
   {
     id: "cam-jurong-east", projectId: "proj-sg", code: "CAM-JRE-001", name: "Jurong East",
     ip: "10.20.4.18", mac: "00:1B:44:11:3A:BE", rtspUrl: "rtsp://10.20.4.18:554/stream1",
     status: "offline", location: "Jurong East, Singapore", zone: "Jurong East",
     thumbnail: "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80",
-    lat: 1.3329, lng: 103.7436,
+    lat: 1.3329, lng: 103.7436, maker: "Hikvision", resolution: "FHD (1920×1080)",
   },
   // Bulk-generated, deterministic (seededRandom, not Math.random — see above) — one small batch
   // per district so the Dashboard map's zoomed-out cluster pills have real, non-zero counts to
@@ -271,11 +316,15 @@ const CAMERAS: Camera[] = [
       "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80",
     ];
     const camCount = Math.floor(seededRandom(di * 4.13 + 9) * 7); // 0–6 cameras in this district
+    const MAKERS = ["Hanwha", "Hikvision", "Dahua"];
+    const RESOLUTIONS = ["FHD (1920×1080)", "4K (3840×2160)"];
     return Array.from({ length: camCount }, (_, j) => {
       const idx = di * 6 + j; // stable per-camera seed base, unique across all districts
       const isOnline = seededRandom(idx * 8.17 + 2) > 0.1; // ~90% online
       const jitterLat = (seededRandom(idx * 3.31 + 3) - 0.5) * 0.02; // ±0.01°, ~±1km
       const jitterLng = (seededRandom(idx * 5.71 + 4) - 0.5) * 0.02;
+      const maker = MAKERS[Math.floor(seededRandom(idx * 6.53 + 5) * MAKERS.length)];
+      const resolution = RESOLUTIONS[Math.floor(seededRandom(idx * 7.91 + 6) * RESOLUTIONS.length)];
       return {
         id: `cam-bulk-${idx}`,
         projectId: "proj-sg",
@@ -290,6 +339,7 @@ const CAMERAS: Camera[] = [
         thumbnail: thumbnails[idx % thumbnails.length],
         lat: Math.round((district.lat + jitterLat) * 10000) / 10000,
         lng: Math.round((district.lng + jitterLng) * 10000) / 10000,
+        maker, resolution,
       };
     });
   }),
@@ -392,6 +442,7 @@ let personSeq = PERSONS.length;
 let eventSeq = SEED_EVENTS.length;
 let portalUserSeq = PORTAL_USERS.length;
 let orgSeq = ORGANIZATIONS.length;
+let serverSeq = SERVERS.length;
 
 // Latest seed timestamp — anything at or before this is historical, so the bell starts with
 // nothing unread instead of surfacing all 12 seed VIP hits as "new" on first load.
@@ -474,6 +525,7 @@ export const useVcaStore = create<VcaStoreState>((set) => ({
   persons: PERSONS,
   events: SEED_EVENTS,
   portalUsers: PORTAL_USERS,
+  servers: SERVERS,
   lastReadNotifAt: LATEST_SEED_TIMESTAMP,
   dataNavRequest: null,
   setCameraStatus: (cameraId, status) =>
@@ -564,6 +616,12 @@ export const useVcaStore = create<VcaStoreState>((set) => ({
     set(state => ({ organizations: [...state.organizations, { ...org, id }] }));
     return id;
   },
+  addServer: (server) =>
+    set(state => ({ servers: [...state.servers, { ...server, id: `srv-${++serverSeq}` }] })),
+  updateServer: (serverId, updates) =>
+    set(state => ({ servers: state.servers.map(s => (s.id === serverId ? { ...s, ...updates } : s)) })),
+  removeServer: (serverId) =>
+    set(state => ({ servers: state.servers.filter(s => s.id !== serverId) })),
 }));
 
 // Converts store events back into the Dashboard/Sidebar's LiveEvent shape. Only events carrying

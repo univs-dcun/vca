@@ -12,8 +12,8 @@ import { useVcaStore, type ProjectType } from "@/lib/vcaStore";
 
 function BreadcrumbChevron() {
   return (
-    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M2.5 1L5.5 4L2.5 7" stroke="var(--gray-300)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="10" height="10" viewBox="0 0 8 8" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M2.5 1L5.5 4L2.5 7" stroke="var(--gray-500)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -70,7 +70,7 @@ export default function PortalShell() {
 
   return (
     <ToastProvider>
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", backgroundColor: "var(--gray-50)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", backgroundColor: "var(--gray-100)" }}>
       <style>{`
         .portal-exit-btn{transition:background-color .15s}
         .portal-exit-btn:hover{background-color:var(--gray-100)}
@@ -105,6 +105,7 @@ export default function PortalShell() {
           V
         </span>
         <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", flexShrink: 0 }}>UniverseAI</span>
+        <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-500)", backgroundColor: "var(--gray-100)", padding: "3px 8px", borderRadius: "999px", flexShrink: 0 }}>Portal</span>
         <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--success-400)", flexShrink: 0 }} title="Operational" />
 
         <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--gray-300)", margin: "0 2px" }}>/</span>
@@ -146,10 +147,10 @@ export default function PortalShell() {
           {projects.length > 0 && (
             <ProjectSidebar tab={tab} onTabChange={setTab} collapsed={sidebarCollapsed} admin={currentAdmin} />
           )}
-          <div style={{ flex: 1, overflow: "auto", padding: "32px 72px", backgroundColor: "var(--gray-50)" }}>
+          <div style={{ flex: 1, overflow: "auto", padding: "32px 72px", backgroundColor: "var(--gray-100)" }}>
             {projects.length === 0
               ? <PortalEmptyState onNewProject={() => setShowWizard(true)} />
-              : <PortalProjectDetailPage projectId={currentProjectId} tab={tab} />}
+              : <PortalProjectDetailPage projectId={currentProjectId} tab={tab} onTabChange={setTab} />}
           </div>
         </div>
       )}

@@ -2,7 +2,7 @@
 
 import type { ComponentType } from "react";
 
-export type DetailTab = "overview" | "cameras" | "vip" | "license" | "users";
+export type DetailTab = "overview" | "cameras" | "vip" | "license" | "server" | "users";
 
 interface IconProps {
   color: string;
@@ -11,10 +11,10 @@ interface IconProps {
 function OverviewIcon({ color }: IconProps) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="2" y="2" width="5" height="5" rx="1" stroke={color} strokeWidth="1.2"/>
-      <rect x="9" y="2" width="5" height="5" rx="1" stroke={color} strokeWidth="1.2"/>
-      <rect x="2" y="9" width="5" height="5" rx="1" stroke={color} strokeWidth="1.2"/>
-      <rect x="9" y="9" width="5" height="5" rx="1" stroke={color} strokeWidth="1.2"/>
+      <rect x="2" y="2" width="5" height="5" rx="1" stroke={color} strokeWidth="1"/>
+      <rect x="9" y="2" width="5" height="5" rx="1" stroke={color} strokeWidth="1"/>
+      <rect x="2" y="9" width="5" height="5" rx="1" stroke={color} strokeWidth="1"/>
+      <rect x="9" y="9" width="5" height="5" rx="1" stroke={color} strokeWidth="1"/>
     </svg>
   );
 }
@@ -22,8 +22,8 @@ function OverviewIcon({ color }: IconProps) {
 function CamerasIcon({ color }: IconProps) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M2 5.5C2 4.67 2.67 4 3.5 4H5L5.8 2.8C5.98 2.53 6.28 2.37 6.6 2.37H9.4C9.72 2.37 10.02 2.53 10.2 2.8L11 4H12.5C13.33 4 14 4.67 14 5.5V11.5C14 12.33 13.33 13 12.5 13H3.5C2.67 13 2 12.33 2 11.5V5.5Z" stroke={color} strokeWidth="1.2"/>
-      <circle cx="8" cy="8.3" r="2.3" stroke={color} strokeWidth="1.2"/>
+      <path d="M2 5.5C2 4.67 2.67 4 3.5 4H5L5.8 2.8C5.98 2.53 6.28 2.37 6.6 2.37H9.4C9.72 2.37 10.02 2.53 10.2 2.8L11 4H12.5C13.33 4 14 4.67 14 5.5V11.5C14 12.33 13.33 13 12.5 13H3.5C2.67 13 2 12.33 2 11.5V5.5Z" stroke={color} strokeWidth="1"/>
+      <circle cx="8" cy="8.3" r="2.3" stroke={color} strokeWidth="1"/>
     </svg>
   );
 }
@@ -31,7 +31,7 @@ function CamerasIcon({ color }: IconProps) {
 function VipIcon({ color }: IconProps) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M8 1.8L9.8 5.6L14 6.15L11 9.1L11.75 13.3L8 11.3L4.25 13.3L5 9.1L2 6.15L6.2 5.6L8 1.8Z" stroke={color} strokeWidth="1.1" strokeLinejoin="round"/>
+      <path d="M8 1.8L9.8 5.6L14 6.15L11 9.1L11.75 13.3L8 11.3L4.25 13.3L5 9.1L2 6.15L6.2 5.6L8 1.8Z" stroke={color} strokeWidth="1" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -39,9 +39,20 @@ function VipIcon({ color }: IconProps) {
 function LicenseIcon({ color }: IconProps) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M4 2.5C4 2.22 4.22 2 4.5 2H9.5L12 4.5V13.5C12 13.78 11.78 14 11.5 14H4.5C4.22 14 4 13.78 4 13.5V2.5Z" stroke={color} strokeWidth="1.2" strokeLinejoin="round"/>
-      <path d="M9.5 2V4.5H12" stroke={color} strokeWidth="1.2" strokeLinejoin="round"/>
-      <path d="M6 8.7H10M6 10.7H10" stroke={color} strokeWidth="1.1" strokeLinecap="round"/>
+      <path d="M4 2.5C4 2.22 4.22 2 4.5 2H9.5L12 4.5V13.5C12 13.78 11.78 14 11.5 14H4.5C4.22 14 4 13.78 4 13.5V2.5Z" stroke={color} strokeWidth="1" strokeLinejoin="round"/>
+      <path d="M9.5 2V4.5H12" stroke={color} strokeWidth="1" strokeLinejoin="round"/>
+      <path d="M6 8.7H10M6 10.7H10" stroke={color} strokeWidth="1" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function ServerIcon({ color }: IconProps) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="2.5" width="12" height="4.5" rx="1.2" stroke={color} strokeWidth="1"/>
+      <rect x="2" y="9" width="12" height="4.5" rx="1.2" stroke={color} strokeWidth="1"/>
+      <circle cx="4.3" cy="4.75" r="0.7" fill={color}/>
+      <circle cx="4.3" cy="11.25" r="0.7" fill={color}/>
     </svg>
   );
 }
@@ -49,10 +60,10 @@ function LicenseIcon({ color }: IconProps) {
 function UsersIcon({ color }: IconProps) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <circle cx="6" cy="5.3" r="2.2" stroke={color} strokeWidth="1.2"/>
-      <path d="M1.8 13c0-2.21 1.88-4 4.2-4s4.2 1.79 4.2 4" stroke={color} strokeWidth="1.2" strokeLinecap="round"/>
-      <circle cx="11.6" cy="6" r="1.7" stroke={color} strokeWidth="1.1"/>
-      <path d="M9.9 13c0.1-1.76 1.6-3.1 3.3-3.1 1.02 0 1.94 0.46 2.55 1.18" stroke={color} strokeWidth="1.1" strokeLinecap="round"/>
+      <circle cx="6" cy="5.3" r="2.2" stroke={color} strokeWidth="1"/>
+      <path d="M1.8 13c0-2.21 1.88-4 4.2-4s4.2 1.79 4.2 4" stroke={color} strokeWidth="1" strokeLinecap="round"/>
+      <circle cx="11.6" cy="6" r="1.7" stroke={color} strokeWidth="1"/>
+      <path d="M9.9 13c0.1-1.76 1.6-3.1 3.3-3.1 1.02 0 1.94 0.46 2.55 1.18" stroke={color} strokeWidth="1" strokeLinecap="round"/>
     </svg>
   );
 }
@@ -62,6 +73,7 @@ export const PROJECT_TABS: { id: DetailTab; label: string; icon: ComponentType<I
   { id: "cameras", label: "Cameras", icon: CamerasIcon },
   { id: "vip", label: "VIP Registry", icon: VipIcon },
   { id: "license", label: "License", icon: LicenseIcon },
+  { id: "server", label: "Server & API", icon: ServerIcon },
   { id: "users", label: "Users & Permissions", icon: UsersIcon },
 ];
 
@@ -79,7 +91,7 @@ export default function ProjectSidebar({ tab, onTabChange, collapsed, admin }: P
         width: collapsed ? "60px" : "212px",
         flexShrink: 0,
         display: "flex", flexDirection: "column",
-        backgroundColor: "var(--gray-50)",
+        backgroundColor: "var(--gray-100)",
         padding: collapsed ? "16px 8px" : "16px 12px",
         overflowY: "auto",
         transition: "width .15s ease",
@@ -87,7 +99,7 @@ export default function ProjectSidebar({ tab, onTabChange, collapsed, admin }: P
     >
       <style>{`
         .portal-navitem{transition:background-color .12s}
-        .portal-navitem:hover{background-color:var(--gray-100)}
+        .portal-navitem:hover{background-color:var(--gray-200)}
       `}</style>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "4px" }}>
         {PROJECT_TABS.map(t => {

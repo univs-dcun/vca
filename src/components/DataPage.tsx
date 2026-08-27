@@ -2770,6 +2770,11 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   const faceSrc = uploadedFace ?? target?.face;
   const hasBody = !!uploadedBody || !!target;
   const bodySrc = uploadedBody ?? target?.body;
+  // Selected recent target first — same reason as VipQuickSelectRow's compact ordering. Original
+  // indices ride along because selectRecentTarget and selectedTarget are index-based.
+  const recentOrder = RECENT_TARGETS_EN.map((t, i) => ({ t, i }));
+  const recentActiveAt = recentOrder.findIndex(o => o.i === selectedTarget);
+  if (recentActiveAt > 0) recentOrder.unshift(...recentOrder.splice(recentActiveAt, 1));
   const toggleApparel     = (a: string) => setApparel(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
   const toggleProps       = (a: string) => setProps(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
   const toggleTopColor    = (c: string) => setTopColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
@@ -2868,13 +2873,18 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                   <HistoryIconSm />
                   <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Recent targets</span>
                 </div>
-                {/* 2x2, not a single row of two: the picker showed the first two of the list and
-                    silently dropped the rest, so a target used an hour ago wasn't reachable from
-                    here at all. Four fits without scrolling and without shrinking the chips. */}
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-                  {RECENT_TARGETS_EN.map((t, i) => (
+                {/* One scrolling row, same as VIP quick select right below it — the picker used to
+                    show the first two of the list and silently drop the rest, so a target used an
+                    hour ago wasn't reachable from here at all. Scrolling holds however many the
+                    list grows to without the field getting taller.
+
+                    Selected card pulled to the front for the same reason it is in VIP quick
+                    select: in a horizontal scroller, a pick made further along leaves the screen
+                    and then nothing says which target is loaded. */}
+                <div className="vca-thin-scrollbar" style={{ display:"flex", flexWrap:"nowrap", gap:"8px", overflowX:"auto", paddingBottom:"6px" }}>
+                  {recentOrder.map(({ t, i }) => (
                     <button key={i} onClick={() => selectRecentTarget(i)} style={{
-                      minWidth:0, display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"8px", cursor:"pointer",
+                      flexShrink:0, display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"8px", cursor:"pointer",
                       backgroundColor:"white",
                       border: selectedTarget === i ? "1px solid var(--primary-400)" : "1px solid var(--gray-200)",
                       boxShadow: selectedTarget === i ? "0 2px 2px rgba(90,61,251,0.1)" : "none",

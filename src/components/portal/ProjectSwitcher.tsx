@@ -108,7 +108,7 @@ export default function ProjectSwitcher({ currentProjectId, onSelect, onNewProje
         <span style={{ fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis" }}>
           {current?.name ?? "Select project"}
         </span>
-        <span style={{ color: "var(--gray-400)", display: "flex" }}><ChevronDown /></span>
+        <span style={{ color: "var(--gray-600)", display: "flex" }}><ChevronDown size={14} /></span>
       </button>
 
       {open && (

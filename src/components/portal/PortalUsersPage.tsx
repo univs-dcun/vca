@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useVcaStore, type PortalPermission } from "@/lib/vcaStore";
+import { useVcaStore, type PortalPermission, type PortalUserStatus } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
-import { BORDER, PANEL_SHADOW } from "./PortalShared";
+import { BORDER, PANEL_SHADOW, RowActionsMenu } from "./PortalShared";
 
 function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: string; onClose: () => void }) {
   useEscapeKey(onClose);
@@ -105,15 +105,29 @@ function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: stri
   );
 }
 
-function StatusBadge({ status }: { status: "active" | "invited" }) {
-  const isActive = status === "active";
+const STATUS_COLORS: Record<PortalUserStatus, { bg: string; color: string }> = {
+  active: { bg: "var(--gray-100)", color: "var(--success-400)" },
+  invited: { bg: "var(--warning-200)", color: "var(--warning-500)" },
+  suspended: { bg: "var(--danger-100)", color: "var(--danger-500)" },
+};
+
+function StatusBadge({ status }: { status: PortalUserStatus }) {
+  const { bg, color } = STATUS_COLORS[status];
   return (
     <span style={{
       fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "999px", textTransform: "capitalize",
-      backgroundColor: isActive ? "var(--gray-100)" : "var(--warning-200)",
-      color: isActive ? "var(--success-400)" : "var(--warning-500)",
+      backgroundColor: bg, color,
     }}>
       {status}
+    </span>
+  );
+}
+
+function MfaBadge({ enabled }: { enabled?: boolean }) {
+  if (!enabled) return <span style={{ fontSize: "12px", color: "var(--gray-300)" }}>—</span>;
+  return (
+    <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "18px", height: "18px", borderRadius: "5px", backgroundColor: "var(--success-100)" }} title="MFA enabled">
+      <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5L5.5 10.5L11.5 3.5" stroke="var(--success-400)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
     </span>
   );
 }
@@ -130,11 +144,15 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
   const updatePortalUserPermission = useVcaStore(s => s.updatePortalUserPermission);
   const removePortalUser = useVcaStore(s => s.removePortalUser);
   const [showInvite, setShowInvite] = useState(false);
+  const [search, setSearch] = useState("");
 
   const orgName = (orgId: string) => organizations.find(o => o.id === orgId)?.name ?? orgId;
   const projectName = (id: string) => projects.find(p => p.id === id)?.name ?? id;
   const currentProject = projects.find(p => p.id === projectId);
-  const scopedUsers = portalUsers.filter(u => u.projectIds.includes(projectId));
+  const q = search.trim().toLowerCase();
+  const scopedUsers = portalUsers
+    .filter(u => u.projectIds.includes(projectId))
+    .filter(u => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
 
   return (
     <div>
@@ -152,19 +170,33 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
         </button>
       </div>
 
+      <div style={{ position: "relative", marginBottom: "12px", maxWidth: "320px" }}>
+        <span style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--gray-400)", display: "flex" }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3"/><path d="M12 12L9.5 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+        </span>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search users…"
+          style={{ width: "100%", boxSizing: "border-box", padding: "9px 10px 9px 30px", borderRadius: "10px", border: BORDER, fontSize: "12px", fontFamily: "inherit", backgroundColor: "white" }}
+        />
+      </div>
+
       <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1.2fr 1.6fr 1fr 0.8fr 40px", padding: "10px 16px", backgroundColor: "var(--gray-50)", borderBottom: BORDER }}>
-          {["User", "Organization", "Projects", "Permission", "Status", ""].map(h => (
+        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1.3fr 0.9fr 0.5fr 0.9fr 0.8fr 36px", padding: "10px 16px", backgroundColor: "var(--gray-50)", borderBottom: BORDER }}>
+          {["User", "Organization", "Projects", "Permission", "MFA", "Last Login", "Status", ""].map(h => (
             <span key={h} style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)", letterSpacing: "0.4px" }}>{h.toUpperCase()}</span>
           ))}
         </div>
         {scopedUsers.length === 0 && (
           <div style={{ padding: "32px 16px", textAlign: "center" }}>
-            <p style={{ fontSize: "13px", color: "var(--gray-400)" }}>No users have access to this project yet.</p>
+            <p style={{ fontSize: "13px", color: "var(--gray-400)" }}>
+              {q ? "No users match this search." : "No users have access to this project yet."}
+            </p>
           </div>
         )}
         {scopedUsers.map(u => (
-          <div key={u.id} style={{ display: "grid", gridTemplateColumns: "1.6fr 1.2fr 1.6fr 1fr 0.8fr 40px", padding: "12px 16px", alignItems: "center", borderBottom: BORDER }}>
+          <div key={u.id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1.3fr 0.9fr 0.5fr 0.9fr 0.8fr 36px", padding: "12px 16px", alignItems: "center", borderBottom: BORDER }}>
             <div>
               <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{u.name}</p>
               <p style={{ fontSize: "10px", color: "var(--gray-400)" }}>{u.email}</p>
@@ -194,15 +226,12 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
               <option value="admin">Admin</option>
               <option value="operator">Operator</option>
             </select>
+            <MfaBadge enabled={u.mfaEnabled} />
+            <span style={{ fontSize: "10px", color: "var(--gray-500)" }}>{u.lastLoginAt ?? "—"}</span>
             <StatusBadge status={u.status} />
-            <button
-              onClick={() => removePortalUser(u.id)}
-              title="Remove user"
-              style={{ border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex", padding: "4px", justifySelf: "end" }}>
-              <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
-                <path d="M2.91663 4.08333H11.0833M5.83329 6.41667V9.33333M8.16663 6.41667V9.33333M3.49996 4.08333L4.08329 10.9167C4.08329 11.2261 4.20621 11.5228 4.42501 11.7416C4.6438 11.9604 4.9405 12.0833 5.24996 12.0833H8.74996C9.05942 12.0833 9.35612 11.9604 9.57491 11.7416C9.79371 11.5228 9.91663 11.2261 9.91663 10.9167L10.5 4.08333M5.24996 4.08333V2.33333C5.24996 2.17862 5.31142 2.03025 5.42082 1.92085C5.53022 1.81146 5.67858 1.75 5.83329 1.75H8.16663C8.32134 1.75 8.4697 1.81146 8.5791 1.92085C8.68849 2.03025 8.74996 2.17862 8.74996 2.33333V4.08333" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
+            <RowActionsMenu actions={[
+              { label: "Remove user", onClick: () => removePortalUser(u.id), danger: true },
+            ]} />
           </div>
         ))}
       </div>
