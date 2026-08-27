@@ -101,7 +101,15 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-function DropdownBtn({ value, options, onSelect }: { value: string; options: string[]; onSelect: (v: string) => void }) {
+/**
+ * `disabledOptions` exists for options that are on the roadmap but not built. Listing them and
+ * letting them be picked is worse than not listing them at all — the setting appears to take and
+ * then nothing happens — while dropping them loses the signal that the work is planned. A greyed,
+ * unclickable row with "Coming soon" beside it says both things at once.
+ */
+function DropdownBtn({ value, options, onSelect, disabledOptions = [] }: {
+  value: string; options: string[]; onSelect: (v: string) => void; disabledOptions?: string[];
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -124,15 +132,22 @@ function DropdownBtn({ value, options, onSelect }: { value: string; options: str
       </button>
       {open && (
         <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20, backgroundColor: "white", border: "1px solid var(--gray-200)", borderRadius: "8px", boxShadow: "0 4px 12px rgba(14, 22, 42,0.08)", minWidth: "150px", overflow: "hidden" }}>
-          {options.map(opt => (
-            <button
-              key={opt}
-              onClick={() => { onSelect(opt); setOpen(false); }}
-              style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", backgroundColor: opt === value ? "var(--gray-50)" : "white", cursor: "pointer", fontSize: "12px", fontWeight: opt === value ? 700 : 500, color: "var(--gray-700)" }}
-            >
-              {opt}
-            </button>
-          ))}
+          {options.map(opt => {
+            const unavailable = disabledOptions.includes(opt);
+            return (
+              <button
+                key={opt}
+                disabled={unavailable}
+                onClick={() => { onSelect(opt); setOpen(false); }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", backgroundColor: opt === value ? "var(--gray-50)" : "white", cursor: unavailable ? "default" : "pointer", fontSize: "12px", fontWeight: opt === value ? 700 : 500, color: unavailable ? "var(--gray-400)" : "var(--gray-700)" }}
+              >
+                {opt}
+                {unavailable && (
+                  <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)", whiteSpace: "nowrap" }}>Coming soon</span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -582,7 +597,11 @@ export default function MyPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "0.006px" }}>Interface language</span>
-                    <DropdownBtn value={language} options={["English", "한국어"]} onSelect={setLanguage} />
+                    {/* 한국어 stays in its own script — that is how every language picker lists a
+                        language — but it is not translated yet, so it is listed and disabled rather
+                        than selectable. The note beside it is in English because the interface is. */}
+                    <DropdownBtn value={language} options={["English", "한국어"]}
+                      disabledOptions={["한국어"]} onSelect={setLanguage} />
                   </div>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "var(--gray-200)", width: "100%" }} />
