@@ -768,16 +768,22 @@ function LiveSearchSidebar({
                 <HistoryIconSm />
                 <span style={{ fontSize:"12px", fontWeight:700 }}>Recent targets</span>
               </div>
-              <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"8px", overflowX:"auto" }}>
+              {/* Same card, scrollbar and selected-first ordering as RedFace's target picker —
+                  two places offering the same list were reading as two different features, one
+                  showing when each target was used and one not. */}
+              <div className="vca-thin-scrollbar" style={{ display:"flex", flexWrap:"nowrap", gap:"8px", overflowX:"auto", paddingBottom:"6px" }}>
                 {recentOrder.map(({ t, i }) => (
                   <button key={i} onClick={() => selectRecentTarget(i)} style={{
-                    display:"flex", alignItems:"center", gap:"6px", padding:"6px 10px", borderRadius:"8px",
+                    flexShrink:0, display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"8px", cursor:"pointer",
                     backgroundColor:"white",
                     border: selectedTarget === i ? "1px solid var(--primary-400)" : "1px solid var(--gray-200)",
-                    cursor:"pointer", flexShrink:0,
+                    boxShadow: selectedTarget === i ? "0 2px 2px rgba(90,61,251,0.1)" : "none",
                   }}>
-                    <img src={t.face} alt="" style={{ width:"32px", height:"26px", borderRadius:"6px", objectFit:"cover" }} />
-                    <span style={{ fontSize:"11px", fontWeight:600, color:"var(--gray-900)", whiteSpace:"nowrap" }}>{t.label}</span>
+                    <img src={t.face} alt="" style={{ width:"32px", height:"32px", borderRadius:"4px", objectFit:"cover" }} />
+                    <div style={{ textAlign:"left" }}>
+                      <p style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", margin:0 }}>{t.label}</p>
+                      <p style={{ fontSize:"10px", color:"var(--gray-400)", margin:0 }}>{t.time}</p>
+                    </div>
                   </button>
                 ))}
               </div>
@@ -3636,10 +3642,7 @@ function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose,
           ))}
         </div>
 
-        <div style={{ padding:"12px 16px", borderTop:BORDER, backgroundColor:"var(--gray-50)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px" }}>
-          <span style={{ fontSize:"11px", color:"var(--gray-500)" }}>
-            Both people detected in this one frame.
-          </span>
+        <div style={{ padding:"12px 16px", borderTop:BORDER, backgroundColor:"var(--gray-50)", display:"flex", alignItems:"center", justifyContent:"flex-end", gap:"12px" }}>
           {/* Same wording and destination as Re-ID's detail popup — this deep-links the camera to
               Best Frame's inspection view rather than duplicating that screen here. */}
           {/* Carries the frame's own date and time, not just its camera: without them Best Frame
