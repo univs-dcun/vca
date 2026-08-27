@@ -649,6 +649,13 @@ function LiveSearchSidebar({
   } = state;
   const target = selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : null;
   const vipName = activeVIP >= 0 ? VIP_QUICK[activeVIP].name : null;
+  // Selected target first, same as RedFace's picker and the compact VIP row: this list scrolls
+  // horizontally, so a pick made further along leaves the viewport and then nothing on screen
+  // says which target the search is loaded with. Recency order is kept for the rest — original
+  // indices ride along because selectRecentTarget and selectedTarget are index-based.
+  const recentOrder = RECENT_TARGETS_EN.map((t, i) => ({ t, i }));
+  const recentActiveAt = recentOrder.findIndex(o => o.i === selectedTarget);
+  if (recentActiveAt > 0) recentOrder.unshift(...recentOrder.splice(recentActiveAt, 1));
 
   // A real, user-supplied reference photo — not a recent-target/VIP pick — takes over the
   // preview the same way `target` does, and clears itself if the operator picks a target after
@@ -762,7 +769,7 @@ function LiveSearchSidebar({
                 <span style={{ fontSize:"12px", fontWeight:700 }}>Recent targets</span>
               </div>
               <div className="vca-hide-scrollbar" style={{ display:"flex", gap:"8px", overflowX:"auto" }}>
-                {RECENT_TARGETS_EN.map((t, i) => (
+                {recentOrder.map(({ t, i }) => (
                   <button key={i} onClick={() => selectRecentTarget(i)} style={{
                     display:"flex", alignItems:"center", gap:"6px", padding:"6px 10px", borderRadius:"8px",
                     backgroundColor:"white",
