@@ -1,0 +1,16 @@
+# VCA Admin 로컬 DB — 호스트 5433 (기본 5432와 충돌 회피)
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: vca-admin-db
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: vca_admin
+      POSTGRES_USER: vca
+      POSTGRES_PASSWORD: vca
+    volumes:
+      - vca-admin-db-data:/var/lib/postgresql/data
+
+volumes:
+  vca-admin-db-data:

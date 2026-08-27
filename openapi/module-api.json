@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA Module API (내부 계약)",
-    "version": "0.9.0",
-    "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표 (예외: POST /persons/search·POST /targets/track-on-map·POST /persons/reid-search·POST /targets/associates·POST /targets/associate-evidence는 60초(v1.2/v1.4/v1.7/v1.8), GET /videos/{id}/content는 스트리밍이라 최초 응답까지만 적용(v1.3))\n- (v1.3) GET /videos/{videoId}/content는 HTTP Range 요청(206 Partial Content)을 반드시 지원 — 브라우저 video 시킹의 전제. 브라우저 재생 가능한 H.264 MP4 서빙은 모듈 책임(원본 코덱 상이 시 트랜스코딩 포함)\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
+    "version": "0.10.0",
+    "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n(v1.9, UV-42) provision 그룹만 예외적으로 VCA Admin 백엔드가 호출한다 — 카메라 원장은 Admin DB가 단일 원천이고, 모듈은 provisioning으로 내려받은 목록만 분석한다 (docs/design-vca-admin.md §3).\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표 (예외: POST /persons/search·POST /targets/track-on-map·POST /persons/reid-search·POST /targets/associates·POST /targets/associate-evidence는 60초(v1.2/v1.4/v1.7/v1.8), GET /videos/{id}/content는 스트리밍이라 최초 응답까지만 적용(v1.3))\n- (v1.3) GET /videos/{videoId}/content는 HTTP Range 요청(206 Partial Content)을 반드시 지원 — 브라우저 video 시킹의 전제. 브라우저 재생 가능한 H.264 MP4 서빙은 모듈 책임(원본 코덱 상이 시 트랜스코딩 포함)\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
     "contact": { "name": "계약 담당: 박상훈 (백엔드/브로커)" }
   },
   "servers": [
@@ -15,6 +15,7 @@
     { "name": "locations" },
     { "name": "cameras" },
     { "name": "stats" },
+    { "name": "provision", "description": "카메라 provisioning (계약 v1.9, UV-42) — 호출 주체가 VCA Admin 백엔드인 유일한 그룹. 카메라 원장은 Admin DB가 단일 원천이며, 모듈은 이 API로 내려받은 목록과 자기 분석 상태를 수렴시킨다 (추가된 카메라는 분석 시작, 빠진 카메라는 중단). rtspUrl·자격증명 등 민감정보는 Admin→모듈 내부 채널에만 존재하고 VCA 공개 계약(openapi.json)에는 노출하지 않는다" },
     { "name": "detections", "description": "BEST FRAME 감지 이벤트 리소스 (v1.1, UV-33). v1.6(UV-38)에서 DATA Live Monitoring용으로 확장 — 감지 이벤트에 faceUrl(얼굴 크롭)·gender·age(모듈 추정) 추가, 얼굴 크롭 바이너리 1종 신설. 전신 크롭은 기존 snapshotUrl 재사용" },
     { "name": "search", "description": "REDMAP 인물 검색 (계약 v1.2, UV-34) + Track on Map 대상 추적 검색 (계약 v1.4, UV-36) + Re-ID 인물 검색 (계약 v1.7, UV-39 — 유사도 내림차순 상위 최대 20, 필터는 전부 모듈 적용) + RedFace 동반 감지 분석 (계약 v1.8, UV-40 — 동료 목록 상위 최대 30·페어 집계 요약). 차량 번호 검색은 구현 방식 미확정으로 범위 제외 — 확정 시 별도 계약 추가" },
     { "name": "analyze", "description": "Analyze Frame 베스트 프레임 이력 (계약 v1.5, UV-37) — 사이트 로컬 분(minute) 단위 베스트 프레임 목록(초당 1장·최대 60장)과 프레임 내 tracked 대상 조회. 카메라·업로드 비디오 공통(비디오는 recordedAt 절대 시각 축), 이미지는 대상 아님" },
@@ -179,6 +180,35 @@
             "description": "OK",
             "content": {
               "application/json": { "schema": { "$ref": "#/components/schemas/PageCamera" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/provision/cameras": {
+      "put": {
+        "operationId": "provisionCameras",
+        "summary": "분석 대상 카메라 목록 provisioning (전체 교체, 멱등)",
+        "description": "VCA Admin 백엔드가 카메라 원장 변경 시마다 전체 목록을 내려보낸다 (계약 v1.9, UV-42).\n- 선언적 전체 교체: 모듈은 이 목록과 자기 분석 상태를 수렴시킨다 — 목록에 새로 들어온 카메라는 분석 시작(RTSP 접속), 빠진 카메라는 분석 중단. 같은 본문을 재전송해도 결과가 같아야 한다(멱등)\n- 수렴 결과는 기존 채널로 보고: MQTT cameras/{id}/status (RUNNING/STOPPED, retained). 목록에서 빠진 카메라는 원장에서 삭제된 것이므로 분석을 중단하고 해당 카메라의 retained 토픽(status·stats·bestframe)을 빈 페이로드로 삭제한다 (MQTT SPEC 공통 규칙 'retained 삭제')\n- GET /cameras는 provisioning 수신 이후 이 목록 기준의 '분석 중 카메라 뷰'가 된다 (미수신 상태의 동작은 모듈 재량 — 참조 구현은 내장 기본 카메라로 동작)\n- rtspUrl·자격증명은 민감정보 — 모듈 내부에만 보관하고 어떤 조회 응답에도 포함하지 않는다\n- 카메라 종류는 단순 CCTV(Normal)만 — AI Camera·Associated Server는 도입 시 additive로 확장 (설계 확정 2026-08-27)",
+        "tags": ["provision"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ProvisionCamerasRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK — 수렴 시작 (accepted = 수리한 카메라 수)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ProvisionResult" } }
+            }
+          },
+          "400": {
+            "description": "본문 형식 오류 (MOD-4001) — cameras 배열 또는 필수 필드 누락",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
             }
           },
           "default": { "$ref": "#/components/responses/Error" }
@@ -1141,6 +1171,36 @@
           "status": { "$ref": "#/components/schemas/CameraStatus" },
           "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
           "location": { "$ref": "#/components/schemas/LatLng" }
+        }
+      },
+      "ProvisionCamera": {
+        "type": "object",
+        "description": "provisioning 항목 (계약 v1.9) — Admin 원장 중 모듈이 분석에 필요한 필드만. ip·maker·model 등 장비 관리 정보는 Admin DB에만 있다",
+        "required": ["cameraId", "name", "rtspUrl", "locationId", "location"],
+        "properties": {
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$", "description": "Admin이 발급한 카메라 ID — MQTT 토픽·조회 API의 cameraId와 동일 체계" },
+          "name": { "type": "string" },
+          "rtspUrl": { "type": "string", "description": "분석 입력 스트림. 자격증명이 포함될 수 있는 민감정보 — 어떤 조회 응답에도 노출 금지" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "location": { "$ref": "#/components/schemas/LatLng" }
+        }
+      },
+      "ProvisionCamerasRequest": {
+        "type": "object",
+        "required": ["cameras"],
+        "properties": {
+          "cameras": {
+            "type": "array",
+            "description": "분석 대상 전체 목록 — 부분 patch가 아니라 이 목록이 곧 상태다 (빈 배열 = 전체 분석 중단)",
+            "items": { "$ref": "#/components/schemas/ProvisionCamera" }
+          }
+        }
+      },
+      "ProvisionResult": {
+        "type": "object",
+        "required": ["accepted"],
+        "properties": {
+          "accepted": { "type": "integer", "description": "수리한 카메라 수 (= 요청 cameras 길이)" }
         }
       },
       "TopologyPoint": {

@@ -200,6 +200,7 @@
 | `POST /v1/persons/reid-search` | **(v1.7)** Re-ID 인물 검색 — 이미지 업로드(face/body) 또는 `vipId` 참조 + 필터(기간·유사도·카메라·성별·복장·소지품) 전부 모듈 적용 → 유사도 내림차순 상위 최대 20 (빈 결과 허용, 동기 60초) |
 | `POST /v1/targets/associates` | **(v1.8)** RedFace 동반 감지 인물 목록 — primary target 참조(source + targetId=감지 eventId) + 기간 → 같은 프레임에 함께 감지된 인물 상위 최대 30 (coCaptures 내림차순, 빈 결과 허용, 동기 60초) |
 | `POST /v1/targets/associate-evidence` | **(v1.8)** Joint Evidence — 페어(targetId + associateId) 동반 감지 집계 요약 (총 횟수·최초/최종·최다 장소·주 시간대 비율·장소별 최근 5건, 동기 60초) |
+| `PUT /v1/provision/cameras` | **(v1.9)** 카메라 provisioning — **호출 주체가 VCA Admin 백엔드인 유일한 엔드포인트.** 전체 목록 선언적 멱등 교체: 새 카메라는 분석 시작, 빠진 카메라는 중단 + retained 토픽 삭제 |
 
 지킬 규칙:
 
@@ -305,10 +306,28 @@
   책임이고 화면은 문구 조립만 한다. `totalEvents`는 목록의 `coCaptures`와 같은 값이어야 한다
 - 시간대 구분(사이트 로컬): morning 05~12 / afternoon 12~17 / evening 17~21 / night 21~05
 
+### (v1.9) 카메라 provisioning — 구현 전 알아둘 것
+
+- **카메라 원장은 VCA Admin DB가 단일 원천**이 된다 (`vca` 모노레포 `docs/design-vca-admin.md`,
+  UV-41/UV-42). 모듈은 카메라를 자체 설정하지 않고 Admin 백엔드가 내려주는
+  `PUT /v1/provision/cameras`의 목록만 분석한다 — 다른 모든 엔드포인트는 프록시가 호출하지만
+  **이것만 Admin 백엔드가 호출**한다
+- **선언적 전체 교체 + 멱등** — 부분 patch가 아니라 매번 전체 목록이 온다. 목록에 새로 들어온
+  카메라는 RTSP 접속·분석 시작, 빠진 카메라는 원장에서 삭제된 것이므로 분석을 중단하고 해당
+  카메라의 **retained 토픽(status·stats·bestframe)을 빈 페이로드로 삭제**한다 (SPEC §1 규칙).
+  같은 본문을 재전송해도 결과가 같아야 한다. Admin은 기동 시에도 1회 push하므로 모듈이
+  재기동으로 목록을 잃어도 수렴된다
+- **`GET /v1/cameras`·`/v1/locations`는 provisioning 수신 후 그 목록 기준의 "분석 중 카메라
+  뷰"**가 된다. 수렴 결과 보고는 기존 채널 그대로 — MQTT `cameras/{id}/status` (신규 토픽 없음)
+- **rtspUrl은 자격증명이 포함될 수 있는 민감정보** — 모듈 내부에만 보관하고 어떤 조회
+  응답·MQTT 발행에도 포함하지 않는다
+- 카메라 종류는 단순 CCTV만 — AI Camera·Associated Server 필드는 없다 (도입 시 additive 확장,
+  설계 확정 2026-08-27)
+
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 34개 엔드포인트 전부**를
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 35개 엔드포인트 전부**를
 계약 그대로 구현한 Node 시뮬레이터. v1.3 비디오는 `sim/assets/`의 실제 H.264 MP4를 Range로
 서빙하며, **frames의 bbox 수식이 MP4 속 박스 움직임과 동일**해 재생 오버레이가 영상 속 박스를
 따라가는지 눈으로 검증할 수 있다 (수식·재생성 ffmpeg 명령은 sim.mjs 주석 참조). v1.2 인물 검색은 두 경로로 응답한다:
@@ -325,7 +344,8 @@ cd sim && npm install && npm start   # MQTT 발행 + :8081 모듈 API 서빙
 
 이 참조 구현 + 실제 프록시 + 실제 대시보드 조합으로 **전 화면 E2E가 검증 완료**된 상태다 —
 DASHBOARD(08-12), BEST FRAME(08-18), REDMAP(08-19), Video/Image·Track on Map(08-21),
-Analyze Frame·DATA Live Monitoring(08-24), Re-ID Analysis(08-25), RedFace(08-26). 즉 모듈이 이 계약대로만
+Analyze Frame·DATA Live Monitoring(08-24), Re-ID Analysis(08-25), RedFace(08-26),
+Admin provisioning(08-27 — 실제 Admin 백엔드 CRUD → provisioning → 화면 카메라 목록·MQTT 수렴). 즉 모듈이 이 계약대로만
 구현하면 화면 연결에 추가 작업이 없다. 검증 과정에서 확인된 구현 포인트:
 
 - **URL 경로 규칙 (혼동 주의)** — REST 응답의 리소스 URL(`photoUrl`, `snapshotUrl`)은
@@ -394,6 +414,9 @@ curl "http://localhost:8081/v1/dashboard/live-analytics?page=0&size=20&type=ALL"
   - [ ] (v1.8) associates가 coCaptures 내림차순·최대 30명이고 faceUrl이 기존 감지 크롭 라우트인가
   - [ ] (v1.8) 같은 조건에서 associate-evidence의 totalEvents가 목록 coCaptures와 같고, locations count 합계 = totalEvents인가
   - [ ] (v1.8) 다른 대상의 associateId로 evidence를 조회하면 404인가
+  - [ ] (v1.9) `PUT /v1/provision/cameras` 수신 후 `/v1/cameras`가 그 목록과 일치하고, 새 카메라의 status가 RUNNING retained로 발행되는가
+  - [ ] (v1.9) 목록에서 빠진 카메라의 retained 토픽(status·stats·bestframe)이 빈 페이로드로 지워지는가
+  - [ ] (v1.9) 같은 본문을 두 번 보내도 상태 변화·중복 발행이 없는가 (멱등)
 
 ### 대시보드 E2E
 
