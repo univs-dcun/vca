@@ -3406,17 +3406,32 @@ const STATUS_BADGE_META: Record<RedfaceNode["status"], { bg:string; text:string 
 };
 
 /**
+ * Same sparkle Best Frame's detail panel puts beside "Analysis results" — the app's mark for
+ * "this block is derived, not recorded". fill:currentColor rather than a fixed hex so it takes
+ * the heading's colour and cannot drift from it.
+ */
+function AnalysisSparkleIcon({ size = 13 }: { size?: number } = {}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M8.00195 1.33301C8.1574 1.33309 8.30814 1.38798 8.42773 1.4873C8.54731 1.58669 8.62868 1.72508 8.65723 1.87793L9.35742 5.58301C9.40718 5.84636 9.53512 6.08878 9.72461 6.27832C9.9141 6.46781 10.1566 6.5957 10.4199 6.64551L14.126 7.34668C14.2785 7.37528 14.4164 7.45589 14.5156 7.5752C14.615 7.69488 14.6699 7.84638 14.6699 8.00195C14.6698 8.1574 14.6149 8.30814 14.5156 8.42773C14.4163 8.54716 14.2786 8.62864 14.126 8.65723L10.4199 9.35742C10.1566 9.40723 9.91411 9.53511 9.72461 9.72461C9.53511 9.91411 9.40723 10.1566 9.35742 10.4199L8.65723 14.126C8.62864 14.2786 8.54716 14.4163 8.42773 14.5156C8.30814 14.6149 8.1574 14.6698 8.00195 14.6699C7.84638 14.6699 7.69488 14.615 7.5752 14.5156C7.45589 14.4164 7.37528 14.2785 7.34668 14.126L6.64551 10.4199C6.5957 10.1566 6.46781 9.9141 6.27832 9.72461C6.08878 9.53512 5.84636 9.40718 5.58301 9.35742L1.87793 8.65723C1.72508 8.62868 1.58669 8.54731 1.4873 8.42773C1.38798 8.30814 1.33309 8.1574 1.33301 8.00195C1.33301 7.84638 1.38791 7.69488 1.4873 7.5752C1.58668 7.45571 1.72515 7.37522 1.87793 7.34668L5.58301 6.64551C5.8464 6.59573 6.08877 6.46787 6.27832 6.27832C6.46787 6.08877 6.59573 5.8464 6.64551 5.58301L7.34668 1.87793C7.37522 1.72515 7.45571 1.58668 7.5752 1.4873C7.69488 1.38791 7.84638 1.33301 8.00195 1.33301ZM2.66699 12C3.40311 12.0002 3.99982 12.5969 4 13.333C4 14.0693 3.40322 14.6668 2.66699 14.667C1.93061 14.667 1.33301 14.0694 1.33301 13.333C1.33318 12.5968 1.93072 12 2.66699 12ZM13.333 0.833008C13.609 0.833008 13.8328 1.05702 13.833 1.33301V2.16699H14.667C14.943 2.16717 15.167 2.39096 15.167 2.66699C15.1668 2.94288 14.9429 3.16682 14.667 3.16699H13.833V4C13.8328 4.27599 13.609 4.5 13.333 4.5C13.0571 4.49982 12.8332 4.27588 12.833 4V3.16699H12C11.724 3.16699 11.5002 2.94298 11.5 2.66699C11.5 2.39085 11.7239 2.16699 12 2.16699H12.833V1.33301C12.8332 1.05712 13.0571 0.833183 13.333 0.833008Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
  * Section heading inside a right-hand panel. 13px/700 with -0.26px tracking is what the other
  * panels in the app already use ("Analysis results", "Also captured in this frame" in Best Frame
  * detail), so this panel reads as the same product rather than a screen borrowed from a CRM — the
  * 10px uppercase micro-label that briefly lived here appears nowhere else in the service.
  */
-function PanelHeading({ children, title, color = "var(--gray-900)" }: {
-  children: React.ReactNode; title?: string; color?: string;
+function PanelHeading({ children, title, color = "var(--gray-900)", icon }: {
+  children: React.ReactNode; title?: string; color?: string; icon?: React.ReactNode;
 }) {
   return (
-    <p style={{ margin:0, fontSize:"13px", fontWeight:700, color,
+    <p style={{ margin:0, display:"flex", alignItems:"center", gap:"6px",
+      fontSize:"13px", fontWeight:700, color,
       letterSpacing:"-0.26px", cursor: title ? "help" : "default" }} title={title}>
+      {icon}
       {children}
     </p>
   );
@@ -3430,6 +3445,12 @@ const TIMELINE_PAGE_GUESS = 3;
 const TIMELINE_PAGE_MAX = 10;
 /** The scene stills are all this shape, so a row's height follows from the panel's width. */
 const FRAME_ASPECT = 1194 / 685;
+/**
+ * Frames render at 92% of the band's width, centred. Scaling rather than cropping — the aspect is
+ * the camera's, and trimming it would cut scene out from under the bounding boxes. 8% off the
+ * width takes ~19px off every row's height, which is what lets one more frame onto a page.
+ */
+const FRAME_SCALE = 0.92;
 /** Gap between rows, and the list band's own vertical padding — both feed the fit calculation. */
 const FRAME_ROW_GAP = 16;
 const LIST_PAD_Y = 32;
@@ -3503,6 +3524,14 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
   const newestFirst = [...sortedByDate].reverse();
 
   const [page, setPage] = useState(1);
+  // Clicking a Peak card narrows the frame list to the frames that produced that number. The two
+  // are mutually exclusive rather than combinable: "Orchard Rd Junction AND evening" is a third
+  // claim the cards never made, and an empty result from crossing them would read as a bug.
+  const [focus, setFocus] = useState<null | "location" | "time">(null);
+  const toggleFocus = (next: "location" | "time") => {
+    setFocus(f => (f === next ? null : next));
+    setPage(1);
+  };
   // Picking a different associate keeps this panel mounted, so page 7 of the last pair's timeline
   // would carry over into a pair that may only have one page. Compare during render rather than in
   // an effect so the first paint is already page 1.
@@ -3510,6 +3539,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
   if (pagedNodeId !== node.id) {
     setPagedNodeId(node.id);
     setPage(1);
+    setFocus(null);
   }
 
   // Measured from the list band itself. Reading its own box is safe rather than circular: the
@@ -3522,7 +3552,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
     if (!el) return;
     // ResizeObserver fires once on observe, so this covers the initial measure too.
     const ro = new ResizeObserver(() => {
-      const rowH = (el.clientWidth - LIST_PAD_X) / FRAME_ASPECT + FRAME_ROW_GAP;
+      const rowH = ((el.clientWidth - LIST_PAD_X) * FRAME_SCALE) / FRAME_ASPECT + FRAME_ROW_GAP;
       // Padding out, then the gap the last row doesn't have back in.
       const usable = el.clientHeight - LIST_PAD_Y + FRAME_ROW_GAP;
       const fits = usable / rowH;
@@ -3537,10 +3567,15 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
     return () => ro.disconnect();
   }, []);
 
-  const pageCount = Math.max(1, Math.ceil(newestFirst.length / perPage));
+  const shown = focus === "location" ? newestFirst.filter(e => e.location === topGroup.location)
+    : focus === "time" ? newestFirst.filter(e => timeBucket(e.time) === bucket)
+    : newestFirst;
+  const focusLabel = focus === "location" ? topGroup.location : focus === "time" ? bucket : null;
+
+  const pageCount = Math.max(1, Math.ceil(shown.length / perPage));
   const safePage = Math.min(page, pageCount);
   const pageStart = (safePage - 1) * perPage;
-  const pageRows = newestFirst.slice(pageStart, pageStart + perPage);
+  const pageRows = shown.slice(pageStart, pageStart + perPage);
 
   return (
     /* Three bands instead of one long scroll: the summary blocks stay put, only the frame list
@@ -3606,26 +3641,41 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
             that used to bracket this block went with it — a tinted box between two rules was the
             same boundary drawn twice. 2px of margin on top of the column's 18px gap keeps the 20px
             of air the block had when the rules were doing the separating. */}
-        <div style={{ display:"flex", flexDirection:"column", gap:"10px", margin:"2px 0",
-          backgroundColor:"var(--gray-50)", borderRadius:"8px", padding:"14px" }}>
-          <PanelHeading title="Where and when the shared frames cluster" color="var(--primary-400)">Relationship analytics</PanelHeading>
+        <div style={{ display:"flex", flexDirection:"column", gap:"8px", margin:"2px 0",
+          backgroundColor:"var(--gray-50)", borderRadius:"8px", padding:"10px 12px" }}>
+          <PanelHeading title="Where and when the shared frames cluster" color="var(--primary-400)"
+            icon={<AnalysisSparkleIcon />}>Relationship analytics</PanelHeading>
+          {/* Border and fill live in the class, not inline: an inline declaration outranks any
+              stylesheet selector, so setting them here would silently kill :hover and [data-on]. */}
+          <style>{`
+            .vca-peak-card{border:1px solid var(--gray-200);background-color:#fff;transition:border-color .15s}
+            .vca-peak-card:hover{border-color:var(--primary-300)}
+            .vca-peak-card[data-on="true"]{border-color:var(--primary-400)}
+            .vca-peak-card[data-on="true"] .vca-peak-label{color:var(--primary-400)}
+          `}</style>
           <div style={{ display:"flex", gap:"10px" }}>
-            <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
-              <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
+            <button className="vca-peak-card" data-on={focus === "location"}
+              onClick={() => toggleFocus("location")}
+              title={`Show only the frames captured at ${topGroup.location}`}
+              style={{ flex:1, minWidth:0, borderRadius:"8px", padding:"6px 10px", textAlign:"left", cursor:"pointer" }}>
+              <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
               {/* The glyph belongs on the value, not the label — a pin next to the words "Peak
                   location" only restates them, next to "Novena" it marks what kind of thing that is. */}
               <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", display:"flex", alignItems:"center", gap:"4px" }}>
                 <MapPinIconSm /> {topGroup.location}
               </p>
-            </div>
-            <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
-              <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak time</p>
+            </button>
+            <button className="vca-peak-card" data-on={focus === "time"}
+              onClick={() => toggleFocus("time")}
+              title={`Show only the frames captured in the ${bucket}`}
+              style={{ flex:1, minWidth:0, borderRadius:"8px", padding:"6px 10px", textAlign:"left", cursor:"pointer" }}>
+              <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak time</p>
               {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
                   glyph at all. */}
               <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize", display:"flex", alignItems:"center", gap:"4px" }}>
                 {bucket === "evening" || bucket === "night" ? <MoonIconSm /> : <SunIconSm />} {bucket} · {pct}%
               </p>
-            </div>
+            </button>
           </div>
           {/* The badge sits between the two ends because that is what it counts — how many shared
               frames fall inside this span. Without it the row states a range and leaves the density
@@ -3648,7 +3698,24 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
             {/* "Event timeline" named the shape of the list, not its contents — every row here is
                 one frame with both people in it, which is the whole reason the row exists. */}
             <PanelHeading title="Frames the two appear in together, newest first">Shared frames</PanelHeading>
-            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {events.length}</span>
+            <span style={{ display:"flex", alignItems:"center", gap:"6px", flexShrink:0 }}>
+              {/* Names the active filter and clears it. The lit card says which one is on, but not
+                  from down here where the count it changed is — and a count that dropped from 110
+                  to 66 with no label on it reads as a bug. */}
+              {focusLabel && (
+                <button onClick={() => { setFocus(null); setPage(1); }}
+                  title="Show every shared frame again"
+                  style={{ display:"flex", alignItems:"center", gap:"4px", border:"none", cursor:"pointer",
+                    fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"var(--primary-100)",
+                    padding:"2px 6px", borderRadius:"999px", textTransform:"capitalize", whiteSpace:"nowrap" }}>
+                  {focusLabel}
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                    <path d="M1.5 1.5L6.5 6.5M6.5 1.5L1.5 6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {shown.length}</span>
+            </span>
           </div>
       </div>
 
@@ -3672,7 +3739,8 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
                  The row IS the frame: an associate co-appearance is a shared frame, so there is
                  always one to show, and the box positions are the only thing that says where each
                  stood. Scene still is the one Best Frame uses for its camera feeds. */
-              <div key={rowIdx} style={{ position:"relative", borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
+              <div key={rowIdx} style={{ position:"relative", width:"92%", margin:"0 auto",
+                borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
                 <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
                 {/* Burned into the frame instead of set above it, the way a camera stamps its own
                     still — the caption belongs to the image, and pulling it out left every row
