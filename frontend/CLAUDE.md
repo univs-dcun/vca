@@ -131,6 +131,30 @@ DataPage 타입 수정(UV-40 잔여): recentList/vipList 라이브·mock 유니�
 미선언 속성 규칙으로 깨지던 것을 isLiveRecentTarget/isLiveVipOption 타입 프레디킷으로 교체
 (tsc -b 0 errors — npm run build 전제).
 
+반입 20260827 (UV-44, import-snapshot-20260827 — 100커밋 대규모): DATA 탭 4→3(Smart Search 탭
+제거 → Live Monitoring·Re-ID 내 SlidingSearchPanel/LiveSearchSidebar로 내장), RedFace Joint
+Evidence → "Co-capture evidence"(Relationship analytics + Shared frames 프레임 그리드) 재설계,
+vcaStore 행 분류 규칙 재설계(UV-31 폐기 — 2분 세션 병합 + 24h 활동 창 + 분류 창, BACKEND
+HANDOFF 주석 참조), REDMAP Route history 재구축, CSS 변수 토큰화. 주입 병합 결과:
+- 유지·재배치: LM 라이브 피드(useLiveMonitoring — LiveMonitorItem에 topColor 등 신필드 빈 값),
+  Re-ID 라이브 검색(runSearch가 LiveSearchSidebar onSearch로, derivedApparel/Props 사용,
+  recentList/vipList/cameraOptions는 SearchFilterState 경유 — 사이드바 VIP 탭 vips={state.vipList}),
+  RedFace 동료 목록 라이브(AssociateGraphView liveRef — 라이브 노드 status는 label 유무로
+  VIP/Unknown 매핑, Data grid 이름·Peak location(topCameraLabel)·Span(first/lastSeen) 라이브
+  오버라이드), 피커 라이브 후보(클릭 검색 → **디바운스 500ms effect**로 전환 — theirs의 즉시
+  반영 모델, pickedTargetObj에 liveCands[0] 참조 부착), RedMap Trace/Track on Map·Analyze Frame
+  딥링크(onGoAnalyzeFrame 시그니처 `at?: number | {date; time}` 유니언으로 통일), Navbar 알림
+  (Tracking 행 포함 — 새 규칙에서 라이브 VIP는 대부분 Tracking으로 접힘, confidence 0 미표시),
+  BestFramePage 실영상 3단 분기·BestFrameDetailPage 초 단위 스크럽 모델에 UV-37 재배치(에이전트
+  보고 참조), 차트 라이브 시간대 집계(라이브 모드에선 dot 레이어 억제).
+- 소멸(기획 결정 수용): 상세 팝업 이동 경로 타임라인(reidTrajectory 배선 — RedMap Trace가 대체),
+  RedFace Joint Evidence 라이브 집계(fetchRedfaceEvidence — **Shared frames 계약 확장 후 재주입
+  예정**, 브리지 함수는 유지), ReelCard 분석 태그 행, redmap showOrigin/originOffset(mock 시작점
+  자체가 제거됨), SearchPanel·CameraSelect·SmartSearchContent(컴포넌트 삭제).
+- 브리지 정합: redmapSearch HitResult에 personId/personLabel(단일 정체 'p1'), elapsed duration-only
+  포맷, elapsedAlert 제거. reidAnalysis ReidMatchCard에 date/status(field 분리). in-내로잉 이슈는
+  isLiveRecentTarget/isLiveVipOption 프레디킷 유지.
+
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)
 - `lib/vcaStore.ts` addEvent — 확정 행 규칙(VIP 누적 + 카메라 전환 기준 Tracking 별개 1행, UV-31)

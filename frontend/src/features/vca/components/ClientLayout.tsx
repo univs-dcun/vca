@@ -11,9 +11,11 @@ import SkeletonBestFrame from "./SkeletonBestFrame";
 import SkeletonData from "./SkeletonData";
 import SkeletonRedmap from "./SkeletonRedmap";
 import DetectionActivityChart from "./DetectionActivityChart";
+import CommandPalette from "./CommandPalette";
+import SidebarToggleIcon from "./SidebarToggleIcon";
 import { ToastProvider, useToast } from "./Toast";
 import { LiveEvent, Device, getFacePhoto } from "@/lib/mockData";
-import { useVcaStore, VIP_SIMULATION_CAMERAS } from "@/lib/vcaStore";
+import { useVcaStore, VIP_SIMULATION_CAMERAS, type Camera } from "@/lib/vcaStore";
 import { useVcaLiveBridge } from "../../../lib/vca-bridge/useVcaLiveBridge";
 import type { TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
 
@@ -22,33 +24,6 @@ const VALID_TABS: NavTab[] = ["DASHBOARD", "BEST FRAME", "DATA", "REDMAP"];
 
 export type SidebarPosition = "left" | "right";
 const SIDEBAR_POSITION_KEY = "vca-sidebar-position";
-
-function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
-  // Right-pointing triangle = "펼치기" (expand, shown while collapsed); left-pointing = "접기"
-  // (collapse, shown while expanded) — same box+shadow shell either way, just the triangle flips.
-  const trianglePath = collapsed ? "M19 29L13 23.8038L13 34.1962L19 29Z" : "M11 29L17 23.8038L17 34.1962L11 29Z";
-  const filterId = collapsed ? "sidebar-toggle-shadow-expand" : "sidebar-toggle-shadow-collapse";
-  return (
-    <svg width="34" height="62" viewBox="0 0 34 62" fill="none">
-      <g filter={`url(#${filterId})`}>
-        <path d="M3 1H19C25.6274 1 31 6.37258 31 13V45C31 51.6274 25.6274 57 19 57H3V1Z" fill="white"/>
-        <path d={trianglePath} fill="#475469"/>
-      </g>
-      <defs>
-        <filter id={filterId} x="0" y="0" width="34" height="62" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
-          <feFlood floodOpacity="0" result="BackgroundImageFix"/>
-          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-          <feOffset dy="2"/>
-          <feGaussianBlur stdDeviation="1.5"/>
-          <feComposite in2="hardAlpha" operator="out"/>
-          <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.03 0"/>
-          <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
-          <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
-        </filter>
-      </defs>
-    </svg>
-  );
-}
 
 // Simulates VIP detections arriving over time: periodically fires a new VIP hit (random
 // registered person + random online camera), records it in the store, and surfaces it as a
@@ -59,6 +34,31 @@ function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
 // state — that pool is deliberately kept small for other features' performance. Computed once
 // since the pool is static; no reason to re-filter it on every tick.
 const VIP_SIM_ONLINE_CAMERAS = VIP_SIMULATION_CAMERAS.filter(c => c.status === "online");
+
+function hashStringToIndex(s: string, mod: number): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % mod;
+}
+
+// A real person mostly keeps showing up at the same one or two spots they actually frequent, not
+// bouncing across the city's whole ~1,000-camera network every sighting. Picking a genuinely
+// random camera each tick (as this used to) meant virtually every 2nd sighting of the same VIP
+// landed on a brand-new camera — which instantly and permanently promotes them to a multi-camera
+// "Tracking" row (see addEvent in vcaStore.ts) and never lets them go back. Given only ~16
+// registered VIPs cycling through ticks every 15-30s, that meant everyone ended up as "Tracking"
+// within an hour and no plain "VIP Detection" sightings survived. Pinning each person to 3
+// regular cameras (deterministic from their id, so stable across ticks/reloads) keeps most
+// sightings repeating at the same camera (stays a plain VIP row) and bounds any real trail to at
+// most those 3 cameras, instead of growing unbounded.
+function regularCamerasForPerson(personId: string): Camera[] {
+  const pool = VIP_SIM_ONLINE_CAMERAS;
+  return [
+    pool[hashStringToIndex(personId, pool.length)],
+    pool[hashStringToIndex(`${personId}-alt1`, pool.length)],
+    pool[hashStringToIndex(`${personId}-alt2`, pool.length)],
+  ];
+}
 
 function VipAlertTicker({ onNavigate }: { onNavigate: (event: LiveEvent) => void }) {
   const { showToast } = useToast();
@@ -71,7 +71,9 @@ function VipAlertTicker({ onNavigate }: { onNavigate: (event: LiveEvent) => void
         const onlineCameras = VIP_SIM_ONLINE_CAMERAS;
         if (persons.length > 0 && onlineCameras.length > 0) {
           const person = persons[Math.floor(Math.random() * persons.length)];
-          const camera = onlineCameras[Math.floor(Math.random() * onlineCameras.length)];
+          const regulars = regularCamerasForPerson(person.id);
+          const r = Math.random();
+          const camera = r < 0.6 ? regulars[0] : r < 0.85 ? regulars[1] : regulars[2];
           const confidence = Math.round((68 + Math.random() * 27) * 10) / 10;
           const timestamp = new Date().toISOString();
           const liveEvent: LiveEvent = {
@@ -105,7 +107,10 @@ function VipAlertTicker({ onNavigate }: { onNavigate: (event: LiveEvent) => void
           showToast({
             variant: "warning",
             title: "VIP Detected",
-            desc: `${person.name} · ${camera.name}`,
+            // Match confidence in the alert itself: it decides whether this is worth acting on
+            // right now, and it was already computed above for the event record while the toast —
+            // the thing the operator actually sees first — left it out.
+            desc: `${person.name} · ${camera.name} · ${confidence}%`,
             actionLabel: "View on Map",
             onAction: () => onNavigate(liveEvent),
           });
@@ -155,14 +160,31 @@ export default function ClientLayout() {
   };
   const [showDetectionChart, setShowDetectionChart] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  // Cmd+K (Mac) / Ctrl+K (everywhere else) toggles the global command palette from anywhere in
+  // the app, not just while some particular field has focus.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen(o => !o);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const [bestFrameFocusLocation, setBestFrameFocusLocation] = useState<string | null>(null);
   const [redmapAutoSearchName, setRedmapAutoSearchName] = useState<string | null>(null);
   // 데이터 연결(UV-36): Track on Map 딥링크의 대상 참조 — 이름과 함께 REDMAP으로 전달
   const [redmapTrackTarget, setRedmapTrackTarget] = useState<TrackTargetRef | null>(null);
   const [bestFrameAnalyzeLocation, setBestFrameAnalyzeLocation] = useState<string | null>(null);
-  // 데이터 연결(UV-39): Analyze Frame 딥링크의 진입 시각 — Re-ID 매치의 목격 시각(그 분의 이력으로
-  // 진입). null이면 기존과 같이 현재 시각 기준
+  // 데이터 연결(UV-39): Analyze Frame 딥링크의 진입 시각(ms) — Re-ID 매치의 목격 시각(그 분의
+  // 이력으로 진입). null이면 기존과 같이 현재 시각 기준
   const [bestFrameAnalyzeMs, setBestFrameAnalyzeMs] = useState<number | null>(null);
+  // Optional moment that goes with the location. RedFace's shared-frame lightbox names one exact
+  // frame, so Best Frame should open on that second rather than on the camera's live position;
+  // Dashboard's map popup still sends a location alone.
+  const [bestFrameAnalyzeAt, setBestFrameAnalyzeAt] = useState<{ date: string; time: string } | null>(null);
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 700);
     return () => clearTimeout(timer);
@@ -180,20 +202,25 @@ export default function ClientLayout() {
     setSelectedEvent(event);
     setActivePage("DASHBOARD");
   };
-  const handleGoAnalyzeFrame = (location: string, entryMs?: number) => {
+  // 딥링크 진입 시각은 두 채널이 공존한다 — number = Re-ID 매치의 목격 시각 ms(데이터 연결 UV-39),
+  // 객체 = RedFace 공유 프레임의 정확한 날짜/시각. 없으면 기존처럼 현재 시각 기준 진입.
+  const handleGoAnalyzeFrame = (location: string, at?: { date: string; time: string } | number) => {
     setBestFrameAnalyzeLocation(location);
-    setBestFrameAnalyzeMs(entryMs ?? null); // (UV-39) 시각 없는 기존 호출은 현재 시각 진입 유지
+    setBestFrameAnalyzeMs(typeof at === "number" ? at : null);
+    setBestFrameAnalyzeAt(typeof at === "object" && at ? at : null);
     setActivePage("BEST FRAME");
   };
 
   return (
     <ToastProvider>
     {!isLive && <VipAlertTicker onNavigate={handleNotificationNavigate} />}
+    <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onGoToPage={setActivePage} />
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
       <Navbar
         activeTab={activePage}
         onTabChange={setActivePage}
         onNotificationSelect={handleNotificationNavigate}
+        onOpenSearch={() => setPaletteOpen(true)}
         // Only actually affects the Dashboard tab's Sidebar+Map layout — hidden on the other tabs
         // (via Navbar's own `{onSidebarPositionChange && (...)}` guard) so the Settings dropdown
         // doesn't show a "Sidebar" control that would do nothing while looking at Best Frame/Data/RedMap.
@@ -283,10 +310,10 @@ export default function ClientLayout() {
                   }}
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 10L8 6L12 10" stroke="#0e162a" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M4 10L8 6L12 10" stroke="var(--gray-900)" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.24px", whiteSpace: "nowrap" }}>
-                    Detection Topology
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.24px", whiteSpace: "nowrap" }}>
+                    Detection topology
                   </span>
                 </button>
               )}
@@ -304,7 +331,8 @@ export default function ClientLayout() {
               onGoRedmapTrace={handleGoRedmapTrace}
               analyzeFrameLocation={bestFrameAnalyzeLocation}
               analyzeFrameEntryMs={bestFrameAnalyzeMs}
-              onAnalyzeFrameConsumed={() => { setBestFrameAnalyzeLocation(null); setBestFrameAnalyzeMs(null); }}
+              analyzeFrameAt={bestFrameAnalyzeAt}
+              onAnalyzeFrameConsumed={() => { setBestFrameAnalyzeLocation(null); setBestFrameAnalyzeMs(null); setBestFrameAnalyzeAt(null); }}
             />
           </div>
         )}

@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useVcaStore } from "@/lib/vcaStore";
-import { useApiData } from "@/hooks/useApiData";
+import { useVcaStore, todaysDetectionHits } from "@/lib/vcaStore";
+import { sgtHour, sgtMinute } from "@/lib/time";
 import { useLiveHourlyDetections } from "../../../lib/vca-bridge/useLiveHourlyDetections";
-import { getHourlyDetections } from "@/lib/api/dashboard";
 
 const CHART_HEIGHT = 160;
 const FALLBACK_WIDTH = 900; // used only until the container's real width is measured
 const HOUR_TICKS = [0, 4, 8, 12, 16, 20];
-// Figma's reference draws several thin bars/scatter groups per hour rather than one wide bar —
-// subdividing each hour keeps that dense, textured look while still deriving every value from
-// the same hourly count (not hand-placed like the original absolute-position export).
-const SUB_STEPS_PER_HOUR = 3;
+// Centered window (hours) for the trend line's moving average — deliberately not the same number
+// the bars show: bars are the exact, possibly-spiky raw per-hour count; the line is a smoothed
+// read on where things are trending, which is only a meaningfully different signal if it's
+// actually averaged over a few neighboring hours instead of re-plotting the same raw count.
+const MOVING_AVERAGE_WINDOW_HOURS = 3;
 
 function hourLabel(hour: number): string {
   if (hour === 0) return "12AM";
@@ -18,22 +18,8 @@ function hourLabel(hour: number): string {
   return hour < 12 ? `${hour}AM` : `${hour - 12}PM`;
 }
 
-function xForStep(step: number, totalSteps: number, width: number): number {
-  return (step / (totalSteps - 1)) * width;
-}
-
-// Deterministic pseudo-random in [0,1) — a plain Math.random() would differ between the
-// server-rendered and client-hydrated pass and trigger a hydration mismatch.
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed * 12.9898) * 43758.5453;
-  return x - Math.floor(x);
-}
-
-// A single camera only ever sees a fraction of the citywide total — stable per camera name so
-// switching back to the same camera reproduces the same-looking curve.
-function cameraScaleFor(name: string): number {
-  const seed = name.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  return 0.12 + seededRandom(seed) * 0.22;
+function xForHour(hour: number, width: number): number {
+  return (hour / 23) * width;
 }
 
 // Catmull-Rom -> cubic-bezier smoothing so the trend line flows through every point instead
@@ -57,8 +43,8 @@ function smoothPath(points: { x: number; y: number }[]): string {
 
 function ChevronDownIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <path d="M4 6L8 10L12 6" stroke="#475469" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
+      <path d="M4 6L8 10L12 6" stroke="var(--gray-600)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -67,11 +53,11 @@ function ChevronDownIcon() {
 function CameraIconFigma() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M13.9583 10H16.985C17.127 10.0001 17.2666 10.0364 17.3906 10.1056C17.5146 10.1748 17.6189 10.2745 17.6935 10.3953C17.7681 10.5161 17.8107 10.654 17.817 10.7958C17.8234 10.9377 17.7935 11.0788 17.73 11.2058L16.035 14.5967C15.9707 14.7252 15.8743 14.8348 15.7552 14.9151C15.636 14.9953 15.4981 15.0434 15.3549 15.0546C15.2117 15.0659 15.068 15.0399 14.9377 14.9792C14.8075 14.9185 14.6952 14.8252 14.6117 14.7083L12.8417 12.2333" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M14.255 7.54373C14.4525 7.6426 14.6027 7.81584 14.6726 8.02539C14.7424 8.23493 14.7262 8.46363 14.6275 8.66123L12.0392 13.8371C11.9902 13.935 11.9225 14.0223 11.8398 14.094C11.7571 14.1657 11.661 14.2204 11.5572 14.255C11.4533 14.2896 11.3437 14.3034 11.2345 14.2956C11.1253 14.2878 11.0187 14.2586 10.9209 14.2096L3.00836 10.2496C2.43364 9.96007 1.99699 9.45471 1.79396 8.84407C1.59093 8.23342 1.63806 7.56722 1.92503 6.99123L3.07503 4.66623C3.21836 4.38058 3.41656 4.12597 3.65831 3.91693C3.90006 3.70788 4.18061 3.54851 4.48396 3.44791C4.78731 3.34731 5.1075 3.30746 5.42625 3.33062C5.74501 3.35378 6.05608 3.4395 6.34169 3.5829L14.255 7.54373Z" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M1.66667 15.8333H4.8C5.11061 15.8355 5.41564 15.7508 5.68068 15.5888C5.94573 15.4269 6.16023 15.1941 6.3 14.9167L7.5 12.5" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M1.66675 17.4993V14.166" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M5.83333 7.5H5.84063" stroke="#475469" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M13.9583 10H16.985C17.127 10.0001 17.2666 10.0364 17.3906 10.1056C17.5146 10.1748 17.6189 10.2745 17.6935 10.3953C17.7681 10.5161 17.8107 10.654 17.817 10.7958C17.8234 10.9377 17.7935 11.0788 17.73 11.2058L16.035 14.5967C15.9707 14.7252 15.8743 14.8348 15.7552 14.9151C15.636 14.9953 15.4981 15.0434 15.3549 15.0546C15.2117 15.0659 15.068 15.0399 14.9377 14.9792C14.8075 14.9185 14.6952 14.8252 14.6117 14.7083L12.8417 12.2333" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14.255 7.54373C14.4525 7.6426 14.6027 7.81584 14.6726 8.02539C14.7424 8.23493 14.7262 8.46363 14.6275 8.66123L12.0392 13.8371C11.9902 13.935 11.9225 14.0223 11.8398 14.094C11.7571 14.1657 11.661 14.2204 11.5572 14.255C11.4533 14.2896 11.3437 14.3034 11.2345 14.2956C11.1253 14.2878 11.0187 14.2586 10.9209 14.2096L3.00836 10.2496C2.43364 9.96007 1.99699 9.45471 1.79396 8.84407C1.59093 8.23342 1.63806 7.56722 1.92503 6.99123L3.07503 4.66623C3.21836 4.38058 3.41656 4.12597 3.65831 3.91693C3.90006 3.70788 4.18061 3.54851 4.48396 3.44791C4.78731 3.34731 5.1075 3.30746 5.42625 3.33062C5.74501 3.35378 6.05608 3.4395 6.34169 3.5829L14.255 7.54373Z" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1.66667 15.8333H4.8C5.11061 15.8355 5.41564 15.7508 5.68068 15.5888C5.94573 15.4269 6.16023 15.1941 6.3 14.9167L7.5 12.5" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1.66675 17.4993V14.166" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5.83333 7.5H5.84063" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
@@ -79,17 +65,20 @@ function CameraIconFigma() {
 function ChevronRightIconFigma({ rotate }: { rotate: number }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ transform: `rotate(${rotate}deg)`, transition: "transform 0.15s" }}>
-      <path d="M6 12L10 8L6 4" stroke="#475469" strokeLinecap="round"/>
+      <path d="M6 12L10 8L6 4" stroke="var(--gray-600)" strokeLinecap="round"/>
     </svg>
   );
 }
 // Exact stops from the Figma source (node 154:18811): lavender on the left, deep blue at the
 // midpoint, cyan on the right.
 const GRADIENT_STOPS: [string, string][] = [["0%", "#dbb7ff"], ["50.5%", "#0047ff"], ["100%", "#52d5ff"]];
-const DOT_COLORS = ["#c4b5fd", "#818cf8", "#3b82f6", "#0047ff", "#2563eb", "#60a5fa", "#52d5ff"];
-const DOT_RADIUS_PX = 2.5; // 5x5px circle
+const DOT_COLOR = "#0047ff";
+const DOT_RADIUS_PX = 2.5;
 
-const ALL_CAMERAS = "All Cameras";
+const ALL_CAMERAS_LABEL = "All cameras";
+// null = citywide totals (no camera filter) — kept distinct from a real camera's `id` so "no
+// filter" can never collide with an actual id string.
+type CameraFilter = string | null;
 
 export default function DetectionActivityChart({ onHide }: { onHide?: () => void } = {}) {
   // The viewBox width tracks the container's actual rendered width (instead of a fixed 900 that
@@ -109,59 +98,97 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
   }, []);
 
   const cameras = useVcaStore(s => s.cameras);
-  const [selectedCamera, setSelectedCamera] = useState<string>(ALL_CAMERAS);
+  const events = useVcaStore(s => s.events);
+  const [selectedCameraId, setSelectedCameraId] = useState<CameraFilter>(null);
+  const selectedCameraLabel = selectedCameraId === null
+    ? ALL_CAMERAS_LABEL
+    : cameras.find(c => c.id === selectedCameraId)?.name ?? ALL_CAMERAS_LABEL;
   const [cameraPickerOpen, setCameraPickerOpen] = useState(false);
-  // Routed through the future-backend stub instead of importing the mock array directly — see
-  // lib/api/dashboard.ts. `data` is null for the brief window before the (currently mock-delayed)
-  // fetch resolves; every derived value below falls back to an empty/flat chart until then.
-  const { data: hourlyDetections } = useApiData(() => getHourlyDetections(), []);
-  // Live topology data (REST, periodic refetch) when the module API is up; the stub otherwise.
+  // 데이터 연결: Detection Topology(REST) 라이브 시간대별 집계 — 모듈 API가 살아 있으면
+  // 막대/추세선의 시간대별 카운트는 라이브 값을 쓰고, 아니면 스토어 파생 카운트로 폴백
+  // (hourlyCounts 참고).
   const liveHourly = useLiveHourlyDetections();
-  // The whole point of this chart is spotting when VIPs show up, so the line/bars/dots plot
-  // vipCount directly (not total detection count) — re-scaled for the selected camera. There's
-  // no real per-camera dataset behind this, just a stable, reproducible variation of the
-  // citywide one.
-  const scaledHourly = useMemo(() => {
-    const scale = selectedCamera === ALL_CAMERAS ? 1 : cameraScaleFor(selectedCamera);
-    return (liveHourly ?? hourlyDetections ?? []).map(h => ({
-      hour: h.hour,
-      count: Math.max(0, h.vipCount * scale),
-    }));
-  }, [selectedCamera, liveHourly, hourlyDetections]);
+  // Match on the camera's exact name, not just its site — the 8 hand-authored cameras (bare
+  // names like "Novena") are real, individually-attributed devices, but the bulk-generated ones
+  // in this dropdown (e.g. "Novena 3") never actually have any hit recorded against them
+  // specifically. Falling back to a site-level (name-prefix) match here used to make every
+  // camera at a site show the SAME chart as picking "All cameras" restricted to that site — this
+  // way, picking one of those bulk cameras honestly shows empty/near-empty instead of quietly
+  // substituting the whole site's activity.
+  const selectedCameraName = selectedCameraId
+    ? cameras.find(c => c.id === selectedCameraId)?.name ?? null
+    : null;
 
-  const yMax = useMemo(() => {
-    const peak = Math.max(...scaledHourly.map(h => h.count), 1);
-    return Math.max(2, Math.ceil(peak * 1.2));
-  }, [scaledHourly]);
+  // Every dot on this chart is one real detection hit from today, via the same
+  // todaysDetectionHits() the Dashboard's "Today's detections" stat uses (see Sidebar.tsx) — so
+  // this chart's total always adds up to that stat exactly, instead of the two silently using
+  // different counting rules (that stat counts rows, one per person, while hits here need to
+  // unroll each Tracking row's whole multi-camera history — see todaysDetectionHits' own comment).
+  const todayVipEvents = useMemo(() => {
+    const hits = todaysDetectionHits(events);
+    if (!selectedCameraName) return hits;
+    return hits.filter(h => h.location === selectedCameraName);
+  }, [events, selectedCameraName]);
+
+  const hourlyCounts = useMemo(() => {
+    const counts = new Array(24).fill(0);
+    // 데이터 연결: 라이브 집계가 있고 카메라 필터가 없으면 라이브 시간대별 값이 우선 —
+    // 페이지 로드 이전의 당일 감지까지 포함한 백엔드 집계라 스토어 파생보다 완전하다.
+    // 계약에 카메라별 분해가 없어 특정 카메라 선택 시에는 스토어 파생 카운트로 폴백.
+    if (liveHourly && !selectedCameraName) {
+      liveHourly.forEach(h => { if (h.hour >= 0 && h.hour < 24) counts[h.hour] = h.vipCount; });
+      return counts;
+    }
+    todayVipEvents.forEach(e => { counts[sgtHour(new Date(e.timestamp))]++; });
+    return counts;
+  }, [todayVipEvents, liveHourly, selectedCameraName]);
+
+  const yMax = useMemo(() => Math.max(2, Math.ceil(Math.max(...hourlyCounts, 1) * 1.2)), [hourlyCounts]);
   const yTicks = [0, 0.2, 0.4, 0.6, 0.8].map(f => Math.round(yMax * f));
   const yForCount = (count: number) => CHART_HEIGHT - (count / yMax) * CHART_HEIGHT;
 
-  const { steps, totalSteps } = useMemo(() => {
-    const s = scaledHourly.flatMap((h, hi) =>
-      Array.from({ length: SUB_STEPS_PER_HOUR }, (_, si) => {
-        const seed = hi * SUB_STEPS_PER_HOUR + si;
-        const variance = (seededRandom(seed * 3.1) - 0.5) * h.count * 0.5;
-        return { step: seed, hour: h.hour, count: Math.max(0, h.count + variance) };
-      })
-    );
-    return { steps: s, totalSteps: s.length };
-  }, [scaledHourly]);
+  const movingAverage = useMemo(() => {
+    const half = Math.floor(MOVING_AVERAGE_WINDOW_HOURS / 2);
+    return hourlyCounts.map((_, i) => {
+      const window = hourlyCounts.slice(Math.max(0, i - half), Math.min(24, i + half + 1));
+      return window.reduce((a, b) => a + b, 0) / window.length;
+    });
+  }, [hourlyCounts]);
 
-  // Hour labels must sit on the same x scale as the data (step/(totalSteps-1)) — laying the six
-  // labels out with space-between puts 8PM at the far right edge, which squeezes the label scale
-  // to 0–20h while the data spans 0–23h, drifting up to ~3 hours apart on the right side (a 4PM
-  // spike rendered near the 1PM mark). Each tick anchors to its hour's first sub-step.
-  const hourTickX = (hour: number) =>
-    totalSteps > 1 ? (hour * SUB_STEPS_PER_HOUR) / (totalSteps - 1) : hour / 23;
-
-  const linePoints = steps.map(s => ({ x: xForStep(s.step, totalSteps, width), y: yForCount(s.count) }));
+  const linePoints = movingAverage.map((avg, hour) => ({ x: xForHour(hour, width), y: yForCount(avg) }));
   const linePath = smoothPath(linePoints);
   // Area fill: the trend line's own path, closed along the top edge — so the wash only ever
-  // covers the region above the line, following its curve, instead of a flat rectangle. Empty
-  // during the brief pre-fetch window (no points yet), not just while data is genuinely all-zero.
+  // covers the region above the line, following its curve, instead of a flat rectangle.
   const areaPath = linePoints.length > 0
     ? `${linePath} L ${linePoints[linePoints.length - 1].x},0 L ${linePoints[0].x},0 Z`
     : "";
+
+  // Dots aren't placed on the line itself (each keeps its own real hour+minute on x), but their
+  // vertical spread must live on the SAME count scale the line and bars use — otherwise the line
+  // ends up floating off on its own scale, detached from the cloud of dots it's meant to be the
+  // average of. So each hour's dots are stacked evenly between the baseline and that hour's own
+  // bar top (= yForCount(count), the exact real value), putting the whole cluster in the same
+  // vertical band the line passes through as it smooths across hours.
+  const dotsByHour = useMemo(() => {
+    // 데이터 연결: 라이브 집계(detection-topology)가 막대/추세선을 채울 때는 dot을 그리지 않는다 —
+    // 스토어에 남은 행(상한 500)은 백엔드 집계의 표본이 아니어서, 수천 건 규모에서는 dot 구름이
+    // 차트를 덮는 노이즈가 된다. dot은 스토어 파생(mock·카메라 필터) 모드 전용.
+    if (liveHourly && !selectedCameraName) return [];
+    const buckets = new Map<number, typeof todayVipEvents>();
+    todayVipEvents.forEach(e => {
+      const h = sgtHour(new Date(e.timestamp));
+      (buckets.get(h) ?? buckets.set(h, []).get(h)!).push(e);
+    });
+    return Array.from(buckets.entries()).flatMap(([hour, evts]) => {
+      const count = evts.length;
+      const top = CHART_HEIGHT - (count / yMax) * CHART_HEIGHT;
+      return evts.map((e, i) => {
+        const minute = sgtMinute(new Date(e.timestamp));
+        const y = CHART_HEIGHT - ((i + 1) / count) * (CHART_HEIGHT - top);
+        return { x: xForHour(hour + minute / 60, width), y, id: e.id };
+      });
+    });
+  }, [todayVipEvents, width, yMax, liveHourly, selectedCameraName]);
 
   return (
     <div className="vca-rise-in" style={{
@@ -177,11 +204,11 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
         onClick={onHide}
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", cursor: onHide ? "pointer" : "default" }}
       >
-        <span style={{ fontSize: "16px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.32px", whiteSpace: "nowrap" }}>
-          VIP Detection Today
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+          <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.32px", whiteSpace: "nowrap" }}>
+            VIP detections today
+          </span>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
           <div style={{ position: "relative", flexShrink: 0 }} onClick={e => e.stopPropagation()}>
             {/* Camera filter — Figma node 178:14623 ("all camreas") */}
             <button
@@ -195,10 +222,10 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
               <span style={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden" }}>
                 <CameraIconFigma />
                 <span style={{
-                  fontSize: "14px", fontWeight: 600, color: "#1D293B", letterSpacing: "-0.28px",
+                  fontSize: "14px", fontWeight: 600, color: "var(--gray-800)", letterSpacing: "-0.28px",
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}>
-                  {selectedCamera === ALL_CAMERAS ? "All cameras" : selectedCamera}
+                  {selectedCameraLabel}
                 </span>
               </span>
               <ChevronRightIconFigma rotate={cameraPickerOpen ? 270 : 90} />
@@ -206,44 +233,47 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
 
             {cameraPickerOpen && (
               <div style={{
-                position: "absolute", top: "calc(100% + 4px)", right: 0, width: "160px", backgroundColor: "white",
-                border: "1px solid #E2E8F0", borderRadius: "8px", boxShadow: "0 8px 20px rgba(14,22,42,0.12)",
+                position: "absolute", top: "calc(100% + 4px)", left: 0, width: "160px", backgroundColor: "white",
+                border: "1px solid var(--gray-200)", borderRadius: "8px", boxShadow: "0 8px 20px rgba(14,22,42,0.12)",
                 zIndex: 10, overflow: "hidden",
               }}>
-                {[ALL_CAMERAS, ...cameras.map(c => c.name)].map(name => (
+                {([{ id: null as CameraFilter, name: ALL_CAMERAS_LABEL }, ...cameras.map(c => ({ id: c.id as CameraFilter, name: c.name }))]).map(opt => (
                   <button
-                    key={name}
-                    onClick={() => { setSelectedCamera(name); setCameraPickerOpen(false); }}
+                    key={opt.id ?? "all"}
+                    onClick={() => { setSelectedCameraId(opt.id); setCameraPickerOpen(false); }}
                     style={{
                       display: "block", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", cursor: "pointer",
-                      backgroundColor: name === selectedCamera ? "#f0f0ff" : "white",
-                      fontSize: "13px", fontWeight: name === selectedCamera ? 700 : 500,
-                      color: name === selectedCamera ? "#5a3dfb" : "#334155",
+                      backgroundColor: opt.id === selectedCameraId ? "var(--primary-100)" : "white",
+                      fontSize: "13px", fontWeight: opt.id === selectedCameraId ? 700 : 500,
+                      color: opt.id === selectedCameraId ? "var(--primary-400)" : "var(--gray-700)",
                     }}
                   >
-                    {name}
+                    {opt.name}
                   </button>
                 ))}
               </div>
             )}
           </div>
-
-          <span
-            aria-label="Minimize chart"
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: "22px", height: "22px", borderRadius: "50%", backgroundColor: "rgba(226,232,240,0.6)", flexShrink: 0,
-            }}
-          >
-            <ChevronDownIcon />
-          </span>
         </div>
+
+        {/* Now that the camera filter sits by the title, this chevron is the only thing left in
+            the corner — no longer needs the divider that used to separate it from the filter's
+            own chevron right next to it. */}
+        <span
+          aria-label="Minimize chart"
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: "28px", height: "28px", flexShrink: 0,
+          }}
+        >
+          <ChevronDownIcon />
+        </span>
       </div>
 
       <div style={{ display: "flex", gap: "8px" }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: `${CHART_HEIGHT}px`, paddingBottom: "1px" }}>
           {[...yTicks].reverse().map((tick, i) => (
-            <span key={i} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", lineHeight: 1 }}>{tick}</span>
+            <span key={i} style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)", lineHeight: 1 }}>{tick}</span>
           ))}
         </div>
 
@@ -274,59 +304,35 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
             </g>
 
             {yTicks.map((tick, i) => (
-              <line key={i} x1={0} y1={yForCount(tick)} x2={width} y2={yForCount(tick)} stroke="#e2e8f0" strokeWidth={1} />
+              <line key={i} x1={0} y1={yForCount(tick)} x2={width} y2={yForCount(tick)} stroke="var(--gray-200)" strokeWidth={1} />
             ))}
 
-            {/* Baseline volume bars */}
-            {steps.map((s, i) => {
-              const barWidth = (width / totalSteps) * 0.55;
-              const x = xForStep(s.step, totalSteps, width) - barWidth / 2;
-              const barHeight = Math.max(2, (s.count / yMax) * CHART_HEIGHT * 0.3);
+            {/* Baseline volume bars — one per hour, the exact real count (capped visually to 30%
+                of the chart's height purely as a style choice: muted bars sitting behind the
+                prominent line, same yMax scale, not a different number). */}
+            {hourlyCounts.map((count, hour) => {
+              const barWidth = (width / 24) * 0.55;
+              const x = xForHour(hour, width) - barWidth / 2;
+              const barHeight = Math.max(2, (count / yMax) * CHART_HEIGHT * 0.3);
               return (
-                <rect key={i} x={x} y={CHART_HEIGHT - barHeight} width={barWidth} height={barHeight} rx={1} fill="#ccd5e1" />
+                <rect key={hour} x={x} y={CHART_HEIGHT - barHeight} width={barWidth} height={barHeight} rx={1} fill="var(--gray-300)" />
               );
             })}
 
-            {/* Scatter — individual detections jittered around the trend line */}
-            {steps.map((s, i) => {
-              const baseY = yForCount(s.count);
-              const dotCount = 1 + Math.round(seededRandom(i * 7.3) * 2);
-              return Array.from({ length: dotCount }).map((_, di) => {
-                const seed = i * 13.7 + di * 5.1;
-                const jitterX = (seededRandom(seed) - 0.5) * (width / totalSteps) * 0.9;
-                const jitterY = (seededRandom(seed + 1) - 0.5) * 40 - 6;
-                const colorIdx = Math.floor((i / totalSteps) * DOT_COLORS.length);
-                return (
-                  <circle
-                    key={di}
-                    cx={xForStep(s.step, totalSteps, width) + jitterX}
-                    cy={Math.max(4, baseY + jitterY)}
-                    r={DOT_RADIUS_PX}
-                    fill={DOT_COLORS[Math.min(DOT_COLORS.length - 1, colorIdx)]}
-                    opacity={0.85}
-                  />
-                );
-              });
-            })}
+            {/* Real detections, one dot each — see dotsByHour above for why their position isn't
+                tied to the average line. */}
+            {dotsByHour.map(d => (
+              <circle key={d.id} cx={d.x} cy={d.y} r={DOT_RADIUS_PX} fill={DOT_COLOR} opacity={0.85} />
+            ))}
 
             <path d={linePath} fill="none" stroke="url(#trendGradient)" strokeWidth={3} strokeLinecap="round" />
           </svg>
         </div>
       </div>
 
-      <div style={{ position: "relative", height: "11px", marginLeft: "24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", paddingLeft: "24px" }}>
         {HOUR_TICKS.map(hour => (
-          <span
-            key={hour}
-            style={{
-              position: "absolute",
-              left: `${hourTickX(hour) * 100}%`,
-              // The 12AM label stays left-aligned at the chart's origin; centering it would push
-              // half of it out past the y-axis column.
-              transform: hour === 0 ? "none" : "translateX(-50%)",
-              fontSize: "11px", fontWeight: 600, color: "#94a3b8", lineHeight: 1, whiteSpace: "nowrap",
-            }}
-          >
+          <span key={hour} style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>
             {hourLabel(hour)}
           </span>
         ))}

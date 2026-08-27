@@ -46,6 +46,13 @@ export interface LiveMonitorItem {
   date: string
   similarity: number
   plate: string | null
+  // (반입 2026-08-27) mock REID_DATA에 추가된 외형 필드 — 계약에 색상/감정 추정이 없어 빈 값.
+  // 화면 필터는 빈 값을 "미상"으로 취급해 제외하지 않는다
+  topColor: string
+  bottomColor: string
+  shoesColor: string
+  emotion: string
+  ethnicGroup: string
   eventId: string
   cameraId: string
   faceCrop: string | null
@@ -55,16 +62,9 @@ export interface LiveMonitorItem {
   ms: number
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-/** mock formatCapturedTime과 동일한 "Aug 24,10:18:55" 포맷 — 사이트 로컬(SGT) 기준 */
+/** mock formatCapturedTime과 동일한 "HH:MM:SS"(SGT) — 날짜는 별도 date 필드 (반입 2026-08-27 규칙) */
 function timeSgt(iso: string): string {
-  const d = new Date(iso)
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Singapore', month: 'numeric', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  }).formatToParts(d)
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
-  return `${MONTHS[Number(get('month')) - 1]} ${get('day')},${get('hour')}:${get('minute')}:${get('second')}`
+  return new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour12: false })
 }
 const dateSgt = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
 
@@ -90,6 +90,7 @@ function toCard(e: DetectionEvent | DetectionEventRow, id: number): LiveMonitorI
     date: dateSgt(e.detectedAt),
     similarity: e.confidence != null ? Math.round(e.confidence * 1000) / 10 : 0,
     plate: null,
+    topColor: '', bottomColor: '', shoesColor: '', emotion: '', ethnicGroup: '',
     eventId: e.eventId,
     cameraId: e.cameraId,
     faceCrop,
