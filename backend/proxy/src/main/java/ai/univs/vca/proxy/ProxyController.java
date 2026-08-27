@@ -2,6 +2,7 @@ package ai.univs.vca.proxy;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,11 +44,16 @@ public class ProxyController {
 
 	private final WebClient moduleApi;
 	private final ModuleApiProperties props;
+	private final MediaProperties mediaProps;
+	private final MediaStreamsClient mediaStreams;
 	private final ObjectMapper mapper;
 
-	public ProxyController(WebClient moduleApiClient, ModuleApiProperties props, ObjectMapper mapper) {
+	public ProxyController(WebClient moduleApiClient, ModuleApiProperties props, MediaProperties mediaProps,
+			MediaStreamsClient mediaStreams, ObjectMapper mapper) {
 		this.moduleApi = moduleApiClient;
 		this.props = props;
+		this.mediaProps = mediaProps;
+		this.mediaStreams = mediaStreams;
 		this.mapper = mapper;
 	}
 
@@ -307,6 +313,54 @@ public class ProxyController {
 						e -> Mono.just(ResponseEntity.status(HttpStatus.BAD_GATEWAY).build()))
 				.onErrorResume(TimeoutException.class,
 						e -> Mono.just(ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).build()));
+	}
+
+	/**
+	 * 카메라 목록 — 모듈 응답에 streamUrl을 병합하는 유일한 라우트 (계약 v0.9.0, UV-43).
+	 * 미디어 서버에 해당 카메라의 스트림 path가 구성돼 있으면 동일 오리진 WHEP 경로, 없으면 null
+	 * (화면은 bestframe 폴백). 스트림 path의 원장 동기화는 Admin 백엔드 소유 — 여기서는 읽기만.
+	 * P4에서 카메라 목록 서빙이 Admin으로 이관되면 이 병합도 함께 옮긴다.
+	 */
+	@GetMapping("/api/cameras")
+	public Mono<ResponseEntity<ApiEnvelope>> cameras(ServerHttpRequest request) {
+		String query = request.getURI().getRawQuery();
+		String uri = query == null ? "/cameras" : "/cameras?" + query;
+
+		Mono<JsonNode> page = moduleApi.get()
+				.uri(uri)
+				.retrieve()
+				.bodyToMono(JsonNode.class)
+				.timeout(props.timeout());
+		return Mono.zip(page, mediaStreams.configuredPaths())
+				.map(t -> ResponseEntity.ok(
+						ApiEnvelope.ok(withStreamUrls(ModuleUrlRewriter.rewrite(t.getT1()), t.getT2()))))
+				.onErrorResume(WebClientResponseException.class, e -> Mono.just(moduleError(e)))
+				.onErrorResume(this::isConnectionError, e -> Mono.just(
+						ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+								.body(ApiEnvelope.error("VCA-5020", "모듈 API에 연결할 수 없습니다"))))
+				.onErrorResume(TimeoutException.class, e -> Mono.just(
+						ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+								.body(ApiEnvelope.error("VCA-5040", "모듈 API 응답 시간 초과"))))
+				.onErrorResume(e -> {
+					log.error("프록시 내부 오류: GET /cameras", e);
+					return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+							.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류")));
+				});
+	}
+
+	private JsonNode withStreamUrls(JsonNode page, java.util.Set<String> configuredPaths) {
+		JsonNode content = page.path("content");
+		for (JsonNode cam : content) {
+			if (cam instanceof ObjectNode c && c.hasNonNull("cameraId")) {
+				String id = c.get("cameraId").asString();
+				if (mediaProps.enabled() && configuredPaths.contains(id)) {
+					c.put("streamUrl", mediaProps.streamUrlFor(id));
+				} else {
+					c.putNull("streamUrl");
+				}
+			}
+		}
+		return page;
 	}
 
 	@GetMapping("/api/{*path}")

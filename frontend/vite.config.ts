@@ -31,6 +31,12 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        // /streams → 미디어 서버(MediaMTX WebRTC/WHEP). 운영에서는 nginx가 동일 역할 (UV-43)
+        '/streams': {
+          target: env.VITE_MEDIA_PROXY_TARGET || 'http://localhost:8889',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/streams/, ''),
+        },
       },
     },
   }

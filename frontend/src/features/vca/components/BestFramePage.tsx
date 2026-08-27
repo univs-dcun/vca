@@ -7,6 +7,7 @@ import { useBestFrameLive } from "../../../lib/vca-bridge/useBestFrameLive";
 // 데이터 연결(백엔드 소유, UV-35): 업로드 Video/Image list 라이브 + 비디오 재생 타일
 import { useMediaLive } from "../../../lib/vca-bridge/useMediaLive";
 import { LiveVideoFeed, getVideoPlaybackTime } from "../../../lib/vca-bridge/LiveVideoFeed";
+import { CameraStreamFeed } from "../../../lib/vca-bridge/CameraStreamFeed";
 import type { TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
 import type { AnalyzeSource } from "../../../lib/vca-bridge/analyzeTimeline";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
@@ -328,10 +329,13 @@ function CameraCard({
         onMouseLeave={() => setFeedHovered(false)}
         style={{ flex:1, position:"relative", overflow:"hidden", backgroundColor:"#0e162a", minWidth:0, minHeight:0 }}
       >
-        {/* 업로드 비디오(라이브, UV-35)는 재생 + bbox 오버레이, 그 외에는 기존 프레임 이미지 */}
+        {/* 업로드 비디오(라이브, UV-35)는 재생 + bbox 오버레이, 카메라 실시간 스트림(라이브, UV-43)은
+            WHEP 재생(실패 시 아래 프레임 이미지 폴백), 그 외에는 기존 프레임 이미지 */}
         {data.videoUrl
           ? <LiveVideoFeed videoId={cam.id} src={data.videoUrl} poster={data.bgUrl} />
-          : <img src={data.bgUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:0.9 }} />}
+          : data.streamUrl
+            ? <CameraStreamFeed src={data.streamUrl} fallback={<img src={data.bgUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:0.9 }} />} />
+            : <img src={data.bgUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:0.9 }} />}
         {feedHovered && canAnalyze && (
           <button
             onClick={onHeaderArrowClick}

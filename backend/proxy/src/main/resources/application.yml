@@ -14,6 +14,12 @@ vca:
     # 모듈 응답 본문 허용 상한 — WebClient 기본값 256KB로는 감지 이력이 많은 날의
     # live-analytics 페이지가 잘려 500이 난다 (프레임 이미지 등 바이너리도 이 한도를 지난다)
     max-response-size: 16MB
+  # 미디어 서버(MediaMTX) — 카메라 목록 streamUrl 병합용 (계약 v0.9.0, UV-43).
+  # api-base-url이 비어 있으면 미디어 서버 미구성 — 전 카메라 streamUrl null (bestframe 폴백)
+  media:
+    api-base-url: ${VCA_MEDIA_API_BASE_URL:http://localhost:9997}
+    stream-url-template: /streams/{cameraId}/whep
+    timeout: 2s
 
 management:
   endpoints:

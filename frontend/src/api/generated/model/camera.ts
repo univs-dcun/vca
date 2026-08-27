@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.8.0
+ * OpenAPI spec version: 0.9.0
  */
 import type { CameraStatus } from './cameraStatus';
 import type { LatLng } from './latLng';
@@ -28,4 +28,9 @@ export interface Camera {
   /** @pattern ^[a-z0-9-]{1,64}$ */
   locationId: string;
   location: LatLng;
+  /**
+   * (v0.9.0, UV-43) 실시간 영상 스트림 경로 — 동일 오리진 WHEP 엔드포인트(/streams/{cameraId}/whep, nginx가 미디어 서버로 프록시). 미디어 서버 미구성·스트림 미가용이면 null → 화면은 bestframe 폴백. 원천 RTSP 주소·자격증명은 민감정보라 이 계약에 없다 (Admin·내부 채널 전용)
+   * @nullable
+   */
+  streamUrl?: string | null;
 }

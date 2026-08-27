@@ -1,0 +1,27 @@
+# VCA 미디어 서버 설정 (P2, UV-43) — 개발 기본값.
+# 스트림 path는 이 파일이 아니라 Admin 백엔드가 제어 API로 원장과 동기화한다 (카메라당 path 1개).
+#
+# 주의(운영): 아래 authInternalUsers는 개발 편의로 전 구간을 열어 둔 것 — 운영에서는 제어 API(:9997)를
+# 외부에 노출하지 않고(내부망 전용), publish/read 권한을 자격증명으로 제한할 것.
+
+api: yes
+apiAddress: :9997
+
+# 브라우저(호스트)가 도달할 수 있는 ICE 후보 — 컨테이너 내부 IP만으로는 WebRTC 연결이 안 된다
+webrtcAdditionalHosts: [127.0.0.1, localhost]
+
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: publish
+      - action: read
+      - action: playback
+      - action: api
+
+# 명시 path 외 발행 허용 (개발 테스트 소스가 test path로 발행한다).
+# 카메라 path(cam-*)는 Admin 백엔드가 제어 API로 추가·삭제한다
+paths:
+  all_others:
+

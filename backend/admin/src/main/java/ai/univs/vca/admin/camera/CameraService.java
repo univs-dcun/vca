@@ -11,6 +11,7 @@ import ai.univs.vca.admin.AdminProperties;
 import ai.univs.vca.admin.camera.CameraDtos.CameraRequest;
 import ai.univs.vca.admin.camera.CameraDtos.CameraResponse;
 import ai.univs.vca.admin.crypto.CredentialCipher;
+import ai.univs.vca.admin.provision.MediaSyncClient;
 import ai.univs.vca.admin.provision.ProvisionClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,12 +21,15 @@ public class CameraService {
 
 	private final CameraRepository repository;
 	private final ProvisionClient provisionClient;
+	private final MediaSyncClient mediaSyncClient;
 	private final CredentialCipher cipher;
 	private final SecureRandom random = new SecureRandom();
 
-	public CameraService(CameraRepository repository, ProvisionClient provisionClient, AdminProperties props) {
+	public CameraService(CameraRepository repository, ProvisionClient provisionClient,
+			MediaSyncClient mediaSyncClient, AdminProperties props) {
 		this.repository = repository;
 		this.provisionClient = provisionClient;
+		this.mediaSyncClient = mediaSyncClient;
 		this.cipher = new CredentialCipher(props.encKey());
 	}
 
@@ -71,10 +75,16 @@ public class CameraService {
 		syncModule();
 	}
 
-	/** 원장 전체를 모듈에 push (계약 v1.9 — 선언적 멱등 교체). 실패해도 CRUD는 성공 — 상태는 provision/status로 확인 */
+	/**
+	 * 원장 전체를 두 대상에 수렴 — 모듈 provisioning(계약 v1.9)과 미디어 서버 스트림 path(P2, UV-43).
+	 * 어느 쪽이 실패해도 CRUD는 성공 — 상태는 provision/status로 확인, 수동 재동기화로 따라잡는다
+	 */
 	@Transactional(readOnly = true)
 	public boolean syncModule() {
-		return provisionClient.pushAll(repository.findAllByOrderByNameAsc());
+		List<CameraEntity> ledger = repository.findAllByOrderByNameAsc();
+		boolean module = provisionClient.pushAll(ledger);
+		boolean media = mediaSyncClient.syncAll(ledger);
+		return module && media;
 	}
 
 	private CameraEntity find(String cameraId) {

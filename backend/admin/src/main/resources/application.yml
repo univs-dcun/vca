@@ -19,6 +19,8 @@ vca:
     # 분석 모듈 API (provisioning 대상, 계약 v1.9) — 프록시와 같은 모듈을 바라본다
     module-base-url: ${VCA_MODULE_API_BASE_URL:http://localhost:8081/v1}
     module-timeout: 5s
+    # 미디어 서버(MediaMTX) 제어 API — 스트림 path 동기화 대상 (P2, UV-43). 빈 값이면 동기화 생략
+    media-api-base-url: ${VCA_MEDIA_API_BASE_URL:http://localhost:9997}
     # 자격증명 암호화 키 — 운영에서는 반드시 환경변수로 주입 (키 변경 시 기존 암호문 복호화 불가)
     enc-key: ${VCA_ADMIN_ENC_KEY:vca-admin-dev-only-key}
     # 원장이 비어 있으면 기존 기본 카메라 8대 시드 (Old VCA 이관 확정 전 자리)
