@@ -34,6 +34,14 @@ VCA Admin이 그 "타 서비스"가 되는 것이므로 계약 철학의 방향 
 | 업로드 전달 | Admin이 저장 후 **모듈 ingest API(신규 계약)** 로 전달. 분석 진행 상태는 기존 v1.3 `analysisStatus`(processing→ready) 재사용 |
 | 착수 순서 | 이 설계 문서 + 계약 초안 합의 → 단계별 구현 (§7) |
 
+추가 확정 (2026-08-27):
+
+| 결정 | 내용 |
+|---|---|
+| 카메라 종류 | **AI Camera 제외 — 단순 CCTV(Normal)만.** 원장·provisioning에 sourceType을 두지 않는다 (추후 AI Camera 도입 시 additive로 확장) |
+| Associated Server | **없음(가정)** — 원장 스키마·provisioning에서 제외. 모듈 인스턴스가 복수가 되는 시점에 재논의 |
+| bestframe | **실영상 타일에 bbox 오버레이 없이 진행.** MQTT bestframe 발행은 유지(계약 불변)하되 BEST FRAME 선택 타일의 화면 소비만 실영상으로 대체 — streamUrl 미가용 시 폴백으로는 계속 사용 |
+
 ## 3. 컴포넌트 구성
 
 ```
@@ -86,7 +94,7 @@ VCA Admin이 그 "타 서비스"가 되는 것이므로 계약 철학의 방향 
 |---|---|
 | MQTT `detections` | 불변 — 대시보드·DATA·타깃 패널의 감지 원천 |
 | MQTT `status` | 불변 — 모듈의 분석 상태 보고 (소비자에 Admin 추가) |
-| MQTT `bestframe` (초당 1장) | **선택 타일 프레임 용도는 실영상으로 대체.** 존치 여부는 open question(§8-③) — 권고: 1단계에서는 실영상 타일에 bbox 오버레이를 얹지 않고(동기화 지연 문제), bestframe 발행은 유지하되 화면 소비만 중단 |
+| MQTT `bestframe` (초당 1장) | **선택 타일 프레임 용도는 실영상으로 대체 (확정: bbox 오버레이 없이 진행).** 발행은 유지(계약 불변) — streamUrl 미가용 시 타일 폴백으로 계속 사용 |
 | Analyze Frame 분 단위 이력 (v1.5 REST) | 불변 — 모듈 보관 프레임 이력. 실영상과 별개 |
 
 ## 5. VCA 화면 영향 (변경 최소)
@@ -101,10 +109,12 @@ VCA Admin이 그 "타 서비스"가 되는 것이므로 계약 철학의 방향 
 
 ### 6.1 Admin 카메라 원장 스키마 (Admin DB — Old VCA 폼 기준)
 ```
-Camera(원장): cameraId, sourceType(normal|ai), name, ip, maker, model,
-              username, password(암호화), rtspUrl, associatedServer,
+Camera(원장): cameraId, name, ip, maker, model,
+              username, password(암호화), rtspUrl,
               locationId, lat, lng, createdAt, updatedAt
 ```
+- Old VCA 폼의 Source Type(AI Camera)·Associated Server는 확정에 따라 제외 —
+  필요 시점에 additive로 확장
 - Admin 화면↔백엔드 계약은 기획자와 별도 협의 (이 문서 범위는 경계 정의까지)
 
 ### 6.2 VCA 공개 계약 변경 (openapi.json — additive)
@@ -118,7 +128,7 @@ Camera(원장): cameraId, sourceType(normal|ai), name, ip, maker, model,
 **A. 카메라 provisioning** — Admin → 모듈
 ```
 PUT /v1/provision/cameras
-body: { cameras: [{ cameraId, name, rtspUrl, locationId, location{lat,lng}, sourceType }] }
+body: { cameras: [{ cameraId, name, rtspUrl, locationId, location{lat,lng} }] }
 → 200 { accepted: n }
 ```
 - 전체 목록 멱등 교체(선언적) — 모듈은 이 목록과 자기 분석 상태를 수렴시킨다
@@ -154,14 +164,9 @@ sim은 P1부터 provisioning·ingest를 수용하는 참조 구현으로 확장�
 
 ## 8. Open Questions (합의 필요)
 
-1. **Normal Camera vs AI Camera**(Old VCA Source Type): AI Camera는 자체 분석 내장 장비로
-   모듈 분석 대상에서 제외되는가? 그렇다면 AI Camera의 감지 결과는 어떤 경로로 들어오는가
-   (모듈이 수집 대행? 별도 채널?) — **기획자·모듈 담당 확인 필요**
-2. **Associated Server**의 의미: 모듈 인스턴스(분석 서버) 지정인가, 녹화/스토리지 서버인가 —
-   provisioning 라우팅에 영향
-3. **bestframe 토픽 존치**: 실영상 타일에 bbox 오버레이가 필요한가? 필요하면 오버레이
-   동기화 방식(지연 허용치) 논의, 불필요하면 발행 중단 시점 결정
-4. **Admin 저장소·배포**: DB 선정(PostgreSQL 권고), 업로드 원본 보관 위치(로컬 볼륨/객체
+~~① AI Camera ② Associated Server ③ bestframe 존치~~ — 2026-08-27 확정 (§2 추가 확정 표).
+
+1. **Admin 저장소·배포**: DB 선정(PostgreSQL 권고), 업로드 원본 보관 위치(로컬 볼륨/객체
    스토리지), Admin 레포 위치(모노레포 `backend/admin` + `frontend-admin`? 별도 레포?)
-5. **Admin 인증**: 관리자 서비스라 로그인/권한이 필요할 것 — 범위·방식(기존 계정 체계 유무)
-6. **기존 등록분 이관**: Old VCA에 등록된 카메라 데이터의 마이그레이션 필요 여부
+2. **Admin 인증**: 관리자 서비스라 로그인/권한이 필요할 것 — 범위·방식(기존 계정 체계 유무)
+3. **기존 등록분 이관**: Old VCA에 등록된 카메라 데이터의 마이그레이션 필요 여부
