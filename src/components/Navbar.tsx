@@ -107,7 +107,11 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
       @keyframes run-icon{0%,100%{transform:translateY(-1px) translateX(0) rotate(0deg)}30%{transform:translateY(-3px) translateX(1px) rotate(-4deg)}60%{transform:translateY(0px) translateX(-1px) rotate(2deg)}}
       @keyframes stop-flicker{0%,100%{opacity:1}15%{opacity:.15}20%{opacity:.85}35%{opacity:.1}40%{opacity:.7}55%{opacity:1}75%{opacity:.2}80%{opacity:.9}}
       @keyframes dropdown-in{from{opacity:0;transform:scale(0.96) translateY(-6px)}to{opacity:1;transform:scale(1) translateY(0)}}
-      .navbar-tab{transition:background-color .15s}
+      /* The resting background lives here, NOT in the button's inline style. An inline
+         declaration beats any stylesheet selector short of !important, so background:"none" set
+         on the element silently cancelled this :hover rule — the class was applied and the rule was
+         valid, and nothing happened. Same trap for .navbar-search-btn below. */
+      .navbar-tab{background-color:transparent;transition:background-color .15s}
       .navbar-tab:hover{background-color:rgba(90,61,251,0.06)}
       .navbar-icon-btn{transition:background-color .15s;border-radius:8px;position:relative;background-color:transparent}
       .navbar-icon-btn:hover{background-color:var(--gray-100)}
@@ -124,7 +128,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
       .navbar-logo-btn:hover{opacity:.8}
       /* The search bar was the one clickable thing in the header with no hover state at all — it
          sits between the clock and the bell, both of which respond, so it read as decoration. */
-      .navbar-search-btn{transition:background-color .15s, border-color .15s}
+      .navbar-search-btn{background-color:var(--gray-50);transition:background-color .15s, border-color .15s}
       .navbar-search-btn:hover{background-color:var(--gray-100);border-color:var(--gray-300)}
       .navbar-search-btn:hover .navbar-search-kbd{border-color:var(--gray-300)}
     `}</style>
@@ -212,7 +216,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 display: "flex", alignItems: "center", justifyContent: "center",
                 height: "62px", padding: "0 20px", gap: "8px",
                 position: "relative", cursor: "pointer",
-                background: "none", border: "none",
+                border: "none",
               }}
             >
               <div style={{
@@ -285,7 +289,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
               aria-label="Search (Cmd+K)"
               onClick={onOpenSearch}
               style={{ display: "flex", alignItems: "center", gap: "8px", border: "1px solid var(--gray-200)", borderRadius: "8px",
-                cursor: "pointer", padding: "7px 8px 7px 10px", backgroundColor: "var(--gray-50)" }}
+                cursor: "pointer", padding: "7px 8px 7px 10px" }}
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
                 <path d="M13.9998 13.9998L11.1064 11.1064" stroke="var(--gray-400)" strokeLinecap="round" strokeLinejoin="round"/>
