@@ -3172,12 +3172,16 @@ type TierMeta = {
 };
 type PyramidRow = { key:string; weight:number; nodes:RedfaceNode[]; meta: TierMeta|null };
 
+// Zone fills sit on the 200 step, not 100. At 100 all three bands were within a few RGB steps of
+// white: the pyramid read as one pale surface with faces floating on it, and the connector lines
+// drawn across them had nothing to be seen against. The label chips go white in exchange — a
+// danger-100 chip on a danger-100 field was invisible, and on the 200 field white is the contrast.
 const PYRAMID_TIER_META: Record<"tier1"|"tier2"|"tier3", TierMeta> = {
-  tier1: { bg:"var(--danger-100)", labelBg:"var(--danger-100)", labelColor:"var(--danger-400)", label:"TIER 1 · RED ZONE", sublabel:">100 CO-CAPTURES",
+  tier1: { bg:"var(--danger-200)", labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--danger-500)", label:"TIER 1 · RED ZONE", sublabel:">100 CO-CAPTURES",
     nodeSize:52, nodeBorder:3, nodeColor:"var(--danger-400)", step:16, lineWidth:1.4, dashFlow:true, lineOpacity:0.85 },
-  tier2: { bg:"var(--warning-100)", labelBg:"var(--warning-200)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-CAPTURES",
+  tier2: { bg:"var(--warning-200)", labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-CAPTURES",
     nodeSize:52, nodeBorder:2, nodeColor:"var(--warning-400)", step:11, lineWidth:1, dashed:true, lineOpacity:0.7 },
-  tier3: { bg:"var(--gray-50)", labelBg:"var(--gray-200)", labelColor:"var(--gray-600)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-CAPTURES",
+  tier3: { bg:"var(--gray-200)", labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--gray-700)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-CAPTURES",
     // Same 52px as Tier 2. Tier 3 was drawn smaller to signal a weaker link, but the faces here
     // will be low-resolution CCTV crops in practice, and 42px left too little of them to tell
     // people apart — which is the one thing these nodes are for.
@@ -3224,15 +3228,15 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
              are placed from those pure weight percentages, so they were drawing up to 30px above
              the band they belong to. Zeroing the basis makes one calculation govern both. */
           <div key={r.key} style={{ flexGrow:r.weight, flexShrink:0, flexBasis:0, position:"relative",
-            backgroundColor: r.meta?.bg ?? "var(--primary-100)", borderBottom: r.key !== tierRows[tierRows.length-1]?.key ? "1px solid rgba(14, 22, 42,0.05)" : "none",
+            backgroundColor: r.meta?.bg ?? "var(--primary-200)", borderBottom: r.key !== tierRows[tierRows.length-1]?.key ? "1px solid rgba(14, 22, 42,0.05)" : "none",
             display:"flex", alignItems:"flex-start", justifyContent:"space-between", padding:"24px 24px 0", boxSizing:"border-box" }}>
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
-              backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.8)", color: r.meta?.labelColor ?? "var(--primary-300)",
+              backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.85)", color: r.meta?.labelColor ?? "var(--primary-400)",
               padding:"4px 8px", borderRadius:"4px" }}>
               {r.meta?.label ?? "APEX · PRIMARY TARGET ZONE"}
             </span>
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
-              backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.8)", color: r.meta?.labelColor ?? "var(--primary-300)",
+              backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.85)", color: r.meta?.labelColor ?? "var(--primary-400)",
               padding:"4px 8px", borderRadius:"4px" }}>
               {r.meta?.sublabel ?? "CENTRAL TARGET PROFILE"}
             </span>
