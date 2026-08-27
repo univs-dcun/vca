@@ -200,6 +200,7 @@
 | `POST /v1/persons/reid-search` | **(v1.7)** Re-ID 인물 검색 — 이미지 업로드(face/body) 또는 `vipId` 참조 + 필터(기간·유사도·카메라·성별·복장·소지품) 전부 모듈 적용 → 유사도 내림차순 상위 최대 20 (빈 결과 허용, 동기 60초) |
 | `POST /v1/targets/associates` | **(v1.8)** RedFace 동반 감지 인물 목록 — primary target 참조(source + targetId=감지 eventId) + 기간 → 같은 프레임에 함께 감지된 인물 상위 최대 30 (coCaptures 내림차순, 빈 결과 허용, 동기 60초) |
 | `POST /v1/targets/associate-evidence` | **(v1.8)** Joint Evidence — 페어(targetId + associateId) 동반 감지 집계 요약 (총 횟수·최초/최종·최다 장소·주 시간대 비율·장소별 최근 5건, 동기 60초) |
+| `POST /v1/targets/associate-frames` | **(v1.10)** RedFace Shared frames — 페어의 동시 포착 프레임 페이징 목록(최신순, page/size 쿼리 + locationId/bucket 필터). totalElements == coCaptures, imageUrl은 기존 카메라 프레임 라우트 재사용, 두 인물 bbox(0~1, 미검출 null), 동기 60초 |
 | `PUT /v1/provision/cameras` | **(v1.9)** 카메라 provisioning — **호출 주체가 VCA Admin 백엔드인 유일한 엔드포인트.** 전체 목록 선언적 멱등 교체: 새 카메라는 분석 시작, 빠진 카메라는 중단 + retained 토픽 삭제 |
 
 지킬 규칙:
@@ -306,6 +307,22 @@
   책임이고 화면은 문구 조립만 한다. `totalEvents`는 목록의 `coCaptures`와 같은 값이어야 한다
 - 시간대 구분(사이트 로컬): morning 05~12 / afternoon 12~17 / evening 17~21 / night 21~05
 
+### (v1.10) RedFace Co-capture evidence 실데이터 — 구현 전 알아둘 것
+
+- **v1.8의 additive 확장 + 신규 1종.** 목록(associates 행)에 `locations`(고유 장소 수)·
+  `peakPeriod{bucket,count}`, 집계(evidence)의 `pattern.peakPeriod`에 `count`가 추가됐고,
+  페어의 동시 포착 프레임을 페이징으로 주는 `POST /targets/associate-frames`가 신설됐다
+- **정합 규칙(검증 포인트)이 촘촘하다** — 목록·집계·프레임이 같은 전수 데이터에서 나와야 한다:
+  ① 목록 `coCaptures` == 집계 `totalEvents` == 프레임 `totalElements`(무필터)
+  ② 목록 `locations` == 집계 `locations` 그룹 수, 목록 `peakPeriod` == 집계 `pattern.peakPeriod`
+  ③ 목록 `topCamera` == 집계 `pattern.topLocation` (카메라·count 동일)
+  ④ 프레임의 장소별 건수 합계 == 집계 그룹 count, 프레임 min/max capturedAt == first/lastSeenAt
+  ⑤ `locationId`/`bucket` 필터 적용 시 totalElements가 각각 해당 그룹 count·peakPeriod.count와 일치
+- **프레임 이미지는 신규 라우트가 아니다** — 기존 `/cameras/{cameraId}/frames/{frameId}`(v1.1)의
+  상대경로를 imageUrl로 재사용한다. targetBox/associateBox는 그 프레임 내 두 인물의 0~1 bbox,
+  검출 실패 시 null(화면은 박스 없이 렌더)
+- bucket 판정은 capturedAt의 사이트 로컬(Asia/Singapore) 시간대 기준 — v1.8과 동일 구분
+
 ### (v1.9) 카메라 provisioning — 구현 전 알아둘 것
 
 - **카메라 원장은 VCA Admin DB가 단일 원천**이 된다 (`vca` 모노레포 `docs/design-vca-admin.md`,
@@ -327,7 +344,7 @@
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 35개 엔드포인트 전부**를
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 36개 엔드포인트 전부**를
 계약 그대로 구현한 Node 시뮬레이터. v1.3 비디오는 `sim/assets/`의 실제 H.264 MP4를 Range로
 서빙하며, **frames의 bbox 수식이 MP4 속 박스 움직임과 동일**해 재생 오버레이가 영상 속 박스를
 따라가는지 눈으로 검증할 수 있다 (수식·재생성 ffmpeg 명령은 sim.mjs 주석 참조). v1.2 인물 검색은 두 경로로 응답한다:
@@ -345,7 +362,7 @@ cd sim && npm install && npm start   # MQTT 발행 + :8081 모듈 API 서빙
 이 참조 구현 + 실제 프록시 + 실제 대시보드 조합으로 **전 화면 E2E가 검증 완료**된 상태다 —
 DASHBOARD(08-12), BEST FRAME(08-18), REDMAP(08-19), Video/Image·Track on Map(08-21),
 Analyze Frame·DATA Live Monitoring(08-24), Re-ID Analysis(08-25), RedFace(08-26),
-Admin provisioning(08-27 — 실제 Admin 백엔드 CRUD → provisioning → 화면 카메라 목록·MQTT 수렴). 즉 모듈이 이 계약대로만
+Admin provisioning(08-27), RedFace Co-capture evidence 실데이터(08-27 — 그리드 실값 컬럼·Shared frames 프레임/박스/필터/페이징). 즉 모듈이 이 계약대로만
 구현하면 화면 연결에 추가 작업이 없다. 검증 과정에서 확인된 구현 포인트:
 
 - **URL 경로 규칙 (혼동 주의)** — REST 응답의 리소스 URL(`photoUrl`, `snapshotUrl`)은
@@ -417,6 +434,9 @@ curl "http://localhost:8081/v1/dashboard/live-analytics?page=0&size=20&type=ALL"
   - [ ] (v1.9) `PUT /v1/provision/cameras` 수신 후 `/v1/cameras`가 그 목록과 일치하고, 새 카메라의 status가 RUNNING retained로 발행되는가
   - [ ] (v1.9) 목록에서 빠진 카메라의 retained 토픽(status·stats·bestframe)이 빈 페이로드로 지워지는가
   - [ ] (v1.9) 같은 본문을 두 번 보내도 상태 변화·중복 발행이 없는가 (멱등)
+  - [ ] (v1.10) 목록 coCaptures == 집계 totalEvents == 프레임 totalElements이고, 목록 locations/peakPeriod/topCamera가 집계와 일치하는가
+  - [ ] (v1.10) 프레임이 capturedAt 내림차순이고 min/max가 first/lastSeenAt과 같으며, 장소별 건수 합계가 집계 그룹 count와 같은가
+  - [ ] (v1.10) locationId/bucket 필터의 totalElements가 각각 topLocation.count·peakPeriod.count와 일치하는가 (필터 값이 그 peak일 때)
 
 ### 대시보드 E2E
 

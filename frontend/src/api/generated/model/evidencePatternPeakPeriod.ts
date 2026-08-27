@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.9.0
+ * OpenAPI spec version: 0.10.0
  */
 import type { EvidencePatternPeakPeriodBucket } from './evidencePatternPeakPeriodBucket';
 
@@ -25,4 +25,9 @@ export type EvidencePatternPeakPeriod = {
    * @maximum 1
    */
   ratio: number;
+  /**
+   * (v1.10) 해당 시간대의 동반 감지 건수 — 화면이 'Morning · 192' 형태로 표기
+   * @minimum 1
+   */
+  count: number;
 };

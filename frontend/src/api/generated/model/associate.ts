@@ -12,10 +12,11 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.9.0
+ * OpenAPI spec version: 0.10.0
  */
 import type { AssociateTopCamera } from './associateTopCamera';
 import type { AssociateMatchedVip } from './associateMatchedVip';
+import type { AssociatePeakPeriod } from './associatePeakPeriod';
 
 /**
  * 동반 감지 인물 1명 (계약 v1.8). Zone 배치(>100/10~99/<10)는 화면이 coCaptures로 분류한다
@@ -40,4 +41,11 @@ export interface Associate {
    * @nullable
    */
   matchedVip?: AssociateMatchedVip;
+  /**
+   * (v1.10) 기간 내 동반 감지가 발생한 고유 장소 수 — Data grid Locations 컬럼
+   * @minimum 1
+   */
+  locations: number;
+  /** (v1.10) 최다 동반 시간대 — Data grid Peak time 컬럼 */
+  peakPeriod: AssociatePeakPeriod;
 }

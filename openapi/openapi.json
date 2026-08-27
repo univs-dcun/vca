@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.9.0",
+    "version": "0.10.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -502,6 +502,35 @@
             "description": "OK",
             "content": {
               "application/json": { "schema": { "$ref": "#/components/schemas/AssociateEvidenceResponse" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/targets/associate-frames": {
+      "post": {
+        "operationId": "listAssociateFrames",
+        "summary": "RedFace Shared frames — 페어의 동시 포착 프레임 페이징 목록",
+        "description": "Co-capture evidence 패널의 Shared frames (계약 v1.10, UV-45) — primary target과 동료가 같은 프레임에 함께 잡힌 프레임의 페이징 목록.\n- 요청 본문은 /targets/associate-evidence와 동일, 페이징은 공통 page/size 쿼리\n- 정렬: capturedAt 내림차순(최신 먼저). data.totalElements는 coCaptures/totalEvents와 동일\n- imageUrl은 /api 상대경로 — <img src>로 직접 사용. targetBox/associateBox는 0~1 정규화 bbox, 검출 실패 시 null(박스 없이 렌더)\n- 동기 요청 — 프록시 타임아웃 60초",
+        "tags": ["search"],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Size" },
+          { "name": "locationId", "in": "query", "required": false, "schema": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }, "description": "(선택) 이 장소의 프레임만 — totalElements는 필터 적용 후 건수. Peak location 카드 필터용이며, 값이 topLocation.locationId일 때 totalElements는 topLocation.count와 같아야 한다" },
+          { "name": "bucket", "in": "query", "required": false, "schema": { "type": "string", "enum": ["morning", "afternoon", "evening", "night"] }, "description": "(선택) 이 시간대(capturedAt의 사이트 로컬 기준)의 프레임만. Peak time 카드 필터용이며, 값이 pattern.peakPeriod.bucket일 때 totalElements는 peakPeriod.count와 같아야 한다" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/AssociateEvidenceRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/CoCaptureFramesResponse" } }
             }
           },
           "default": { "$ref": "#/components/responses/Error" }
@@ -1451,15 +1480,25 @@
       "Associate": {
         "type": "object",
         "description": "동반 감지 인물 1명 (계약 v1.8). Zone 배치(>100/10~99/<10)는 화면이 coCaptures로 분류한다",
-        "required": ["associateId", "faceUrl", "coCaptures", "topCamera", "firstSeenAt", "lastSeenAt"],
+        "required": ["associateId", "faceUrl", "coCaptures", "topCamera", "firstSeenAt", "lastSeenAt", "locations", "peakPeriod"],
         "properties": {
           "associateId": { "type": "string", "description": "백엔드 발급 인물 키 — /targets/associate-evidence 참조 키, 화면 표시 ID로도 사용. 응답 후 최소 1시간 유효" },
           "faceUrl": { "type": "string", "description": "대표 동반 감지의 크롭 /api 상대경로 — <img src>로 직접 사용" },
           "coCaptures": { "type": "integer", "minimum": 1, "description": "기간 내 동반 감지 총횟수 — 정렬 키(내림차순)이자 Zone 분류 기준" },
-          "topCamera": { "$ref": "#/components/schemas/AssociateTopCamera" },
+          "topCamera": { "$ref": "#/components/schemas/AssociateTopCamera", "description": "최다 동반 장소 — (v1.10) associate-evidence의 pattern.topLocation과 카메라·count가 같아야 한다" },
           "firstSeenAt": { "type": "string", "format": "date-time", "description": "기간 내 첫 동반 감지 시각" },
           "lastSeenAt": { "type": "string", "format": "date-time", "description": "기간 내 마지막 동반 감지 시각" },
           "matchedVip": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/MatchedVip" }], "description": "동료가 등록 인물이면 매칭 정보 — null이면 미등록" }
+          ,"locations": { "type": "integer", "minimum": 1, "description": "(v1.10) 기간 내 동반 감지가 발생한 고유 장소 수 — Data grid Locations 컬럼" },
+          "peakPeriod": {
+            "type": "object",
+            "description": "(v1.10) 최다 동반 시간대 — Data grid Peak time 컬럼",
+            "required": ["bucket", "count"],
+            "properties": {
+              "bucket": { "type": "string", "enum": ["morning", "afternoon", "evening", "night"] },
+              "count": { "type": "integer", "minimum": 1 }
+            }
+          }
         }
       },
       "AssociatesResult": {
@@ -1539,10 +1578,11 @@
           },
           "peakPeriod": {
             "type": "object",
-            "required": ["bucket", "ratio"],
+            "required": ["bucket", "ratio", "count"],
             "properties": {
               "bucket": { "type": "string", "enum": ["morning", "afternoon", "evening", "night"], "description": "사이트 로컬 기준 최다 시간대 — morning 05~12 / afternoon 12~17 / evening 17~21 / night 21~05" },
               "ratio": { "type": "number", "format": "double", "minimum": 0, "maximum": 1, "description": "전체 동반 감지 중 해당 시간대 비율" }
+              ,"count": { "type": "integer", "minimum": 1, "description": "(v1.10) 해당 시간대의 동반 감지 건수 — 화면이 'Morning · 192' 형태로 표기" }
             }
           }
         }
@@ -1567,6 +1607,40 @@
           "code": { "type": "string" },
           "message": { "type": "string", "nullable": true },
           "data": { "$ref": "#/components/schemas/AssociateEvidence" }
+        }
+      },
+      "CoCaptureFrame": {
+        "type": "object",
+        "description": "동시 포착 프레임 1장 (계약 v1.10) — primary target과 동료가 함께 잡힌 프레임",
+        "required": ["cameraId", "cameraName", "locationId", "capturedAt", "imageUrl"],
+        "properties": {
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "cameraName": { "type": "string" },
+          "locationId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "capturedAt": { "type": "string", "format": "date-time" },
+          "imageUrl": { "type": "string", "description": "프레임 이미지 /api 상대경로 — 기존 카메라 프레임 라우트 재사용" },
+          "targetBox": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/BBox" }] },
+          "associateBox": { "nullable": true, "allOf": [{ "$ref": "#/components/schemas/BBox" }] }
+        }
+      },
+      "PageCoCaptureFrame": {
+        "type": "object",
+        "required": ["content", "page", "size", "totalElements"],
+        "properties": {
+          "content": { "type": "array", "items": { "$ref": "#/components/schemas/CoCaptureFrame" } },
+          "page": { "type": "integer" },
+          "size": { "type": "integer" },
+          "totalElements": { "type": "integer" }
+        }
+      },
+      "CoCaptureFramesResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/PageCoCaptureFrame" }
         }
       },
       "AnalysisTags": {

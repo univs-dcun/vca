@@ -271,10 +271,18 @@ public class ProxyController {
 		return searchJsonPost("/targets/associate-evidence", request, "동반 패턴 집계 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
 	}
 
-	/** 검색·집계 계열 JSON POST 패스스루 공통 골격 — searchTimeout + envelope + URL 재작성 */
+	@PostMapping("/api/targets/associate-frames")
+	public Mono<ResponseEntity<ApiEnvelope>> listAssociateFrames(ServerHttpRequest request) {
+		return searchJsonPost("/targets/associate-frames", request, "동시 포착 프레임 조회 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
+	}
+
+	/** 검색·집계 계열 JSON POST 패스스루 공통 골격 — searchTimeout + envelope + URL 재작성.
+	 *  쿼리(page/size 등, v1.10 associate-frames)는 그대로 전달한다 */
 	private Mono<ResponseEntity<ApiEnvelope>> searchJsonPost(String path, ServerHttpRequest request, String timeoutMessage) {
+		String query = request.getURI().getRawQuery();
+		String uri = query == null ? path : path + "?" + query;
 		return moduleApi.post()
-				.uri(path)
+				.uri(uri)
 				.headers(h -> h.setContentType(MediaType.APPLICATION_JSON))
 				.body(BodyInserters.fromDataBuffers(request.getBody()))
 				.retrieve()
