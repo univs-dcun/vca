@@ -3229,6 +3229,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
   }, { list: [], acc: 0 }).list;
   const apexRow = positioned.find(r => r.key === "apex")!;
   const tierRows = positioned.filter(r => r.key !== "apex");
+  const assocTotal = tierRows.reduce((sum, r) => sum + r.nodes.length, 0);
 
   const nodeY = (r: (typeof positioned)[number], i: number) => {
     if (!r.meta?.stagger) return r.center;
@@ -3259,12 +3260,19 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
               backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.85)", color: r.meta?.labelColor ?? "var(--primary-400)",
               padding:"4px 8px", borderRadius:"4px" }}>
-              {r.meta?.label ?? "APEX · PRIMARY TARGET ZONE"}
+              {/* Was "APEX · PRIMARY TARGET ZONE". "Apex" only named the tip of the pyramid shape
+                  — geometry, not information — and the words after it already said what the band
+                  holds. The tier bands name a tier because there are three of them to tell apart;
+                  there is one of these. */}
+              {r.meta?.label ?? "PRIMARY TARGET"}
             </span>
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
               backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.85)", color: r.meta?.labelColor ?? "var(--primary-400)",
               padding:"4px 8px", borderRadius:"4px" }}>
-              {r.meta?.sublabel ?? "CENTRAL TARGET PROFILE"}
+              {/* Was "CENTRAL TARGET PROFILE", which restated the label opposite it. The tier
+                  bands put their co-capture range here, so the parallel fact for this band is how
+                  many associates the graph below it found. */}
+              {r.meta?.sublabel ?? `${assocTotal} ASSOCIATES`}
             </span>
           </div>
         ))}
