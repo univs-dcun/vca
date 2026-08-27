@@ -3677,46 +3677,48 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
               </p>
             </button>
           </div>
-          {/* The badge sits between the two ends because that is what it counts — how many shared
-              frames fall inside this span. Without it the row states a range and leaves the density
-              of it unsaid: seven days could hold 3 co-captures or 148. Gray, not the link colour —
-              the number is context for the span, not the panel's headline. */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", fontSize:"11px" }}>
-            <span style={{ color:"var(--gray-400)" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time}</strong></span>
-            {/* White on the primary-100 field, matching the two stat cards in this same block — a
-                gray chip was the only element here outside the primary family, and gray-100 on
-                gray-50 had been a single step of tint away from invisible. */}
+          {/* Dashed rules run from each timestamp to the badge, so the count reads as belonging to
+              the span between them rather than as a third, unrelated statistic parked in the
+              middle. "129 FRAMES" on its own didn't say 129 of what, over what.
+
+              Seconds are dropped from these two stamps to buy the rules room — at 460px the words,
+              two full timestamps and the badge left nothing between them. The exact second of the
+              first sighting isn't a summary-level fact anyway; the frame rows below carry it. */}
+          <div style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px" }}>
+            <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time.slice(0, 5)}</strong></span>
+            <span style={{ flex:1, minWidth:"12px", height:0, borderTop:"1px dashed var(--gray-300)" }} />
             <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"white",
               padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
               {events.length} FRAMES
             </span>
-            <span style={{ color:"var(--gray-400)" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time}</strong></span>
+            <span style={{ flex:1, minWidth:"12px", height:0, borderTop:"1px dashed var(--gray-300)" }} />
+            <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time.slice(0, 5)}</strong></span>
           </div>
         </div>
 
-          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
-            {/* "Event timeline" named the shape of the list, not its contents — every row here is
-                one frame with both people in it, which is the whole reason the row exists. */}
-            <PanelHeading title="Frames the two appear in together, newest first">Shared frames</PanelHeading>
-            <span style={{ display:"flex", alignItems:"center", gap:"6px", flexShrink:0 }}>
-              {/* Names the active filter and clears it. The lit card says which one is on, but not
-                  from down here where the count it changed is — and a count that dropped from 110
-                  to 66 with no label on it reads as a bug. */}
-              {focusLabel && (
-                <button onClick={() => { setFocus(null); setPage(1); }}
-                  title="Show every shared frame again"
-                  style={{ display:"flex", alignItems:"center", gap:"4px", border:"none", cursor:"pointer",
-                    fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"var(--primary-100)",
-                    padding:"2px 6px", borderRadius:"999px", textTransform:"capitalize", whiteSpace:"nowrap" }}>
-                  {focusLabel}
-                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                    <path d="M1.5 1.5L6.5 6.5M6.5 1.5L1.5 6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
-                </button>
-              )}
-              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {shown.length}</span>
-            </span>
-          </div>
+        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
+          {/* "Event timeline" named the shape of the list, not its contents — every row here is
+              one frame with both people in it, which is the whole reason the row exists. */}
+          <PanelHeading title="Frames the two appear in together, newest first">Shared frames</PanelHeading>
+          <span style={{ display:"flex", alignItems:"center", gap:"6px", flexShrink:0 }}>
+            {/* Names the active filter and clears it. The lit card says which one is on, but not
+                from down here where the count it changed is — and a count that dropped from 110
+                to 66 with no label on it reads as a bug. */}
+            {focusLabel && (
+              <button onClick={() => { setFocus(null); setPage(1); }}
+                title="Show every shared frame again"
+                style={{ display:"flex", alignItems:"center", gap:"4px", border:"none", cursor:"pointer",
+                  fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"var(--primary-100)",
+                  padding:"2px 6px", borderRadius:"999px", textTransform:"capitalize", whiteSpace:"nowrap" }}>
+                {focusLabel}
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                  <path d="M1.5 1.5L6.5 6.5M6.5 1.5L1.5 6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+            )}
+            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {shown.length}</span>
+          </span>
+        </div>
       </div>
 
       {/* The band that actually scrolls. minHeight:0 is what lets it: without it a flex child
