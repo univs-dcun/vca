@@ -529,17 +529,17 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
       <div style={{ display:"flex", gap:"12px", backgroundColor:"var(--gray-50)", borderRadius:"16px", padding:"12px" }}>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", width:"96px", flexShrink:0 }}>
           <img src={det.type === "Vehicle" ? CAR_IMG : AVATAR[0]} alt="" style={{ width:"100%", aspectRatio: det.type === "Vehicle" ? "1/1" : "77/177", objectFit:"cover", borderRadius:"8px", display:"block" }} />
-          <span title="지금 카메라가 실시간으로 찍은 사진" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", cursor:"help" }}>LIVE SNAPSHOT</span>
+          <span title="Frame the camera just captured" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", cursor:"help" }}>LIVE SNAPSHOT</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", flex:1, minWidth:0 }}>
           {isUnknown ? (
             <div style={{ width:"100%", aspectRatio:"1/1", borderRadius:"10px", border:"2px dashed var(--warning-500)", backgroundColor:"var(--warning-100)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span title="사전에 등록된 데이터베이스에서 일치하는 인물을 찾지 못함" style={{ fontSize:"10px", fontWeight:600, color:"var(--warning-500)", textAlign:"center", cursor:"help" }}>NO DB MATCH</span>
+              <span title="No match for this face in the enrolled database" style={{ fontSize:"10px", fontWeight:600, color:"var(--warning-500)", textAlign:"center", cursor:"help" }}>NO DB MATCH</span>
             </div>
           ) : (
             <img src={det.type === "Vehicle" ? CAR_IMG : AVATAR[0]} alt="" style={{ width:"100%", aspectRatio:"1/1", objectFit:"cover", borderRadius:"10px", display:"block", filter:"sepia(0.2)" }} />
           )}
-          <span title="사전에 등록된 데이터베이스 속 대조 사진" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", cursor:"help" }}>ENROLLED DB</span>
+          <span title="Reference photo from the enrolled database" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", cursor:"help" }}>ENROLLED DB</span>
         </div>
       </div>
 

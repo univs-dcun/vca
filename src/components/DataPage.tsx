@@ -3554,7 +3554,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
             without a name. The ✕ stays a bare glyph, which is what Best Frame's own close control
             is; the 37px filled square was the outlier. */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px" }}>
-          <p title="Primary Target와 선택한 연관자가 같은 프레임에 함께 찍힌 증거" style={{ margin:0, fontSize:"16px", fontWeight:800,
+          <p title="Every frame holding both the primary target and this associate" style={{ margin:0, fontSize:"16px", fontWeight:800,
             color:"var(--gray-900)", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</p>
           <button onClick={onClose} aria-label="Close" style={{
             width:"26px", height:"26px", flexShrink:0, padding:0,
@@ -3604,7 +3604,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
             of air the block had when the rules were doing the separating. */}
         <div style={{ display:"flex", flexDirection:"column", gap:"10px", margin:"2px 0",
           backgroundColor:"var(--gray-50)", borderRadius:"8px", padding:"14px" }}>
-          <PanelHeading title="함께 찍힌 프레임이 어느 장소·시간대에 몰려 있는지" color="var(--primary-400)">Relationship analytics</PanelHeading>
+          <PanelHeading title="Where and when the shared frames cluster" color="var(--primary-400)">Relationship analytics</PanelHeading>
           <div style={{ display:"flex", gap:"10px" }}>
             <div style={{ flex:1, border:BORDER, borderRadius:"8px", padding:"8px 10px", backgroundColor:"white" }}>
               <p style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
@@ -3643,7 +3643,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
             {/* "Event timeline" named the shape of the list, not its contents — every row here is
                 one frame with both people in it, which is the whole reason the row exists. */}
-            <PanelHeading title="두 사람이 같은 프레임에 함께 찍힌 기록 — 최신순">Shared frames</PanelHeading>
+            <PanelHeading title="Frames the two appear in together, newest first">Shared frames</PanelHeading>
             <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {events.length}</span>
           </div>
       </div>
@@ -3899,7 +3899,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
               <>
                 <img src={primaryTarget.face} alt="" style={{ width:"44px", height:"44px", borderRadius:"6px", objectFit:"cover", border:"2px solid var(--primary-400)" }} />
                 <div>
-                  <span title="지금 기준으로 삼고 있는 인물 — 이 사람과 자주 함께 감지된 연관자를 찾음" style={{ display:"inline-flex", fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"2px 6px", borderRadius:"4px", letterSpacing:"-0.2px", cursor:"help" }}>PRIMARY TARGET</span>
+                  <span title="The person everything here is measured against — associates are whoever shares frames with them" style={{ display:"inline-flex", fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"2px 6px", borderRadius:"4px", letterSpacing:"-0.2px", cursor:"help" }}>PRIMARY TARGET</span>
                   <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", margin:"4px 0 0", letterSpacing:"-0.28px" }}>{primaryTarget.name}</p>
                 </div>
                 <button onClick={onSwitchTarget} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 12px",
@@ -3943,7 +3943,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget }: {
             {(["pyramid","grid"] as const).map(v => {
               const active = view === v;
               return (
-                <button key={v} onClick={() => setView(v)} title={v === "pyramid" ? "연관자를 등급별 시각 배치로 보기" : "연관자를 표 형태 목록으로 보기"} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px",
+                <button key={v} onClick={() => setView(v)} title={v === "pyramid" ? "See associates laid out by tier" : "See associates as a sortable table"} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px",
                   borderRadius:"6px", border:"none", cursor:"pointer",
                   backgroundColor: active ? "white" : "transparent", color: active ? "var(--gray-900)" : "var(--gray-500)",
                   fontSize:"12px", fontWeight: active ? 700 : 600 }}>
@@ -4094,7 +4094,7 @@ const DATA_TABS: DataTab[] = ["Live Monitoring","Re-ID Analysis","RedFace"];
 // "RedFace" doesn't say what it does on its own — a first-time viewer has no way to guess this
 // is a co-occurrence/associate-finder feature just from the tab label.
 const DATA_TAB_TOOLTIPS: Partial<Record<DataTab, string>> = {
-  "RedFace": "선택한 인물과 여러 카메라에 자주 함께 감지된 동행/연관자를 찾는 기능",
+  "RedFace": "Finds who shares camera frames with a chosen person, across every camera",
 };
 export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void } = {}) {
   // Always lands on Live Monitoring — deliberately not persisted, unlike Best Frame's

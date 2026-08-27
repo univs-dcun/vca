@@ -385,7 +385,7 @@ function AIInspectionDetail({ det, data, onClose, onGoRedmapTrace }: { det: Dete
         <div style={{ display:"flex", alignItems:"flex-end", gap:"8px", marginBottom:"14px" }}>
           <div style={{ flex:"0 0 77px", display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
             <img src={LIVE_CAPTURE_PHOTO} alt="" style={{ width:"77px", height:"177px", objectFit:"cover", objectPosition:"top", borderRadius:"8px", display:"block" }} />
-            <p title="지금 카메라가 실시간으로 찍은 사진" style={{ fontSize:"10px", fontWeight:600, color:"var(--primary-400)", letterSpacing:"-0.2px", cursor:"help" }}>LIVE Capture</p>
+            <p title="Frame the camera just captured" style={{ fontSize:"10px", fontWeight:600, color:"var(--primary-400)", letterSpacing:"-0.2px", cursor:"help" }}>LIVE Capture</p>
           </div>
           <div style={{ flex:1, alignSelf:"flex-end", height:"177px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"6px" }}>
             <svg width="22" height="22" viewBox="0 0 16 16" fill="none">
@@ -398,7 +398,7 @@ function AIInspectionDetail({ det, data, onClose, onGoRedmapTrace }: { det: Dete
           </div>
           <div style={{ flex:"0 0 176px", display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
             <img src={DB_PHOTO} alt="" style={{ width:"176px", height:"177px", objectFit:"cover", objectPosition:"top", borderRadius:"10px", display:"block" }} />
-            <p title="사전에 등록된 데이터베이스 속 대조 사진" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", letterSpacing:"-0.2px", cursor:"help" }}>ENROLLED DB</p>
+            <p title="Reference photo from the enrolled database" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", letterSpacing:"-0.2px", cursor:"help" }}>ENROLLED DB</p>
           </div>
         </div>
 
@@ -800,7 +800,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
               flex, so the step controls stay truly centered regardless of how wide the title or
               the date/jump-to group are). */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", padding:"12px 16px 16px", columnGap:"12px" }}>
-            <span title="이 카메라에서 여러 트랙(감지된 객체)에 걸쳐 발생한 이벤트 기록" style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Multi-track event history</span>
+            <span title="Events from this camera across every track it has detected" style={{ fontSize:"14px", fontWeight:700, color:"var(--gray-900)", letterSpacing:"-0.26px", cursor:"help" }}>Multi-track event history</span>
             {/* Step controls — precise ±1s/±10s seeking for when dragging the axis by hand is too
                 coarse. Arrow keys do the same (see the keydown effect above); Shift+arrow mirrors
                 the ±10s buttons. */}
