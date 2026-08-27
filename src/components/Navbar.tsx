@@ -107,12 +107,23 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
       @keyframes run-icon{0%,100%{transform:translateY(-1px) translateX(0) rotate(0deg)}30%{transform:translateY(-3px) translateX(1px) rotate(-4deg)}60%{transform:translateY(0px) translateX(-1px) rotate(2deg)}}
       @keyframes stop-flicker{0%,100%{opacity:1}15%{opacity:.15}20%{opacity:.85}35%{opacity:.1}40%{opacity:.7}55%{opacity:1}75%{opacity:.2}80%{opacity:.9}}
       @keyframes dropdown-in{from{opacity:0;transform:scale(0.96) translateY(-6px)}to{opacity:1;transform:scale(1) translateY(0)}}
-      /* The resting background lives here, NOT in the button's inline style. An inline
-         declaration beats any stylesheet selector short of !important, so background:"none" set
-         on the element silently cancelled this :hover rule — the class was applied and the rule was
-         valid, and nothing happened. Same trap for .navbar-search-btn below. */
-      .navbar-tab{background-color:transparent;transition:background-color .15s}
-      .navbar-tab:hover{background-color:rgba(90,61,251,0.06)}
+      /* Hover lands on the label and icon, not on a background. A tinted block filling the whole
+         62px height of the bar was a bigger object than anything else the header highlights, and it
+         had no counterpart anywhere in the app — nothing else paints a full-height band on hover.
+         Colouring what you are actually pointing at says the same thing at the size of the thing.
+         primary-300, not 400: 400 is the active tab's colour, and hover must not be mistakable for
+         "you are here". The active tab is excluded so pointing at it can't lighten it.
+
+         Every colour here lives in CSS rather than the element's style attribute. Inline
+         declarations beat any stylesheet selector short of !important, which is exactly why the
+         earlier background:"none" on the button silently cancelled its own :hover rule. */
+      .navbar-tab{background-color:transparent}
+      .navbar-tab-icon{background-color:var(--gray-800);transition:background-color .15s}
+      .navbar-tab-label{color:var(--gray-800);transition:color .15s}
+      .navbar-tab[data-active="true"] .navbar-tab-icon{background-color:var(--primary-400)}
+      .navbar-tab[data-active="true"] .navbar-tab-label{color:var(--primary-400)}
+      .navbar-tab:not([data-active="true"]):hover .navbar-tab-icon{background-color:var(--primary-300)}
+      .navbar-tab:not([data-active="true"]):hover .navbar-tab-label{color:var(--primary-300)}
       .navbar-icon-btn{transition:background-color .15s;border-radius:8px;position:relative;background-color:transparent}
       .navbar-icon-btn:hover{background-color:var(--gray-100)}
       .navbar-dropdown-item{position:relative;background-color:transparent;color:var(--gray-800);transition:background-color .12s, color .12s}
@@ -211,6 +222,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
             <button
               key={tab.id}
               className="navbar-tab"
+              data-active={active}
               onClick={() => setActiveTab(tab.id)}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -219,9 +231,8 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 border: "none",
               }}
             >
-              <div style={{
+              <div className="navbar-tab-icon" style={{
                 width: "18px", height: "18px", flexShrink: 0,
-                backgroundColor: active ? "var(--primary-400)" : "var(--gray-800)",
                 maskImage: `url(${tab.icon})`,
                 maskSize: "contain",
                 maskRepeat: "no-repeat",
@@ -230,11 +241,9 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 WebkitMaskSize: "contain",
                 WebkitMaskRepeat: "no-repeat",
                 WebkitMaskPosition: "center",
-                transition: "background-color 0.15s",
               } as React.CSSProperties} />
-              <span style={{
+              <span className="navbar-tab-label" style={{
                 fontSize: "13px", fontWeight: 700,
-                color: active ? "var(--primary-400)" : "var(--gray-800)",
                 letterSpacing: "-0.26px", whiteSpace: "nowrap",
               }}>{tab.label}</span>
             </button>
