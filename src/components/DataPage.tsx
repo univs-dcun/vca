@@ -1367,7 +1367,12 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
     // panel narrows or the list is scrolled back — and then nothing on screen says which VIP is
     // loaded. Leading with it means the answer is always at the row's start. Original indices
     // ride along because onSelect and activeVIP are index-based.
-    const compactOrder = VIP_QUICK.map((v, i) => ({ v, i }));
+    // A-Z, then the picked chip lifted out of that order to the front. VIP_QUICK's own order is
+    // registration order, which tells you nothing when you are hunting for a name — the sidebar
+    // version of this list offers both orders behind a toggle, but this row has no room for one
+    // and scanning for a name is the only thing it is used for.
+    const compactOrder = VIP_QUICK.map((v, i) => ({ v, i }))
+      .sort((a, b) => a.v.name.localeCompare(b.v.name));
     const activeAt = compactOrder.findIndex(o => o.i === activeVIP);
     if (activeAt > 0) compactOrder.unshift(...compactOrder.splice(activeAt, 1));
     return (
