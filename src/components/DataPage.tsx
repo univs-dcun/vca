@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MatchItem, ReIDStatus } from "@/types/reid";
 import { useVcaStore } from "@/lib/vcaStore";
-import { recentSgtStamp, sgtDateKey } from "@/lib/time";
+import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtDateKey } from "@/lib/time";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import RemoveImageButton from "./RemoveImageButton";
 import SidebarToggleIcon from "./SidebarToggleIcon";
@@ -4001,27 +4001,46 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
   sortDir: "desc"|"asc";
   onToggleSort: () => void;
 }) {
+  // Read after mount, not during render: same reason the portal's license countdown does it this
+  // way — the clock isn't a pure input, and rendering it during the server pass would mismatch.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => { queueMicrotask(() => setNowMs(Date.now())); }, []);
+
   return (
     <div style={{ display:"flex", flexDirection:"column", width:"100%" }}>
       <div style={{ backgroundColor:"var(--gray-50)", borderTop:"1px solid var(--gray-100)", padding:"12px 20px",
         display:"flex", gap:"8px", fontSize:"12px", fontWeight:800, color:"var(--gray-600)" }}>
         <span style={{ width:"50px", flexShrink:0 }}>Rank</span>
-        <span style={{ flex:1 }}>Associate target</span>
-        <span style={{ width:"180px", flexShrink:0 }}>Hierarchy tier &amp; zone</span>
+        <span style={{ flex:1, minWidth:"140px" }}>Associate target</span>
+        {/* Tier is derived from the co-capture count sitting right next to it, so it doesn't need
+            180px and the words "Hierarchy tier & zone" to say it — a coloured number does, and the
+            space it gives back pays for the three columns after it. */}
+        <span style={{ width:"44px", flexShrink:0 }}>Tier</span>
         <button onClick={onToggleSort} title={`Sort by co-captures, ${sortDir === "desc" ? "low to high" : "high to low"}`}
-          style={{ width:"110px", flexShrink:0, display:"flex", alignItems:"center", gap:"4px", padding:0,
+          style={{ width:"92px", flexShrink:0, display:"flex", alignItems:"center", gap:"4px", padding:0,
             background:"none", border:"none", cursor:"pointer", font:"inherit", color:"var(--primary-400)", textAlign:"left" }}>
           Co-captures
           <span style={{ display:"flex", transform: sortDir === "asc" ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}>
             <ChevronDownIconSm />
           </span>
         </button>
+        {/* The associate's own watchlist standing. It decides which row an operator opens first,
+            and it was only visible after opening one. */}
+        <span style={{ width:"76px", flexShrink:0 }}>Status</span>
+        {/* How many distinct cameras the pair was ever framed at. The most discriminating fact
+            after the count itself: 12 co-captures at one camera is a shared stop or workplace, 12
+            spread over six cameras is two people moving around together. Peak location alone
+            can't tell those apart. */}
+        <span style={{ width:"76px", flexShrink:0 }}>Locations</span>
         {/* "Top camera node" borrowed "node" from the pyramid view, where nodes are people, not
             cameras — and "top" didn't say top by what. This is the same number the inspector panel
             calls Peak location, so it uses that name. */}
         <span style={{ width:"160px", flexShrink:0 }}>Peak location</span>
-        <span style={{ width:"150px", flexShrink:0 }}>First detected</span>
-        <span style={{ width:"150px", flexShrink:0 }}>Last detected</span>
+        <span style={{ width:"118px", flexShrink:0 }}>Peak time</span>
+        {/* First and Last were two 150px columns of full timestamps to state one range. Dates
+            alone carry the span, and what the two dates never said out loud was how long ago the
+            last one was — which is the part that decides whether this pairing is live. */}
+        <span style={{ width:"168px", flexShrink:0 }}>Span</span>
         <span style={{ width:"96px", flexShrink:0, textAlign:"center" }}>Action</span>
       </div>
       {rows.map((r, i) => {
@@ -4037,6 +4056,8 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
         const sortedByDate = [...events].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
         const firstSeen = sortedByDate[0];
         const lastSeen = sortedByDate[sortedByDate.length - 1];
+        const statusBadge = STATUS_BADGE_META[r.node.status];
+        const { bucket, count: bucketCount } = dominantTimeBucket(events);
         return (
           <div key={`${r.tier}-${r.node.id}`} style={{ backgroundColor: i === 0 ? "var(--primary-100)" : "white", borderTop:BORDER,
             padding:"10px 20px", display:"flex", gap:"8px", alignItems:"center" }}>
@@ -4045,13 +4066,27 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
               <img src={r.node.face} alt="" style={{ width:"28px", height:"28px", borderRadius:"999px", objectFit:"cover", flexShrink:0 }} />
               <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)", whiteSpace:"nowrap" }}>{`Associate #${String(i+1).padStart(2,"0")}`}</span>
             </div>
-            <div style={{ width:"180px", flexShrink:0 }}>
-              <span style={{ fontSize:"10px", fontWeight:800, color:badge.text, backgroundColor:badge.bg, padding:"2px 6px", borderRadius:"4px" }}>{badge.label}</span>
+            <div style={{ width:"44px", flexShrink:0 }}>
+              <span title={badge.label} style={{ fontSize:"11px", fontWeight:800, color:badge.text, backgroundColor:badge.bg,
+                padding:"2px 8px", borderRadius:"999px", cursor:"help" }}>{r.tier.slice(-1)}</span>
             </div>
-            <span style={{ width:"110px", flexShrink:0, fontSize:"13px", fontWeight:700, color:COCAPTURE_COLOR[r.tier] }}>{r.node.count} Events</span>
+            <span style={{ width:"92px", flexShrink:0, fontSize:"13px", fontWeight:700, color:COCAPTURE_COLOR[r.tier] }}>{r.node.count}</span>
+            <div style={{ width:"76px", flexShrink:0 }}>
+              <span style={{ fontSize:"10px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
+                padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{r.node.status.toUpperCase()}</span>
+            </div>
+            <span style={{ width:"76px", flexShrink:0, fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>{groups.length}</span>
             <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>{`${topGroup.location} · ${topGroup.events.length}`}</span>
-            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-500)" }}>{firstSeen.date} {firstSeen.time}</span>
-            <span style={{ width:"150px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-500)" }}>{lastSeen.date} {lastSeen.time}</span>
+            <span style={{ width:"118px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-900)", textTransform:"capitalize" }}>{`${bucket} · ${bucketCount}`}</span>
+            <span style={{ width:"168px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-500)", display:"flex", gap:"6px", whiteSpace:"nowrap" }}>
+              {firstSeen.date.slice(5)} → {lastSeen.date.slice(5)}
+              {/* Elapsed is blank until mounted rather than computed during render — the clock is
+                  not a pure input, and a server/client mismatch here would flip the one value on
+                  the row that changes by itself. */}
+              {nowMs !== null && (
+                <span style={{ color:"var(--gray-400)" }}>({formatElapsed(nowMs - parseSgtStamp(lastSeen.date, lastSeen.time).getTime())} ago)</span>
+              )}
+            </span>
             {/* "Inspect" named an activity, not a destination — it opens the Co-capture evidence
                 panel, whose content is this pair's shared frames, so that is what it says. The
                 button also toggles that panel shut, and the old label read the same either way:
