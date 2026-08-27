@@ -5,28 +5,26 @@
 // REDMAP은 검색 시점 조회라 MQTT와 무관 — REST 단독 경로이며 훅이 아닌 함수인 이유다.
 //
 // 계약이 주지 않는 파생 값은 여기서 계산한다 (openapi.json PersonSearchResult 설명 참조):
-// - elapsed: 연속 hit 간 capturedAt 차이 (hits는 시간 오름차순 보장)
-// - elapsedAlert: 간격 1시간 초과 시 경고 표시 (화면 규칙, 2026-08-19 확정)
+// - elapsed: 연속 hit 간 capturedAt 차이 (hits는 시간 오름차순 보장) — duration 문자열만,
+//   경고 표시·"Elapsed" 라벨은 화면 소유 (반입 2026-08-27 규칙)
+// - personId/personLabel: 검색 응답은 단일 정체의 목격들이라 1개 그룹으로 귀속
 import { searchPersons } from '../../api/generated/search/search'
 import type { PersonSearchHit } from '../../api/generated/model'
 import type { DateRange, HitResult, SimilarityLimit } from '../../features/vca/types/redmap'
-
-/** 연속 목격 간격이 이보다 크면 경과시간을 경고(빨강)로 표시 */
-const ELAPSED_ALERT_MS = 60 * 60 * 1000
 
 const dateSgt = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
 const timeSgt = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour12: false })
 // 화면은 "99.7%" 문자열을 기대 — 해당 이미지 미제공(점수 null)이면 대시 표기
 const pct = (v: number | null | undefined) => (v == null ? '–' : `${(v * 100).toFixed(1)}%`)
 
-// mock 문구와 같은 포맷("20m 12s Elapsed", "1h 40m Elapsed", "1d 55m Elapsed") — 두 단위까지만
+// 화면 타입 규칙과 동일: duration만("30m 32s", "1h 40m", "1d 2h") — "Elapsed" 라벨은 UI 소유
 function formatElapsed(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000))
-  if (s < 3600) return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s Elapsed`
-  if (s < 86400) return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m Elapsed`
+  if (s < 3600) return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m`
   const d = Math.floor(s / 86400)
   const h = Math.floor((s % 86400) / 3600)
-  return h > 0 ? `${d}d ${h}h Elapsed` : `${d}d ${Math.floor((s % 86400) / 60)}m Elapsed`
+  return h > 0 ? `${d}d ${h}h` : `${d}d ${Math.floor((s % 86400) / 60)}m`
 }
 
 function toHitResult(h: PersonSearchHit, prev: PersonSearchHit | undefined): HitResult {
@@ -46,7 +44,11 @@ function toHitResult(h: PersonSearchHit, prev: PersonSearchHit | undefined): Hit
     mapLabel: h.cameraName,
     lat: h.location.lat,
     lng: h.location.lng,
-    ...(gap != null ? { elapsed: formatElapsed(gap), elapsedAlert: gap > ELAPSED_ALERT_MS } : {}),
+    // 계약(v1.2/1.4/1.7)의 검색 응답은 단일 정체의 목격들 — person 그룹은 1개로 귀속한다.
+    // (다인물 검색이 계약에 생기면 응답의 인물 키로 분리)
+    personId: 'p1',
+    personLabel: h.matchedVip?.name ?? 'Person 1',
+    ...(gap != null ? { elapsed: formatElapsed(gap) } : {}),
   }
 }
 

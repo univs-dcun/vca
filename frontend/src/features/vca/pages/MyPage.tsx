@@ -1,62 +1,76 @@
-import { useEffect, useState } from "react";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import {
   DISTRICT_ALERT_THRESHOLD_KEY, DISTRICT_MODERATE_THRESHOLD_KEY,
   DEFAULT_DISTRICT_ALERT_THRESHOLD, DEFAULT_DISTRICT_MODERATE_THRESHOLD,
 } from "@/lib/mockData";
+import { SIGNED_IN_USER } from "@/lib/vcaStore";
 import { LockFieldIcon, EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 
-const CARD_BORDER = "1px solid #e2e8f0";
+const CARD_BORDER = "1px solid var(--gray-200)";
+
+// This browser only. A real list — other devices, their last activity — comes from the backend's
+// session store, which is also what makes ending one possible: with stateless tokens alone there
+// is nothing to revoke before expiry, and a control offering it would be lying. Shaped as a list
+// so the UI is already right when that arrives.
+const LOGIN_SESSIONS: { id: string; device: string; where: string; current: boolean; lastActive?: string }[] = [
+  { id: "current", device: "MacBook Pro (Chrome)", where: "Singapore · 1.3521, 103.8198", current: true },
+];
 
 function UserCheckIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M10.6669 7.33333L12.0003 8.66667L14.6672 6M10.6669 14V12.6667C10.6669 11.9594 10.3859 11.2811 9.88577 10.781C9.38563 10.281 8.7073 10 8 10H3.99968C3.29238 10 2.61405 10.281 2.11391 10.781C1.61377 11.2811 1.3328 11.9594 1.3328 12.6667V14M8.66672 4.66667C8.66672 6.13943 7.47272 7.33333 5.99984 7.33333C4.52696 7.33333 3.33296 6.13943 3.33296 4.66667C3.33296 3.19391 4.52696 2 5.99984 2C7.47272 2 8.66672 3.19391 8.66672 4.66667Z" stroke="#475469" strokeLinecap="round" strokeWidth="1.1"/>
+      <path d="M10.6669 7.33333L12.0003 8.66667L14.6672 6M10.6669 14V12.6667C10.6669 11.9594 10.3859 11.2811 9.88577 10.781C9.38563 10.281 8.7073 10 8 10H3.99968C3.29238 10 2.61405 10.281 2.11391 10.781C1.61377 11.2811 1.3328 11.9594 1.3328 12.6667V14M8.66672 4.66667C8.66672 6.13943 7.47272 7.33333 5.99984 7.33333C4.52696 7.33333 3.33296 6.13943 3.33296 4.66667C3.33296 3.19391 4.52696 2 5.99984 2C7.47272 2 8.66672 3.19391 8.66672 4.66667Z" stroke="var(--gray-600)" strokeLinecap="round" strokeWidth="1.1"/>
     </svg>
   );
 }
 function ShieldIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M8.22664 14.6335C10.9997 13.6668 13.3328 12.0001 13.3328 8.66667V3.99985C13.3328 3.82304 13.2626 3.65346 13.1376 3.52843C13.0125 3.40341 12.843 3.33316 12.6662 3.33316C11.333 3.33316 9.67317 2.53981 8.50662 1.51977C8.36539 1.3991 8.18575 1.3328 8 1.3328C7.81425 1.3328 7.63461 1.3991 7.49338 1.51977C6.3335 2.53314 4.667 3.33316 3.3338 3.33316C3.15701 3.33316 2.98745 3.40341 2.86244 3.52843C2.73743 3.65346 2.6672 3.82304 2.6672 3.99985V8.66667C2.6672 12.0001 5.0003 13.6668 7.78002 14.6269C7.9237 14.6804 8.08143 14.6827 8.22664 14.6335Z" stroke="#475469" strokeLinecap="round" strokeWidth="1.1"/>
+      <path d="M8.22664 14.6335C10.9997 13.6668 13.3328 12.0001 13.3328 8.66667V3.99985C13.3328 3.82304 13.2626 3.65346 13.1376 3.52843C13.0125 3.40341 12.843 3.33316 12.6662 3.33316C11.333 3.33316 9.67317 2.53981 8.50662 1.51977C8.36539 1.3991 8.18575 1.3328 8 1.3328C7.81425 1.3328 7.63461 1.3991 7.49338 1.51977C6.3335 2.53314 4.667 3.33316 3.3338 3.33316C3.15701 3.33316 2.98745 3.40341 2.86244 3.52843C2.73743 3.65346 2.6672 3.82304 2.6672 3.99985V8.66667C2.6672 12.0001 5.0003 13.6668 7.78002 14.6269C7.9237 14.6804 8.08143 14.6827 8.22664 14.6335Z" stroke="var(--gray-600)" strokeLinecap="round" strokeWidth="1.1"/>
     </svg>
   );
 }
 function LockIconSm() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M4.08333 6.41662V4.0831C4.08333 3.30949 4.39062 2.56757 4.93761 2.02054C5.48459 1.47352 6.22645 1.1662 7 1.1662C7.77355 1.1662 8.51541 1.47352 9.06239 2.02054C9.60938 2.56757 9.91667 3.30949 9.91667 4.0831V6.41662M2.91667 6.41662H11.0833C11.7277 6.41662 12.25 6.939 12.25 7.58338V11.667C12.25 12.3114 11.7277 12.8338 11.0833 12.8338H2.91667C2.27233 12.8338 1.75 12.3114 1.75 11.667V7.58338C1.75 6.939 2.27233 6.41662 2.91667 6.41662Z" stroke="#64748A" strokeLinecap="round" strokeWidth="1.1"/>
+      <path d="M4.08333 6.41662V4.0831C4.08333 3.30949 4.39062 2.56757 4.93761 2.02054C5.48459 1.47352 6.22645 1.1662 7 1.1662C7.77355 1.1662 8.51541 1.47352 9.06239 2.02054C9.60938 2.56757 9.91667 3.30949 9.91667 4.0831V6.41662M2.91667 6.41662H11.0833C11.7277 6.41662 12.25 6.939 12.25 7.58338V11.667C12.25 12.3114 11.7277 12.8338 11.0833 12.8338H2.91667C2.27233 12.8338 1.75 12.3114 1.75 11.667V7.58338C1.75 6.939 2.27233 6.41662 2.91667 6.41662Z" stroke="var(--gray-500)" strokeLinecap="round" strokeWidth="1.1"/>
     </svg>
   );
 }
 function MonitorIcon() {
+  // 16x16 (viewBox stays 14x14) — every other CardHeader icon on this page is 16x16; this one
+  // rendering at 14x14 made "Active Login Sessions" sit visibly smaller/off-center next to its
+  // siblings ("Profile Information", "Security & Access Control", etc.).
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M4.66648 12.25H9.33352M7 9.91667V12.25M2.33296 1.75H11.667C12.3114 1.75 12.8338 2.27233 12.8338 2.91667V8.75C12.8338 9.39433 12.3114 9.91667 11.667 9.91667H2.33296C1.68858 9.91667 1.1662 9.39433 1.1662 8.75V2.91667C1.1662 2.27233 1.68858 1.75 2.33296 1.75Z" stroke="#475469" strokeLinecap="round" strokeWidth="1.1"/>
+    <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
+      <path d="M4.66648 12.25H9.33352M7 9.91667V12.25M2.33296 1.75H11.667C12.3114 1.75 12.8338 2.27233 12.8338 2.91667V8.75C12.8338 9.39433 12.3114 9.91667 11.667 9.91667H2.33296C1.68858 9.91667 1.1662 9.39433 1.1662 8.75V2.91667C1.1662 2.27233 1.68858 1.75 2.33296 1.75Z" stroke="var(--gray-600)" strokeLinecap="round" strokeWidth="1.1"/>
     </svg>
   );
 }
 function SlidersIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M6.66667 5.33333H9.33333M8 14V8M8 5.33333V2M11.3333 10.6667H14M12.6667 8V2M12.6667 14V10.6667M2 9.33333H4.66667M3.33333 6.66667V2M3.33333 14V9.33333" stroke="#475469" strokeLinecap="round" strokeWidth="1.1"/>
+      <path d="M6.66667 5.33333H9.33333M8 14V8M8 5.33333V2M11.3333 10.6667H14M12.6667 8V2M12.6667 14V10.6667M2 9.33333H4.66667M3.33333 6.66667V2M3.33333 14V9.33333" stroke="var(--gray-600)" strokeLinecap="round" strokeWidth="1.1"/>
     </svg>
   );
 }
 function AlertBellIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M8 1.5C5.79 1.5 4 3.29 4 5.5V8.5L2.5 10.5H13.5L12 8.5V5.5C12 3.29 10.21 1.5 8 1.5Z" stroke="#475469" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.1"/>
-      <path d="M6.5 13C6.5 13.8284 7.17157 14.5 8 14.5C8.82843 14.5 9.5 13.8284 9.5 13" stroke="#475469" strokeLinecap="round" strokeWidth="1.1"/>
+      <path d="M8 1.5C5.79 1.5 4 3.29 4 5.5V8.5L2.5 10.5H13.5L12 8.5V5.5C12 3.29 10.21 1.5 8 1.5Z" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.1"/>
+      <path d="M6.5 13C6.5 13.8284 7.17157 14.5 8 14.5C8.82843 14.5 9.5 13.8284 9.5 13" stroke="var(--gray-600)" strokeLinecap="round" strokeWidth="1.1"/>
     </svg>
   );
 }
 function ChevronDownIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <path d="M3 4.5L6 7.5L9 4.5" stroke="#475469" strokeLinecap="round" strokeWidth="1.1"/>
+      <path d="M3 4.5L6 7.5L9 4.5" stroke="var(--gray-600)" strokeLinecap="round" strokeWidth="1.1"/>
     </svg>
   );
 }
@@ -72,26 +86,70 @@ function CardHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       {icon}
-      <span style={{ fontSize: "16px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.32px" }}>{title}</span>
+      <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>{title}</span>
     </div>
   );
 }
 function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
-      <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748a", letterSpacing: "-0.24px" }}>{label}</span>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderRadius: "8px", padding: "10px 12px" }}>
-        <span style={{ fontSize: "13px", fontWeight: 600, color: "#324055", letterSpacing: "-0.26px" }}>{value}</span>
+      <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-500)", letterSpacing: "-0.24px" }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "var(--gray-50)", borderRadius: "8px", padding: "10px 12px" }}>
+        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-700)", letterSpacing: "-0.26px" }}>{value}</span>
         <LockIconSm />
       </div>
     </div>
   );
 }
-function DropdownBtn({ value }: { value: string }) {
+/**
+ * `disabledOptions` exists for options that are on the roadmap but not built. Listing them and
+ * letting them be picked is worse than not listing them at all — the setting appears to take and
+ * then nothing happens — while dropping them loses the signal that the work is planned. A greyed,
+ * unclickable row with "Coming soon" beside it says both things at once.
+ */
+function DropdownBtn({ value, options, onSelect, disabledOptions = [] }: {
+  value: string; options: string[]; onSelect: (v: string) => void; disabledOptions?: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+  useEscapeKey(() => setOpen(false), open);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "6px 10px", cursor: "pointer" }}>
-      <span style={{ fontSize: "12px", fontWeight: 600, color: "#324055", letterSpacing: "-0.24px" }}>{value}</span>
-      <ChevronDownIcon />
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "white", border: "1px solid var(--gray-200)", borderRadius: "6px", padding: "6px 10px", cursor: "pointer" }}
+      >
+        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-700)", letterSpacing: "-0.24px" }}>{value}</span>
+        <ChevronDownIcon />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20, backgroundColor: "white", border: "1px solid var(--gray-200)", borderRadius: "8px", boxShadow: "0 4px 12px rgba(14, 22, 42,0.08)", minWidth: "150px", overflow: "hidden" }}>
+          {options.map(opt => {
+            const unavailable = disabledOptions.includes(opt);
+            return (
+              <button
+                key={opt}
+                disabled={unavailable}
+                onClick={() => { onSelect(opt); setOpen(false); }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", backgroundColor: opt === value ? "var(--gray-50)" : "white", cursor: unavailable ? "default" : "pointer", fontSize: "12px", fontWeight: opt === value ? 700 : 500, color: unavailable ? "var(--gray-400)" : "var(--gray-700)" }}
+              >
+                {opt}
+                {unavailable && (
+                  <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)", whiteSpace: "nowrap" }}>Coming soon</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -100,14 +158,14 @@ function ThresholdField({ label, value, onChange, min, max }: { label: string; v
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: "13px", fontWeight: 700, color: "#324055", letterSpacing: "-0.26px" }}>{label}</span>
+        <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-700)", letterSpacing: "-0.26px" }}>{label}</span>
         <input
           type="number"
           min={min}
           max={max}
           value={value}
           onChange={(e) => onChange(clamp(Number(e.target.value) || min))}
-          style={{ width: "72px", textAlign: "center", fontSize: "13px", fontWeight: 700, color: "#0e162a", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "6px 8px", outline: "none" }}
+          style={{ width: "72px", textAlign: "center", fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", border: "1px solid var(--gray-200)", borderRadius: "6px", padding: "6px 8px", outline: "none" }}
         />
       </div>
       <input
@@ -124,14 +182,14 @@ function ThresholdField({ label, value, onChange, min, max }: { label: string; v
 }
 
 function fieldBorder(active: boolean) {
-  return active ? "1px solid #8c85ff" : "1px solid #ccd5e1";
+  return active ? "1px solid var(--primary-300)" : "1px solid var(--gray-300)";
 }
 
 // Changing a password from Settings shouldn't feel like leaving the app — this stays as an
 // in-page modal (same field/validation logic as the auth flow's /password-setup, which is a
 // different case: first-time setup, not an already-logged-in user changing theirs) instead of
 // navigating to a full standalone route.
-function PasswordChangeModal({ onClose }: { onClose: () => void }) {
+function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [step, setStep] = useState<"current" | "new" | "done">("current");
   const [currentPassword, setCurrentPassword] = useState("");
   const [showCurrent, setShowCurrent] = useState(false);
@@ -162,6 +220,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
   const handleSubmit = () => {
     if (!canSubmit || !formatValid || mismatch) return;
     setStep("done");
+    onSuccess();
   };
 
   return (
@@ -179,18 +238,18 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
       }}>
         {step === "done" ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", padding: "12px 0" }}>
-            <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "var(--success-100)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path d="M5 12.5L9.5 17L19 6" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M5 12.5L9.5 17L19 6" stroke="var(--success-400)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
             <div style={{ textAlign: "center" }}>
-              <p style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0e162a" }}>Password changed</p>
-              <p style={{ margin: "4px 0 0", fontSize: "13px", fontWeight: 500, color: "#64748a" }}>Your password has been updated.</p>
+              <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--gray-900)" }}>Password changed</p>
+              <p style={{ margin: "4px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)" }}>Your password has been updated.</p>
             </div>
             <button
               onClick={onClose}
-              style={{ height: "40px", padding: "0 24px", border: "none", borderRadius: "8px", backgroundColor: "#5a3dfb", color: "white", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+              style={{ height: "40px", padding: "0 24px", border: "none", borderRadius: "8px", backgroundColor: "var(--primary-400)", color: "white", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
             >
               Done
             </button>
@@ -198,10 +257,10 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.34px" }}>Change Password</h2>
+              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.34px" }}>Change password</h2>
               <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M4 4L14 14M14 4L4 14" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M4 4L14 14M14 4L4 14" stroke="var(--gray-400)" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               </button>
             </div>
@@ -209,7 +268,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
             {step === "current" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "13px", fontWeight: 700, color: "#475469", letterSpacing: "-0.26px" }}>Current password</label>
+                  <label style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.26px" }}>Current password</label>
                   <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "44px", padding: "8px", border: fieldBorder(focusedField === "current"), borderRadius: "8px" }}>
                     <LockFieldIcon />
                     <input
@@ -221,7 +280,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                       onKeyDown={e => { if (e.key === "Enter") handleVerifyCurrent(); }}
                       placeholder="Enter your current password"
                       autoFocus
-                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "#324055", letterSpacing: "-0.35px" }}
+                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
                     />
                     <button onClick={() => setShowCurrent(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                       {showCurrent ? <EyeIcon /> : <EyeOffIcon />}
@@ -234,8 +293,8 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                   disabled={!canVerifyCurrent}
                   style={{
                     height: "44px", width: "100%", border: "none", borderRadius: "8px",
-                    backgroundColor: canVerifyCurrent ? "#5a3dfb" : "#f1f5f9",
-                    color: canVerifyCurrent ? "white" : "#94a3b8",
+                    backgroundColor: canVerifyCurrent ? "var(--primary-400)" : "var(--gray-100)",
+                    color: canVerifyCurrent ? "white" : "var(--gray-400)",
                     fontSize: "14px", fontWeight: 800, letterSpacing: "-0.28px",
                     cursor: canVerifyCurrent ? "pointer" : "default",
                     transition: "background-color 0.15s, color 0.15s",
@@ -247,7 +306,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "13px", fontWeight: 700, color: "#475469", letterSpacing: "-0.26px" }}>New password</label>
+                  <label style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.26px" }}>New password</label>
                   <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "44px", padding: "8px", border: fieldBorder(focusedField === "new"), borderRadius: "8px" }}>
                     <LockFieldIcon />
                     <input
@@ -258,7 +317,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                       onBlur={() => setFocusedField(null)}
                       placeholder="••••••••"
                       autoFocus
-                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "#324055", letterSpacing: "-0.35px" }}
+                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
                     />
                     <button onClick={() => setShowNew(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                       {showNew ? <EyeIcon /> : <EyeOffIcon />}
@@ -267,7 +326,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "13px", fontWeight: 700, color: "#475469", letterSpacing: "-0.26px" }}>Confirm password</label>
+                  <label style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.26px" }}>Confirm password</label>
                   <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "44px", padding: "8px", border: fieldBorder(focusedField === "confirm"), borderRadius: "8px" }}>
                     <LockFieldIcon />
                     <input
@@ -277,7 +336,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                       onFocus={() => setFocusedField("confirm")}
                       onBlur={() => setFocusedField(null)}
                       placeholder="••••••••"
-                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "#324055", letterSpacing: "-0.35px" }}
+                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
                     />
                     <button onClick={() => setShowConfirm(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                       {showConfirm ? <EyeIcon /> : <EyeOffIcon />}
@@ -285,14 +344,14 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
 
-                <p style={{ margin: 0, fontSize: "11px", fontWeight: 600, color: "#475469", letterSpacing: "-0.22px" }}>
+                <p style={{ margin: 0, fontSize: "10px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.22px" }}>
                   At least 8 characters, including letters, numbers, and special characters
                 </p>
 
                 {mismatch && (
                   <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                     <ErrorCircleIcon />
-                    <span style={{ fontSize: "12px", fontWeight: 600, color: "#f43f5e", letterSpacing: "-0.24px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--danger-400)", letterSpacing: "-0.24px" }}>
                       Passwords do not match. Please try again.
                     </span>
                   </div>
@@ -303,8 +362,8 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                   disabled={!canSubmit || (confirmPassword.length > 0 && (!formatValid || mismatch))}
                   style={{
                     height: "44px", width: "100%", border: "none", borderRadius: "8px",
-                    backgroundColor: canSubmit && formatValid && !mismatch ? "#5a3dfb" : "#f1f5f9",
-                    color: canSubmit && formatValid && !mismatch ? "white" : "#94a3b8",
+                    backgroundColor: canSubmit && formatValid && !mismatch ? "var(--primary-400)" : "var(--gray-100)",
+                    color: canSubmit && formatValid && !mismatch ? "white" : "var(--gray-400)",
                     fontSize: "14px", fontWeight: 800, letterSpacing: "-0.28px",
                     cursor: canSubmit && formatValid && !mismatch ? "pointer" : "default",
                     transition: "background-color 0.15s, color 0.15s",
@@ -351,15 +410,15 @@ function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { in
         display: "flex", flexDirection: "column", gap: "20px",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.34px" }}>Map Alert Thresholds</h2>
+          <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.34px" }}>Map alert thresholds</h2>
           <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M4 4L14 14M14 4L4 14" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M4 4L14 14M14 4L4 14" stroke="var(--gray-400)" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </button>
         </div>
 
-        <p style={{ margin: 0, fontSize: "12px", fontWeight: 500, color: "#94a3b8", lineHeight: 1.5 }}>
+        <p style={{ margin: 0, fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", lineHeight: 1.5 }}>
           Today&apos;s VIP-hit count a district needs before its map badge turns red (alert) or navy (moderate).
         </p>
 
@@ -372,16 +431,16 @@ function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { in
               disabled={!dirty}
               style={{
                 height: "40px", padding: "0 20px", border: "none", borderRadius: "8px",
-                backgroundColor: dirty ? "#5a3dfb" : "#f1f5f9",
-                color: dirty ? "white" : "#94a3b8",
-                fontSize: "13px", fontWeight: 800, letterSpacing: "-0.26px",
+                backgroundColor: dirty ? "var(--primary-400)" : "var(--gray-100)",
+                color: dirty ? "white" : "var(--gray-400)",
+                fontSize: "13px", fontWeight: 700, letterSpacing: "-0.26px",
                 cursor: dirty ? "pointer" : "default",
                 transition: "background-color 0.15s, color 0.15s",
               }}
             >
               Save Changes
             </button>
-            {saved && <span style={{ fontSize: "12px", fontWeight: 700, color: "#16a34a" }}>Saved</span>}
+            {saved && <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--success-400)" }}>Saved</span>}
           </div>
         </div>
       </div>
@@ -392,7 +451,19 @@ function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { in
 export default function MyPage() {
   const router = useRouter();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordJustChanged, setPasswordJustChanged] = useState(false);
   const [showThresholdModal, setShowThresholdModal] = useState(false);
+  const [sessionsTerminated, setSessionsTerminated] = useState(false);
+  const otherSessions = LOGIN_SESSIONS.filter(sn => !sn.current);
+  const [language, setLanguage] = useState("English");
+  // Only one session is ever listed here (this mock has no other-device data to actually
+  // terminate) — the confirmation is honest about that rather than pretending to have revoked
+  // something. Auto-clears the same way BestFramePage's highlightCamId does.
+  useEffect(() => {
+    if (!sessionsTerminated) return;
+    const timer = setTimeout(() => setSessionsTerminated(false), 3000);
+    return () => clearTimeout(timer);
+  }, [sessionsTerminated]);
   // Default on the server-rendered pass so hydration never mismatches; a client-only effect
   // then applies whatever this browser last saved (same pattern as sidebarPosition elsewhere).
   const [alertThreshold, setAlertThresholdState] = useState(DEFAULT_DISTRICT_ALERT_THRESHOLD);
@@ -415,17 +486,17 @@ export default function MyPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
       <Navbar activeTab={null} onTabChange={(tab) => router.push(`/?tab=${encodeURIComponent(tab)}`)} />
-      <div style={{ flex: 1, overflowY: "auto", backgroundColor: "#f8fafc", display: "flex", justifyContent: "center", padding: "24px" }}>
+      <div style={{ flex: 1, overflowY: "auto", backgroundColor: "var(--gray-50)", display: "flex", justifyContent: "center", padding: "24px" }}>
         <div style={{ width: "100%", maxWidth: "1440px", display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Header card */}
           <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px", padding: "24px" }}>
             <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "8px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#64748a", letterSpacing: "-0.24px" }}>Settings</span>
-              <span style={{ fontSize: "11px", color: "#94a3b8" }}>{">"}</span>
-              <span style={{ fontSize: "12px", fontWeight: 700, color: "#5a3dfb", letterSpacing: "-0.24px" }}>My Page</span>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.24px" }}>Settings</span>
+              <span style={{ fontSize: "11px", color: "var(--gray-400)" }}>{">"}</span>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary-400)", letterSpacing: "-0.24px" }}>My page</span>
             </div>
-            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 800, color: "#0e162a" }}>My Page</h1>
-            <p style={{ margin: "8px 0 0", fontSize: "13px", fontWeight: 600, color: "#64748a", letterSpacing: "-0.26px" }}>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "var(--gray-900)" }}>My page</h1>
+            <p style={{ margin: "8px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.26px" }}>
               Centrally manage your admin profile, security settings, and monitoring preferences.
             </p>
           </div>
@@ -435,21 +506,21 @@ export default function MyPage() {
             {/* Profile Information */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <Card>
-                <CardHeader icon={<UserCheckIcon />} title="Profile Information" />
+                <CardHeader icon={<UserCheckIcon />} title="Profile information" />
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-                    <span style={{ fontSize: "16px", fontWeight: 800, color: "#0e162a", letterSpacing: "-0.32px" }}>John Doe</span>
-                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748a", letterSpacing: "-0.24px" }}>Smart City Operations Manager</span>
+                    <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>{SIGNED_IN_USER.name}</span>
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-500)", letterSpacing: "-0.24px" }}>{SIGNED_IN_USER.role}</span>
                   </div>
-                  <div style={{ backgroundColor: "#f8fafc", borderRadius: "4px", padding: "4px 8px" }}>
-                    <span style={{ fontSize: "10px", fontWeight: 800, color: "#475469", letterSpacing: "-0.2px" }}>VCA-ADMIN-8821</span>
+                  <div style={{ backgroundColor: "var(--gray-50)", borderRadius: "4px", padding: "4px 8px" }}>
+                    <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--gray-600)", letterSpacing: "-0.2px" }}>{SIGNED_IN_USER.accountId}</span>
                   </div>
                 </div>
-                <div style={{ height: "1px", backgroundColor: "#e2e8f0", width: "100%" }} />
+                <div style={{ height: "1px", backgroundColor: "var(--gray-200)", width: "100%" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                  <ReadOnlyField label="Full Name" value="John Doe" />
-                  <ReadOnlyField label="Email Address" value="johndoe@email.com" />
-                  <ReadOnlyField label="Department / Team" value="Operational Control Team Alpha" />
+                  <ReadOnlyField label="Full name" value={SIGNED_IN_USER.name} />
+                  <ReadOnlyField label="Email address" value={SIGNED_IN_USER.email} />
+                  <ReadOnlyField label="Department / team" value={SIGNED_IN_USER.team} />
                 </div>
               </Card>
             </div>
@@ -457,41 +528,64 @@ export default function MyPage() {
             {/* Security & Access Control */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <Card>
-                <CardHeader icon={<ShieldIcon />} title="Security & Access Control" />
+                <CardHeader icon={<ShieldIcon />} title="Security & access control" />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                  <span style={{ fontSize: "12px", fontWeight: 800, color: "#0e162a", letterSpacing: "0.006px" }}>Password Settings</span>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderRadius: "10px", padding: "12px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "0.006px" }}>Password settings</span>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "var(--gray-50)", borderRadius: "10px", padding: "12px" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.28px" }}>Password Change</span>
-                      <span style={{ fontSize: "10px", fontWeight: 600, color: "#475469", letterSpacing: "-0.2px" }}>Last changed 45 days ago</span>
+                      <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.28px" }}>Password change</span>
+                      <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.2px" }}>
+                        {passwordJustChanged ? "Last changed just now" : "Last changed 45 days ago"}
+                      </span>
                     </div>
                     <button
                       onClick={() => setShowPasswordModal(true)}
-                      style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#324055", letterSpacing: "-0.24px" }}
+                      style={{ backgroundColor: "white", border: "1px solid var(--gray-200)", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "var(--gray-700)", letterSpacing: "-0.24px" }}
                     >
                       Change
                     </button>
                   </div>
                 </div>
-                <div style={{ height: "1px", backgroundColor: "#e2e8f0", width: "100%" }} />
+                <div style={{ height: "1px", backgroundColor: "var(--gray-200)", width: "100%" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <CardHeader icon={<MonitorIcon />} title="Active Login Sessions" />
-                    <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "11px", color: "#d91616", textDecoration: "underline" }}>
-                      Terminate All Others
-                    </button>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderRadius: "10px", padding: "12px" }}>
-                    <div style={{ display: "flex", gap: "10px", alignItems: "center", flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
-                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#324055", letterSpacing: "-0.26px" }}>MacBook Pro (Chrome)</span>
-                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#64748a", letterSpacing: "-0.2px" }}>Singapore · 1.3521, 103.8198</span>
+                    <CardHeader icon={<MonitorIcon />} title="Active login sessions" />
+                    {/* The control only appears when there is something for it to end. A standing
+                        "Terminate All Others" over a list of one asks the operator whether something
+                        else is signed in and then answers nothing — and revoking a session needs the
+                        backend to hold sessions as state at all, which is not yet confirmed. When
+                        the list is one, the line beside the heading says so outright. */}
+                    {otherSessions.length > 0 ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        {sessionsTerminated && (
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--success-400)" }}>
+                            {otherSessions.length} session{otherSessions.length === 1 ? "" : "s"} ended
+                          </span>
+                        )}
+                        <button
+                          onClick={() => setSessionsTerminated(true)}
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "11px", color: "var(--danger-400)", textDecoration: "underline", fontWeight: 600 }}
+                        >
+                          Sign out other sessions
+                        </button>
                       </div>
-                    </div>
-                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#22c55e", backgroundColor: "#e1f3e7", borderRadius: "4px", padding: "2px 8px", letterSpacing: "-0.24px", flexShrink: 0 }}>
-                      Active now
-                    </span>
+                    ) : (
+                      <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--gray-400)" }}>Only this device</span>
+                    )}
                   </div>
+                  {LOGIN_SESSIONS.map(session => (
+                    <div key={session.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "var(--gray-50)", borderRadius: "10px", padding: "12px 14px", width: "100%" }}>
+                      <div style={{ display: "flex", gap: "10px", alignItems: "center", flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
+                          <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-700)", letterSpacing: "-0.26px" }}>{session.device}</span>
+                          <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.2px" }}>{session.where}</span>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: "12px", fontWeight: 700, color: session.current ? "var(--success-400)" : "var(--gray-500)", backgroundColor: session.current ? "var(--success-100)" : "var(--gray-100)", borderRadius: "4px", padding: "3px 8px" }}>
+                        {session.current ? "Active now" : session.lastActive}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </Card>
             </div>
@@ -499,28 +593,28 @@ export default function MyPage() {
             {/* System Preferences */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <Card>
-                <CardHeader icon={<SlidersIcon />} title="System Preferences" />
+                <CardHeader icon={<SlidersIcon />} title="System preferences" />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#0e162a", letterSpacing: "0.006px" }}>Interface Language</span>
-                    <DropdownBtn value="English" />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#0e162a", letterSpacing: "0.006px" }}>Timezone</span>
-                    <DropdownBtn value="SGT (UTC+8)" />
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "0.006px" }}>Interface language</span>
+                    {/* 한국어 stays in its own script — that is how every language picker lists a
+                        language — but it is not translated yet, so it is listed and disabled rather
+                        than selectable. The note beside it is in English because the interface is. */}
+                    <DropdownBtn value={language} options={["English", "한국어"]}
+                      disabledOptions={["한국어"]} onSelect={setLanguage} />
                   </div>
                 </div>
-                <div style={{ height: "1px", backgroundColor: "#e2e8f0", width: "100%" }} />
+                <div style={{ height: "1px", backgroundColor: "var(--gray-200)", width: "100%" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                  <CardHeader icon={<AlertBellIcon />} title="Map Alert Thresholds" />
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderRadius: "10px", padding: "12px" }}>
+                  <CardHeader icon={<AlertBellIcon />} title="Map alert thresholds" />
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "var(--gray-50)", borderRadius: "10px", padding: "12px" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#0e162a", letterSpacing: "-0.28px" }}>Alert Levels</span>
-                      <span style={{ fontSize: "10px", fontWeight: 600, color: "#475469", letterSpacing: "-0.2px" }}>Alert {alertThreshold} · Moderate {moderateThreshold}</span>
+                      <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.28px" }}>Alert levels</span>
+                      <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.2px" }}>Alert {alertThreshold} · Moderate {moderateThreshold}</span>
                     </div>
                     <button
                       onClick={() => setShowThresholdModal(true)}
-                      style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#324055", letterSpacing: "-0.24px" }}
+                      style={{ backgroundColor: "white", border: "1px solid var(--gray-200)", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "var(--gray-700)", letterSpacing: "-0.24px" }}
                     >
                       Change
                     </button>
@@ -531,7 +625,12 @@ export default function MyPage() {
           </div>
         </div>
       </div>
-      {showPasswordModal && <PasswordChangeModal onClose={() => setShowPasswordModal(false)} />}
+      {showPasswordModal && (
+        <PasswordChangeModal
+          onClose={() => setShowPasswordModal(false)}
+          onSuccess={() => setPasswordJustChanged(true)}
+        />
+      )}
       {showThresholdModal && (
         <ThresholdModal
           initialAlert={alertThreshold}

@@ -41,11 +41,16 @@ export interface ReidMatchCard {
   face: string
   body: string
   cam: string
+  /** "YYYY-MM-DD" (SGT) — 화면 MatchItem.date와 동일 규칙 */
+  date: string
+  /** "HH:MM:SS" (SGT) */
   time: string
   similarity: number
   gender: 'M' | 'F'
   age: string
   plate: null
+  /** 화면 MatchItem.status — 등록 인물(matchedVip)만 VIP, 그 외 Unknown */
+  status: 'VIP' | 'Unknown' | 'RedFace'
   /** 감지 eventId — Track on Map(이동 경로)·추후 RedMap Trace의 대상 참조 키 */
   targetId: string
   cameraId: string
@@ -77,8 +82,10 @@ const PROPS_SLUG: Record<string, 'bag' | 'hat' | 'glasses'> = {
   'Wearing Glasses': 'glasses',
 }
 
-const dateTimeSgt = (iso: string) =>
-  `${new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }).slice(5)} ${new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour12: false })}`
+// 화면의 date/time 분리 규칙(반입 2026-08-27)에 맞춰 별도 필드로 공급 — 표시 조합(cardTimestamp)은 화면 소유
+const dateSgt = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+const timeSgt = (iso: string) =>
+  new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour12: false })
 
 let nextCardId = 900001 // mock id 대역(0~70만)과 겹치지 않게
 
@@ -88,11 +95,13 @@ function toMatchCard(m: ReidMatch): ReidMatchCard {
     face: m.faceUrl ?? m.snapshotUrl, // 얼굴 미검출이면 전신으로 대체 — 팝업 <img>가 빈 src를 받지 않게
     body: m.snapshotUrl,
     cam: m.cameraName,
-    time: dateTimeSgt(m.capturedAt),
+    date: dateSgt(m.capturedAt),
+    time: timeSgt(m.capturedAt),
     similarity: Math.round(m.similarity * 1000) / 10,
     gender: m.gender === 'female' ? 'F' : 'M',
     age: m.age != null ? `${m.age}` : '--',
     plate: null,
+    status: m.matchedVip ? 'VIP' : 'Unknown',
     targetId: m.targetId,
     cameraId: m.cameraId,
     capturedMs: Date.parse(m.capturedAt),

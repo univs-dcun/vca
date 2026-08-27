@@ -16,11 +16,11 @@ interface ToastItem extends ToastOptions {
 }
 
 const VARIANT_STYLES: Record<ToastVariant, { bg: string; border: string; title: string; desc: string }> = {
-  default: { bg: "#f8fafc", border: "#e2e8f0", title: "#0e162a", desc: "#475469" },
-  success: { bg: "#e1f3e7", border: "#aed7bc", title: "#16a34a", desc: "#16a34a" },
-  info:    { bg: "#f0f8ff", border: "#d3e0fd", title: "#0973dc", desc: "#0973dc" },
-  warning: { bg: "#fffbeb", border: "#fce1b3", title: "#ea580c", desc: "#ea580c" },
-  error:   { bg: "#ffeaea", border: "#f43f5e", title: "#d91616", desc: "#d91616" },
+  default: { bg: "var(--gray-50)", border: "var(--gray-200)", title: "var(--gray-900)", desc: "var(--gray-600)" },
+  success: { bg: "var(--success-100)", border: "var(--success-200)", title: "var(--success-400)", desc: "var(--success-400)" },
+  info:    { bg: "var(--info-100)", border: "var(--info-200)", title: "var(--info-500)", desc: "var(--info-500)" },
+  warning: { bg: "var(--warning-100)", border: "var(--warning-300)", title: "var(--warning-500)", desc: "var(--warning-500)" },
+  error:   { bg: "var(--danger-100)", border: "var(--danger-400)", title: "var(--danger-400)", desc: "var(--danger-400)" },
 };
 
 function ToastIcon({ variant }: { variant: ToastVariant }) {
@@ -72,7 +72,7 @@ function Toast({ item, onDismiss }: { item: ToastItem; onDismiss: (id: number) =
       display: "flex", alignItems: "center", gap: "12px",
       padding: "12px 16px", borderRadius: "12px", height: "60px", boxSizing: "border-box",
       backgroundColor: colors.bg, border: `1px solid ${colors.border}`,
-      boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
+      boxShadow: "0 2px 5px rgba(14, 22, 42,0.05)",
       width: "380px", flexShrink: 0,
     }}>
       {variant !== "default" && (
@@ -90,8 +90,8 @@ function Toast({ item, onDismiss }: { item: ToastItem; onDismiss: (id: number) =
         <button
           onClick={() => { item.onAction?.(); onDismiss(item.id); }}
           style={{
-            padding: "6px 12px", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.26px",
-            color: "#ffffff", backgroundColor: "#0e162a",
+            padding: "6px 12px", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.26px",
+            color: "var(--gray-0)", backgroundColor: "var(--gray-900)",
             border: "none", borderRadius: "8px", cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
           }}
         >
