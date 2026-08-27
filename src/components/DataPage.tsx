@@ -3474,13 +3474,14 @@ const TIMELINE_PAGE_MAX = 10;
 /** The scene stills are all this shape, so a row's height follows from the panel's width. */
 const FRAME_ASPECT = 1194 / 685;
 /**
- * Frames render at 92% of the band's width, centred. Scaling rather than cropping — the aspect is
- * the camera's, and trimming it would cut scene out from under the bounding boxes. 8% off the
- * width takes ~19px off every row's height, which is what lets one more frame onto a page.
+ * Frames render at 86% of the band's width, centred. Scaling rather than cropping — the aspect is
+ * the camera's, and trimming it would cut scene out from under the bounding boxes. 14% off the
+ * width takes ~34px off every row's height, which is what buys the extra frames on a page. Much
+ * past this and the TARGET/associate box labels, drawn at 8px, stop being readable.
  */
-const FRAME_SCALE = 0.92;
+const FRAME_SCALE = 0.86;
 /** Gap between rows, and the list band's own vertical padding — both feed the fit calculation. */
-const FRAME_ROW_GAP = 16;
+const FRAME_ROW_GAP = 12;
 const LIST_PAD_Y = 32;
 const LIST_PAD_X = 40;
 
@@ -3753,7 +3754,7 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
           refuses to shrink below its content, so the frames would push the pager off the panel
           again no matter what overflow says. */}
       <div ref={listRef} className="vca-hide-scrollbar" style={{ flex:1, minHeight:0, overflowY:"auto",
-        padding:"12px 20px 20px", display:"flex", flexDirection:"column", gap:"16px" }}>
+        padding:"12px 20px 20px", display:"flex", flexDirection:"column", gap:"12px" }}>
         {pageRows.map((e, i) => {
             const rowIdx = pageStart + i;
             return (
@@ -3763,13 +3764,12 @@ function JointEvidencePanel({ primary, tier, node, onClose }: {
 
                  Neither a box nor a rule between rows: the frame images are the strongest edges on
                  the page already, so any line drawn between them is a third edge next to two that
-                 are unmissable. 16px of air is enough to say "next row" — and it lets each frame
-                 run the full width of the panel.
+                 are unmissable. 12px of air is enough to say "next row".
 
                  The row IS the frame: an associate co-appearance is a shared frame, so there is
                  always one to show, and the box positions are the only thing that says where each
                  stood. Scene still is the one Best Frame uses for its camera feeds. */
-              <div key={rowIdx} style={{ position:"relative", width:"92%", margin:"0 auto",
+              <div key={rowIdx} style={{ position:"relative", width:"86%", margin:"0 auto",
                 borderRadius:"6px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
                 <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
                 {/* Burned into the frame instead of set above it, the way a camera stamps its own
