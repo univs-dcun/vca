@@ -52,3 +52,26 @@ docker compose up -d          # PostgreSQL(5433) + MediaMTX(8554/8889/9997/8189u
 | `VCA_MEDIA_API_BASE_URL` | `http://localhost:9997` | 미디어 서버 제어 API (path 동기화 대상) — 빈 값이면 동기화 생략 |
 | `VCA_ADMIN_ENC_KEY` | dev 키 | 자격증명 암호화 키 — **운영 필수 주입**, 변경 시 기존 암호문 복호화 불가 |
 | `VCA_ADMIN_SEED` | `true` | 빈 원장에 기본 카메라 8대 시드 |
+
+## 인증 (UV-47, admin-api.json 0.3.0)
+
+VCA 로그인의 계정 원장·세션 저장소. 브라우저는 프록시 경유(`/api/auth/**` → 여기 `/auth/**`)로
+호출하며, 프록시는 응답(이미 envelope)을 재포장 없이 쿠키까지 패스스루한다.
+
+| 엔드포인트 | 설명 |
+|---|---|
+| `POST /auth/login` | 로그인 — httpOnly 쿠키 `vca_session` 발급. keepLoggedIn: 세션 12h ↔ 30일 |
+| `GET /auth/me` | 현재 사용자 프로필 `{ name, email, accountId, role, team }` |
+| `POST /auth/logout` | 세션 파기 + 쿠키 삭제 (멱등) |
+| `POST /auth/password/verify` | 현재 비밀번호 확인 (My Page 모달 1단계) |
+| `POST /auth/password` | 비밀번호 변경 — 형식 8자+영문+숫자+특수문자, 현재 세션 외 전 세션 무효화 |
+
+- 비밀번호는 BCrypt 해시, 세션 토큰은 SHA-256 해시만 DB 저장 (`user_account`·`user_session`)
+- 오류: ADM-4010(자격증명 — 이메일 존재 여부 비노출), ADM-4011(세션 없음/만료), ADM-4012(현재 비밀번호 불일치)
+- 계정 원장이 비어 있으면 초기 운영자 시드 (아래 환경변수)
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `VCA_ADMIN_COOKIE_SECURE` | `false` | 세션 쿠키 Secure 플래그 — TLS 운영에서 `true` |
+| `VCA_ADMIN_SEED_EMAIL` | `admin@univs.ai` | 빈 계정 원장에 시드할 초기 운영자 (빈 값이면 생략) |
+| `VCA_ADMIN_SEED_PASSWORD` | `VcaAdmin1234!` | 초기 비밀번호 — **운영 필수 주입** 후 첫 로그인 시 변경 |

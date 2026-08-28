@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.10.0",
+    "version": "0.11.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -20,6 +20,149 @@
     { "name": "videos", "description": "BEST FRAME Video list (계약 v1.3, UV-35) — 업로드 영상 목록·MP4 재생·프레임별 대상" }
   ],
   "paths": {
+    "/auth/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "로그인 (UV-47) — 성공 시 httpOnly 세션 쿠키(vca_session) 발급",
+        "description": "keepLoggedIn 미체크: 브라우저 세션 쿠키 + 서버 세션 12시간. 체크: Max-Age 30일 + 서버 세션 30일.\n이메일 없음/비밀번호 불일치는 구분 없이 401 ADM-4010 (계정 존재 여부 비노출).\n업스트림은 VCA Admin 백엔드 — 프록시는 envelope 재포장 없이 패스스루한다.",
+        "tags": ["auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthLoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "로그인 성공 — Set-Cookie: vca_session=... (HttpOnly; SameSite=Lax)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthProfileResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "자격증명 불일치 (ADM-4010)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "summary": "로그아웃 (UV-47) — 세션 파기 + 쿠키 삭제. 유효 세션이 없어도 성공 (멱등)",
+        "tags": ["auth"],
+        "responses": {
+          "200": {
+            "description": "OK — Set-Cookie로 vca_session 즉시 만료",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthOkResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "현재 로그인 사용자 프로필 (UV-47) — My Page·Navbar 표시용, 라우트 가드 판정",
+        "tags": ["auth"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthProfileResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "세션 없음/만료 (ADM-4011)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password/verify": {
+      "post": {
+        "operationId": "verifyPassword",
+        "summary": "현재 비밀번호 확인 (UV-47) — My Page 변경 모달 1단계. 변경 없이 검증만",
+        "tags": ["auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthPasswordVerifyRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "일치",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AuthOkResponse" } }
+            }
+          },
+          "400": {
+            "description": "현재 비밀번호 불일치 (ADM-4012)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "세션 없음/만료 (ADM-4011)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password": {
+      "post": {
+        "operationId": "changePassword",
+        "summary": "비밀번호 변경 (UV-47) — 현재 비밀번호 재확인 후 변경, 현재 세션 외 전 세션 무효화",
+        "description": "새 비밀번호 형식: 8자 이상 + 영문 + 숫자 + 특수문자 (화면 검증과 동일 규칙, 위반 시 400 ADM-4001).",
+        "tags": ["auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthPasswordChangeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "변경 완료",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AuthOkResponse" } }
+            }
+          },
+          "400": {
+            "description": "현재 비밀번호 불일치(ADM-4012) 또는 형식 위반(ADM-4001)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "세션 없음/만료 (ADM-4011)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
     "/dashboard/live-analytics": {
       "get": {
         "operationId": "getLiveAnalytics",
@@ -952,6 +1095,62 @@
       }
     },
     "schemas": {
+      "AuthLoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "example": "admin@univs.ai" },
+          "password": { "type": "string", "format": "password" },
+          "keepLoggedIn": { "type": "boolean", "default": false, "description": "체크 시 쿠키 Max-Age·서버 세션 30일 (미체크 브라우저 세션 + 12시간)" }
+        }
+      },
+      "AuthUserProfile": {
+        "type": "object",
+        "description": "로그인 사용자 프로필 (My Page·Navbar 표시용) — 민감 필드 없음",
+        "required": ["name", "email", "accountId", "role", "team"],
+        "properties": {
+          "name": { "type": "string", "example": "John Doe" },
+          "email": { "type": "string", "example": "admin@univs.ai" },
+          "accountId": { "type": "string", "description": "화면 표시용 계정 ID", "example": "VCA-ADMIN-8821" },
+          "role": { "type": "string", "example": "Smart City Operations Manager" },
+          "team": { "type": "string", "example": "Operational Control Team Alpha" }
+        }
+      },
+      "AuthProfileResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/AuthUserProfile" }
+        }
+      },
+      "AuthOkResponse": {
+        "type": "object",
+        "required": ["success", "code"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": { "nullable": true }
+        }
+      },
+      "AuthPasswordVerifyRequest": {
+        "type": "object",
+        "required": ["currentPassword"],
+        "properties": {
+          "currentPassword": { "type": "string", "format": "password" }
+        }
+      },
+      "AuthPasswordChangeRequest": {
+        "type": "object",
+        "required": ["currentPassword", "newPassword"],
+        "properties": {
+          "currentPassword": { "type": "string", "format": "password" },
+          "newPassword": { "type": "string", "format": "password", "description": "8자 이상 + 영문 + 숫자 + 특수문자" }
+        }
+      },
       "LatLng": {
         "type": "object",
         "description": "WGS84 좌표",

@@ -8,6 +8,7 @@ import {
   DEFAULT_DISTRICT_ALERT_THRESHOLD, DEFAULT_DISTRICT_MODERATE_THRESHOLD,
 } from "@/lib/mockData";
 import { SIGNED_IN_USER } from "@/lib/vcaStore";
+import { authChangePassword, authVerifyPassword, useAuthProfile } from "../../../lib/vca-bridge/auth";
 import { LockFieldIcon, EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 
@@ -198,14 +199,23 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [focusedField, setFocusedField] = useState<"current" | "new" | "confirm" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
   useEscapeKey(onClose);
 
-  // No real account backend to check against yet (same as /login, which accepts any non-empty
-  // credentials — see the auth-pages-are-mockups note). Requiring the field to be filled in is
-  // the honest stand-in: swap this for a real "verify current password" API call once one exists.
-  const canVerifyCurrent = currentPassword.length > 0;
-  const handleVerifyCurrent = () => {
+  // 데이터 연결(UV-47): 현재 비밀번호를 실제로 검증한다 (POST /auth/password/verify).
+  // 인증 서버 미가동('unavailable')이면 기존 mock 동작(채워져 있으면 통과) 폴백.
+  const canVerifyCurrent = currentPassword.length > 0 && !busy;
+  const handleVerifyCurrent = async () => {
     if (!canVerifyCurrent) return;
+    setBusy(true);
+    setServerError(null);
+    const result = await authVerifyPassword(currentPassword);
+    setBusy(false);
+    if (result.status === "rejected") {
+      setServerError(result.message);
+      return;
+    }
     setStep("new");
   };
 
@@ -215,10 +225,18 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
     /[0-9]/.test(newPassword) &&
     /[^a-zA-Z0-9]/.test(newPassword);
   const mismatch = confirmPassword.length > 0 && confirmPassword !== newPassword;
-  const canSubmit = newPassword.length > 0 && confirmPassword.length > 0;
+  const canSubmit = newPassword.length > 0 && confirmPassword.length > 0 && !busy;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit || !formatValid || mismatch) return;
+    setBusy(true);
+    setServerError(null);
+    const result = await authChangePassword(currentPassword, newPassword);
+    setBusy(false);
+    if (result.status === "rejected") {
+      setServerError(result.message);
+      return;
+    }
     setStep("done");
     onSuccess();
   };
@@ -288,6 +306,15 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
                   </div>
                 </div>
 
+                {serverError && (
+                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                    <ErrorCircleIcon />
+                    <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--danger-400)", letterSpacing: "-0.24px" }}>
+                      {serverError}
+                    </span>
+                  </div>
+                )}
+
                 <button
                   onClick={handleVerifyCurrent}
                   disabled={!canVerifyCurrent}
@@ -348,11 +375,11 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
                   At least 8 characters, including letters, numbers, and special characters
                 </p>
 
-                {mismatch && (
+                {(mismatch || serverError) && (
                   <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                     <ErrorCircleIcon />
                     <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--danger-400)", letterSpacing: "-0.24px" }}>
-                      Passwords do not match. Please try again.
+                      {mismatch ? "Passwords do not match. Please try again." : serverError}
                     </span>
                   </div>
                 )}
@@ -450,6 +477,8 @@ function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { in
 
 export default function MyPage() {
   const router = useRouter();
+  // 데이터 연결(UV-47): 로그인 사용자 프로필 — 세션 없으면/서버 미가동이면 mock 유지
+  const me = useAuthProfile() ?? SIGNED_IN_USER;
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordJustChanged, setPasswordJustChanged] = useState(false);
   const [showThresholdModal, setShowThresholdModal] = useState(false);
@@ -509,18 +538,18 @@ export default function MyPage() {
                 <CardHeader icon={<UserCheckIcon />} title="Profile information" />
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", width: "100%" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-                    <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>{SIGNED_IN_USER.name}</span>
-                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-500)", letterSpacing: "-0.24px" }}>{SIGNED_IN_USER.role}</span>
+                    <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>{me.name}</span>
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-500)", letterSpacing: "-0.24px" }}>{me.role}</span>
                   </div>
                   <div style={{ backgroundColor: "var(--gray-50)", borderRadius: "4px", padding: "4px 8px" }}>
-                    <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--gray-600)", letterSpacing: "-0.2px" }}>{SIGNED_IN_USER.accountId}</span>
+                    <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--gray-600)", letterSpacing: "-0.2px" }}>{me.accountId}</span>
                   </div>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "var(--gray-200)", width: "100%" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                  <ReadOnlyField label="Full name" value={SIGNED_IN_USER.name} />
-                  <ReadOnlyField label="Email address" value={SIGNED_IN_USER.email} />
-                  <ReadOnlyField label="Department / team" value={SIGNED_IN_USER.team} />
+                  <ReadOnlyField label="Full name" value={me.name} />
+                  <ReadOnlyField label="Email address" value={me.email} />
+                  <ReadOnlyField label="Department / team" value={me.team} />
                 </div>
               </Card>
             </div>

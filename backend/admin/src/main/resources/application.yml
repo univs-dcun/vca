@@ -25,6 +25,11 @@ vca:
     enc-key: ${VCA_ADMIN_ENC_KEY:vca-admin-dev-only-key}
     # 원장이 비어 있으면 기존 기본 카메라 8대 시드 (Old VCA 이관 확정 전 자리)
     seed-default-cameras: ${VCA_ADMIN_SEED:true}
+    # 세션 쿠키 Secure 플래그 (UV-47) — 로컬 http 개발이라 기본 false, TLS 운영에서는 true
+    session-cookie-secure: ${VCA_ADMIN_COOKIE_SECURE:false}
+    # 계정 원장이 비어 있으면 시드할 초기 운영자 (UV-47) — 운영에서는 비밀번호를 반드시 환경변수로 주입
+    seed-admin-email: ${VCA_ADMIN_SEED_EMAIL:admin@univs.ai}
+    seed-admin-password: ${VCA_ADMIN_SEED_PASSWORD:VcaAdmin1234!}
 
 management:
   endpoints:

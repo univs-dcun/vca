@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA Admin API (초안 — 기획자 협의 대상)",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "VCA Admin 화면 ↔ Admin 백엔드 계약 초안 (docs/design-vca-admin.md §6.1, UV-41/UV-42).\n\n구조: [Admin 화면] --이 계약--> [Admin 백엔드] --provisioning(module-api.json v0.10.0)--> [분석 모듈]\n\n상태: **P1 초안** — Admin 화면은 기획자가 기획·개발 중이라 이 계약은 협의 후 확정한다. 확정 전까지 필드 추가·이름 변경 가능. P2(미디어 서버 동기화)·P3(동영상·이미지 업로드)에서 리소스가 추가된다.\n\n공통 규약:\n- 응답 envelope은 플랫폼 공통 { success, data, message, code } — VCA 공개 계약(openapi.json)과 동일\n- 오류 코드는 ADM-XXXX 대역 (ADM-4001 본문 검증, ADM-4040 카메라 없음, ADM-5000 내부 오류)\n- cameraId·locationId는 ^[a-z0-9-]{1,64}$ (플랫폼 공통), cameraId 발급 주체는 Admin\n\n민감정보 경계 (설계 §3):\n- password는 쓰기 전용 — 어떤 응답에도 없고 hasCredential로 설정 여부만 알린다\n- rtspUrl·ip·자격증명은 Admin 화면·Admin DB·모듈 내부 채널 전용 — VCA 공개 계약(브라우저 대시보드)에는 절대 노출하지 않는다\n\n미결 (설계 §8): Admin 인증(로그인/권한) — 방식 확정 시 이 계약에 보안 스킴 추가",
     "contact": { "name": "계약 담당: 박상훈 (백엔드)" }
   },
@@ -14,6 +14,106 @@
     { "name": "provision", "description": "동기화 — 원장 변경 시 두 대상(분석 모듈 provisioning + 미디어 서버 스트림 path, v0.2.0/UV-43)에 자동 push되므로 평상시 호출 불필요. 대상이 내려가 있던 동안의 변경을 따라잡는 수동 재동기화·상태 확인용" }
   ],
   "paths": {
+    "/auth/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "로그인 (UV-47) — 성공 시 httpOnly 세션 쿠키(vca_session) 발급. 브라우저는 프록시(/api/auth/login) 경유",
+        "description": "keepLoggedIn 미체크: 브라우저 세션 쿠키 + 서버 세션 12시간 / 체크: 30일. 자격증명 오류는 구분 없이 401 ADM-4010.",
+        "tags": ["auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string", "format": "password" },
+                  "keepLoggedIn": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "프로필 envelope + Set-Cookie", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
+          "401": { "description": "ADM-4010 자격증명 불일치", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "summary": "로그아웃 (UV-47) — 세션 파기 + 쿠키 삭제, 멱등",
+        "tags": ["auth"],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "현재 로그인 사용자 프로필 (UV-47) — data: { name, email, accountId, role, team }",
+        "tags": ["auth"],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
+          "401": { "description": "ADM-4011 세션 없음/만료", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } }
+        }
+      }
+    },
+    "/auth/password/verify": {
+      "post": {
+        "operationId": "verifyPassword",
+        "summary": "현재 비밀번호 확인 (UV-47) — 변경 없이 검증만. 불일치 시 400 ADM-4012",
+        "tags": ["auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword"],
+                "properties": { "currentPassword": { "type": "string", "format": "password" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "일치", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
+          "400": { "description": "ADM-4012 불일치", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
+          "401": { "description": "ADM-4011 세션 없음/만료", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } }
+        }
+      }
+    },
+    "/auth/password": {
+      "post": {
+        "operationId": "changePassword",
+        "summary": "비밀번호 변경 (UV-47) — 현재 비밀번호 재확인, 형식(8자+영문+숫자+특수문자) 위반 400 ADM-4001, 현재 세션 외 전 세션 무효화",
+        "tags": ["auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword", "newPassword"],
+                "properties": {
+                  "currentPassword": { "type": "string", "format": "password" },
+                  "newPassword": { "type": "string", "format": "password" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "변경 완료", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
+          "400": { "description": "ADM-4012 불일치 / ADM-4001 형식 위반", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
+          "401": { "description": "ADM-4011 세션 없음/만료", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } }
+        }
+      }
+    },
     "/admin/api/cameras": {
       "get": {
         "operationId": "listAdminCameras",

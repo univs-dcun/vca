@@ -7,11 +7,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @SpringBootApplication
-@EnableConfigurationProperties({ ModuleApiProperties.class, MediaProperties.class })
+@EnableConfigurationProperties({ ModuleApiProperties.class, MediaProperties.class, AdminApiProperties.class })
 public class VcaProxyApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(VcaProxyApplication.class, args);
+	}
+
+	@Bean
+	WebClient adminApiClient(AdminApiProperties props) {
+		return WebClient.builder().baseUrl(props.baseUrl()).build();
 	}
 
 	@Bean

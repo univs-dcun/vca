@@ -6,6 +6,7 @@ import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useApiData } from "@/hooks/useApiData";
 import { getDashboardStats } from "@/lib/api/dashboard";
 import { useLiveDashboardStats } from "../../../lib/vca-bridge/useLiveDashboardStats";
+import { authLogout, useAuthProfile } from "../../../lib/vca-bridge/auth";
 
 const BORDER = "1px solid var(--gray-200)";
 export type NavTab = "DASHBOARD" | "BEST FRAME" | "DATA" | "REDMAP";
@@ -30,6 +31,8 @@ interface NavbarProps {
 
 export default function Navbar({ activeTab: externalTab, onTabChange, onNotificationSelect, sidebarPosition, onSidebarPositionChange, onOpenSearch }: NavbarProps) {
   const router = useRouter();
+  // 데이터 연결(UV-47): 로그인 사용자 — 세션 없으면/서버 미가동이면 mock(SIGNED_IN_USER) 유지
+  const signedInUser = useAuthProfile() ?? SIGNED_IN_USER;
   const [internalTab, setInternalTab] = useState<NavTab>("DASHBOARD");
   const activeTab = externalTab === undefined ? internalTab : externalTab;
   const setActiveTab = (tab: NavTab) => {
@@ -443,8 +446,8 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 overflow: "hidden", padding: "8px",
               }}>
                 <div style={{ padding: "8px 8px 12px" }}>
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{SIGNED_IN_USER.name}</div>
-                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", marginTop: "2px" }}>{SIGNED_IN_USER.email}</div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{signedInUser.name}</div>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", marginTop: "2px" }}>{signedInUser.email}</div>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "var(--gray-200)", margin: "0 4px 6px" }} />
                 <button
@@ -509,7 +512,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 <div style={{ height: "1px", backgroundColor: "var(--gray-200)", margin: "6px 4px" }} />
                 <button
                   className="navbar-dropdown-item navbar-dropdown-item--danger"
-                  onClick={() => { setSettingsOpen(false); router.push("/login"); }}
+                  onClick={() => { setSettingsOpen(false); authLogout().then(() => router.push("/login")); }}
                   style={{
                     display: "flex", alignItems: "center", gap: "10px", width: "100%",
                     padding: "9px 8px", borderRadius: "10px", border: "none",
