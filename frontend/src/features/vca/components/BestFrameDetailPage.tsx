@@ -960,17 +960,6 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                 const isSelected = i === stripIdx;
                 const personCount = liveFrame ? liveFrame.count : personCountFor(camSeed + sec);
                 const crowded = personCount >= 10;
-                // Real per-thumbnail VIP presence — each Detection already carries its own real
-                // time, so "did a VIP detection fall within this thumbnail's slice of the axis"
-                // is genuine data, not a fabricated pattern. One crown per hit, not confined to
-                // a single flagged window.
-                // Rounded up so a detection sitting exactly at a slice boundary (a common case,
-                // since sec is itself rounded) isn't dropped by float rounding on the raw half.
-                const halfWindow = Math.ceil(axisSpanSec / THUMB_COUNT / 2);
-                // 라이브: 프레임별 categories에서 온 실제 VIP 여부 (UV-37)
-                const hasVip = liveFrame
-                  ? liveFrame.hasVip
-                  : data.detections.some(d => d.type === "VIP" && Math.abs(hhmmssToSec(d.time) - sec) <= halfWindow);
                 return (
                   <div key={liveFrame?.id ?? i} ref={el => { thumbRefs.current[i] = el; }} onClick={() => (tl.live ? tl.select(i) : setSelectedSec(sec))}
                     onMouseEnter={() => setHoveredThumbIdx(i)}
@@ -1024,12 +1013,6 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                     <span style={{ fontSize:"10px", fontWeight:600, color: isSelected ? "var(--primary-400)" : "var(--gray-500)", fontFamily:"monospace" }}>
                       {secToHHMMSS(sec)}
                     </span>
-                    {/* Crown — present/absent only, one per frame that actually had a real VIP
-                        hit. Reserves its height even when absent so the label row above doesn't
-                        jump around from frame to frame. */}
-                    <div style={{ height:"12px" }}>
-                      {hasVip && <TypeIcon type="VIP" color="var(--primary-400)" size={12} />}
-                    </div>
                   </div>
                 );
               })}
