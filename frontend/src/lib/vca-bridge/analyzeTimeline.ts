@@ -37,8 +37,6 @@ export interface AnalyzeFrameItem {
   time: string
   imageUrl: string
   count: number
-  hasVip: boolean
-  hasVehicle: boolean
 }
 
 export interface AnalyzeWindow { date: string; hour: number; minute: number }
@@ -141,15 +139,12 @@ export function useAnalyzeTimeline(source: AnalyzeSource | null): {
         if (!data || seq.current !== my) return
         const items: AnalyzeFrameItem[] = (data.frames ?? []).map((f) => {
           const ms = Date.parse(f.capturedAt)
-          const cats = f.categories ?? []
           return {
             id: f.frameId,
             ms,
             time: timeSgt(ms),
             imageUrl: f.imageUrl,
             count: f.targetCount,
-            hasVip: cats.includes('vip') || cats.includes('staff'),
-            hasVehicle: cats.includes('vehicle'),
           }
         })
         setLive(true)
