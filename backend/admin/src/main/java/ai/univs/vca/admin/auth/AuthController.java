@@ -73,6 +73,14 @@ public class AuthController {
 		return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, expired.toString()).body(ApiEnvelope.ok(null));
 	}
 
+	/** 첫 로그인 Set Password (UV-48) — 임시 비밀번호 상태의 세션만 허용 */
+	@PostMapping("/password/setup")
+	public ApiEnvelope setupPassword(@CookieValue(name = SESSION_COOKIE, required = false) String token,
+			@RequestBody AuthDtos.PasswordSetupRequest request) {
+		service.setupPassword(token, request.newPassword());
+		return ApiEnvelope.ok(null);
+	}
+
 	/** My Page 비밀번호 변경 모달의 1단계(현재 비밀번호 확인) — 변경 없이 검증만 */
 	@PostMapping("/password/verify")
 	public ApiEnvelope verifyPassword(@CookieValue(name = SESSION_COOKIE, required = false) String token,

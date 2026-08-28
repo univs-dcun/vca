@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.11.0
+ * OpenAPI spec version: 0.12.0
  */
 
 /**
@@ -25,4 +25,6 @@ export interface AuthUserProfile {
   accountId: string;
   role: string;
   team: string;
+  /** 임시 비밀번호 상태 (UV-48) — true면 화면이 Set Password(/password-setup)를 강제하고, 완료 전 메인 진입을 막는다 */
+  mustSetPassword: boolean;
 }

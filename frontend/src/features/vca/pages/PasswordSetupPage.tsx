@@ -1,8 +1,9 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "../compat/navigation";
 import AuthHeader from "../components/AuthHeader";
 import { LockFieldIcon, EyeIcon, EyeOffIcon, ErrorCircleIcon } from "../components/AuthIcons";
+import { authSetupPassword, fetchAuthMe } from "../../../lib/vca-bridge/auth";
 
 function fieldBorder(active: boolean) {
   return active ? "1px solid var(--primary-300)" : "1px solid var(--gray-300)";
@@ -15,6 +16,22 @@ export default function PasswordSetupPage() {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [focusedField, setFocusedField] = useState<"new" | "confirm" | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  // 데이터 연결(UV-48): 이 화면은 담당자 발급 임시 비밀번호로 로그인한 세션 전용 —
+  // 비로그인이면 /login, 이미 본인 비밀번호가 있으면 메인으로 돌려보낸다.
+  // 인증 서버 미가동이면 판정 불가 — 그대로 두고 제출 시 mock 폴백(/login 복귀)을 따른다.
+  useEffect(() => {
+    let cancelled = false;
+    fetchAuthMe().then(res => {
+      if (cancelled) return;
+      if (res.status === "rejected") router.push("/login");
+      else if (res.status === "ok" && !res.user?.mustSetPassword) router.push("/");
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const formatValid =
     newPassword.length >= 8 &&
@@ -22,11 +39,25 @@ export default function PasswordSetupPage() {
     /[0-9]/.test(newPassword) &&
     /[^a-zA-Z0-9]/.test(newPassword);
   const mismatch = confirmPassword.length > 0 && confirmPassword !== newPassword;
-  const canSubmit = newPassword.length > 0 && confirmPassword.length > 0;
+  const canSubmit = newPassword.length > 0 && confirmPassword.length > 0 && !submitting;
 
-  const handleSubmit = () => {
+  // 성공 시 메인으로 — 이미 세션이 있으므로 재로그인을 요구하지 않는다 (기획 확정 흐름).
+  // 인증 서버 미가동('unavailable')이면 반입 원본의 동작(/login 복귀) 유지.
+  const handleSubmit = async () => {
     if (!canSubmit) return;
     if (!formatValid || mismatch) return;
+    setSubmitting(true);
+    setServerError(null);
+    const result = await authSetupPassword(newPassword);
+    setSubmitting(false);
+    if (result.status === "ok") {
+      router.push("/");
+      return;
+    }
+    if (result.status === "rejected") {
+      setServerError(result.message);
+      return;
+    }
     router.push("/login");
   };
 
@@ -90,11 +121,11 @@ export default function PasswordSetupPage() {
               At least 8 characters, including letters, numbers, and special characters
             </p>
 
-            {mismatch && (
+            {(mismatch || serverError) && (
               <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                 <ErrorCircleIcon />
                 <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--danger-400)", letterSpacing: "-0.26px" }}>
-                  Passwords do not match. Please try again.
+                  {mismatch ? "Passwords do not match. Please try again." : serverError}
                 </span>
               </div>
             )}

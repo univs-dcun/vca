@@ -16,10 +16,14 @@ export default function LoginPage() {
   const [keepLoggedIn, setKeepLoggedIn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 기획 확정(UV-48): 비밀번호 재설정은 담당자 임시 비밀번호 재발급으로 처리 예정 —
+  // 셀프 재설정 흐름이 생기기 전까지 안내 문구만 띄운다
+  const [forgotNotice, setForgotNotice] = useState(false);
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
 
-  // 데이터 연결(UV-47): 실로그인 — 성공 시 httpOnly 세션 쿠키가 발급되고 "/"로 이동.
+  // 데이터 연결(UV-47/48): 실로그인 — 성공 시 httpOnly 세션 쿠키가 발급되고, 담당자 발급
+  // 임시 비밀번호 상태(mustSetPassword)면 Set Password 화면으로, 아니면 "/"로 이동.
   // 인증 서버 미가동('unavailable')이면 기존 mock 흐름(portalUsers 이메일 분기) 폴백 —
   // 다른 화면의 라이브 우선 + mock 폴백과 같은 규칙. permission별 /portal 분기는 실로그인
   // 경로에서는 제거됨(라우트 부재, 기획 확인 대기) — mock 폴백에서만 기존 동작 유지.
@@ -30,7 +34,7 @@ export default function LoginPage() {
     const result = await authLogin(email.trim(), password, keepLoggedIn);
     setSubmitting(false);
     if (result.status === "ok") {
-      router.push("/");
+      router.push(result.user?.mustSetPassword ? "/password-setup" : "/");
       return;
     }
     if (result.status === "rejected") {
@@ -102,12 +106,19 @@ export default function LoginPage() {
                   />
                   <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}>Keep me logged in</span>
                 </label>
-                <button
-                  onClick={() => router.push("/password-setup")}
-                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}
-                >
-                  Forgot password?
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px" }}>
+                  <button
+                    onClick={() => setForgotNotice(true)}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}
+                  >
+                    Forgot password?
+                  </button>
+                  {forgotNotice && (
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--gray-400)", letterSpacing: "-0.22px" }}>
+                      준비 중입니다
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>

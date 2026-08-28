@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.11.0",
+    "version": "0.12.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -81,6 +81,42 @@
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/AuthProfileResponse" }
               }
+            }
+          },
+          "401": {
+            "description": "세션 없음/만료 (ADM-4011)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password/setup": {
+      "post": {
+        "operationId": "setupPassword",
+        "summary": "첫 로그인 Set Password (UV-48) — 임시 비밀번호 상태의 세션만 허용, 현재 비밀번호 불요",
+        "description": "담당자 발급 계정(임시 비밀번호)으로 로그인한 뒤 본인 비밀번호를 설정한다. 완료 시 mustSetPassword 해제 + 현재 세션 외 전 세션 무효화. 임시 상태가 아니면 400 ADM-4013 (그 경우는 /auth/password 변경 API 몫).",
+        "tags": ["auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthPasswordSetupRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "설정 완료 — 이후 me.mustSetPassword=false",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AuthOkResponse" } }
+            }
+          },
+          "400": {
+            "description": "형식 위반(ADM-4001) 또는 이미 설정됨(ADM-4013)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
             }
           },
           "401": {
@@ -1107,13 +1143,21 @@
       "AuthUserProfile": {
         "type": "object",
         "description": "로그인 사용자 프로필 (My Page·Navbar 표시용) — 민감 필드 없음",
-        "required": ["name", "email", "accountId", "role", "team"],
+        "required": ["name", "email", "accountId", "role", "team", "mustSetPassword"],
         "properties": {
           "name": { "type": "string", "example": "John Doe" },
           "email": { "type": "string", "example": "admin@univs.ai" },
           "accountId": { "type": "string", "description": "화면 표시용 계정 ID", "example": "VCA-ADMIN-8821" },
           "role": { "type": "string", "example": "Smart City Operations Manager" },
-          "team": { "type": "string", "example": "Operational Control Team Alpha" }
+          "team": { "type": "string", "example": "Operational Control Team Alpha" },
+          "mustSetPassword": { "type": "boolean", "description": "임시 비밀번호 상태 (UV-48) — true면 화면이 Set Password(/password-setup)를 강제하고, 완료 전 메인 진입을 막는다" }
+        }
+      },
+      "AuthPasswordSetupRequest": {
+        "type": "object",
+        "required": ["newPassword"],
+        "properties": {
+          "newPassword": { "type": "string", "format": "password", "description": "8자 이상 + 영문 + 숫자 + 특수문자" }
         }
       },
       "AuthProfileResponse": {
