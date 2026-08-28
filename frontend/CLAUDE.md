@@ -160,6 +160,20 @@ HANDOFF 주석 참조), REDMAP Route history 재구축, CSS 변수 토큰화. �
   포맷, elapsedAlert 제거. reidAnalysis ReidMatchCard에 date/status(field 분리). in-내로잉 이슈는
   isLiveRecentTarget/isLiveVipOption 프레디킷 유지.
 
+인증 주입(UV-47, 계약 0.11.0 /auth 4+1종): 세션은 httpOnly 쿠키(vca_session) — 화면/브리지는
+토큰을 다루지 않는다. 브리지 lib/vca-bridge/auth.ts(authLogin/authLogout/fetchAuthMe/
+authVerifyPassword/authChangePassword + useAuthProfile 훅)와 RequireAuth.tsx(라우트 가드).
+결과 3분류: 'ok' / 'rejected'(ADM-* — 화면에 오류 문구) / 'unavailable'(인증 서버 미가동 —
+mock 폴백, 프록시가 VCA-5021/5041로 구분). 주입 지점:
+- App.tsx — "/"·"/mypage"를 RequireAuth로 래핑 (명시적 401일 때만 /login 리다이렉트)
+- LoginPage — handleSubmit 실로그인(실패 문구 + submitting 상태), unavailable이면 기존
+  portalUsers mock 분기 폴백. 오류 행 + 버튼 라벨만 추가 (기획 레이아웃 유지)
+- Navbar — useAuthProfile() ?? SIGNED_IN_USER (메뉴 이름·이메일), Log out에 authLogout 선행
+- MyPage — 프로필 6곳 me 교체(같은 폴백), PasswordChangeModal 실배선(verify 1단계 =
+  POST /auth/password/verify, 변경 = POST /auth/password, serverError 행 2곳 추가)
+개발 계정 시드: admin@univs.ai / VcaAdmin1234! (Admin 백엔드 기동 시, VCA_ADMIN_SEED_* 덮어쓰기).
+Forgot password→/password-setup·/signup·/portal은 기획 확인 대기 — 실배선 없음.
+
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)
 - `lib/vcaStore.ts` addEvent — 확정 행 규칙(VIP 누적 + 카메라 전환 기준 Tracking 별개 1행, UV-31)

@@ -2,8 +2,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AuthHeader from "@/components/AuthHeader";
-import { PersonFieldIcon, LockFieldIcon, EyeIcon, EyeOffIcon } from "@/components/AuthIcons";
+import { PersonFieldIcon, LockFieldIcon, EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
 import { useVcaStore } from "@/lib/vcaStore";
+import { authLogin } from "../../../lib/vca-bridge/auth";
 
 const FIELD_BORDER = "1px solid var(--gray-300)";
 
@@ -13,21 +14,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [keepLoggedIn, setKeepLoggedIn] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0;
+  const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
 
-  const handleSubmit = () => {
+  // 데이터 연결(UV-47): 실로그인 — 성공 시 httpOnly 세션 쿠키가 발급되고 "/"로 이동.
+  // 인증 서버 미가동('unavailable')이면 기존 mock 흐름(portalUsers 이메일 분기) 폴백 —
+  // 다른 화면의 라이브 우선 + mock 폴백과 같은 규칙. permission별 /portal 분기는 실로그인
+  // 경로에서는 제거됨(라우트 부재, 기획 확인 대기) — mock 폴백에서만 기존 동작 유지.
+  const handleSubmit = async () => {
     if (!canSubmit) return;
-    // No real backend yet — mock the post-login permission branch off the Portal user registry
-    // (see project-vca-auth-routing-plan memory) so Portal is reachable straight from login,
-    // not only via the VCA app's Navbar "Portal" switch-over item.
-    //
-    // HANDOFF NOTE: `password` is only checked for non-emptiness above (`canSubmit`) — it's never
-    // actually verified against anything, and no session token/cookie gets created here, so no
-    // route in the app is actually gated on being logged in. Left alone (rather than adding a mock
-    // session/middleware layer here) since src/app/portal/ has its own auth work already in
-    // progress — a real login needs to be wired up together with whatever session model that
-    // settles on, not built separately here and reconciled later.
+    setSubmitting(true);
+    setError(null);
+    const result = await authLogin(email.trim(), password, keepLoggedIn);
+    setSubmitting(false);
+    if (result.status === "ok") {
+      router.push("/");
+      return;
+    }
+    if (result.status === "rejected") {
+      setError(result.message);
+      return;
+    }
     const matchedUser = useVcaStore.getState().portalUsers.find(
       u => u.email.toLowerCase() === email.trim().toLowerCase()
     );
@@ -101,20 +110,30 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              <button
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                style={{
-                  height: "48px", width: "100%", border: "none", borderRadius: "8px",
-                  backgroundColor: canSubmit ? "var(--primary-400)" : "var(--gray-100)",
-                  color: canSubmit ? "white" : "var(--gray-400)",
-                  fontSize: "16px", fontWeight: 800, letterSpacing: "-0.32px",
-                  cursor: canSubmit ? "pointer" : "default",
-                  transition: "background-color 0.15s, color 0.15s",
-                }}
-              >
-                Log in
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+                {error && (
+                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                    <ErrorCircleIcon />
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--danger-400)", letterSpacing: "-0.26px" }}>
+                      {error}
+                    </span>
+                  </div>
+                )}
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit}
+                  style={{
+                    height: "48px", width: "100%", border: "none", borderRadius: "8px",
+                    backgroundColor: canSubmit ? "var(--primary-400)" : "var(--gray-100)",
+                    color: canSubmit ? "white" : "var(--gray-400)",
+                    fontSize: "16px", fontWeight: 800, letterSpacing: "-0.32px",
+                    cursor: canSubmit ? "pointer" : "default",
+                    transition: "background-color 0.15s, color 0.15s",
+                  }}
+                >
+                  {submitting ? "Logging in…" : "Log in"}
+                </button>
+              </div>
               <p style={{ textAlign: "center", fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}>
                 New organization?{" "}
                 <button

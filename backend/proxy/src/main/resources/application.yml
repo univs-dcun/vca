@@ -20,6 +20,10 @@ vca:
     api-base-url: ${VCA_MEDIA_API_BASE_URL:http://localhost:9997}
     stream-url-template: /streams/{cameraId}/whep
     timeout: 2s
+  # VCA Admin 백엔드 — 인증(/api/auth/**) 업스트림 (UV-47). 응답이 이미 envelope이라 패스스루
+  admin-api:
+    base-url: ${VCA_ADMIN_API_BASE_URL:http://localhost:8082}
+    timeout: 5s
 
 management:
   endpoints:
