@@ -15,9 +15,7 @@
  * OpenAPI spec version: 0.12.0
  */
 
-export interface AuthLoginRequest {
-  email: string;
-  password: string;
-  /** 체크 시 쿠키 Max-Age·서버 세션 30일 (미체크 브라우저 세션 + 12시간) */
-  keepLoggedIn?: boolean;
+export interface AuthPasswordSetupRequest {
+  /** 8자 이상 + 영문 + 숫자 + 특수문자 */
+  newPassword: string;
 }

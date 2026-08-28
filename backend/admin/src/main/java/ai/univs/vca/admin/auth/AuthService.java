@@ -84,6 +84,21 @@ public class AuthService {
 		}
 	}
 
+	/**
+	 * 첫 로그인 Set Password (UV-48) — 임시 비밀번호로 이미 로그인한 세션이 전제라 현재 비밀번호를
+	 * 다시 받지 않는다. 임시 상태가 아니면 거부(ADM-4013 — 그 경우는 변경 API 몫).
+	 */
+	@Transactional
+	public void setupPassword(String token, String newPassword) {
+		UserAccountEntity user = requireUser(token);
+		if (!user.isMustSetPassword()) {
+			throw AdminApiException.passwordAlreadySet();
+		}
+		validateFormat(newPassword);
+		user.changePassword(encoder.encode(newPassword)); // mustSetPassword 해제 포함
+		sessions.deleteOtherSessions(user.getId(), hash(token)); // 임시 비밀번호로 만든 다른 세션 무효화
+	}
+
 	@Transactional
 	public void changePassword(String token, String currentPassword, String newPassword) {
 		UserAccountEntity user = requireUser(token);

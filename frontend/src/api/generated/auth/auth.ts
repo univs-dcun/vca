@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.11.0
+ * OpenAPI spec version: 0.12.0
  */
 import {
   useMutation,
@@ -37,6 +37,7 @@ import type {
   AuthLoginRequest,
   AuthOkResponse,
   AuthPasswordChangeRequest,
+  AuthPasswordSetupRequest,
   AuthPasswordVerifyRequest,
   AuthProfileResponse,
   ErrorResponse
@@ -269,6 +270,71 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
 
 
 /**
+ * 담당자 발급 계정(임시 비밀번호)으로 로그인한 뒤 본인 비밀번호를 설정한다. 완료 시 mustSetPassword 해제 + 현재 세션 외 전 세션 무효화. 임시 상태가 아니면 400 ADM-4013 (그 경우는 /auth/password 변경 API 몫).
+ * @summary 첫 로그인 Set Password (UV-48) — 임시 비밀번호 상태의 세션만 허용, 현재 비밀번호 불요
+ */
+export const setupPassword = (
+    authPasswordSetupRequest: AuthPasswordSetupRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AuthOkResponse>(
+      {url: `/auth/password/setup`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: authPasswordSetupRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getSetupPasswordMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupPassword>>, TError,{data: AuthPasswordSetupRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof setupPassword>>, TError,{data: AuthPasswordSetupRequest}, TContext> => {
+
+const mutationKey = ['setupPassword'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setupPassword>>, {data: AuthPasswordSetupRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setupPassword(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetupPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof setupPassword>>>
+    export type SetupPasswordMutationBody = AuthPasswordSetupRequest
+    export type SetupPasswordMutationError = ErrorResponse
+
+    /**
+ * @summary 첫 로그인 Set Password (UV-48) — 임시 비밀번호 상태의 세션만 허용, 현재 비밀번호 불요
+ */
+export const useSetupPassword = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupPassword>>, TError,{data: AuthPasswordSetupRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setupPassword>>,
+        TError,
+        {data: AuthPasswordSetupRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getSetupPasswordMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
  * @summary 현재 비밀번호 확인 (UV-47) — My Page 변경 모달 1단계. 변경 없이 검증만
  */
 export const verifyPassword = (

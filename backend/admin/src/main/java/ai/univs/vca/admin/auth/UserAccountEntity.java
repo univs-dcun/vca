@@ -42,6 +42,14 @@ public class UserAccountEntity {
 	@Column(nullable = false)
 	private String team;
 
+	/**
+	 * 임시 비밀번호 상태 (UV-48) — 담당자가 발급한 계정은 true로 시작하고, 사용자가 첫 로그인 후
+	 * Set Password를 마치면 false. true인 세션은 화면 가드가 /password-setup으로 강제한다.
+	 * columnDefinition의 default는 기존 행(UV-47 시드)에 대한 ddl-auto update 대비.
+	 */
+	@Column(nullable = false, columnDefinition = "boolean not null default false")
+	private boolean mustSetPassword;
+
 	@Column(nullable = false)
 	private Instant createdAt;
 
@@ -63,6 +71,13 @@ public class UserAccountEntity {
 
 	public void changePassword(String passwordHash) {
 		this.passwordHash = passwordHash;
+		this.mustSetPassword = false;
+	}
+
+	/** 담당자 발급/재발급 — 임시 비밀번호로 교체하고 Set Password 강제 상태로 되돌린다 */
+	public void issueTemporaryPassword(String passwordHash) {
+		this.passwordHash = passwordHash;
+		this.mustSetPassword = true;
 	}
 
 	public void markLogin(Instant at) {
@@ -95,6 +110,10 @@ public class UserAccountEntity {
 
 	public String getTeam() {
 		return team;
+	}
+
+	public boolean isMustSetPassword() {
+		return mustSetPassword;
 	}
 
 	public Instant getCreatedAt() {

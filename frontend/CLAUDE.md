@@ -172,7 +172,17 @@ mock 폴백, 프록시가 VCA-5021/5041로 구분). 주입 지점:
 - MyPage — 프로필 6곳 me 교체(같은 폴백), PasswordChangeModal 실배선(verify 1단계 =
   POST /auth/password/verify, 변경 = POST /auth/password, serverError 행 2곳 추가)
 개발 계정 시드: admin@univs.ai / VcaAdmin1234! (Admin 백엔드 기동 시, VCA_ADMIN_SEED_* 덮어쓰기).
-Forgot password→/password-setup·/signup·/portal은 기획 확인 대기 — 실배선 없음.
+/signup·/portal은 기획 확인 대기 — 실배선 없음.
+
+첫 로그인 흐름(UV-48, 계약 0.12.0): 기획 확정 — 계정은 담당자가 발급(임시 비밀번호 오프라인
+전달, 발급 화면은 Admin(portal) 소관·API는 admin-api /admin/api/users). 프로필에
+mustSetPassword — true면 본인 비밀번호 설정 전 메인 진입 불가. 주입 지점:
+- LoginPage — 로그인 성공 시 mustSetPassword면 /password-setup, 아니면 "/".
+  Forgot password는 "준비 중입니다" 문구만 (셀프 재설정 없음 — 담당자 재발급으로 처리)
+- PasswordSetupPage — 실배선: 진입 가드 effect(비로그인→/login, 이미 설정→"/") +
+  제출 = POST /auth/password/setup(임시 상태 세션 전용, 현재 비밀번호 불요) → 성공 시 "/"
+  (unavailable이면 반입 원본 동작 /login 복귀 유지)
+- RequireAuth — mustSetPassword=true 세션의 "/"·"/mypage" 접근을 /password-setup으로 강제
 
 반입 시 규칙 충돌 주의 (원본 레포에 미반영된 백엔드발 변경 — diff 적용 후 반드시 재확인):
 - `types/detection.ts` Detection에 optional `snapshotUrl`/`enrolledPhotoUrl` 필드 (라이브 이미지 공급)

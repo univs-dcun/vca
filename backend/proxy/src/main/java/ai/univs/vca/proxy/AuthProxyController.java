@@ -54,6 +54,11 @@ public class AuthProxyController {
 		return forward(HttpMethod.GET, "/auth/me", request, null);
 	}
 
+	@PostMapping("/api/auth/password/setup")
+	public Mono<ResponseEntity<String>> setupPassword(ServerHttpRequest request, @RequestBody String body) {
+		return forward(HttpMethod.POST, "/auth/password/setup", request, body);
+	}
+
 	@PostMapping("/api/auth/password/verify")
 	public Mono<ResponseEntity<String>> verifyPassword(ServerHttpRequest request, @RequestBody String body) {
 		return forward(HttpMethod.POST, "/auth/password/verify", request, body);

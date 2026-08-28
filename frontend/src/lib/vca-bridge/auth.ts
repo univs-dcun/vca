@@ -5,7 +5,7 @@
 // (기동 안 됨 — 프록시가 502 VCA-5021/504 VCA-5041로 구분해 준다) 'unavailable'을
 // 반환하고, 화면은 기존 mock 흐름을 유지한다. 자격증명 오류(ADM-4010 등)는 실패다.
 import { useEffect, useState } from 'react'
-import { changePassword, getMe, login, logout, verifyPassword } from '../../api/generated/auth/auth'
+import { changePassword, getMe, login, logout, setupPassword, verifyPassword } from '../../api/generated/auth/auth'
 import type { AuthUserProfile } from '../../api/generated/model'
 
 export type { AuthUserProfile }
@@ -48,6 +48,16 @@ export async function authLogout(): Promise<void> {
 export async function authVerifyPassword(currentPassword: string): Promise<AuthResult> {
   try {
     await verifyPassword({ currentPassword })
+    return { status: 'ok' }
+  } catch (e) {
+    return interpret(e)
+  }
+}
+
+/** 첫 로그인 Set Password (UV-48) — 임시 비밀번호 상태의 세션 전용, 현재 비밀번호 불요 */
+export async function authSetupPassword(newPassword: string): Promise<AuthResult> {
+  try {
+    await setupPassword({ newPassword })
     return { status: 'ok' }
   } catch (e) {
     return interpret(e)
@@ -101,6 +111,8 @@ function messageFor(code: string, serverMessage: string | undefined): string {
       return 'Current password does not match.'
     case 'ADM-4001':
       return 'Password must be at least 8 characters with letters, numbers, and special characters.'
+    case 'ADM-4013':
+      return 'Your password is already set. Use password change in My Page.'
     default:
       return serverMessage ?? 'Request failed. Please try again.'
   }

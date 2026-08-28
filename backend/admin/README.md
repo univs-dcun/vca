@@ -75,3 +75,19 @@ VCA 로그인의 계정 원장·세션 저장소. 브라우저는 프록시 경�
 | `VCA_ADMIN_COOKIE_SECURE` | `false` | 세션 쿠키 Secure 플래그 — TLS 운영에서 `true` |
 | `VCA_ADMIN_SEED_EMAIL` | `admin@univs.ai` | 빈 계정 원장에 시드할 초기 운영자 (빈 값이면 생략) |
 | `VCA_ADMIN_SEED_PASSWORD` | `VcaAdmin1234!` | 초기 비밀번호 — **운영 필수 주입** 후 첫 로그인 시 변경 |
+
+## 계정 발급 (UV-48, admin-api.json 0.4.0)
+
+기획 확정: 사용자는 직접 가입하지 않는다 — 담당자가 계정 + 임시 비밀번호를 발급해 오프라인
+전달(메일 불가 환경 대응). 발급 화면은 Admin(portal) 서비스 소관이고, 아래는 그 화면이 호출할
+API다. 프록시에 라우트가 없어 VCA 대시보드(브라우저)에서는 접근 불가.
+
+| 엔드포인트 | 설명 |
+|---|---|
+| `POST /admin/api/users` | 발급 — 임시 비밀번호를 서버가 생성해 **응답에 단 한 번만 반환** (DB에는 BCrypt 해시만). `mustSetPassword=true`로 시작 |
+| `POST /admin/api/users/{userId}/reset-password` | 재발급(분실 대응) — 기존 세션 전부 무효화 + Set Password 강제 복귀 |
+| `GET /admin/api/users` | 목록 — 전달 후 상태 확인용 (`mustSetPassword`, `lastLoginAt`) |
+
+첫 로그인 흐름: 임시 비밀번호 로그인 → 화면이 `mustSetPassword`를 보고 Set Password 강제 →
+`POST /auth/password/setup`(임시 상태 세션 전용, 현재 비밀번호 불요) → 해제 후 메인 진입.
+오류: ADM-4013(이미 설정됨 — 변경 API 몫), ADM-4090(이메일 중복), ADM-4041(사용자 없음).
