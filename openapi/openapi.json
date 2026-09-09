@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.16.0",
+    "version": "0.17.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -2433,7 +2433,12 @@
           "name": { "type": "string" },
           "description": { "type": "string", "nullable": true, "description": "설명 (예: Corporate Security — Executive Protection). 없으면 null" },
           "photoUrl": { "type": "string", "description": "얼굴 이미지 URL (상대경로)" },
-          "registeredAt": { "type": "string", "format": "date", "description": "등록일" }
+          "registeredAt": { "type": "string", "format": "date", "description": "등록일" },
+          "type": { "type": "string", "enum": ["vip", "tracking"], "description": "(v1.11 초안, additive) Portal 등록 분류" },
+          "priority": { "type": "string", "enum": ["normal", "high", "very_high"], "description": "(v1.11 초안, additive)" },
+          "groupId": { "type": "string", "nullable": true, "description": "(v1.11 초안, additive)" },
+          "groupName": { "type": "string", "nullable": true, "description": "(v1.11 초안, additive)" },
+          "embeddingStatus": { "type": "string", "enum": ["none", "pending", "ready", "failed"], "description": "(v1.11 초안, additive) ready 외는 매칭 불가 — 화면 경고" }
         }
       },
       "DetectedCamera": {

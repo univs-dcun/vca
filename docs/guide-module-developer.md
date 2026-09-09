@@ -202,6 +202,12 @@
 | `POST /v1/targets/associate-evidence` | **(v1.8)** Joint Evidence — 페어(targetId + associateId) 동반 감지 집계 요약 (총 횟수·최초/최종·최다 장소·주 시간대 비율·장소별 최근 5건, 동기 60초) |
 | `POST /v1/targets/associate-frames` | **(v1.10)** RedFace Shared frames — 페어의 동시 포착 프레임 페이징 목록(최신순, page/size 쿼리 + locationId/bucket 필터). totalElements == coCaptures, imageUrl은 기존 카메라 프레임 라우트 재사용, 두 인물 bbox(0~1, 미검출 null), 동기 60초 |
 | `PUT /v1/provision/cameras` | **(v1.9)** 카메라 provisioning — **호출 주체가 VCA Admin 백엔드인 유일한 엔드포인트.** 전체 목록 선언적 멱등 교체: 새 카메라는 분석 시작, 빠진 카메라는 중단 + retained 토픽 삭제 |
+| `PUT /v1/provision/vips` | **(v1.11 초안 — 협의 대기)** VIP 원장 provisioning — Admin 호출. 전체 목록 멱등 교체, photoUrl(Admin 내부 URL)에서 사진 수신·임베딩, photoUpdatedAt 변경 시 재임베딩, 빠진 인물은 매칭 제외 |
+| `GET /v1/provision/vips/status` | **(v1.11 초안)** 인물별 임베딩 상태(none/pending/ready/failed + 사유) + 중복 얼굴 쌍 — Portal registry-health 원천 |
+| `GET /v1/vips/activity` | **(v1.11 초안)** 최근 days일 목격된 인물 요약 — 명단 도달률(detectedLast7d) |
+| `PUT /v1/ingest/videos/{videoId}` · `DELETE` | **(v1.11 초안 — 협의 대기)** 업로드 비디오 전달(multipart, Admin 발급 id, 재전송=교체) → 202 processing. 삭제 멱등 |
+| `PUT /v1/ingest/images/{imageId}` · `DELETE` | **(v1.11 초안)** 업로드 이미지 전달 — 동기 200 또는 비동기 202 |
+| `GET /v1/ingest/status` | **(v1.11 초안)** 업로드 분석 상태 일괄(ids 선택) — Admin 폴링, targetCount(Analysed N faces) |
 
 지킬 규칙:
 
@@ -341,10 +347,54 @@
 - 카메라 종류는 단순 CCTV만 — AI Camera·Associated Server 필드는 없다 (도입 시 additive 확장,
   설계 확정 2026-08-27)
 
+### (v1.11 초안 — 협의 대기) VIP 원장 provisioning · 업로드 ingest — 구현 전 알아둘 것
+
+> **이 절은 초안이다.** 계약 확정 전에 모듈 담당과 아래 "협의 질문"을 먼저 맞춘다. 배경: VCA Portal(관리
+> 콘솔) 도입으로 "모듈이 모든 정보를 반환한다"는 초기 약속이 **"원장(사람이 등록하는 것)은 Admin,
+> 분석 파생은 모듈"**로 재정의되었다 (`vca` 레포 `docs/design-vca-portal.md` §1.1). 카메라(v1.9)가 첫
+> 적용이었고, v1.11은 그 패턴을 VIP와 업로드에 확장한다. **기존 조회·서빙 계약(GET /vips, /videos,
+> /images 계열)은 전부 그대로** — 원천이 provisioning/ingest로 바뀌는 것뿐이다.
+
+**A. VIP 원장 → `PUT /v1/provision/vips`** (카메라 v1.9와 같은 패턴)
+- Portal에서 등록·수정·삭제·그룹 배정이 일어날 때마다 Admin이 **전체 목록**을 내려보낸다. 새 vipId →
+  `photoUrl`에서 사진을 받아 임베딩, 빠진 vipId → 매칭 제외 + 임베딩 폐기, `photoUpdatedAt` 변경 → 재임베딩.
+  같은 본문 재전송은 결과 동일(멱등). 기동 시 Admin이 1회 push하므로 재기동으로 목록을 잃어도 수렴
+- `photoUrl`은 **Admin 내부 절대 URL** — 모듈→Admin 네트워크 도달이 전제. 받은 사진의 사본을 보관해
+  기존 `GET /vips/{vipId}/photo`를 계속 서빙한다(브라우저 계약 불변). null = 사진 없음(매칭 불가)
+- **vipId 발급 주체 = Admin** (`vip-{슬러그}-{4hex}`). MQTT detections의 `vip.vipId`와 `GET /vips`의 vipId가
+  이 값이어야 대시보드·Portal이 같은 사람을 가리킨다
+- 임베딩은 비동기여도 된다 — 상태는 `GET /v1/provision/vips/status`(none/pending/ready/failed + 사유)로
+  답하고, 같은 얼굴이 두 번 등록됐다고 판정되면 `duplicates`에 vipId 쌍을 실어 준다(합치기는 사람 결정).
+  `GET /v1/vips/activity?days=7`은 최근 목격된 인물만 요약 — Portal의 "아무도 안 걸리는 명단" 경고용
+- `Vip` 스키마 additive: type/priority/groupId/groupName/projectId/embeddingStatus. v1.11 미구현 모듈은
+  생략 가능 — 구독자(프록시·화면)는 없는 필드를 null로 취급
+
+**B. 업로드 → `PUT /v1/ingest/videos/{videoId}` · `/images/{imageId}`** (v1.3 "업로드는 타 서비스 책임"의 구체화)
+- Admin이 원본을 저장(원장)하고 **분석용 사본을 multipart로 전달**한다. **id 발급 주체 = Admin**
+  (`vid-…`/`img-…`) — 모듈은 이 id로 기존 v1.3/v1.5 조회 계약을 서빙한다. 같은 id 재전송은 교체(멱등)
+- 수신 즉시 202 + `analysisStatus: processing` → ready/failed. 상태는 `GET /v1/ingest/status`(Admin 폴링,
+  가벼운 뷰)와 기존 목록의 `analysisStatus`로. `targetCount`(검출 대상 수)가 VideoItem/UploadedImage에
+  additive로 붙는다 — Portal "Analysed 14 faces"
+- **재생 서빙(MP4 Range·트랜스코딩·썸네일·frames)은 v1.3대로 모듈 책임 유지** — 그래서 사본을 보관해야
+  한다. 원본이 Admin·모듈 양쪽에 있는 저장 중복은 v1에서 수용
+- `DELETE`는 Admin에서 삭제 시 — 사본·분석 결과·프레임 이력 폐기, 없는 id도 200
+
+**협의 질문 (확정 전 답이 필요한 것)**
+1. 사진/파일 전달 방식 — A안(현 초안): Admin URL에서 모듈이 pull(사진) / multipart push(업로드). B안: 공유
+   스토리지 경로 전달(모듈이 로컬 파일로 읽음 — 저장 중복 없음). 모듈 배치 환경(같은 호스트? 별도 서버?)에 따라 결정
+2. 임베딩 실패 사유 어휘 — no_face / multiple_faces / low_quality / unsupported_format / fetch_failed 로 충분한가
+3. 중복 판정 임계값과 `duplicates` 산출 비용 — 등록 시점 1회 비교로 충분한가(N² 회피)
+4. 업로드 용량 상한(413 MOD-4130)과 지원 컨테이너/코덱 — 화면 안내 문구에 필요
+5. 이미지 ingest를 동기(200)로 할지 비동기(202)로 할지 — 모듈 처리 시간 기준
+6. **(SPEC 제안, 별건)** 감지 이벤트에 `personType`(VIP|Tracking)·`trackingPath`를 additive로 실을 수 있는가 —
+   현재 화면이 "같은 인물 2대 이상 카메라 = Tracking"을 클라이언트에서 추론하고 있어 서버(모듈) 판정으로
+   옮기려는 것. 답에 따라 MQTT SPEC v1.7 초안 작성
+
 ## 참조 구현 (실행 가능)
 
 `vca-mqtt-broker` 레포의 [`sim/sim.mjs`](https://github.com/univs-dcun/vca-mqtt-broker/blob/main/sim/sim.mjs)가
-**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 36개 엔드포인트 전부**를
+**두 역할 모두의 참조 구현**이다 — MQTT 발행 5종 토픽과 **모듈 API 36개 엔드포인트 전부(v1.10 확정분 —
+v1.11 초안 6종은 계약 합의 후 반영)**를
 계약 그대로 구현한 Node 시뮬레이터. v1.3 비디오는 `sim/assets/`의 실제 H.264 MP4를 Range로
 서빙하며, **frames의 bbox 수식이 MP4 속 박스 움직임과 동일**해 재생 오버레이가 영상 속 박스를
 따라가는지 눈으로 검증할 수 있다 (수식·재생성 ffmpeg 명령은 sim.mjs 주석 참조). v1.2 인물 검색은 두 경로로 응답한다:

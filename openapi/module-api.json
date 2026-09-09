@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA Module API (내부 계약)",
-    "version": "0.11.0",
+    "version": "0.12.0",
     "description": "분석 모듈이 서빙하고 VCA 프록시 백엔드가 호출하는 내부 API 계약.\n\n구조: [브라우저] --/api (envelope)--> [프록시 백엔드] --이 계약--> [모듈 API]\n\n(v1.9, UV-42) provision 그룹만 예외적으로 VCA Admin 백엔드가 호출한다 — 카메라 원장은 Admin DB가 단일 원천이고, 모듈은 provisioning으로 내려받은 목록만 분석한다 (docs/design-vca-admin.md §3).\n\n설계 원칙 — 공개 계약(openapi.json)에서 envelope을 뺀 것:\n- 경로·쿼리 파라미터·데이터 스키마는 공개 계약과 동일하다. 프록시는 응답을 { success, data, message, code }로 감싸기만 한다\n- 성공 응답은 데이터 객체를 그대로 반환 (envelope 없음)\n- 오류는 HTTP 상태코드 + { code, message } 본문 (프록시가 envelope 오류로 변환해 브라우저에 전달)\n\n공통 규약 (공개 계약·MQTT SPEC과 공유):\n- 시각은 ISO-8601 UTC, 날짜 파라미터 기본값은 사이트 로컬(Asia/Singapore) 오늘\n- cameraId/locationId는 ^[a-z0-9-]{1,64}$, similarity는 0~1 실수\n- 페이징은 { content, page, size, totalElements }, page는 0부터\n\n운영 요구:\n- 조회 서빙이 프레임 분석 성능에 영향을 주지 않도록 분리할 것 (프로세스 또는 저장소 수준)\n- 프록시는 5초 타임아웃으로 호출한다 — 통상 응답은 2초 이내를 목표 (예외: POST /persons/search·POST /targets/track-on-map·POST /persons/reid-search·POST /targets/associates·POST /targets/associate-evidence·POST /targets/associate-frames는 60초(v1.2/v1.4/v1.7/v1.8/v1.10), GET /videos/{id}/content는 스트리밍이라 최초 응답까지만 적용(v1.3))\n- (v1.3) GET /videos/{videoId}/content는 HTTP Range 요청(206 Partial Content)을 반드시 지원 — 브라우저 video 시킹의 전제. 브라우저 재생 가능한 H.264 MP4 서빙은 모듈 책임(원본 코덱 상이 시 트랜스코딩 포함)\n- 이 데이터의 원천·저장·집계는 모두 모듈 책임 (MQTT 발행 값과 일관되어야 함)",
     "contact": { "name": "계약 담당: 박상훈 (백엔드/브로커)" }
   },
@@ -181,6 +181,185 @@
             "content": {
               "application/json": { "schema": { "$ref": "#/components/schemas/PageCamera" } }
             }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/provision/vips": {
+      "put": {
+        "operationId": "provisionVips",
+        "summary": "[v1.11 초안 — 협의 대기] VIP(등록 인물) 원장 provisioning (전체 교체, 멱등) — Admin 백엔드가 호출",
+        "description": "VIP 원장이 VCA Admin DB로 이관된다 (UV-54, design-vca-portal.md §6 — 카메라 v1.9와 같은 패턴). Portal에서 등록·수정·삭제·그룹 배정이 일어날 때마다 Admin이 전체 목록을 내려보낸다.\n- 선언적 전체 교체: 모듈은 이 목록과 자기 등록 인물 DB(임베딩)를 수렴시킨다 — 새 vipId는 photoUrl에서 사진을 받아 임베딩 생성, 빠진 vipId는 매칭 대상에서 제외하고 임베딩 폐기, photoUpdatedAt이 바뀐 vipId는 사진을 다시 받아 재임베딩. 같은 본문을 재전송해도 결과가 같아야 한다\n- photoUrl은 Admin 내부 URL(절대경로, 모듈→Admin 도달 필요). null이면 사진 없음 = 매칭 불가 상태(embedding none). 모듈은 받은 사진의 사본을 보관해 기존 GET /vips/{vipId}/photo를 그대로 서빙한다 — 브라우저 계약 불변\n- GET /vips는 provisioning 수신 후 이 목록 기준의 '등록 인물 뷰'가 된다(v1.9 카메라와 동일). Vip 스키마에 type/priority/groupId/groupName/projectId/embeddingStatus가 additive로 추가됨\n- 임베딩 상태·중복 판정은 GET /provision/vips/status, 최근 목격은 GET /vips/activity — Portal registry-health의 모듈 원천 3종\n- MQTT detections의 vip.vipId는 이 vipId를 그대로 쓴다 (식별자 발급 주체 = Admin)",
+        "tags": ["provision"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ProvisionVipsRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK — 수렴 시작 (accepted = 수리한 인물 수). 임베딩은 비동기 — 상태는 /provision/vips/status",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ProvisionResult" } }
+            }
+          },
+          "400": {
+            "description": "본문 형식 오류 (MOD-4001)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/provision/vips/status": {
+      "get": {
+        "operationId": "getProvisionVipsStatus",
+        "summary": "[v1.11 초안] 등록 인물 임베딩 상태 + 중복 얼굴 쌍 — Portal registry-health 원천",
+        "description": "Admin이 폴링한다(Portal VIP 화면 진입 시). embedding: none(사진 없음) | pending(수신·처리 중) | ready | failed(사진은 있으나 특징 추출 실패 — failedReason에 사유: no_face | multiple_faces | low_quality | unsupported_format 등). duplicates는 모듈이 같은 얼굴로 판정한 vipId 쌍 — 합치기는 Admin/사용자 결정(모듈은 알려만 준다). 임계값은 모듈 재량, 응답에 applied.duplicateSimilarity로 에코.",
+        "tags": ["provision"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ProvisionVipsStatus" } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/vips/activity": {
+      "get": {
+        "operationId": "getVipActivity",
+        "summary": "[v1.11 초안] 등록 인물별 최근 목격 요약 — Portal registry-health detectedLast7d 원천",
+        "description": "최근 days일(사이트 로컬 달력일, 기본 7) 안에 어느 카메라에서든 감지된 인물만 반환한다 — 응답에 없는 vipId는 미목격. 목적은 '아무도 안 걸리는 명단' 감지(명단의 도달률). 감지 본문이 아니라 요약이라 가볍다.",
+        "tags": ["vips"],
+        "parameters": [
+          { "name": "days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7, "minimum": 1, "maximum": 90 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/VipActivity" } } }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/ingest/videos/{videoId}": {
+      "parameters": [
+        { "name": "videoId", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }, "description": "Admin이 발급한 id (vid-{슬러그}-{4hex}) — Best Frame·Portal이 같은 키로 조회" }
+      ],
+      "put": {
+        "operationId": "ingestVideo",
+        "summary": "[v1.11 초안 — 협의 대기] 업로드 비디오 전달 (multipart) — Admin 백엔드가 호출. 같은 videoId 재전송은 교체(멱등)",
+        "description": "업로드 원본은 Admin이 저장(원장)하고 분석용 사본을 모듈에 전달한다 (UV-55, 로드맵 P3, design-vca-admin.md §6.3-B의 구체화).\n- 식별자 발급 주체 = Admin (카메라와 동일). 모듈은 이 videoId로 기존 v1.3/v1.5 조회 계약(GET /videos, /videos/{id}/content·thumbnail·frames·targets·bestframes)을 서빙한다 — 브라우저 계약 불변\n- 수신 즉시 202 + analysisStatus processing → 분석 완료 시 ready, 실패 시 failed(failedReason). 진행 상태는 GET /ingest/status(Admin 폴링) 또는 기존 GET /videos\n- 재생 서빙(MP4 Range·트랜스코딩·썸네일)은 v1.3대로 모듈 책임 유지 — 원본 사본 보관 필요. 저장 중복은 v1에서 수용 (협의 항목: 공유 스토리지 경로 전달로 대체 가능)\n- recordedAt은 Admin이 업로드 메타에서 읽어 전달(없으면 생략 → 모듈이 컨테이너 메타에서 추출 시도, 그래도 없으면 null)",
+        "tags": ["ingest"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file", "name"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "name": { "type": "string", "description": "업로드 파일명 (목록 표시)" },
+                  "recordedAt": { "type": "string", "format": "date-time", "description": "촬영 시작 시각 (선택)" },
+                  "projectId": { "type": "string", "description": "소속 프로젝트 (모듈은 보관만 — 조회 필터 없음)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "수신 — 분석 시작",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IngestAccepted" } } }
+          },
+          "400": {
+            "description": "파일 누락/미지원 형식 (MOD-4001)",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } } }
+          },
+          "413": {
+            "description": "용량 초과 (MOD-4130) — 상한은 모듈 재량, 응답 message에 명시",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } } }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteIngestedVideo",
+        "summary": "[v1.11 초안] 업로드 비디오 삭제 — Admin에서 삭제 시. 사본·분석 결과·프레임 이력 폐기, 없는 id도 200(멱등)",
+        "tags": ["ingest"],
+        "responses": {
+          "200": { "description": "OK" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/ingest/images/{imageId}": {
+      "parameters": [
+        { "name": "imageId", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" }, "description": "Admin이 발급한 id (img-{슬러그}-{4hex})" }
+      ],
+      "put": {
+        "operationId": "ingestImage",
+        "summary": "[v1.11 초안 — 협의 대기] 업로드 이미지 전달 (multipart) — 같은 imageId 재전송은 교체(멱등)",
+        "description": "비디오와 동일 규칙. 이미지 분석은 짧으므로 동기 완료해 200을 주어도 되고(analysisStatus ready), 비동기면 202 processing. UploadedImage에 analysisStatus/failedReason이 additive로 추가됨.",
+        "tags": ["ingest"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file", "name"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "name": { "type": "string" },
+                  "projectId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "동기 완료", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IngestAccepted" } } } },
+          "202": { "description": "수신 — 분석 중", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IngestAccepted" } } } },
+          "400": { "description": "MOD-4001", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } } } },
+          "413": { "description": "MOD-4130", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModuleApiError" } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteIngestedImage",
+        "summary": "[v1.11 초안] 업로드 이미지 삭제 — 멱등",
+        "tags": ["ingest"],
+        "responses": {
+          "200": { "description": "OK" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/ingest/status": {
+      "get": {
+        "operationId": "getIngestStatus",
+        "summary": "[v1.11 초안] 업로드 분석 상태 일괄 — Admin 폴링용 (Portal 'Uploads waiting'·'Analysed N faces')",
+        "description": "ids를 주면 그 항목만, 없으면 모듈이 보관 중인 업로드 전부. 기존 GET /videos·/images 페이징 목록으로도 알 수 있지만 상태만 가볍게 폴링하기 위한 뷰. targetCount는 분석 완료 시 검출 대상 수(Portal '14 faces').",
+        "tags": ["ingest"],
+        "parameters": [
+          { "name": "ids", "in": "query", "required": false, "schema": { "type": "string" }, "description": "쉼표 구분 videoId/imageId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/IngestStatusItem" } } } }
           },
           "default": { "$ref": "#/components/responses/Error" }
         }
@@ -1150,15 +1329,111 @@
           }
         }
       },
+      "ProvisionVip": {
+        "type": "object",
+        "description": "[v1.11 초안] Admin 원장의 등록 인물 1건",
+        "required": ["vipId", "name", "type", "priority", "projectId"],
+        "properties": {
+          "vipId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$", "description": "Admin 발급 (vip-{슬러그}-{4hex}). MQTT detections vip.vipId와 동일" },
+          "name": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "type": { "type": "string", "enum": ["vip", "tracking"], "description": "Portal Person.type — 대시보드 표시 분류. 매칭 동작 차이 없음" },
+          "priority": { "type": "string", "enum": ["normal", "high", "very_high"] },
+          "groupId": { "type": "string", "nullable": true },
+          "groupName": { "type": "string", "nullable": true, "description": "detections.groupLabel에 그대로 실어도 되는 표시명" },
+          "projectId": { "type": "string" },
+          "photoUrl": { "type": "string", "nullable": true, "description": "Admin 내부 절대 URL — 모듈이 GET으로 받아 임베딩·사본 보관. null = 사진 없음(매칭 불가)" },
+          "photoUpdatedAt": { "type": "string", "format": "date-time", "nullable": true, "description": "바뀌면 재임베딩" },
+          "registeredAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ProvisionVipsRequest": {
+        "type": "object",
+        "required": ["vips"],
+        "properties": {
+          "vips": { "type": "array", "items": { "$ref": "#/components/schemas/ProvisionVip" } }
+        }
+      },
+      "ProvisionVipsStatus": {
+        "type": "object",
+        "description": "[v1.11 초안] 임베딩 상태 + 중복 쌍 — Portal registry-health(embeddingFailed/duplicates) 원천",
+        "required": ["vips", "duplicates", "applied"],
+        "properties": {
+          "vips": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["vipId", "embedding", "updatedAt"],
+              "properties": {
+                "vipId": { "type": "string" },
+                "embedding": { "type": "string", "enum": ["none", "pending", "ready", "failed"] },
+                "failedReason": { "type": "string", "nullable": true, "description": "no_face | multiple_faces | low_quality | unsupported_format | fetch_failed" },
+                "updatedAt": { "type": "string", "format": "date-time" }
+              }
+            }
+          },
+          "duplicates": {
+            "type": "array",
+            "description": "같은 얼굴로 판정된 vipId 쌍 — 합치기는 Admin/사용자 결정",
+            "items": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 }
+          },
+          "applied": {
+            "type": "object",
+            "required": ["duplicateSimilarity"],
+            "properties": { "duplicateSimilarity": { "type": "number", "format": "double", "description": "중복 판정 임계값(0~1) 에코" } }
+          }
+        }
+      },
+      "VipActivity": {
+        "type": "object",
+        "description": "[v1.11 초안] 최근 목격 요약 — 응답에 없는 vipId는 미목격",
+        "required": ["vipId", "lastDetectedAt", "detections"],
+        "properties": {
+          "vipId": { "type": "string" },
+          "lastDetectedAt": { "type": "string", "format": "date-time" },
+          "lastCameraId": { "type": "string", "nullable": true },
+          "detections": { "type": "integer", "description": "창(days) 내 감지 수" }
+        }
+      },
+      "IngestAccepted": {
+        "type": "object",
+        "description": "[v1.11 초안] 업로드 수신 응답",
+        "required": ["id", "kind", "analysisStatus"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string", "enum": ["video", "image"] },
+          "analysisStatus": { "$ref": "#/components/schemas/VideoAnalysisStatus" }
+        }
+      },
+      "IngestStatusItem": {
+        "type": "object",
+        "description": "[v1.11 초안] 업로드 분석 상태 행",
+        "required": ["id", "kind", "analysisStatus", "updatedAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string", "enum": ["video", "image"] },
+          "analysisStatus": { "$ref": "#/components/schemas/VideoAnalysisStatus" },
+          "failedReason": { "type": "string", "nullable": true },
+          "targetCount": { "type": "integer", "nullable": true, "description": "ready일 때 검출 대상 수 (Portal 'Analysed N faces'). 미완료면 null" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
       "Vip": {
         "type": "object",
+        "description": "등록 인물 뷰. v1.11(초안)부터 원천은 Admin provisioning — type/priority/groupId/groupName/projectId/embeddingStatus는 additive(v1.11 미구현 모듈은 생략 가능)",
         "required": ["vipId", "name", "photoUrl", "registeredAt"],
         "properties": {
           "vipId": { "type": "string" },
           "name": { "type": "string" },
           "description": { "type": "string", "nullable": true },
           "photoUrl": { "type": "string", "description": "모듈 API 기준 상대경로 (/vips/{vipId}/photo). 프록시가 브라우저용 경로로 재작성한다" },
-          "registeredAt": { "type": "string", "format": "date" }
+          "registeredAt": { "type": "string", "format": "date" },
+          "type": { "type": "string", "enum": ["vip", "tracking"], "description": "(v1.11 초안) Portal Person.type" },
+          "priority": { "type": "string", "enum": ["normal", "high", "very_high"], "description": "(v1.11 초안)" },
+          "groupId": { "type": "string", "nullable": true, "description": "(v1.11 초안)" },
+          "groupName": { "type": "string", "nullable": true, "description": "(v1.11 초안)" },
+          "projectId": { "type": "string", "nullable": true, "description": "(v1.11 초안)" },
+          "embeddingStatus": { "type": "string", "enum": ["none", "pending", "ready", "failed"], "description": "(v1.11 초안) 매칭 가능 여부 — 화면은 ready 외를 경고 표시" }
         }
       },
       "DetectedCamera": {
@@ -1711,7 +1986,10 @@
           "imageUrl": { "type": "string", "description": "원본 이미지 상대경로: /images/{imageId}/content" },
           "width": { "type": "integer", "nullable": true, "description": "픽셀 폭 (미상이면 null)" },
           "height": { "type": "integer", "nullable": true },
-          "targetCount": { "type": "integer", "description": "검출 대상 수 — 목록에서 분석 결과 유무를 보여주는 용도" }
+          "targetCount": { "type": "integer", "description": "검출 대상 수 — 목록에서 분석 결과 유무를 보여주는 용도" },
+          "analysisStatus": { "$ref": "#/components/schemas/VideoAnalysisStatus", "description": "(v1.11 초안, additive) ingest 비동기 처리 시 진행 상태. 생략 = ready" },
+          "failedReason": { "type": "string", "nullable": true, "description": "(v1.11 초안) failed 사유" },
+          "projectId": { "type": "string", "nullable": true, "description": "(v1.11 초안) ingest 시 전달된 소속 프로젝트 에코" }
         }
       },
       "PageUploadedImage": {
@@ -1767,7 +2045,10 @@
           "analysisStatus": { "$ref": "#/components/schemas/VideoAnalysisStatus" },
           "durationSec": { "type": "number", "format": "double", "nullable": true, "description": "재생 길이 (초). processing 중 미상이면 null" },
           "contentUrl": { "type": "string", "description": "MP4 상대경로: /videos/{videoId}/content" },
-          "thumbnailUrl": { "type": "string", "nullable": true, "description": "썸네일 상대경로. processing 중 미생성이면 null" }
+          "thumbnailUrl": { "type": "string", "nullable": true, "description": "썸네일 상대경로. processing 중 미생성이면 null" },
+          "targetCount": { "type": "integer", "nullable": true, "description": "(v1.11 초안, additive) ready일 때 검출 대상 수 — Portal 'Analysed N faces'. 미완료면 null" },
+          "failedReason": { "type": "string", "nullable": true, "description": "(v1.11 초안) failed 사유" },
+          "projectId": { "type": "string", "nullable": true, "description": "(v1.11 초안) ingest 시 전달된 소속 프로젝트 에코" }
         }
       },
       "PageVideoItem": {
