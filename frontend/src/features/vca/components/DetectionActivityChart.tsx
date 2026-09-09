@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVcaStore, todaysDetectionHits } from "@/lib/vcaStore";
 import { sgtHour, sgtMinute } from "@/lib/time";
 import { useLiveHourlyDetections } from "../../../lib/vca-bridge/useLiveHourlyDetections";
+import { useLanguage, type AppLanguage } from "@/lib/i18n";
 
 const CHART_HEIGHT = 160;
 const FALLBACK_WIDTH = 900; // used only until the container's real width is measured
@@ -12,7 +13,10 @@ const HOUR_TICKS = [0, 4, 8, 12, 16, 20];
 // actually averaged over a few neighboring hours instead of re-plotting the same raw count.
 const MOVING_AVERAGE_WINDOW_HOURS = 3;
 
-function hourLabel(hour: number): string {
+function hourLabel(hour: number, lang: AppLanguage = "en"): string {
+  // Korean reads the 24-hour clock here rather than 오전/오후 — the axis is a dozen labels on one
+  // line, and a two-character prefix on each is what pushes them into overlapping.
+  if (lang === "ko") return `${hour}시`;
   if (hour === 0) return "12AM";
   if (hour === 12) return "12PM";
   return hour < 12 ? `${hour}AM` : `${hour - 12}PM`;
@@ -75,7 +79,15 @@ const GRADIENT_STOPS: [string, string][] = [["0%", "#dbb7ff"], ["50.5%", "#0047f
 const DOT_COLOR = "#0047ff";
 const DOT_RADIUS_PX = 2.5;
 
-const ALL_CAMERAS_LABEL = "All cameras";
+// See the per-file pattern note in lib/i18n.ts.
+/** Exported because the collapsed pill on the Dashboard opens this panel — the button and the
+ *  panel it opens have to carry the same name, or they read as two different things. */
+export const DETECTION_CHART_TITLE = { en: "VIP detections today", ko: "오늘 VIP 검출" } as const;
+
+const T = {
+  en: { allCameras: "All cameras", title: DETECTION_CHART_TITLE.en, minimize: "Minimize chart" },
+  ko: { allCameras: "전체 카메라", title: DETECTION_CHART_TITLE.ko, minimize: "차트 접기" },
+} as const;
 // null = citywide totals (no camera filter) — kept distinct from a real camera's `id` so "no
 // filter" can never collide with an actual id string.
 type CameraFilter = string | null;
@@ -97,12 +109,14 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
     return () => observer.disconnect();
   }, []);
 
+  const [lang] = useLanguage();
+  const t = T[lang];
   const cameras = useVcaStore(s => s.cameras);
   const events = useVcaStore(s => s.events);
   const [selectedCameraId, setSelectedCameraId] = useState<CameraFilter>(null);
   const selectedCameraLabel = selectedCameraId === null
-    ? ALL_CAMERAS_LABEL
-    : cameras.find(c => c.id === selectedCameraId)?.name ?? ALL_CAMERAS_LABEL;
+    ? t.allCameras
+    : cameras.find(c => c.id === selectedCameraId)?.name ?? t.allCameras;
   const [cameraPickerOpen, setCameraPickerOpen] = useState(false);
   // 데이터 연결: Detection Topology(REST) 라이브 시간대별 집계 — 모듈 API가 살아 있으면
   // 막대/추세선의 시간대별 카운트는 라이브 값을 쓰고, 아니면 스토어 파생 카운트로 폴백
@@ -206,7 +220,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
           <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.32px", whiteSpace: "nowrap" }}>
-            VIP detections today
+            {t.title}
           </span>
 
           <div style={{ position: "relative", flexShrink: 0 }} onClick={e => e.stopPropagation()}>
@@ -237,7 +251,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
                 border: "1px solid var(--gray-200)", borderRadius: "8px", boxShadow: "0 8px 20px rgba(14,22,42,0.12)",
                 zIndex: 10, overflow: "hidden",
               }}>
-                {([{ id: null as CameraFilter, name: ALL_CAMERAS_LABEL }, ...cameras.map(c => ({ id: c.id as CameraFilter, name: c.name }))]).map(opt => (
+                {([{ id: null as CameraFilter, name: t.allCameras }, ...cameras.map(c => ({ id: c.id as CameraFilter, name: c.name }))]).map(opt => (
                   <button
                     key={opt.id ?? "all"}
                     onClick={() => { setSelectedCameraId(opt.id); setCameraPickerOpen(false); }}
@@ -260,7 +274,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
             the corner — no longer needs the divider that used to separate it from the filter's
             own chevron right next to it. */}
         <span
-          aria-label="Minimize chart"
+          aria-label={t.minimize}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center",
             width: "28px", height: "28px", flexShrink: 0,
@@ -333,7 +347,7 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
       <div style={{ display: "flex", justifyContent: "space-between", paddingLeft: "24px" }}>
         {HOUR_TICKS.map(hour => (
           <span key={hour} style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)" }}>
-            {hourLabel(hour)}
+            {hourLabel(hour, lang)}
           </span>
         ))}
       </div>

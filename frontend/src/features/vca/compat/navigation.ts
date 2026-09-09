@@ -30,3 +30,14 @@ export function useSearchParams(): URLSearchParams {
   const [params] = useRouterSearchParams()
   return params
 }
+
+/**
+ * next/navigation의 redirect() — 서버 컴포넌트/렌더 중 호출용 API라 SPA에는 대응물이 없다.
+ * 반입 화면(signup: selfSignup=false면 /login)이 렌더 중 호출하므로 전체 페이지 이동으로 흉내낸다.
+ * 현재 렌더는 계속 진행되지만 곧 떠나므로 잔상은 한 프레임 이내.
+ */
+export function redirect(url: string): void {
+  if (typeof window !== 'undefined' && window.location.pathname !== url) {
+    window.location.replace(url)
+  }
+}

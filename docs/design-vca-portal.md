@@ -215,7 +215,7 @@ Admin envelope 그대로.
 | W0 | UV-49 | 이 문서 + 티켓 분할 + 기획 확인 회신 | — |
 | **W1** | UV-50 | 팀/프로젝트 · 계정 확장 · **Admin API 세션·역할 게이트** · 감사 로그 · 프록시 `/api/portal` 패스스루 · 로그인 status 검사 | 없음 — 선행 착수 |
 | W2 | UV-51 | 인증 v3: 에러 계약 7종·사번 로그인·잠금·로스터/등록 코드·초대 토큰·임시 비밀번호 TTL·self-signup 거부 | W1 |
-| W3 | UV-52 | 화면 반입(portal 포함) + 인증·Portal API 배선 + 스탠드인 4곳 세션 교체(fail-closed) | W1·W2 |
+| W3 | UV-52 | 화면 반입(portal 포함) + 인증·Portal API 배선 + 스탠드인 4곳 세션 교체(fail-closed) — **1차 완료 2026-09-09**(스냅샷 portal-handoff-v1 반입, Portal 6탭 라이브, register/forgot/request-access 화면 배선은 2차) | W1·W2 |
 | W4 | UV-53 | 카메라 확장 · 상태 이력(EMQX 구독) · 연결/안정도 집계 · 서버 레지스트리+헬스체크 · 라이선스 | W1 |
 | W5 | UV-54 | VIP 원장 이관 + provisioning + registry-health | 모듈 협의 |
 | W6 | UV-55 | 업로드/ingest (P3) | 모듈 협의 |
@@ -231,6 +231,16 @@ Admin envelope 그대로.
   **호출부 유지·본문만 세션 응답으로 교체**, 기본값은 거부(fail-closed)
 - `demo=` 쿼리 파라미터·`generateTemporaryPassword()`·`issueInviteToken()` 등 목업 전용 코드는 배선 시 삭제(fallback으로 남기지 말 것 — 기획자 지시)
 - `authConfig`는 `NEXT_PUBLIC_*` → Vite `define` 치환으로 배선
+
+### 8.1 W3 1차 실행 기록 (2026-09-09)
+
+- 스냅샷 동결: `import/frontend-ui-20260909` + 태그 `import-snapshot-20260909`(기획자 원본 레이아웃, 0827 태그 위 1커밋). 3-way는 `git merge-file`
+  (base 0827 / theirs 0909 / ours main) — 충돌 45 hunk는 "우리 주입 + 기획 i18n" 양쪽 유지. 다음 반입은 0909 태그를 base로.
+- 스토어 채우기 방식 채택: 화면은 Zustand만 보므로 `lib/vca-bridge/portalLive.ts`가 목록 7종+집계를 setState하고 변경 액션을 API로 교체.
+  화면 파일 수정은 `usePortalLive()` 1줄 ×2, `await` 7곳, memo deps 1곳으로 한정.
+- 스탠드인 4곳: 세션 스냅샷(`session.ts`) 기반, 세션 없음 = 거부, 서버 미가동만 mock. `/portal`은 RequireAuth+RequirePortal.
+- 남은 것: VIP(W5)·업로드(W6)는 mock, register/forgot-password/request-access 배선(UV-51/56 API는 있음), 앱 전용 계정의 프로젝트 이름
+  조회(포털 API는 403 — `/auth/me`에 `projects[{id,name}]` 추가 검토), 시드 owner 이름 "John Doe"(SIGNED_IN_USER 값) 정리.
 
 ## 9. 기획 확인 항목
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Search } from "lucide-react";
+import { useVcaStore, type UploadedMedia } from "@/lib/vcaStore";
 import BestFrameDetailPage from "./BestFrameDetailPage";
 import { useToast } from "./Toast";
 import type { DetType, MonitorState, Camera, Detection, CamData, HUDState } from "@/types/detection";
@@ -16,6 +17,93 @@ import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { VIP_SIMULATION_CAMERAS } from "@/lib/vcaStore";
 import { recentSgtClockTime, sgtHour, sgtMinute } from "@/lib/time";
 import SidebarToggleIcon from "./SidebarToggleIcon";
+
+import { useLanguage } from "@/lib/i18n";
+
+// See the per-file pattern note in lib/i18n.ts. Camera codes ("CAM_WestGate_BS1"), site names and
+// the seeded detection groups are the install's own data and stay as they are.
+const T = {
+  en: {
+    filterAll: "All",
+    close: "Close",
+    liveSnapshot: "LIVE SNAPSHOT",
+    liveSnapshotHint: "Frame the camera just captured",
+    noDbMatch: "NO DB MATCH",
+    noDbMatchHint: "No match for this face in the enrolled database",
+    enrolledDb: "ENROLLED DB",
+    enrolledDbHint: "Reference photo from the enrolled database",
+    liveCamera: "Live camera",
+    typeNetwork: "Network",
+    typeFile: "File",
+    noDetections: "No detections",
+    unknownTarget: "Unknown target",
+    detail: (n: number) => `DETAIL ${n}`,
+    group: "GROUP",
+    camera: "CAMERA",
+    trackOnMap: "Track on Map",
+    analyzeFrame: "Analyze Frame",
+    active: (n: number) => `${n} Active`,
+    expandAndSearch: "Expand sidebar and search cameras",
+    showLiveList: "Show live camera list",
+    showVideoList: "Show video list",
+    showImageList: "Show image list",
+    searchCameras: "Search cameras",
+    normalNetwork: "Normal network",
+    videoList: "Video list",
+    imageList: "Image list",
+    expandSidebar: "Expand sidebar",
+    collapseSidebar: "Collapse sidebar",
+    selectCamera: "Select a camera",
+    liveFeed: "Live Feed",
+    awaitingCamera: "Awaiting camera",
+    noMatchTitle: "No matching camera",
+    noMatchDesc: (place: string) => `No Best Frame camera is set up yet for "${place}".`,
+    unavailableTitle: "Camera unavailable",
+    unavailableDesc: (name: string) => `${name} is offline and can't be added to the view.`,
+    limitTitle: "Camera limit reached",
+    limitDesc: (max: number) => `You can only view up to ${max} cameras at once.`,
+  },
+  ko: {
+    filterAll: "전체",
+    close: "닫기",
+    liveSnapshot: "실시간 검출",
+    liveSnapshotHint: "카메라가 방금 잡은 프레임입니다",
+    noDbMatch: "등록 DB 없음",
+    noDbMatchHint: "이 얼굴은 등록 데이터베이스에서 찾을 수 없습니다",
+    enrolledDb: "등록 DB",
+    enrolledDbHint: "등록 데이터베이스의 기준 사진입니다",
+    liveCamera: "실시간 카메라",
+    typeNetwork: "네트워크",
+    typeFile: "파일",
+    noDetections: "검출 없음",
+    unknownTarget: "미확인 대상",
+    detail: (n: number) => `속성 ${n}`,
+    group: "그룹",
+    camera: "카메라",
+    trackOnMap: "지도에서 추적",
+    analyzeFrame: "프레임 분석",
+    active: (n: number) => `${n}대 사용 중`,
+    expandAndSearch: "사이드바 펼쳐 카메라 검색",
+    showLiveList: "실시간 카메라 목록 보기",
+    showVideoList: "영상 목록 보기",
+    showImageList: "이미지 목록 보기",
+    searchCameras: "카메라 검색",
+    normalNetwork: "네트워크 카메라",
+    videoList: "영상 목록",
+    imageList: "이미지 목록",
+    expandSidebar: "사이드바 펼치기",
+    collapseSidebar: "사이드바 접기",
+    selectCamera: "카메라를 선택해주세요",
+    liveFeed: "실시간 영상",
+    awaitingCamera: "카메라 대기 중",
+    noMatchTitle: "일치하는 카메라가 없습니다",
+    noMatchDesc: (place: string) => `"${place}"에 설정된 베스트 프레임 카메라가 아직 없습니다.`,
+    unavailableTitle: "카메라를 쓸 수 없습니다",
+    unavailableDesc: (name: string) => `${name}이(가) 중단 상태여서 화면에 추가할 수 없습니다.`,
+    limitTitle: "카메라 개수 상한",
+    limitDesc: (max: number) => `한 번에 최대 ${max}대까지만 볼 수 있습니다.`,
+  },
+} as const;
 
 const BORDER = "1px solid var(--gray-200)";
 
@@ -101,11 +189,7 @@ export const PURPLE_FILTER = "invert(28%) sepia(64%) saturate(3086%) hue-rotate(
 // they're both saved footage as opposed to a live feed; the Video list / Image list sections
 // still render as their own distinct groups underneath it.
 type CamTypeFilter = "All" | "Network" | "File";
-const CAM_TYPE_FILTERS: { id: CamTypeFilter; label: string }[] = [
-  { id:"All",     label:"All" },
-  { id:"Network", label:"Network" },
-  { id:"File",    label:"File" },
-];
+const CAM_TYPE_FILTERS: CamTypeFilter[] = ["All", "Network", "File"];
 
 /* ── Camera data ──────────────────────────────────────────── */
 const BG = [
@@ -236,14 +320,25 @@ export const NORMAL_CAMS_INIT: Camera[] = [
     monitor: (cam.status === "online" ? "normal" : "alert") as MonitorState,
   })),
 ];
-export const VIDEO_CAMS_INIT: Camera[] = [
-  { id:"v1", name:"BS1", checked:false, monitor:"normal" },
-  { id:"v2", name:"BS1", checked:false, monitor:"normal" },
-  { id:"v3", name:"BS1", checked:false, monitor:"normal" },
-];
-export const IMAGE_CAMS_INIT: Camera[] = [
-  { id:"i1", name:"BS1", checked:false, monitor:"normal" },
-];
+/**
+ * The sidebar's Video list / Image list, built from the project's uploads.
+ *
+ * These used to be two hardcoded arrays (v1-v3, i1, all named "BS1") with no way to add to them, so
+ * anything uploaded in Portal could never show up here — two id spaces that never met, the failure
+ * Live Monitoring and Re-ID already hit once. The store now holds one list; Portal's Input Sources
+ * tab writes it and this reads it, which is what makes an upload's id the id CAM_DATA is keyed by.
+ *
+ * Only analysed uploads are listed. A file still queued has no detections, and a row that opens
+ * onto nothing is worse than no row.
+ *
+ * `checked` is carried over from the previous list rather than reset, so adding one upload does not
+ * clear the selection the operator had built up.
+ */
+function uploadsToCams(uploads: UploadedMedia[], kind: "video" | "image", prev: Camera[]): Camera[] {
+  return uploads
+    .filter(u => u.kind === kind && u.status === "done")
+    .map(u => ({ id: u.id, name: u.fileName, checked: prev.find(c => c.id === u.id)?.checked ?? false, monitor: "normal" as const }));
+}
 
 /* ── Checkbox icon ────────────────────────────────────────── */
 function CheckboxIcon({ checked }: { checked: boolean }) {
@@ -331,6 +426,8 @@ function CameraCard({
   style?: React.CSSProperties;
   sidePanelOnHover?: boolean;
 }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   // Newest first — "time" is an "HH:MM:SS" string within the same day, so a plain descending
   // string sort already gives correct chronological order without needing to parse it.
   const dets = (filterType === "All" ? data.detections : data.detections.filter(d => d.type === filterType))
@@ -439,7 +536,7 @@ function CameraCard({
         {/* List */}
         <div style={{ flex:1, overflowY:"auto" }}>
           {dets.length === 0 ? (
-            <div style={{ padding:"20px", textAlign:"center", color:"var(--gray-400)", fontSize:"11px" }}>No detections</div>
+            <div style={{ padding:"20px", textAlign:"center", color:"var(--gray-400)", fontSize:"11px" }}>{t.noDetections}</div>
           ) : dets.map((det, i) => {
             // 라이브 감지는 실제 스냅샷 크롭(vca-bridge 공급), mock은 기존 아바타
             const avatarSrc = det.snapshotUrl ?? (det.type === "Vehicle" ? CAR_IMG : AVATAR[i % AVATAR.length]);
@@ -503,6 +600,8 @@ function CameraCard({
 
 /* ── HUD popup ─────────────────────────────────────────────────── */
 function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState; onClose: () => void; onAnalyze: () => void; onTrackOnMap?: () => void }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   useEscapeKey(onClose);
   const { det } = hud;
   const isUnknown = det.type === "Unknown";
@@ -532,7 +631,7 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
             </div>
           )}
         </div>
-        <button onClick={onClose} aria-label="Close" style={{ background:"none", border:"none", cursor:"pointer", color:"var(--gray-500)", padding:0, display:"flex" }}>
+        <button onClick={onClose} aria-label={t.close} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--gray-500)", padding:0, display:"flex" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M4 4L12 12" stroke="var(--gray-500)" strokeWidth="1.5" strokeLinecap="round"/>
             <path d="M12 4L4 12" stroke="var(--gray-500)" strokeWidth="1.5" strokeLinecap="round"/>
@@ -545,7 +644,7 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", width:"96px", flexShrink:0 }}>
           {/* 라이브 감지는 실제 스냅샷 크롭(vca-bridge 공급), mock은 기존 아바타 */}
           <img src={det.snapshotUrl ?? (det.type === "Vehicle" ? CAR_IMG : AVATAR[0])} alt="" style={{ width:"100%", aspectRatio: det.type === "Vehicle" ? "1/1" : "77/177", objectFit:"cover", borderRadius:"8px", display:"block" }} />
-          <span title="Frame the camera just captured" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", cursor:"help" }}>LIVE SNAPSHOT</span>
+          <span title={t.liveSnapshotHint} style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", cursor:"help" }}>{t.liveSnapshot}</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", flex:1, minWidth:0 }}>
           {/* 라이브 등록 인물(VIP·Staff)은 실제 등록 사진 — 미매칭은 mock의 NO DB MATCH 분기 유지 */}
@@ -553,12 +652,12 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
             <img src={det.enrolledPhotoUrl} alt="" style={{ width:"100%", aspectRatio:"1/1", objectFit:"cover", borderRadius:"10px", display:"block" }} />
           ) : isUnknown ? (
             <div style={{ width:"100%", aspectRatio:"1/1", borderRadius:"10px", border:"2px dashed var(--warning-500)", backgroundColor:"var(--warning-100)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span title="No match for this face in the enrolled database" style={{ fontSize:"10px", fontWeight:600, color:"var(--warning-500)", textAlign:"center", cursor:"help" }}>NO DB MATCH</span>
+              <span title={t.noDbMatchHint} style={{ fontSize:"10px", fontWeight:600, color:"var(--warning-500)", textAlign:"center", cursor:"help" }}>{t.noDbMatch}</span>
             </div>
           ) : (
             <img src={det.type === "Vehicle" ? CAR_IMG : AVATAR[0]} alt="" style={{ width:"100%", aspectRatio:"1/1", objectFit:"cover", borderRadius:"10px", display:"block", filter:"sepia(0.2)" }} />
           )}
-          <span title="Reference photo from the enrolled database" style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", cursor:"help" }}>ENROLLED DB</span>
+          <span title={t.enrolledDbHint} style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", cursor:"help" }}>{t.enrolledDb}</span>
         </div>
       </div>
 
@@ -567,7 +666,7 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
         <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
           <FilterIcon type={det.type} color={c} size={20} />
           <span style={{ fontSize:"18px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.36px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-            {isUnknown ? "Unknown target" : det.name}
+            {isUnknown ? t.unknownTarget : det.name}
           </span>
         </div>
         <p style={{ fontSize:"13px", fontWeight:400, color:"var(--gray-600)" }}>{hud.location} &nbsp;•&nbsp; {det.time}</p>
@@ -577,17 +676,17 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
       <div style={{ backgroundColor:"var(--gray-50)", borderRadius:"16px", padding:"14px 16px", display:"flex", flexDirection:"column", gap:"8px" }}>
         {attributes.length > 0 ? attributes.map((attr, i) => (
           <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>DETAIL {i + 1}</span>
+            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>{t.detail(i + 1)}</span>
             <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{attr}</span>
           </div>
         )) : (
           <>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>GROUP</span>
+              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>{t.group}</span>
               <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{det.group}</span>
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>CAMERA</span>
+              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>{t.camera}</span>
               <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)" }}>{hud.camLabel}</span>
             </div>
           </>
@@ -601,7 +700,7 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
             <path d="M16.6667 8.33333C16.6667 13.3333 10 18.3333 10 18.3333C10 18.3333 3.33333 13.3333 3.33333 8.33333C3.33333 6.56522 4.03571 4.86953 5.28596 3.61929C6.5362 2.36905 8.23189 1.66667 10 1.66667C11.7681 1.66667 13.4638 2.36905 14.714 3.61929C15.9643 4.86953 16.6667 6.56522 16.6667 8.33333Z" stroke="var(--gray-900)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M10 10.8333C11.3807 10.8333 12.5 9.71404 12.5 8.33333C12.5 6.95262 11.3807 5.83333 10 5.83333C8.61929 5.83333 7.5 6.95262 7.5 8.33333C7.5 9.71404 8.61929 10.8333 10 10.8333Z" stroke="var(--gray-900)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          Track on Map
+          {t.trackOnMap}
         </button>
         <button onClick={onAnalyze} style={{ flex:1, padding:"12px 0", borderRadius:"12px", border:"none", backgroundColor:"var(--gray-900)", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -614,7 +713,7 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
             <path d="M15.75 12H12.75" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M8.25 2.25H6.75" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          Analyze Frame
+          {t.analyzeFrame}
         </button>
       </div>
     </div>
@@ -690,13 +789,13 @@ function Chevron({ expanded }: { expanded: boolean }) {
   );
 }
 
-function SidebarSection({ label, count, badge, expanded, onToggle }: { label:string; count?:number; badge?:number; expanded:boolean; onToggle:()=>void }) {
+function SidebarSection({ label, count, badge, expanded, onToggle, activeLabel }: { label:string; count?:number; badge?:number; expanded:boolean; onToggle:()=>void; activeLabel?: (n: number) => string }) {
   return (
     <button onClick={onToggle} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 12px", width:"100%", border:"none", background:"none", cursor:"pointer" }}>
       <Chevron expanded={expanded} />
       <FolderIcon open={expanded} />
       <span style={{ flex:1, fontSize:"14px", fontWeight:800, color:"var(--gray-800)", letterSpacing:"-0.28px", whiteSpace:"nowrap", textAlign:"left" }}>{label}</span>
-      {count !== undefined && <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", flexShrink:0 }}>{count} Active</span>}
+      {count !== undefined && <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", flexShrink:0 }}>{activeLabel ? activeLabel(count) : count}</span>}
       {badge !== undefined && (
         <div style={{ backgroundColor:"var(--gray-100)", borderRadius:"999px", minWidth:"18px", height:"18px", padding:"0 4px", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
           <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-700)" }}>{badge}</span>
@@ -759,9 +858,29 @@ function getGridLayout(n: number): { cols: number; rows: number; sidePanelOnHove
 
 /* ── Main component ──────────────────────────────────────────── */
 export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedmapTrace, analyzeFrameLocation, analyzeFrameAt, analyzeFrameEntryMs, onAnalyzeFrameConsumed }: { focusLocation?: string | null; onFocusConsumed?: () => void; onGoRedmapTrace?: (name: string, ref?: TrackTargetRef) => void; analyzeFrameLocation?: string | null; analyzeFrameAt?: { date: string; time: string } | null; analyzeFrameEntryMs?: number | null; onAnalyzeFrameConsumed?: () => void } = {}) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [normalCams, setNormalCams] = useState<Camera[]>(NORMAL_CAMS_INIT);
-  const [videoCams,  setVideoCams]  = useState<Camera[]>(VIDEO_CAMS_INIT);
-  const [imageCams,  setImageCams]  = useState<Camera[]>(IMAGE_CAMS_INIT);
+  // The File lists are the project's uploads, from the store — Portal's Input Sources tab is what
+  // adds to them. They were two hardcoded arrays here, so anything uploaded in Portal could never
+  // appear on this page: two id spaces that never met, the same failure Live Monitoring and Re-ID
+  // hit once already.
+  //
+  // Still local state, because `checked` is this page's business and not the store's. The effect
+  // below reconciles the list when an upload is added or removed and keeps whatever was ticked.
+  const storeUploads = useVcaStore(s => s.uploads);
+  const [videoCams,  setVideoCams]  = useState<Camera[]>(() => uploadsToCams(storeUploads, "video", []));
+  const [imageCams,  setImageCams]  = useState<Camera[]>(() => uploadsToCams(storeUploads, "image", []));
+
+  // Reconciled during render against the previous store value, not from an effect — an effect
+  // paints the stale list once before correcting it, and the lint rule reads the synchronous
+  // setState inside one as cascading renders. Same idiom ProjectServerTab uses for its own resets.
+  const [prevUploads, setPrevUploads] = useState(storeUploads);
+  if (prevUploads !== storeUploads) {
+    setPrevUploads(storeUploads);
+    setVideoCams(prev => uploadsToCams(storeUploads, "video", prev));
+    setImageCams(prev => uploadsToCams(storeUploads, "image", prev));
+  }
   const [camSearch, setCamSearch] = useState("");
   const [camTypeFilter, setCamTypeFilter] = useState<CamTypeFilter>("All");
   const [expanded, setExpanded] = useState({ normal:true, video:true, image:true });
@@ -972,7 +1091,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         analyzeSource,
       });
     } else {
-      showToast({ variant:"warning", title:"No matching camera", desc:`No Best Frame camera is set up yet for "${analyzeFrameLocation}".` });
+      showToast({ variant:"warning", title: t.noMatchTitle, desc: t.noMatchDesc(analyzeFrameLocation) });
     }
     onAnalyzeFrameConsumed?.();
     // 함수류(camDataFor 등)는 렌더마다 새 identity지만 ref 가드로 재실행이 멱등이라 deps에서 제외 —
@@ -1005,11 +1124,11 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     const cam = list.find(c => c.id === id);
     if (!cam) return;
     if (cam.monitor === "alert") {
-      showToast({ variant:"error", title:"Camera unavailable", desc:`${cam.name} is offline and can't be added to the view.` });
+      showToast({ variant:"error", title: t.unavailableTitle, desc: t.unavailableDesc(cam.name) });
       return;
     }
     if (!cam.checked && gridCams.length >= MAX_GRID_CAMS) {
-      showToast({ variant:"warning", title:"Camera limit reached", desc:`You can only view up to ${MAX_GRID_CAMS} cameras at once.` });
+      showToast({ variant:"warning", title: t.limitTitle, desc: t.limitDesc(MAX_GRID_CAMS) });
       return;
     }
     setter(prev => prev.map(c => c.id === id ? { ...c, checked: !c.checked } : c));
@@ -1192,11 +1311,13 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     );
   }
 
+  // "VIP" and "Vehicle" are the detection classes the model reports and read the same in both
+  // languages here; only "All" and "Unknown" get translated.
   const FILTER_CFG: { id: DetType | "All"; label: string; color?: string }[] = [
-    { id:"All",     label:"All" },
-    { id:"VIP",     label:"VIP",     color: DET_COLOR.VIP },
-    { id:"Vehicle", label:"Vehicle", color: DET_COLOR.Vehicle },
-    { id:"Unknown", label:"Unknown", color: DET_COLOR.Unknown },
+    { id:"All",     label: t.filterAll },
+    { id:"VIP",     label:"VIP",              color: DET_COLOR.VIP },
+    { id:"Vehicle", label: lang === "ko" ? "차량" : "Vehicle", color: DET_COLOR.Vehicle },
+    { id:"Unknown", label: lang === "ko" ? "미확인" : "Unknown", color: DET_COLOR.Unknown },
   ];
 
   return (
@@ -1207,28 +1328,28 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         <div style={{ width:"64px", flexShrink:0, backgroundColor:"white", borderRight:BORDER, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:"16px", paddingBottom:"16px", gap:"10px" }}>
           <button
             onClick={() => { setCollapsed(false); wantsSearchFocusRef.current = true; }}
-            aria-label="Expand sidebar and search cameras"
+            aria-label={t.expandAndSearch}
             style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex" }}
           >
             <CollapsedIcon type="search" />
           </button>
           <button
             onClick={() => { setCollapsed(false); setCamTypeFilter("Network"); setExpanded(p => ({ ...p, normal:true })); }}
-            aria-label="Show live camera list"
+            aria-label={t.showLiveList}
             style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex" }}
           >
             <CollapsedIcon type="camera" badge={activeCams.length} purple={activeCams.length > 0} />
           </button>
           <button
             onClick={() => { setCollapsed(false); setCamTypeFilter("File"); setExpanded(p => ({ ...p, video:true })); }}
-            aria-label="Show video list"
+            aria-label={t.showVideoList}
             style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex" }}
           >
             <CollapsedIcon type="video"  badge={checkedVideoCams.length} purple={checkedVideoCams.length > 0} />
           </button>
           <button
             onClick={() => { setCollapsed(false); setCamTypeFilter("File"); setExpanded(p => ({ ...p, image:true })); }}
-            aria-label="Show image list"
+            aria-label={t.showImageList}
             style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex" }}
           >
             <CollapsedIcon type="image"  badge={checkedImageCams.length} purple={checkedImageCams.length > 0} />
@@ -1240,7 +1361,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
       {!collapsed && (
         <div style={{ width:"240px", flexShrink:0, backgroundColor:"white", display:"flex", flexDirection:"column", overflow:"hidden" }}>
           <div style={{ padding:"24px 12px 10px" }}>
-            <p style={{ fontSize:"20px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.4px" }}>Live camera</p>
+            <p style={{ fontSize:"20px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.4px" }}>{t.liveCamera}</p>
           </div>
           <div style={{ padding:"0 12px 10px" }}>
             <div style={{ display:"flex", alignItems:"center", backgroundColor:"var(--gray-100)", borderRadius:"8px", height:"36px", padding:"0 14px", gap:"8px" }}>
@@ -1248,23 +1369,23 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                 ref={camSearchInputRef}
                 value={camSearch}
                 onChange={e => setCamSearch(e.target.value)}
-                placeholder="Enter source"
+                placeholder={t.searchCameras}
                 style={{ flex:1, border:"none", background:"none", outline:"none", fontSize:"13px", color:"var(--gray-900)" }}
               />
               <Search size={14} color="var(--gray-600)" />
             </div>
           </div>
           <div style={{ padding:"0 12px 10px", display:"flex", gap:"6px" }}>
-            {CAM_TYPE_FILTERS.map(f => {
-              const active = camTypeFilter === f.id;
+            {CAM_TYPE_FILTERS.map(id => {
+              const active = camTypeFilter === id;
               return (
-                <button key={f.id} onClick={() => setCamTypeFilter(f.id)} style={{
+                <button key={id} onClick={() => setCamTypeFilter(id)} style={{
                   padding:"6px 14px", borderRadius:"999px", cursor:"pointer",
                   border: active ? "1px solid var(--gray-700)" : "1px solid var(--gray-300)",
                   backgroundColor: active ? "var(--gray-100)" : "white",
                   color:"var(--gray-700)", fontSize:"12px", fontWeight: active ? 700 : 600,
                 }}>
-                  {f.label}
+                  {id === "All" ? t.filterAll : id === "Network" ? t.typeNetwork : t.typeFile}
                 </button>
               );
             })}
@@ -1272,7 +1393,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
           <div style={{ flex:1, overflowY:"auto", minHeight:0 }}>
             {showNormalSection && (
               <>
-                <SidebarSection label="Normal network" count={activeCams.length} expanded={expanded.normal} onToggle={() => setExpanded(p => ({ ...p, normal:!p.normal }))} />
+                <SidebarSection label={t.normalNetwork} count={activeCams.length} activeLabel={t.active} expanded={expanded.normal} onToggle={() => setExpanded(p => ({ ...p, normal:!p.normal }))} />
                 {expanded.normal && visibleNormalCams.map(c => (
                   <CameraItem key={c.id} cam={c} type="camera" onToggle={() => toggle(normalCams, setNormalCams, c.id)} disabled={atGridCap} activityRank={activityRank(c)} />
                 ))}
@@ -1280,7 +1401,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
             )}
             {showVideoSection && (
               <>
-                <SidebarSection label="Video list" badge={videoCams.length} expanded={expanded.video} onToggle={() => setExpanded(p => ({ ...p, video:!p.video }))} />
+                <SidebarSection label={t.videoList} badge={videoCams.length} expanded={expanded.video} onToggle={() => setExpanded(p => ({ ...p, video:!p.video }))} />
                 {expanded.video && visibleVideoCams.map(c => (
                   <CameraItem key={c.id} cam={c} type="video" onToggle={() => openFileDetail(c)} />
                 ))}
@@ -1288,7 +1409,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
             )}
             {showImageSection && (
               <>
-                <SidebarSection label="Image list" badge={imageCams.length} expanded={expanded.image} onToggle={() => setExpanded(p => ({ ...p, image:!p.image }))} />
+                <SidebarSection label={t.imageList} badge={imageCams.length} expanded={expanded.image} onToggle={() => setExpanded(p => ({ ...p, image:!p.image }))} />
                 {expanded.image && visibleImageCams.map(c => (
                   <CameraItem key={c.id} cam={c} type="image" onToggle={() => openFileDetail(c)} />
                 ))}
@@ -1316,7 +1437,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
           onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}
           role="button"
           tabIndex={0}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? t.expandSidebar : t.collapseSidebar}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setCollapsed(!collapsed); } }}
           style={{
             position:"absolute", top:"50%", left:"-3px", transform:"translateY(-50%)",
@@ -1381,7 +1502,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         {gridCams.length === 0 ? (
           <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", color:"var(--gray-400)" }}>
             <BulletCameraIcon />
-            <span style={{ fontSize:"14px", fontWeight:600 }}>Select a camera</span>
+            <span style={{ fontSize:"14px", fontWeight:600 }}>{t.selectCamera}</span>
           </div>
         ) : (() => {
           const layout = getGridLayout(gridCams.length);
@@ -1399,7 +1520,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                 // "CAM_Unknown • Unknown" DEFAULT_DATA fallback.
                 // 라이브(카메라→미디어) 우선 조회는 camDataFor 경유 (백엔드 주입 유지)
                 const camData = camDataFor(cam.id) ?? (cam.id.startsWith("focus-")
-                  ? { ...DEFAULT_DATA, camLabel: "Live Feed", location: cam.name }
+                  ? { ...DEFAULT_DATA, camLabel: t.liveFeed, location: cam.name }
                   : DEFAULT_DATA);
                 // A VIP hit on a gridded tile used to also flash the whole tile's edge in purple
                 // (vca-cam-alert-glow) — surfacing "VIP here" a different way now (the pulsing
@@ -1432,7 +1553,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
               {Array.from({ length: emptySlots }).map((_, i) => (
                 <div key={`empty-${i}`} style={{ backgroundColor:"var(--gray-50)", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:"6px", color:"var(--gray-300)" }}>
                   <BulletCameraIcon />
-                  <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Awaiting camera</span>
+                  <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>{t.awaitingCamera}</span>
                 </div>
               ))}
             </div>

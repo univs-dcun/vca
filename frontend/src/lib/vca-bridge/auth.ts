@@ -4,8 +4,10 @@
 // 결과 해석만 담당한다. 다른 브리지와 같은 폴백 규칙: 인증 서버가 응답하지 않으면
 // (기동 안 됨 — 프록시가 502 VCA-5021/504 VCA-5041로 구분해 준다) 'unavailable'을
 // 반환하고, 화면은 기존 mock 흐름을 유지한다. 자격증명 오류(ADM-4010 등)는 실패다.
-import { useEffect, useState } from 'react'
-import { changePassword, getMe, login, logout, setupPassword, verifyPassword } from '../../api/generated/auth/auth'
+import { useEffect } from 'react'
+import { changePassword, getMe, login, logout, redeemInvite, setupPassword, verifyPassword } from '../../api/generated/auth/auth'
+import type { LoginFailure } from '../../features/vca/lib/authErrors'
+import { setSession, useSession } from './session'
 import type { AuthUserProfile } from '../../api/generated/model'
 
 export type { AuthUserProfile }
@@ -18,18 +20,30 @@ export type AuthResult =
   | { status: 'unavailable' }
 
 /** 세션 확인 — 'ok'(user 동봉) / 'rejected'(미로그인) / 'unavailable'(서버 없음) */
-export async function fetchAuthMe(): Promise<AuthResult> {
-  try {
-    const res = await getMe()
-    return { status: 'ok', user: res.data }
-  } catch (e) {
-    return interpret(e)
-  }
+let meInflight: Promise<AuthResult> | null = null
+export function fetchAuthMe(): Promise<AuthResult> {
+  // 동시 호출은 한 번만 — 가드·Navbar·PortalShell이 첫 렌더에 함께 묻는다 (UV-52)
+  if (meInflight) return meInflight
+  meInflight = (async () => {
+    try {
+      const res = await getMe()
+      setSession('ok', res.data)
+      return { status: 'ok' as const, user: res.data }
+    } catch (e) {
+      const r = interpret(e)
+      setSession(r.status === 'rejected' ? 'rejected' : 'unavailable')
+      return r
+    } finally {
+      meInflight = null
+    }
+  })()
+  return meInflight
 }
 
 export async function authLogin(email: string, password: string, keepLoggedIn: boolean): Promise<AuthResult> {
   try {
-    const res = await login({ email, password, keepLoggedIn })
+    const res = await login({ identifier: email, password, keepLoggedIn })
+    setSession('ok', res.data)
     return { status: 'ok', user: res.data }
   } catch (e) {
     return interpret(e)
@@ -38,6 +52,7 @@ export async function authLogin(email: string, password: string, keepLoggedIn: b
 
 /** 로그아웃 — 실패해도 화면 전환을 막지 않는다 (멱등, 서버 없으면 지울 세션도 없음) */
 export async function authLogout(): Promise<void> {
+  setSession('rejected')
   try {
     await logout()
   } catch {
@@ -78,17 +93,12 @@ export async function authChangePassword(currentPassword: string, newPassword: s
  * `useAuthProfile() ?? SIGNED_IN_USER`로 꽂는다. 미로그인/서버 미가동이면 null (mock 유지).
  */
 export function useAuthProfile(): AuthUserProfile | null {
-  const [profile, setProfile] = useState<AuthUserProfile | null>(null)
+  // 세션 스냅샷(session.ts)을 구독 — 화면 여러 곳이 각자 /auth/me를 부르지 않고 한 결과를 공유한다 (UV-52)
+  const session = useSession()
   useEffect(() => {
-    let cancelled = false
-    fetchAuthMe().then((res) => {
-      if (!cancelled && res.status === 'ok' && res.user) setProfile(res.user)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  return profile
+    if (session.status === 'unknown') void fetchAuthMe()
+  }, [session.status])
+  return session.status === 'ok' ? session.user : null
 }
 
 /** ADM-* = 서버가 실제로 거절 / VCA-5021·5041·네트워크 오류 = 인증 서버 미가동 */
@@ -115,5 +125,32 @@ function messageFor(code: string, serverMessage: string | undefined): string {
       return 'Your password is already set. Use password change in My Page.'
     default:
       return serverMessage ?? 'Request failed. Please try again.'
+  }
+}
+
+/** 초대 링크 활성화 (UV-51) — 토큰 검증·만료·소진은 서버. 무효/만료는 'rejected' ADM-4024 */
+export async function authRedeemInvite(token: string, password: string): Promise<AuthResult> {
+  try {
+    await redeemInvite({ token, password })
+    return { status: 'ok' }
+  } catch (e) {
+    return interpret(e)
+  }
+}
+
+/**
+ * 서버 로그인 거절 코드 → 기획 authErrors 7종 (설계 §4.1 계약). 매핑 밖(검증 오류 등)은 null —
+ * 화면이 서버 문구를 그대로 띄운다.
+ */
+export function loginFailureFromCode(code: string | undefined): LoginFailure | null {
+  switch (code) {
+    case 'ADM-4010': return 'badCredentials'
+    case 'ADM-4011': return 'sessionExpired'
+    case 'ADM-4015': return 'locked'
+    case 'ADM-4016': return 'suspended'
+    case 'ADM-4017': return 'notActivated'
+    case 'ADM-4018': return 'pendingApproval'
+    case 'ADM-4019': return 'notActivated' // 임시 비밀번호 만료 — 담당자 재발급이 필요하다는 점에서 같은 안내
+    default: return null
   }
 }

@@ -4,11 +4,127 @@ import type { RedmapMode as Mode, SimilarityLimit, HitResult, DateRange } from "
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useToast } from "./Toast";
 import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtDateKey } from "@/lib/time";
+import { canSearchInApp, useVcaStore } from "@/lib/vcaStore";
 import RemoveImageButton from "./RemoveImageButton";
 import SidebarToggleIcon from "./SidebarToggleIcon";
 // 데이터 연결(백엔드 소유, UV-34): 인물 실검색 — 백엔드 미기동/이미지 미업로드 시 null이 와서 mock 흐름 유지
 import { searchRedmapPersons } from "../../../lib/vca-bridge/redmapSearch";
 import { trackTargetOnMap, type TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
+
+import { useLanguage, type AppLanguage } from "@/lib/i18n";
+
+// See the per-file pattern note in lib/i18n.ts. Site names, camera codes, plate numbers and the
+// seeded match labels are data and stay as they are.
+const T = {
+  en: {
+    noPermissionTitle: "Person search permission required",
+    noPermissionBody: "Redmap only shows results from a search, so with no search permission there is nothing to show. An administrator can grant it in the Portal, under Users & Permissions.",
+    close: "Close",
+    prevMonth: "Previous month",
+    nextMonth: "Next month",
+    dragAndDrop: "Drag and drop an image here",
+    searchTargets: "Search targets",
+    searchResults: "Search results",
+    excluded: "Excluded",
+    restore: "Restore",
+    modePerson: "PERSON",
+    modeVehicle: "VEHICLE",
+    licensePlate: "License plate",
+    face: "Face",
+    body: "Body",
+    searchByImage: (what: string) => `${what} — search by image`,
+    removeImage: (what: string) => `Remove ${what} image`,
+    similarity: "Similarity",
+    bodyOnlyHint: "Body-only search: matching on build and clothing alone is looser than a face match, so a low threshold here returns many false positives.",
+    searching: "Searching…",
+    searchVehicle: "Search vehicle",
+    searchPersons: "Search persons",
+    clickToUpload: "Click to upload",
+    clickToChange: "Click to change",
+    emptyQueryTitle: "Enter a search",
+    emptyQueryPlate: "Enter a license plate to search.",
+    emptyQueryImage: "Upload a face or body image to search.",
+    noSightingsTitle: "No matching sightings",
+    noPlateOnRecord: "Nothing on record for that plate.",
+    noImageOnRecord: "Nothing on record resembling this image.",
+    belowThreshold: (n: number, pct: number) => `${n} match${n === 1 ? "" : "es"} below ${pct}%`,
+    lowerThreshold: "Lower the similarity threshold to include them.",
+    outsideDates: (n: number) => `${n} match${n === 1 ? "" : "es"} outside the date range`,
+    widenDates: "Widen the date range to include them.",
+    scoredBelow: (n: number, pct: number) => `${n} match${n === 1 ? "" : "es"} scored below ${pct}%.`,
+    lowerToSee: "Lower the similarity threshold to see them.",
+    fallOutside: (n: number) => `${n} match${n === 1 ? "" : "es"} fall outside the date range.`,
+    widenToSee: "Widen the date range to see them.",
+    noSightingsFound: "No matching sightings found.",
+    tryDifferentPhoto: "Try a different face or body photo.",
+    promptPerson: "Upload a face or body image",
+    promptPersonAnd: "above and click",
+    promptVehicle: "Enter a license plate and click",
+    showResults: "Show search results",
+    hideResults: "Hide search results",
+    newestFirst: "Newest first",
+    oldestFirst: "Oldest first",
+    hideFrame: "Hide captured frame",
+    showFrame: "Show captured frame",
+    removedFromTrace: (place: string) => `Removed "${place}" from this trace`,
+    undo: "Undo",
+    notSamePerson: "Not the same person — remove from this trace",
+  },
+  ko: {
+    noPermissionTitle: "인물 검색 권한이 필요합니다",
+    noPermissionBody: "Redmap은 검색으로만 결과를 보여주는 화면이라, 검색 권한 없이는 보여줄 것이 없습니다. 관리자에게 요청하면 포털의 사용자 및 권한에서 열어 줄 수 있습니다.",
+    close: "닫기",
+    prevMonth: "지난달",
+    nextMonth: "다음달",
+    dragAndDrop: "이미지를 여기로 끌어다 놓으세요",
+    searchTargets: "검색 대상",
+    searchResults: "검색 결과",
+    excluded: "제외됨",
+    restore: "복원",
+    modePerson: "사람",
+    modeVehicle: "차량",
+    licensePlate: "차량 번호",
+    face: "얼굴",
+    body: "전신",
+    searchByImage: (what: string) => `${what} — 이미지로 검색`,
+    removeImage: (what: string) => `${what} 이미지 삭제`,
+    similarity: "유사도",
+    bodyOnlyHint: "전신만으로 검색하면 체형과 옷차림만 비교하므로 얼굴 대조보다 느슨합니다. 기준을 낮추면 다른 사람이 많이 섞입니다.",
+    searching: "검색 중…",
+    searchVehicle: "차량 검색",
+    searchPersons: "인물 검색",
+    clickToUpload: "눌러서 업로드",
+    clickToChange: "눌러서 변경",
+    emptyQueryTitle: "검색할 내용을 입력해주세요",
+    emptyQueryPlate: "차량 번호를 입력해주세요.",
+    emptyQueryImage: "얼굴 또는 전신 이미지를 올려주세요.",
+    noSightingsTitle: "일치하는 검출 기록이 없습니다",
+    noPlateOnRecord: "해당 차량 번호의 기록이 없습니다.",
+    noImageOnRecord: "이 이미지와 닮은 기록이 없습니다.",
+    belowThreshold: (n: number, pct: number) => `${pct}% 미만 ${n}건`,
+    lowerThreshold: "유사도 기준을 낮추면 포함됩니다.",
+    outsideDates: (n: number) => `기간 밖 ${n}건`,
+    widenDates: "기간을 넓히면 포함됩니다.",
+    scoredBelow: (n: number, pct: number) => `${n}건이 ${pct}% 미만으로 나왔습니다.`,
+    lowerToSee: "유사도 기준을 낮추면 볼 수 있습니다.",
+    fallOutside: (n: number) => `${n}건이 선택한 기간 밖에 있습니다.`,
+    widenToSee: "기간을 넓히면 볼 수 있습니다.",
+    noSightingsFound: "일치하는 검출 기록이 없습니다.",
+    tryDifferentPhoto: "다른 얼굴 또는 전신 사진으로 시도해보세요.",
+    promptPerson: "얼굴 또는 전신 이미지를 올린 뒤",
+    promptPersonAnd: "위에서",
+    promptVehicle: "차량 번호를 입력한 뒤",
+    showResults: "검색 결과 보기",
+    hideResults: "검색 결과 숨기기",
+    newestFirst: "최신순",
+    oldestFirst: "오래된 순",
+    hideFrame: "검출 프레임 숨기기",
+    showFrame: "검출 프레임 보기",
+    removedFromTrace: (place: string) => `이 경로에서 "${place}"를 제외했습니다`,
+    undo: "되돌리기",
+    notSamePerson: "같은 사람이 아닙니다 — 이 경로에서 제외",
+  },
+} as const;
 
 const BORDER = "1px solid var(--gray-200)";
 
@@ -383,11 +499,20 @@ function PinIconSm({ color = "var(--gray-600)" }: { color?: string }) {
 }
 
 /* ── DateRangePicker ──────────────────────────────────────── */
-const MONTHS_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+// Korean names its months by number, so the "full" and "short" forms are the same string.
+const MONTHS_FULL: Record<AppLanguage, string[]> = {
+  en: ["January","February","March","April","May","June","July","August","September","October","November","December"],
+  ko: ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"],
+};
+const MONTHS_SHORT: Record<AppLanguage, string[]> = {
+  en: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+  ko: MONTHS_FULL.ko,
+};
 const DAY_HEADS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
 function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: DateRange) => void }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"start"|"end">("start");
   // Opens on the month being edited, not a hardcoded one. This was pinned to June 2026 back when
@@ -422,7 +547,9 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
   const formatDisplay = (d: string | null) => {
     if (!d) return null;
     const [y, m, day] = d.split("-");
-    return `${MONTHS_SHORT[parseInt(m)-1]} ${parseInt(day)}, ${y}`;
+    return lang === "ko"
+      ? `${y}. ${MONTHS_SHORT.ko[parseInt(m)-1]} ${parseInt(day)}일`
+      : `${MONTHS_SHORT.en[parseInt(m)-1]} ${parseInt(day)}, ${y}`;
   };
 
   const handleDayClick = (day: number) => {
@@ -507,7 +634,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
                     cursor: "pointer",
                   }}
                 >
-                  {MONTHS_SHORT[month]} {year}
+                  {MONTHS_SHORT[lang][month]} {year}
                 </div>
               );
             })}
@@ -531,9 +658,9 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
 
             {/* Month nav */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-              <button onClick={prevMonth} aria-label="Previous month" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "var(--gray-900)", padding: "2px 6px", lineHeight: 1 }}>‹</button>
-              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)" }}>{MONTHS_FULL[viewMonth]} {viewYear}</span>
-              <button onClick={nextMonth} aria-label="Next month" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "var(--gray-900)", padding: "2px 6px", lineHeight: 1 }}>›</button>
+              <button onClick={prevMonth} aria-label={t.prevMonth} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "var(--gray-900)", padding: "2px 6px", lineHeight: 1 }}>‹</button>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)" }}>{lang === "ko" ? `${viewYear}년 ${MONTHS_FULL.ko[viewMonth]}` : `${MONTHS_FULL.en[viewMonth]} ${viewYear}`}</span>
+              <button onClick={nextMonth} aria-label={t.nextMonth} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "var(--gray-900)", padding: "2px 6px", lineHeight: 1 }}>›</button>
             </div>
 
             {/* Day headers */}
@@ -590,7 +717,13 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
 
 /* ── Component ─────────────────────────────────────────────── */
 export default function RedmapPage({ initialSearchName, initialTrackTarget, onInitialSearchConsumed }: { initialSearchName?: string | null; initialTrackTarget?: TrackTargetRef | null; onInitialSearchConsumed?: () => void } = {}) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const { showToast } = useToast();
+  // Redmap is search and nothing else — with no search there is no map to look at, so the whole
+  // screen is gated rather than its button. See PortalUser.appSearch.
+  const portalUsers = useVcaStore(state => state.portalUsers);
+  const searchAllowed = canSearchInApp(portalUsers);
   const [mode, setMode] = useState<Mode>("person");
   const [similarity, setSimilarity] = useState<SimilarityLimit>(70);
   const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE);
@@ -787,9 +920,9 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
     // look for. Block it before it runs and say so instead.
     const hasQuery = mode === "car" ? licensePlate.trim().length > 0 : !!faceFileKey || !!bodyFileKey;
     if (!hasQuery) {
-      showToast({ variant:"warning", title:"Enter a search", desc: mode === "car"
-        ? "Enter a license plate to search."
-        : "Upload a face or body image to search." });
+      showToast({ variant:"warning", title: t.emptyQueryTitle, desc: mode === "car"
+        ? t.emptyQueryPlate
+        : t.emptyQueryImage });
       return;
     }
     // 데이터 연결(UV-34): 인물 모드는 실검색을 먼저 시도한다. 백엔드가 응답하면 그 결과가
@@ -849,14 +982,14 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
     setEmptyReason(reason);
     if (reason) {
       showToast(reason.kind === "no-candidates"
-        ? { variant: "default", title: "No matching sightings", desc: mode === "car"
-            ? "Nothing on record for that plate."
-            : "Nothing on record resembling this image." }
+        ? { variant: "default", title: t.noSightingsTitle, desc: mode === "car"
+            ? t.noPlateOnRecord
+            : t.noImageOnRecord }
         : reason.kind === "similarity"
-        ? { variant: "warning", title: `${reason.dropped} match${reason.dropped === 1 ? "" : "es"} below ${similarity}%`,
-            desc: "Lower the similarity threshold to include them." }
-        : { variant: "warning", title: `${reason.dropped} match${reason.dropped === 1 ? "es" : "es"} outside the date range`,
-            desc: "Widen the date range to include them." });
+        ? { variant: "warning", title: t.belowThreshold(reason.dropped, similarity),
+            desc: t.lowerThreshold }
+        : { variant: "warning", title: t.outsideDates(reason.dropped),
+            desc: t.widenDates });
     }
     setResults(filtered);
     setExcludedHitIds(new Set());
@@ -956,6 +1089,23 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
     fontFamily: "'SUIT', sans-serif",
   };
 
+  // Redmap is search and nothing else — with no search there is no map to look at, so the whole
+  // screen is gated rather than its button. Portal grants this per account (PortalUser.appSearch).
+  if (!searchAllowed) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px" }}>
+        <div style={{ maxWidth: "420px", textAlign: "center" }}>
+          <p style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--gray-800)", letterSpacing: "-0.36px" }}>
+            {t.noPermissionTitle}
+          </p>
+          <p style={{ margin: "10px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", lineHeight: 1.7 }}>
+            {t.noPermissionBody}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0, position: "relative" }}>
 
@@ -976,7 +1126,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
             padding: "12px", display: "flex", flexDirection: "column", gap: "10px",
           }}>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={() => setUploadFor(null)} aria-label="Close" style={{
+              <button onClick={() => setUploadFor(null)} aria-label={t.close} style={{
                 width: "37px", height: "37px", borderRadius: "8px", backgroundColor: "var(--gray-50)",
                 border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
               }}>
@@ -998,7 +1148,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                 <FocusIcon />
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", textAlign: "center" }}>
-                <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--primary-400)" }}>Drag and drop an image here</span>
+                <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--primary-400)" }}>{t.dragAndDrop}</span>
                 <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)" }}>
                   File types supported: JPG, PNG, GIF, TIFF, HEIC, WebP. Max size 50MB
                 </span>
@@ -1062,7 +1212,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                 {m === "person"
                   ? <PersonIcon color={active ? "var(--primary-400)" : "var(--gray-400)"} size={18} />
                   : <VehicleIcon color={active ? "var(--primary-400)" : "var(--gray-400)"} size={18} />}
-                {m === "person" ? "PERSON" : "VEHICLE"}
+                {m === "person" ? t.modePerson : t.modeVehicle}
               </button>
             );
           })}
@@ -1077,7 +1227,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
 
             {/* License plate */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-              <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", whiteSpace: "nowrap" }}>License plate</span>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", whiteSpace: "nowrap" }}>{t.licensePlate}</span>
               <div style={{
                 display: "flex", alignItems: "center", gap: "6px",
                 border: BORDER, borderRadius: "999px",
@@ -1112,8 +1262,8 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
             {/* Search by image chips */}
             <div style={{ display: "flex", alignItems: "center", gap: "20px", flexShrink: 0 }}>
               {([
-                { key: "face" as const, label: "Face", image: faceImage },
-                { key: "body" as const, label: "Body", image: bodyImage },
+                { key: "face" as const, label: t.face, image: faceImage },
+                { key: "body" as const, label: t.body, image: bodyImage },
               ]).map(({ key, label, image }) => {
                 const active = !!image;
                 const uploading = uploadFor === key;
@@ -1137,7 +1287,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                   >
                     <button
                       onClick={() => setUploadFor(key)}
-                      title={`${label} — search by image`}
+                      title={t.searchByImage(label)}
                       style={{
                         height: "100%", padding: "0 12px", background: "none", border: "none",
                         cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
@@ -1164,7 +1314,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                     {active && hoverChip === key && (
                       <button
                         onClick={() => clearUpload(key)}
-                        aria-label={`Remove ${label.toLowerCase()} image`}
+                        aria-label={t.removeImage(label)}
                         style={{
                           position: "absolute", inset: 0, border: "none", cursor: "pointer",
                           backgroundColor: "rgba(14, 22, 42, 0.55)",
@@ -1191,8 +1341,8 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                 between. Arrow keys still step it by 1 for anything the drag can't land on. */}
             <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
               <span className="vca-tb-label" style={{ fontSize: "13px", fontWeight: 600, color: "var(--gray-600)", whiteSpace: "nowrap" }}
-                title={bodyOnly ? "Body-only search: matching on build and clothing alone is looser than a face match, so a low threshold here returns many false positives." : undefined}
-              >Similarity</span>
+                title={bodyOnly ? t.bodyOnlyHint : undefined}
+              >{t.similarity}</span>
               {/* Resets the browser's native range-input chrome (Chrome/Safari/Firefox each draw
                   their own track/thumb border by default) down to a flat gray track + solid
                   purple thumb — same treatment as Data's Smart Search Similarity slider. */}
@@ -1240,7 +1390,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
               fontFamily: "'SUIT', sans-serif", flexShrink: 0,
             }}
           >
-            {searching ? "Searching…" : mode === "car" ? "Search vehicle" : "Search persons"}
+            {searching ? t.searching : mode === "car" ? t.searchVehicle : t.searchPersons}
           </button>
         </div>
       </div>
@@ -1268,7 +1418,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
             {hasSearchTargets && (
               <>
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <h3 style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>Search targets</h3>
+                  <h3 style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>{t.searchTargets}</h3>
                   <div style={{ display: "flex", gap: "24px" }}>
                     {([
                       { key: "face" as const, image: faceImage, height: "100px" },
@@ -1280,7 +1430,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                           backgroundColor: "var(--primary-100)", borderRadius: "6px",
                           padding: "4px 8px", alignSelf: "flex-start",
                         }}>
-                          {key === "face" ? "Face" : "Body"}
+                          {key === "face" ? t.face : t.body}
                         </span>
                         <div
                           onClick={() => setUploadFor(key)}
@@ -1304,7 +1454,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                               backgroundColor: image ? "rgba(14,22,42,0.35)" : "transparent",
                             }}>
                               <span style={{ fontSize: "12px", fontWeight: 700, color: image ? "white" : "var(--primary-400)" }}>
-                                {image ? "Click to change" : "Click to upload"}
+                                {image ? t.clickToChange : t.clickToUpload}
                               </span>
                             </div>
                           )}
@@ -1331,7 +1481,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
             {hasSearched && (<>
             {/* ── Search Results header ── */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>Search results</h3>
+              <h3 style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>{t.searchResults}</h3>
               <span style={{
                 width: "18px", height: "18px", borderRadius: "999px", backgroundColor: "var(--gray-100)",
                 color: "var(--gray-700)", fontSize: "10px", fontWeight: 600,
@@ -1382,8 +1532,8 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                 </svg>
                 <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "var(--gray-400)" }}>
                   {mode === "person"
-                    ? <>Upload a face or body image<br />above and click <strong style={{ color: "var(--gray-700)" }}>Search persons</strong></>
-                    : <>Enter a license plate and click<br /><strong style={{ color: "var(--gray-700)" }}>Search vehicle</strong></>
+                    ? <>{t.promptPerson}<br />{t.promptPersonAnd} <strong style={{ color: "var(--gray-700)" }}>{t.searchPersons}</strong></>
+                    : <>{t.promptVehicle}<br /><strong style={{ color: "var(--gray-700)" }}>{t.searchVehicle}</strong></>
                   }
                 </p>
               </div>
@@ -1408,23 +1558,23 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                   {emptyReason?.kind === "similarity" ? (
                     <>
                       <strong style={{ color: "var(--gray-700)" }}>
-                        {emptyReason.dropped} match{emptyReason.dropped === 1 ? "" : "es"} scored below {similarity}%.
+                        {t.scoredBelow(emptyReason.dropped, similarity)}
                       </strong><br />
-                      Lower the similarity threshold to see them.
+                      {t.lowerToSee}
                     </>
                   ) : emptyReason?.kind === "date" ? (
                     <>
                       <strong style={{ color: "var(--gray-700)" }}>
-                        {emptyReason.dropped} match{emptyReason.dropped === 1 ? "" : "es"} fall outside the date range.
+                        {t.fallOutside(emptyReason.dropped)}
                       </strong><br />
-                      Widen the date range to see them.
+                      {t.widenToSee}
                     </>
                   ) : (
                     <>
-                      <strong style={{ color: "var(--gray-700)" }}>No matching sightings found.</strong><br />
+                      <strong style={{ color: "var(--gray-700)" }}>{t.noSightingsFound}</strong><br />
                       {mode === "car"
-                        ? <>Nothing on record for that plate.</>
-                        : <>Nothing on record resembling this image.<br />Try a different face or body photo.</>}
+                        ? <>{t.noPlateOnRecord}</>
+                        : <>{t.noImageOnRecord}<br />{t.tryDifferentPhoto}</>}
                     </>
                   )}
                 </p>
@@ -1450,11 +1600,11 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                     <div style={{ display: "flex", gap: "4px" }}>
                       <div style={{ position: "relative", width: "63px", height: "62px", borderRadius: "8px", overflow: "hidden", flexShrink: 0 }}>
                         <img src={hit.faceUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} alt="" />
-                        <span style={{ position: "absolute", top: "4px", left: "4px", backgroundColor: "rgba(14, 22, 42,0.6)", color: "white", fontSize: "10px", fontWeight: 600, padding: "2px 4px", borderRadius: "3px" }}>Face</span>
+                        <span style={{ position: "absolute", top: "4px", left: "4px", backgroundColor: "rgba(14, 22, 42,0.6)", color: "white", fontSize: "10px", fontWeight: 600, padding: "2px 4px", borderRadius: "3px" }}>{t.face}</span>
                       </div>
                       <div style={{ position: "relative", width: "63px", height: "62px", borderRadius: "8px", overflow: "hidden", flexShrink: 0 }}>
                         <img src={hit.bodyUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} alt="" />
-                        <span style={{ position: "absolute", top: "4px", left: "4px", backgroundColor: "rgba(90,61,251,0.4)", color: "white", fontSize: "10px", fontWeight: 600, padding: "2px 4px", borderRadius: "3px" }}>Body</span>
+                        <span style={{ position: "absolute", top: "4px", left: "4px", backgroundColor: "rgba(90,61,251,0.4)", color: "white", fontSize: "10px", fontWeight: 600, padding: "2px 4px", borderRadius: "3px" }}>{t.body}</span>
                       </div>
                     </div>
                     <div style={{ backgroundColor: "var(--gray-100)", borderRadius: "6px", padding: "4px 6px", overflow: "hidden" }}>
@@ -1473,8 +1623,8 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                         onClick={e => { e.stopPropagation(); setExcludedHitIds(prev => { const next = new Set(prev); next.delete(hit.id); return next; }); }}
                         style={{ display: "flex", alignItems: "center", gap: "4px", border: "none", background: "none", padding: 0, cursor: "pointer", width: "fit-content" }}
                       >
-                        <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--danger-400)" }}>Excluded</span>
-                        <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--primary-400)", textDecoration: "underline" }}>Restore</span>
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--danger-400)" }}>{t.excluded}</span>
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--primary-400)", textDecoration: "underline" }}>{t.restore}</span>
                       </button>
                     ) : showPersonChips && (
                       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -1512,7 +1662,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
               onClick={() => setLeftCollapsed(c => !c)}
               role="button"
               tabIndex={0}
-              aria-label={leftCollapsed ? "Show search results" : "Hide search results"}
+              aria-label={leftCollapsed ? t.showResults : t.hideResults}
               onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setLeftCollapsed(c => !c); } }}
               style={{
                 position: "absolute", top: "50%", left: "-3px", transform: "translateY(-50%)",
@@ -1566,7 +1716,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
               display: "flex", alignItems: "center", gap: "4px", background: "none", border: "none",
               cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "var(--gray-500)",
             }}>
-              {timelineNewestFirst ? "Newest first" : "Oldest first"}
+              {timelineNewestFirst ? t.newestFirst : t.oldestFirst}
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: timelineNewestFirst ? "none" : "rotate(180deg)" }}>
                 <path d="M3.5 4L6 1.5L8.5 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M6 10.5V2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -1676,7 +1826,7 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                                   onClick={e => { e.stopPropagation(); setOpenFrameKey(k => k === node.key ? null : node.key); }}
                                   onMouseEnter={() => setHoverFrameKey(node.key)}
                                   onMouseLeave={() => setHoverFrameKey(null)}
-                                  aria-label={openFrameKey === node.key ? "Hide captured frame" : "Show captured frame"}
+                                  aria-label={openFrameKey === node.key ? t.hideFrame : t.showFrame}
                                   aria-expanded={openFrameKey === node.key}
                                   style={{
                                     width: "64px", height: "56px", borderRadius: "8px", overflow: "hidden", flexShrink: 0,
@@ -1747,12 +1897,12 @@ export default function RedmapPage({ initialSearchName, initialTrackTarget, onIn
                                     // its own Undo gives an immediate way to reverse a misclick without
                                     // hunting for that hit in the grid.
                                     showToast({
-                                      variant: "default", title: `Removed "${node.fullLocation}" from this trace`,
-                                      actionLabel: "Undo",
+                                      variant: "default", title: t.removedFromTrace(node.fullLocation),
+                                      actionLabel: t.undo,
                                       onAction: () => setExcludedHitIds(prev => { const next = new Set(prev); next.delete(node.key); return next; }),
                                     });
                                   }}
-                                  title="Not the same person — remove from this trace"
+                                  title={t.notSamePerson}
                                   onMouseEnter={e => {
                                     e.currentTarget.style.backgroundColor = "var(--gray-200)";
                                     e.currentTarget.style.color = "var(--gray-700)";

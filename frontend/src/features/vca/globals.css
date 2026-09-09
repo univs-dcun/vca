@@ -1,10 +1,46 @@
 @import 'leaflet/dist/leaflet.css';
 
+/* ---------------------------------------------------------------------------
+   Fonts are served from public/fonts, not a CDN. Deployment is on-premise and
+   the network is often cut off from the internet, where a CDN stylesheet fails
+   silently — no error, the whole app just renders in a system fallback face.
+   Self-hosting also pins the version: SUIT was loaded as @latest, so an update
+   on the CDN would have changed our typography without a commit.
+   Both faces are SIL Open Font License, which permits self-hosting.
+   --------------------------------------------------------------------------- */
 @font-face {
   font-family: 'SUIT';
+  src: url('/fonts/SUIT-Variable.woff2') format('woff2-variations');
   font-weight: 100 900;
+  font-style: normal;
   font-display: swap;
-  src: url('https://cdn.jsdelivr.net/gh/sunn-us/SUIT@latest/fonts/variable/woff2/SUIT-Variable.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Jockey One';
+  src: url('/fonts/JockeyOne-latin.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Jockey One';
+  src: url('/fonts/JockeyOne-latin-ext.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@import "tailwindcss";
+@import 'leaflet/dist/leaflet.css';
+
+/* Base map stays desaturated so the data drawn on top keeps colour to itself. The value comes from
+   the map container (see lib/mapTiles.ts, MAP_TILE_FILTER) and inherits down to the pane; the
+   fallback here keeps the look if that variable is ever missing. Scoped to the tile pane, so
+   markers and route lines above it are not filtered. */
+.leaflet-tile-pane {
+  filter: var(--map-tile-filter, grayscale(1) brightness(1.06) contrast(0.94));
 }
 
 /* ── Design tokens ────────────────────────────────────────────
@@ -13,7 +49,23 @@
    테두리, success-200, 타입 색의 연한 배경) 일회성 hex를 만들지 말고
    라이브러리에 단계를 추가하는 쪽으로 올려주세요. */
 :root {
-  /* Neutral — Gray */
+  /* Neutral — Gray
+     Two hues in one ramp, on purpose (2026-09-08).
+
+     The ramp was a slate all the way down — hue ~215°, a blue-navy — and that is why laying the
+     product's violet over a grey came out electric blue instead of violet: the sidebar's tinted
+     panels made it obvious, but it was true of every dark surface the accent touched.
+
+     Every tint in this product sits on a dark step, so only the dark steps moved: 700, 800 and 900
+     are at hue 258°, the primary's own angle, at the saturation the slate had. Their lightness is
+     unchanged, so contrast is what it was or better (900 on white 18.0 → 18.6).
+
+     50 through 600 stay slate. Hue at middling lightness is what reads as muddy — a 50% grey with
+     any saturation in it looks dusty rather than coloured — and those steps are the ones carrying
+     body text on white. Colour where it deepens a surface, none where it would dirty a letter.
+
+     HANDOFF: the three dark values are a change to the Figma variables, not just to this file, and
+     they change the monitoring app too — it draws from the same ramp. */
   --gray-0: #ffffff;
   --gray-50: #f8fafc;
   --gray-100: #f1f5f9;
@@ -22,9 +74,16 @@
   --gray-400: #94a3b8;
   --gray-500: #64748a;
   --gray-600: #475469;
-  --gray-700: #324055;
-  --gray-800: #1d293b;
-  --gray-900: #0e162a;
+  --gray-700: #3e3552;
+  --gray-800: #272038;
+  --gray-900: #181127;
+
+  /* Hairlines — table rules, card edges, field borders, dividers.
+     Not a step of the grey ramp and not one of the primary ramp: a grey carrying a little of the
+     primary so a line reads as part of this product's surface rather than as a neutral rule laid
+     over it. One value for every line in the console; the ramps stay for fills and text.
+     HANDOFF: add this to the Figma variables next to the two ramps it sits between. */
+  --line: #e7e7f1;
 
   /* Primary */
   --primary-50: #fafaff;
@@ -72,6 +131,106 @@
   box-sizing: border-box;
 }
 
+/* ── Focus ring ───────────────────────────────────────────────
+   Most inputs in the app never reset `outline`, so a focused field was drawing the browser's own
+   focus ring — a blue that belongs to no palette here and sits badly next to the purple. One rule
+   instead of thirty inline ones: near-black, which reads as "this is where you are typing"
+   without spending the primary colour on something every field does.
+
+   :where() keeps specificity at zero, so any screen that has designed its own focus treatment
+   still wins — the auth screens (primary-300 border) set `outline: none` inline and are untouched
+   by this.
+
+   :focus-visible, not :focus, so a mouse click on a button leaves no ring behind; a text field
+   matches it whenever it is focused for typing, which is exactly the case this is for.
+
+   Shaped to match Portal's FIELD_FOCUS (PortalShared.tsx) rather than being a second look: a hair
+   line at the control's own edge plus a soft halo outside it. A 2px offset outline was a visibly
+   different treatment from the one Portal's own fields drew, so a form that mixed a TextField with
+   a plain input showed two kinds of focus. Anything that has not been moved to TextField yet still
+   lands here and matches. */
+/* ── Portal button hover ──────────────────────────────────────
+   Classes rather than per-button useState. Portal has something like a hundred buttons written as
+   inline styles, and hover was on almost none of them — the exceptions kept their own hovered flag
+   (FilterSelect, ActiveFilterCount, the shell's exit button), which is not a thing to repeat a
+   hundred times.
+
+   !important on every declaration a button also sets inline, which is all of the colours: an
+   inline style beats a stylesheet rule no matter how specific, so without it these rules parse,
+   load, and do nothing at all. The alternative is moving a hundred buttons' colours out of their
+   style props, which is a bigger change than the hover it would serve.
+
+   Every colour here is a defined token. One is missing and it shows: primary-400 is the darkest
+   step of the primary ramp, so a filled primary button has nothing to darken TO — hence the
+   brightness filter below. A primary-500 belongs in the palette. */
+.portal-btn-primary { transition: filter .12s ease; }
+/* brightness, not opacity. Nine of these buttons already set opacity inline to grey themselves out
+   while their form is incomplete, and two of them (the signup wizard's) deliberately stay ENABLED
+   while invalid so that clicking reveals the validation messages — a disabled button cannot tell
+   you why it is disabled. An opacity hover would have had to fight those inline values with
+   !important and would then have brightened a half-faded button back up. filter is untouched by
+   every button in Portal, so it needs no flag and cannot lie about a button's state. */
+.portal-btn-primary:hover:not(:disabled) { filter: brightness(.92); }
+
+.portal-btn-outline { transition: background-color .12s ease, border-color .12s ease; }
+.portal-btn-outline:hover:not(:disabled) {
+  background-color: var(--gray-50) !important;
+  border-color: var(--gray-400) !important;
+}
+
+.portal-btn-danger { transition: background-color .12s ease; }
+.portal-btn-danger:hover:not(:disabled) { background-color: var(--danger-500) !important; }
+
+/* A card that opens something when clicked.
+   cursor:pointer alone is only discoverable once the pointer is already on it and moving on, so a
+   wall of VIP cards gave no sign that any of them led anywhere.
+
+   A hairline that appears on hover, not a shadow and not a permanent border: this app strips both
+   from its cards on purpose (PANEL_SHADOW and CARD_BORDER are both "none" — see PortalShared), and
+   a lift effect here would reintroduce the layer that decision removed. Additive on hover only
+   adds nothing to the resting page.
+
+   gray-400: the cards themselves carry a gray-300 hairline now, so an outline of the same value
+   was a doubled line nobody could see change. Still well clear of the gray-900 the focus ring
+   uses, so hovering and being focused stay tellable apart on the same card. */
+.portal-card-clickable { transition: outline-color .12s ease; outline: 1px solid transparent; }
+.portal-card-clickable:hover { outline-color: var(--gray-400); }
+
+/* The same action reached from a table row, where the name is the target rather than a surface. */
+.portal-link { transition: color .12s ease; }
+.portal-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Items of the Overview's "needs attention" strip. Each item is the whole button, so the hover box
+   is what tells you that before you aim at it. */
+.portal-attention-row { transition: background-color .12s ease; }
+.portal-attention-row:hover { background-color: var(--gray-100) !important; }
+
+/* The account trigger at the right end of the top bar. Bare until hovered — it carries a name and
+   an avatar, which already read as a control, and a permanent box there would compete with the
+   breadcrumb across from it. */
+.portal-account-btn { transition: background-color .12s ease; }
+.portal-account-btn:hover { background-color: var(--gray-100) !important; }
+
+/* Icon-only buttons — a close X, a row's trash. The box appears on hover rather than sitting there
+   permanently, so a row of them does not read as a row of boxes. */
+.portal-icon-btn { border-radius: 8px; transition: background-color .12s ease, color .12s ease; }
+.portal-icon-btn:hover:not(:disabled) {
+  background: var(--gray-100) !important;
+  color: var(--gray-600) !important;
+}
+
+.portal-icon-btn-danger { border-radius: 8px; transition: background-color .12s ease, color .12s ease; }
+.portal-icon-btn-danger:hover:not(:disabled) {
+  background: var(--danger-100) !important;
+  color: var(--danger-400) !important;
+}
+
+:where(input, textarea, select, button, [contenteditable], [tabindex]):focus-visible {
+  outline: 1px solid var(--gray-900);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--gray-100);
+}
+
 html,
 body {
   height: 100%;
@@ -83,6 +242,15 @@ body {
 body {
   font-family: 'SUIT', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--gray-50);
+  /* Browsers treat each Hangul syllable block as its own line-break opportunity by default, so
+     Korean words wrap mid-word constantly — keep-all restricts breaks to actual whitespace,
+     matching how English already wraps. overflow-wrap still allows breaking a single unbroken
+     token (a long URL, an unspaced string) that doesn't fit its box at all, so nothing overflows
+     its container either. Elements that intentionally force mid-string breaks (RTSP URLs, IPs —
+     see wordBreak:"break-all" in CameraStreamModal.tsx/ProjectServerTab.tsx) set that inline,
+     which overrides this default per-element as intended. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .leaflet-container {
@@ -119,9 +287,10 @@ body {
   border-radius: 0 0 8px 8px !important;
 }
 
-.leaflet-tile-pane {
-  filter: grayscale(0.1) brightness(0.98);
-}
+/* The tile-pane filter lives at the top of this file, next to the other map settings. The rule that
+   used to sit here was grayscale(0.1) — a light touch-up for CARTO's already-grey basemap, which is
+   nowhere near enough now that the default source is a full-colour one. It also came later in the
+   file and so silently beat the new rule. */
 
 /* ── VCA custom popup ────────────────────────────────────── */
 .vca-custom-popup .leaflet-popup-content-wrapper {
@@ -247,6 +416,17 @@ body {
   animation: vca-vip-dot-pulse 1.4s ease-in-out infinite;
 }
 
+/* Map dots must stay legible on a basemap we do not control. In a delivered installation the tiles
+   come from the customer's own GIS server, which may be anything from near-white to a dense colour
+   map, so the dot cannot rely on the background being quiet. Three layers do the work: a white ring
+   lifts it off dark or busy tiles, a hairline just outside that ring separates it from near-white
+   tiles (where a plain white ring would vanish), and a soft shadow keeps it reading as something
+   sitting on top of the map rather than printed into it. */
+.vca-map-dot {
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(14, 22, 42, 0.25), 0 1px 3px rgba(14, 22, 42, 0.35);
+}
+
 /* Dashboard map, zoomed-in camera dots — hover grows the visible dot inside its (larger,
    invisible) click/hover hit box, and strips Leaflet's default tooltip chrome so the
    name/status/zone card we build ourselves in MapView's cameraDotTooltipHtml is the only
@@ -268,14 +448,18 @@ body {
 /* Flowing dashed line for a tracking route (Redmap search results, Dashboard Tracking events) */
 .vca-route-line {
   /* Dash lengths scale with the 2px stroke — at the old 10/8 the segments read as chunky bars
-     rather than a dashed trail, which made the line look thicker than its stroke actually is. */
-  stroke-dasharray: 7 6;
+     rather than a dashed trail, which made the line look thicker than its stroke actually is.
+     Shorter still (5/4) because the pattern has to be small relative to the SHORTEST route drawn:
+     two cameras a street apart make a path barely longer than one dash cycle, and a lone dash
+     sliding across it looks like the line growing and shrinking, not flowing. At a 9px cycle even
+     a short hop holds several dashes, so the same motion reads as travel on every route. */
+  stroke-dasharray: 5 4;
   animation: vca-route-flow 0.9s linear infinite;
 }
 @keyframes vca-route-flow {
   /* Must equal one full dash cycle (dash + gap). Anything else and the loop restarts mid-dash,
      which shows up as a visible stutter every 0.9s. */
-  to { stroke-dashoffset: -13; }
+  to { stroke-dashoffset: -9; }
 }
 
 /* ── Skeleton loading dashboard ──────────────────────────── */
@@ -334,3 +518,42 @@ body {
    slider and its % reading are the only thing beside it. */
 @media (max-width: 1600px) { .vca-tb-hint { display: none; } }
 @media (max-width: 1400px) { .vca-tb-label { display: none; } }
+
+/* Option rows in the Data screens' camera pickers (Live Monitoring and Re-ID). The resting and
+   selected fills live here rather than in each button's style attribute: an inline declaration
+   outranks any stylesheet selector, so a background set inline silently cancels :hover — which is
+   exactly how the navbar tabs ended up with a hover rule that never fired. Only unselected rows
+   respond; the selected row is already where you are. */
+.vca-picker-option { background-color: #fff; transition: background-color .12s; }
+.vca-picker-option[data-on="true"] { background-color: var(--primary-100); }
+.vca-picker-option:not([data-on="true"]):hover { background-color: var(--gray-50); }
+
+/* ── Auth screens: short-window behaviour ─────────────────────────────
+   The login card needs ~840px of height. Below that the form falls past the fold, and on a laptop
+   with a bookmarks bar or a half-height window that is most of the form. The illustration is
+   decoration, so it is what gives up space first — it shrinks, then goes entirely, so email /
+   password / the button reach the fold before anything else does.
+
+   These live here rather than inline because an inline height would outrank the media queries —
+   the same trap that left the navbar tabs with a :hover rule that never fired. */
+.vca-auth-illustration {
+  /* 196, not the 236 the Figma frame renders at — at full size the camera outweighed the form it
+     sits above, which is the thing people came to the screen to use. */
+  height: 196px;
+  aspect-ratio: 614 / 639;   /* the cropped PNG's own proportion */
+  width: auto;
+  flex-shrink: 0;
+}
+.vca-auth-scroll { padding-top: 44px; }
+
+@media (max-height: 900px) {
+  .vca-auth-illustration { height: 160px; }
+  .vca-auth-scroll { padding-top: 24px; }
+}
+/* Below this the illustration cannot buy enough room to matter — at 176px it still leaves the
+   button past the fold — and the form is what the screen is for, so it goes rather than shrinking
+   through sizes that help nobody. */
+@media (max-height: 820px) {
+  .vca-auth-illustration { display: none; }
+  .vca-auth-scroll { padding-top: 16px; }
+}
