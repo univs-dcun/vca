@@ -1,5 +1,7 @@
 package ai.univs.vca.admin.auth;
 
+import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -11,4 +13,6 @@ public interface UserSessionRepository extends JpaRepository<UserSessionEntity, 
 	@Modifying
 	@Query("delete from UserSessionEntity s where s.userId = :userId and s.tokenHash <> :keepTokenHash")
 	void deleteOtherSessions(@Param("userId") Long userId, @Param("keepTokenHash") String keepTokenHash);
+
+	List<UserSessionEntity> findByUserIdOrderByCreatedAtDesc(Long userId);
 }

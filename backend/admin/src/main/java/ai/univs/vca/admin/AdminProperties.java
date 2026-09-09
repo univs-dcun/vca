@@ -18,9 +18,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *                   authConfig.selfSignup의 거울: 화면이 숨겨도 서버가 거절해야 구멍이 닫힌다
  * @param mqttBrokerUrl EMQX 주소 (UV-53) — 카메라 status retained 토픽 구독. 빈 값이면 구독 생략(상태 unknown)
  * @param mqttSiteId 토픽 접두 vca/v1/{siteId}/ 의 siteId (SPEC §2)
+ * @param mailDevLog true면 메일을 보내지 않고 로그에 남긴다 (UV-56, 개발 전용 — 운영 false). SMTP 없는 로컬에서
+ *                   재설정 코드 흐름을 검증하기 위한 스위치
  */
 @ConfigurationProperties(prefix = "vca.admin")
 public record AdminProperties(String moduleBaseUrl, Duration moduleTimeout, String mediaApiBaseUrl, String encKey,
 		boolean seedDefaultCameras, boolean sessionCookieSecure, String seedAdminEmail, String seedAdminPassword,
-		boolean selfSignup, String mqttBrokerUrl, String mqttSiteId) {
+		boolean selfSignup, String mqttBrokerUrl, String mqttSiteId, boolean mailDevLog) {
 }

@@ -184,6 +184,10 @@ UV-53(계약 0.15.0): /portal/cameras(CRUD·bulk zone/delete — 응답에 모�
 /portal/projects/{id}/camera-connectivity·camera-stability(기획자 README §4-(2) unstableCameras 형태),
 /portal/servers(CRUD·check), PortalProject.channelsUsed — 훅만 생성. 반입 시 vcaStore Camera.status/lastSeenAt·
 unstableCameras()·servers·projectChannelLimit 소비처가 이 API로 옮겨간다.
+UV-56(계약 0.16.0): /portal/projects/{id}/detections(dailyDetections 형태), /auth/password/reset/request·verify·
+complete(forgot-password 9 상태 — 에러 코드 ADM-4025 wrong/4026 expired/4027 throttled/4028 resendLimit/4029 adminOnly),
+/auth/sessions GET·DELETE others·DELETE {id}(My Page Active login sessions·Terminate All Others) — 훅만 생성.
+반입 시 forgot-password의 DEMO_REJECTED_CODE·MAX_RESENDS 카운터, mypage LOGIN_SESSIONS 상수는 이 API로 교체.
 
 첫 로그인 흐름(UV-48, 계약 0.12.0): 기획 확정 — 계정은 담당자가 발급(임시 비밀번호 오프라인
 전달, 발급 화면은 Admin(portal) 소관·API는 admin-api /admin/api/users). 프로필에

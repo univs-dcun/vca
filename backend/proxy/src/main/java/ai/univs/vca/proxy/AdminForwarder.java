@@ -47,6 +47,11 @@ public class AdminForwarder {
 				if (cookie != null) {
 					h.set(HttpHeaders.COOKIE, cookie);
 				}
+				// User-Agent — 세션 목록의 기기 표시 (UV-56)
+				String ua = request.getHeaders().getFirst(HttpHeaders.USER_AGENT);
+				if (ua != null) {
+					h.set(HttpHeaders.USER_AGENT, ua);
+				}
 				// 브라우저 주소 — Admin의 주소 단위 시도 스로틀(등록 코드) 키 (UV-51)
 				if (request.getRemoteAddress() != null && request.getRemoteAddress().getAddress() != null) {
 					h.set("X-Forwarded-For", request.getRemoteAddress().getAddress().getHostAddress());

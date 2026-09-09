@@ -25,6 +25,8 @@ dependencies {
 	implementation 'org.springframework.security:spring-security-crypto'
 	// EMQX 구독 — 모듈이 발행하는 cameras/{id}/status를 적재해 연결/안정도 집계 (UV-53, 모듈 계약 무변경)
 	implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5'
+	// 이메일 코드 비밀번호 재설정 (UV-56) — 고객사 SMTP(팀/프로젝트 설정)로 sender 역할만
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

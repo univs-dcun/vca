@@ -99,6 +99,30 @@ public final class AuthDtos {
 	public record IssuedInvite(Long userId, String token, java.time.Instant issuedAt, java.time.Instant expiresAt) {
 	}
 
+	// ---- 셀프 재설정 (이메일 코드) / 세션 (UV-56) ----
+
+	public record ResetRequest(String identifier) {
+	}
+
+	/** 존재 여부와 무관하게 같은 응답 — 화면이 인쇄하는 숫자(재발송 3회·10분·쿨다운 30초)를 서버 값으로 */
+	public record ResetRequestResponse(String delivery, int resendLimit, int ttlMinutes, int resendCooldownSec) {
+	}
+
+	public record ResetVerifyRequest(String identifier, String code) {
+	}
+
+	/** 검증 통과 — 단기 토큰(10분)을 완료 단계로. URL에 실리지 않는다 */
+	public record ResetVerifyResponse(String resetToken, int ttlMinutes) {
+	}
+
+	public record ResetCompleteRequest(String resetToken, String newPassword) {
+	}
+
+	/** My Page "Active login sessions" 행 — id는 세션 해시(토큰을 역산할 수 없다) */
+	public record SessionRow(String id, boolean current, java.time.Instant createdAt, java.time.Instant lastSeenAt,
+			java.time.Instant expiresAt, boolean keepLoggedIn, String userAgent, String ip) {
+	}
+
 	/** 생성/재발급 응답 — tempPassword는 이 응답에서 단 한 번만 노출된다 (DB에는 해시만) */
 	public record IssuedUser(Long id, String email, String employeeId, String name, String accountId,
 			String tempPassword) {

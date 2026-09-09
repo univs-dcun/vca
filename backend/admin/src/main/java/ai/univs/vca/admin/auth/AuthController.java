@@ -11,7 +11,11 @@ import ai.univs.vca.admin.auth.AuthService.LoginResult;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import ai.univs.vca.admin.security.ClientIp;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,9 +42,10 @@ public class AuthController {
 	}
 
 	@PostMapping("/login")
-	public ResponseEntity<ApiEnvelope> login(@RequestBody LoginRequest request) {
+	public ResponseEntity<ApiEnvelope> login(@RequestBody LoginRequest request, HttpServletRequest http) {
 		boolean keep = Boolean.TRUE.equals(request.keepLoggedIn());
-		LoginResult result = service.login(request.resolvedIdentifier(), request.password(), keep);
+		LoginResult result = service.login(request.resolvedIdentifier(), request.password(), keep,
+				http.getHeader("User-Agent"), ClientIp.from(http));
 		// keepLoggedIn 미체크 시 Max-Age 없는 브라우저 세션 쿠키 (서버 만료 12h는 별도로 걸려 있다)
 		ResponseCookie.ResponseCookieBuilder cookie = ResponseCookie.from(SESSION_COOKIE, result.token())
 			.httpOnly(true)
@@ -53,6 +58,24 @@ public class AuthController {
 		return ResponseEntity.ok()
 			.header(HttpHeaders.SET_COOKIE, cookie.build().toString())
 			.body(ApiEnvelope.ok(result.profile()));
+	}
+
+	/** My Page "Active login sessions" (UV-56) — 서버 세션 저장소라 종료가 거짓말이 아니다 */
+	@GetMapping("/sessions")
+	public ApiEnvelope sessions(@CookieValue(name = SESSION_COOKIE, required = false) String token) {
+		return ApiEnvelope.ok(service.sessions(token));
+	}
+
+	@DeleteMapping("/sessions/others")
+	public ApiEnvelope terminateOthers(@CookieValue(name = SESSION_COOKIE, required = false) String token) {
+		return ApiEnvelope.ok(java.util.Map.of("terminated", service.terminateOtherSessions(token)));
+	}
+
+	@DeleteMapping("/sessions/{sessionId}")
+	public ApiEnvelope terminate(@CookieValue(name = SESSION_COOKIE, required = false) String token,
+			@PathVariable String sessionId) {
+		service.terminateSession(token, sessionId);
+		return ApiEnvelope.ok(null);
 	}
 
 	@GetMapping("/me")

@@ -3,7 +3,9 @@ package ai.univs.vca.proxy;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -55,6 +57,36 @@ public class AuthProxyController {
 	@PostMapping("/api/auth/signup")
 	public Mono<ResponseEntity<String>> signup(ServerHttpRequest request, @RequestBody String body) {
 		return forwarder.forward(HttpMethod.POST, "/auth/signup", request, body);
+	}
+
+	@PostMapping("/api/auth/password/reset/request")
+	public Mono<ResponseEntity<String>> resetRequest(ServerHttpRequest request, @RequestBody String body) {
+		return forwarder.forward(HttpMethod.POST, "/auth/password/reset/request", request, body);
+	}
+
+	@PostMapping("/api/auth/password/reset/verify")
+	public Mono<ResponseEntity<String>> resetVerify(ServerHttpRequest request, @RequestBody String body) {
+		return forwarder.forward(HttpMethod.POST, "/auth/password/reset/verify", request, body);
+	}
+
+	@PostMapping("/api/auth/password/reset/complete")
+	public Mono<ResponseEntity<String>> resetComplete(ServerHttpRequest request, @RequestBody String body) {
+		return forwarder.forward(HttpMethod.POST, "/auth/password/reset/complete", request, body);
+	}
+
+	@GetMapping("/api/auth/sessions")
+	public Mono<ResponseEntity<String>> sessions(ServerHttpRequest request) {
+		return forwarder.forward(HttpMethod.GET, "/auth/sessions", request, null);
+	}
+
+	@DeleteMapping("/api/auth/sessions/others")
+	public Mono<ResponseEntity<String>> terminateOtherSessions(ServerHttpRequest request) {
+		return forwarder.forward(HttpMethod.DELETE, "/auth/sessions/others", request, null);
+	}
+
+	@DeleteMapping("/api/auth/sessions/{sessionId}")
+	public Mono<ResponseEntity<String>> terminateSession(ServerHttpRequest request, @PathVariable String sessionId) {
+		return forwarder.forward(HttpMethod.DELETE, "/auth/sessions/" + sessionId, request, null);
 	}
 
 	@PostMapping("/api/auth/password/setup")
