@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
  *    계정을 owner로 승격한다 — 그렇지 않으면 아무도 권한을 줄 수 없는 설치가 된다.
  * 4. teamId가 비어 있는 계정은 기본 팀에 귀속.
  */
+/** 팀·프로젝트·초기 owner가 먼저 — 카메라 시더가 기본 프로젝트를 참조한다 (UV-60에서 빈 DB 첫 기동 시 카메라 projectId null 버그 수정) */
+@Order(1)
 @Component
 public class DefaultAdminSeeder implements ApplicationRunner {
 

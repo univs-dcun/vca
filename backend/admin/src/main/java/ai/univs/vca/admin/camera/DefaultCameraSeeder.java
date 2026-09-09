@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,6 +21,8 @@ import org.springframework.stereotype.Component;
  * 시드 여부와 무관하게 기동마다 provisioning을 1회 push한다 — 모듈이 재기동으로 목록을 잃었어도
  * Admin 기동 시점에 수렴한다 (실패는 로그만 — 수동 재동기화 POST /admin/api/provision/sync).
  */
+/** DefaultAdminSeeder(@Order(1)) 뒤 — 빈 DB에서 기본 프로젝트가 있어야 시드 카메라가 귀속된다 (UV-60) */
+@Order(2)
 @Component
 public class DefaultCameraSeeder implements ApplicationRunner {
 

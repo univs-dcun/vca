@@ -1,0 +1,154 @@
+# VCA 개발서버 전체 스택 (UV-60, 1단계) — 백엔드 + 현재 대시보드. 포털 화면은 W3 반입 후 같은 frontend 이미지로 올라온다.
+#
+#   브라우저 ──:80──▶ frontend(nginx) ──/api──▶ proxy:8080 ──▶ sim:8081 (모듈 자리)  ──▶ MQTT emqx:1883
+#                        │                         └──/api/auth,/api/portal──▶ admin:8082 ──▶ postgres, emqx, mediamtx:9997
+#                        └──/streams──▶ mediamtx:8889 (WebRTC/WHEP)        브라우저 ──:8083(ws)──▶ emqx (실시간)
+#
+# 외부에 여는 포트: 80(웹), 8083(MQTT WebSocket), 8554(RTSP 수신), 8189/udp(WebRTC ICE), 선택 8080(proxy 직접), 18083(EMQX 콘솔)
+# 내부 전용(호스트에 안 열림): postgres 5432, admin 8082, mediamtx API 9997, MQTT tcp 1883
+# 설정은 .env — .env.example을 복사해 VCA_HOST·비밀값을 채운다. 절차는 README.md.
+name: vca
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vca_admin
+      POSTGRES_USER: vca
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vca}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vca -d vca_admin"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  emqx:
+    image: emqx/emqx:5.8
+    restart: unless-stopped
+    ports:
+      - "${EMQX_WS_PORT:-8083}:8083"          # 브라우저 실시간(MQTT over WebSocket) — frontend config MQTT_URL이 여기를 본다
+      - "${EMQX_DASHBOARD_PORT:-18083}:18083" # 관리 콘솔(기본 admin/public — 첫 접속 시 비밀번호 변경). 외부 노출 원치 않으면 .env에서 127.0.0.1: 접두
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    restart: unless-stopped
+    volumes:
+      - ../backend/admin/mediamtx.yml:/mediamtx.yml:ro
+    environment:
+      # 브라우저가 도달할 ICE 후보 — 개발서버의 호스트명/IP (파일의 127.0.0.1,localhost를 덮어쓴다)
+      MTX_WEBRTCADDITIONALHOSTS: "${VCA_HOST:?VCA_HOST - set the dev server IP or hostname in .env}"
+    ports:
+      - "${RTSP_PORT:-8554}:8554"           # 카메라/모의 소스가 발행하는 RTSP 수신
+      - "${WEBRTC_UDP_PORT:-8189}:8189/udp" # WebRTC 미디어
+
+  # 개발 모의 스트림 — 시드 카메라 8대의 rtspUrl(rtsp://127.0.0.1:8554/test)이 이 path를 본다. 실카메라 등록 시 불필요
+  test-stream:
+    image: linuxserver/ffmpeg:latest
+    restart: unless-stopped
+    command: >-
+      -re -f lavfi -i testsrc2=size=640x360:rate=15
+      -c:v libx264 -profile:v baseline -pix_fmt yuv420p -preset ultrafast -tune zerolatency
+      -g 30 -b:v 600k -f rtsp rtsp://mediamtx:8554/test
+    depends_on:
+      - mediamtx
+
+  # 분석 모듈 자리 — 실제 모듈이 붙으면 이 서비스를 빼고(--scale sim=0) VCA_MODULE_API_BASE_URL을 모듈 주소로
+  sim:
+    build: ../backend/vca-mqtt-broker/sim
+    image: ${VCA_IMAGE_PREFIX:-vca}/sim:${VCA_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    environment:
+      MQTT_URL: mqtt://emqx:1883
+      SITE_ID: ${VCA_SITE_ID:-sg}
+      MODULE_API_PORT: "8081"
+      TOGGLE_P: ${SIM_TOGGLE_P:-0.15}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  admin:
+    build: ../backend/admin
+    image: ${VCA_IMAGE_PREFIX:-vca}/admin:${VCA_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    environment:
+      VCA_ADMIN_DB_URL: jdbc:postgresql://postgres:5432/vca_admin
+      VCA_ADMIN_DB_USER: vca
+      VCA_ADMIN_DB_PASSWORD: ${POSTGRES_PASSWORD:-vca}
+      VCA_MODULE_API_BASE_URL: ${VCA_MODULE_API_BASE_URL:-http://sim:8081/v1}
+      VCA_MEDIA_API_BASE_URL: http://mediamtx:9997
+      VCA_MQTT_URL: tcp://emqx:1883
+      VCA_SITE_ID: ${VCA_SITE_ID:-sg}
+      VCA_ADMIN_ENC_KEY: "${VCA_ADMIN_ENC_KEY:?VCA_ADMIN_ENC_KEY - set the credential encryption key in .env - never rotate, old ciphertext becomes unreadable}"
+      VCA_ADMIN_SEED_EMAIL: ${VCA_ADMIN_SEED_EMAIL:-admin@univs.ai}
+      VCA_ADMIN_SEED_PASSWORD: "${VCA_ADMIN_SEED_PASSWORD:?VCA_ADMIN_SEED_PASSWORD - set the initial owner temporary password in .env}"
+      VCA_ADMIN_SEED: ${VCA_ADMIN_SEED_CAMERAS:-true}
+      VCA_ADMIN_COOKIE_SECURE: ${VCA_COOKIE_SECURE:-false}    # http 개발서버 false, TLS 앞단이 생기면 true
+      VCA_ADMIN_SELF_SIGNUP: "false"
+      VCA_ADMIN_MAIL_DEV_LOG: ${VCA_ADMIN_MAIL_DEV_LOG:-true}  # SMTP 없는 개발서버: 재설정 코드를 로그로. 운영 false
+      VCA_ADMIN_SEARCH_AUDIT_RETENTION_DAYS: ${VCA_ADMIN_SEARCH_AUDIT_RETENTION_DAYS:-365}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      emqx:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  proxy:
+    build: ../backend/proxy
+    image: ${VCA_IMAGE_PREFIX:-vca}/proxy:${VCA_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    environment:
+      VCA_MODULE_API_BASE_URL: ${VCA_MODULE_API_BASE_URL:-http://sim:8081/v1}
+      VCA_MEDIA_API_BASE_URL: http://mediamtx:9997
+      VCA_ADMIN_API_BASE_URL: http://admin:8082
+      VCA_SEARCH_AUDIT_ENABLED: "true"
+    ports:
+      # 선택: 기획 Next.js dev 서버가 rewrites로 직접 부를 때. 브라우저는 frontend(:80)의 /api를 쓴다. 불필요하면 .env에서 127.0.0.1: 접두
+      - "${PROXY_PORT:-8080}:8080"
+    depends_on:
+      admin:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  frontend:
+    build: ../frontend
+    image: ${VCA_IMAGE_PREFIX:-vca}/frontend:${VCA_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: /api
+      API_UPSTREAM: http://proxy:8080
+      MEDIA_UPSTREAM: http://mediamtx:8889
+      # 비우면 브라우저가 ws://{접속 호스트}:8083/mqtt 로 추정 — EMQX_WS_PORT를 바꿨거나 wss/리버스프록시를 쓰면 여기서 지정
+      MQTT_URL: ${VCA_MQTT_WS_URL:-}
+      SITE_ID: ${VCA_SITE_ID:-sg}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      proxy:
+        condition: service_healthy
+
+volumes:
+  pg-data:
+  emqx-data:
+  emqx-log:
