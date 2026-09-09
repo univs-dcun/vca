@@ -12,12 +12,18 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.12.0
+ * OpenAPI spec version: 0.13.0
  */
 
+/**
+ * identifier(이메일 또는 사번) 또는 email 중 하나 필수 — email은 UV-47 호환 필드
+ */
 export interface AuthLoginRequest {
-  email: string;
+  /** 이메일 또는 사번 (UV-50, 대소문자 무관) */
+  identifier?: string;
+  /** (호환) identifier가 없을 때 사용 */
+  email?: string;
   password: string;
-  /** 체크 시 쿠키 Max-Age·서버 세션 30일 (미체크 브라우저 세션 + 12시간) */
+  /** 체크 시 쿠키 Max-Age·서버 세션 30일 (미체크 브라우저 세션 + 12시간). Portal 로그인 화면은 보내지 않는다(공유 워크스테이션) */
   keepLoggedIn?: boolean;
 }

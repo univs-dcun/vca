@@ -4,9 +4,13 @@ import org.springframework.http.HttpStatus;
 
 /**
  * 오류 코드 체계 — 프록시의 VCA-XXXX와 구분되는 Admin 대역:
- * ADM-4001(본문 검증), ADM-4040(카메라 없음), ADM-4041(사용자 없음),
+ * ADM-4001(본문 검증), ADM-4040(카메라 없음), ADM-4041(사용자 없음), ADM-4042(팀 없음), ADM-4043(프로젝트 없음),
  * ADM-4010(자격증명 불일치), ADM-4011(세션 없음/만료), ADM-4012(현재 비밀번호 불일치),
- * ADM-4013(이미 본인 비밀번호 설정됨), ADM-4090(이메일 중복)
+ * ADM-4013(이미 본인 비밀번호 설정됨), ADM-4015(잠금), ADM-4016(정지 계정), ADM-4017(미활성 계정),
+ * ADM-4018(승인 대기), ADM-4030(역할 부족), ADM-4031(last-owner 가드),
+ * ADM-4090(이메일 중복), ADM-4091(사번 중복)
+ *
+ * 로그인 실패 7종은 기획자 프론트 authErrors.ts의 상태와 1:1 (design-vca-portal.md §4.1).
  */
 public class AdminApiException extends RuntimeException {
 
@@ -29,7 +33,7 @@ public class AdminApiException extends RuntimeException {
 
 	/** 이메일 없음/비밀번호 불일치를 구분하지 않는다 — 계정 존재 여부를 노출하지 않기 위해 */
 	public static AdminApiException invalidCredentials() {
-		return new AdminApiException(HttpStatus.UNAUTHORIZED, "ADM-4010", "invalid email or password");
+		return new AdminApiException(HttpStatus.UNAUTHORIZED, "ADM-4010", "invalid credentials");
 	}
 
 	public static AdminApiException sessionRequired() {
@@ -45,12 +49,49 @@ public class AdminApiException extends RuntimeException {
 		return new AdminApiException(HttpStatus.BAD_REQUEST, "ADM-4013", "password already set — use password change");
 	}
 
+	public static AdminApiException accountLocked() {
+		return new AdminApiException(HttpStatus.LOCKED, "ADM-4015", "account locked after repeated failures");
+	}
+
+	public static AdminApiException accountSuspended() {
+		return new AdminApiException(HttpStatus.FORBIDDEN, "ADM-4016", "account suspended");
+	}
+
+	public static AdminApiException accountNotActivated() {
+		return new AdminApiException(HttpStatus.FORBIDDEN, "ADM-4017", "account not activated — set a password first");
+	}
+
+	public static AdminApiException pendingApproval() {
+		return new AdminApiException(HttpStatus.FORBIDDEN, "ADM-4018", "access request pending approval");
+	}
+
+	public static AdminApiException forbidden(String message) {
+		return new AdminApiException(HttpStatus.FORBIDDEN, "ADM-4030", message);
+	}
+
+	/** 활성 owner가 0명이 되는 변경 — 아무도 권한을 줄 수 없는 설치가 된다 */
+	public static AdminApiException lastOwner() {
+		return new AdminApiException(HttpStatus.CONFLICT, "ADM-4031", "cannot remove the last active owner");
+	}
+
 	public static AdminApiException userNotFound(Long userId) {
 		return new AdminApiException(HttpStatus.NOT_FOUND, "ADM-4041", "unknown userId: " + userId);
 	}
 
+	public static AdminApiException teamNotFound(String teamId) {
+		return new AdminApiException(HttpStatus.NOT_FOUND, "ADM-4042", "unknown teamId: " + teamId);
+	}
+
+	public static AdminApiException projectNotFound(String projectId) {
+		return new AdminApiException(HttpStatus.NOT_FOUND, "ADM-4043", "unknown projectId: " + projectId);
+	}
+
 	public static AdminApiException emailInUse(String email) {
 		return new AdminApiException(HttpStatus.CONFLICT, "ADM-4090", "email already in use: " + email);
+	}
+
+	public static AdminApiException employeeIdInUse(String employeeId) {
+		return new AdminApiException(HttpStatus.CONFLICT, "ADM-4091", "employeeId already in use: " + employeeId);
 	}
 
 	public HttpStatus status() {

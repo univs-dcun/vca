@@ -7,4 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface UserAccountRepository extends JpaRepository<UserAccountEntity, Long> {
 
 	Optional<UserAccountEntity> findByEmail(String email);
+
+	Optional<UserAccountEntity> findByEmployeeId(String employeeId);
+
+	/** last-owner 가드 — 활성 owner 수 */
+	long countByPermissionAndStatus(PortalPermission permission, AccountStatus status);
 }

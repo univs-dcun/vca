@@ -8,6 +8,7 @@ import java.util.Locale;
 
 import ai.univs.vca.admin.AdminApiException;
 import ai.univs.vca.admin.AdminProperties;
+import ai.univs.vca.admin.audit.AuditService;
 import ai.univs.vca.admin.camera.CameraDtos.CameraRequest;
 import ai.univs.vca.admin.camera.CameraDtos.CameraResponse;
 import ai.univs.vca.admin.crypto.CredentialCipher;
@@ -23,14 +24,16 @@ public class CameraService {
 	private final ProvisionClient provisionClient;
 	private final MediaSyncClient mediaSyncClient;
 	private final CredentialCipher cipher;
+	private final AuditService audit;
 	private final SecureRandom random = new SecureRandom();
 
 	public CameraService(CameraRepository repository, ProvisionClient provisionClient,
-			MediaSyncClient mediaSyncClient, AdminProperties props) {
+			MediaSyncClient mediaSyncClient, AdminProperties props, AuditService audit) {
 		this.repository = repository;
 		this.provisionClient = provisionClient;
 		this.mediaSyncClient = mediaSyncClient;
 		this.cipher = new CredentialCipher(props.encKey());
+		this.audit = audit;
 	}
 
 	@Transactional(readOnly = true)
@@ -53,6 +56,7 @@ public class CameraService {
 				req.username(), encryptOrNull(req.password()), req.rtspUrl(), locationId, req.location().lat(),
 				req.location().lng());
 		repository.save(entity);
+		audit.record(null, "Camera " + entity.getName() + " (" + cameraId + ") registered");
 		syncModule();
 		return CameraResponse.from(entity);
 	}
@@ -63,15 +67,20 @@ public class CameraService {
 		CameraEntity entity = find(cameraId);
 		String locationId = req.locationId() != null && !req.locationId().isBlank() ? req.locationId()
 				: entity.getLocationId();
+		boolean rtspChanged = !req.rtspUrl().equals(entity.getRtspUrl());
 		entity.update(req.name(), req.ip(), req.maker(), req.model(), req.username(), encryptOrNull(req.password()),
 				req.rtspUrl(), locationId, req.location().lat(), req.location().lng());
+		audit.record(null, "Camera " + entity.getName() + " (" + cameraId + ")"
+				+ (rtspChanged ? " RTSP URL updated" : " updated"));
 		syncModule();
 		return CameraResponse.from(entity);
 	}
 
 	@Transactional
 	public void delete(String cameraId) {
-		repository.delete(find(cameraId));
+		CameraEntity entity = find(cameraId);
+		repository.delete(entity);
+		audit.record(null, "Camera " + entity.getName() + " (" + cameraId + ") removed");
 		syncModule();
 	}
 

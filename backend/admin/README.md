@@ -91,3 +91,32 @@ API다. 프록시에 라우트가 없어 VCA 대시보드(브라우저)에서는
 첫 로그인 흐름: 임시 비밀번호 로그인 → 화면이 `mustSetPassword`를 보고 Set Password 강제 →
 `POST /auth/password/setup`(임시 상태 세션 전용, 현재 비밀번호 불요) → 해제 후 메인 진입.
 오류: ADM-4013(이미 설정됨 — 변경 API 몫), ADM-4090(이메일 중복), ADM-4041(사용자 없음).
+
+## Portal 원장 1차 + API 게이트 (UV-50, admin-api.json 0.5.0)
+
+Portal(관리 콘솔)의 백엔드 — 설계는 [docs/design-vca-portal.md](../../docs/design-vca-portal.md). 브라우저는
+프록시 `/api/portal/**` → 여기 `/admin/api/**` 패스스루로 호출한다.
+
+**게이트 (`security/SessionInterceptor`)** — `/admin/api/**` 전체에 세션 필수. 콘솔 역할 없음(`none`) 403
+ADM-4030, 변경(GET/HEAD 외)은 owner|admin, 접근 권한 관리(`@RequiresOwner`: 계정 발급·권한·상태·삭제·임시
+비밀번호)는 owner. `/auth/**`는 게이트 밖. curl로 직접 호출할 때도 `vca_session` 쿠키가 필요하다.
+
+| 그룹 | 엔드포인트 |
+|---|---|
+| teams | `GET/POST /admin/api/teams`, `GET/PUT /{teamId}`, `PUT /{teamId}/mail`(SMTP — password 쓰기 전용) |
+| projects | `GET/POST /admin/api/projects?teamId=`, `GET/PUT /{projectId}`, `PUT /license`·`/mail`·`/timezone`·`/network-isolation` |
+| users | 기존 발급/재발급/목록 + `PUT /{id}/access`·`/app-search`·`/projects`·`/status`, `DELETE /{id}` |
+| audit | `GET /admin/api/audit?projectId=&limit=` — 모든 변경 엔드포인트가 기록(actor = 세션 사용자) |
+
+**계정 모델**: `permission`(owner/admin/auditor/none) + `appAccess` + `appSearch` 독립 축, `status`
+(active/invited/suspended — suspended는 기존 세션 즉시 차단), `employeeId`(사번 로그인, 대문자 저장),
+`email` nullable(메일 없는 환경 — 이메일 또는 사번 중 하나 필수), 팀·프로젝트 배정. **last-owner 가드**:
+활성 owner가 0명이 되는 강등·정지·삭제는 409 ADM-4031.
+
+**로그인 응답 코드** (기획자 authErrors.ts 7종 중 W1 구현분): ADM-4010 badCredentials · ADM-4011 sessionExpired ·
+ADM-4016 suspended · ADM-4017 notActivated. 잠금(4015)·승인 대기(4018)는 W2.
+
+**기동 시드/마이그레이션**: 팀·프로젝트가 없으면 `team-default`/`proj-default` 생성, 계정이 없으면 초기 owner
+시드, 활성 owner가 0명이면 `seed-admin-email` 계정을 owner로 승격, teamId 없는 계정은 기본 팀 귀속.
+개발 DB에서 UV-47 스키마로 만든 `user_account.email`은 NOT NULL이라 한 번 풀어야 한다
+(`alter table user_account alter column email drop not null;` — 운영 이관 전 Flyway 도입 예정).

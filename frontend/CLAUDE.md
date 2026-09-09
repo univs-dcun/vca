@@ -173,6 +173,10 @@ mock 폴백, 프록시가 VCA-5021/5041로 구분). 주입 지점:
   POST /auth/password/verify, 변경 = POST /auth/password, serverError 행 2곳 추가)
 개발 계정 시드: admin@univs.ai / VcaAdmin1234! (Admin 백엔드 기동 시, VCA_ADMIN_SEED_* 덮어쓰기).
 /signup·/portal은 기획 확인 대기 — 실배선 없음.
+UV-50(계약 0.13.0): AuthUserProfile에 permission/appAccess/appSearch/status/teamId/projectIds 추가,
+email nullable(사번 로그인 계정) — MyPage 이메일 필드는 `me.email ?? employeeId ?? "—"`. 로그인 요청은
+`identifier`(이메일|사번). `/api/portal/**` 그룹(teams/projects/users/audit)은 orval 훅만 생성된 상태 —
+Portal 화면 배선은 W3(UV-52) 반입 때.
 
 첫 로그인 흐름(UV-48, 계약 0.12.0): 기획 확정 — 계정은 담당자가 발급(임시 비밀번호 오프라인
 전달, 발급 화면은 Admin(portal) 소관·API는 admin-api /admin/api/users). 프로필에

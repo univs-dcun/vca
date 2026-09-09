@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.12.0",
+    "version": "0.13.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -197,6 +197,237 @@
             }
           }
         }
+      }
+    },
+    "/portal/teams": {
+      "get": {
+        "operationId": "portalListTeams",
+        "summary": "팀(조직) 목록 (UV-50) — Portal 셸 팀 전환. 프록시가 Admin /admin/api/teams로 패스스루",
+        "description": "Portal 그룹 공통: 세션 필수(401 ADM-4011), 콘솔 역할 없음 403 ADM-4030(none), 변경은 owner|admin, 접근 권한 관리는 owner. Admin 미가동 502 VCA-5021.",
+        "tags": ["portal"],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalTeamListResponse" } } } },
+          "401": { "description": "세션 없음 (ADM-4011)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "콘솔 역할 없음 (ADM-4030)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "post": {
+        "operationId": "portalCreateTeam",
+        "summary": "팀 생성 (UV-50) — owner|admin",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalTeamRequest" } } } },
+        "responses": {
+          "201": { "description": "생성", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalTeamResponse" } } } }
+        }
+      }
+    },
+    "/portal/teams/{teamId}": {
+      "parameters": [{ "name": "teamId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "operationId": "portalGetTeam",
+        "summary": "팀 상세 (UV-50)",
+        "tags": ["portal"],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalTeamResponse" } } } },
+          "404": { "description": "ADM-4042", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "put": {
+        "operationId": "portalUpdateTeam",
+        "summary": "팀 수정 (UV-50) — owner|admin",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalTeamRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalTeamResponse" } } } } }
+      }
+    },
+    "/portal/teams/{teamId}/mail": {
+      "put": {
+        "operationId": "portalUpdateTeamMail",
+        "summary": "팀 SMTP·메일 도메인 (UV-50, Server & API › Mail & Network)",
+        "tags": ["portal"],
+        "parameters": [{ "name": "teamId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalMailRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalTeamResponse" } } } } }
+      }
+    },
+    "/portal/projects": {
+      "get": {
+        "operationId": "portalListProjects",
+        "summary": "프로젝트 목록 (UV-50) — teamId 생략 시 전체",
+        "tags": ["portal"],
+        "parameters": [{ "name": "teamId", "in": "query", "required": false, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectListResponse" } } } } }
+      },
+      "post": {
+        "operationId": "portalCreateProject",
+        "summary": "프로젝트 생성 (UV-50, 새 프로젝트 마법사) — teamId·name 필수, id는 proj-{슬러그}-{4hex} 서버 발급",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectRequest" } } } },
+        "responses": {
+          "201": { "description": "생성", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectResponse" } } } },
+          "404": { "description": "팀 없음 ADM-4042", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/projects/{projectId}": {
+      "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "operationId": "portalGetProject",
+        "summary": "프로젝트 상세 (UV-50)",
+        "tags": ["portal"],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectResponse" } } } },
+          "404": { "description": "ADM-4043", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "put": {
+        "operationId": "portalUpdateProject",
+        "summary": "프로젝트 수정 (UV-50) — owner|admin",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectResponse" } } } } }
+      }
+    },
+    "/portal/projects/{projectId}/license": {
+      "put": {
+        "operationId": "portalUpdateLicense",
+        "summary": "라이선스 (UV-50) — plan/channelLimit/expiresAt(null=Unlimited). 채널 사용량은 카메라 수로 파생",
+        "tags": ["portal"],
+        "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalLicenseRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectResponse" } } } } }
+      }
+    },
+    "/portal/projects/{projectId}/mail": {
+      "put": {
+        "operationId": "portalUpdateProjectMail",
+        "summary": "프로젝트 SMTP 오버라이드 (UV-50)",
+        "tags": ["portal"],
+        "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalMailRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectResponse" } } } } }
+      }
+    },
+    "/portal/projects/{projectId}/timezone": {
+      "put": {
+        "operationId": "portalUpdateTimeZone",
+        "summary": "프로젝트 시간대 (UV-50, My page 타임존 카드) — 저장은 UTC, 읽을 때 이 존으로 해석",
+        "tags": ["portal"],
+        "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalTimeZoneRequest" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectResponse" } } } },
+          "400": { "description": "알 수 없는 존 ADM-4001", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/projects/{projectId}/network-isolation": {
+      "put": {
+        "operationId": "portalUpdateNetworkIsolation",
+        "summary": "망 격리 수동 오버라이드 (UV-50) — override null이면 자동 감지로 복귀",
+        "tags": ["portal"],
+        "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalNetworkIsolationRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectResponse" } } } } }
+      }
+    },
+    "/portal/users": {
+      "get": {
+        "operationId": "portalListUsers",
+        "summary": "계정 목록 (UV-50, Users & Permissions › Accounts) — 콘솔 역할 3종",
+        "tags": ["portal"],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalUserListResponse" } } } } }
+      },
+      "post": {
+        "operationId": "portalCreateUser",
+        "summary": "계정 발급 (UV-48/50) — owner 전용. 임시 비밀번호 서버 생성·응답 1회 노출, mustSetPassword=true로 시작",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalCreateUserRequest" } } } },
+        "responses": {
+          "201": { "description": "발급", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalIssuedUserResponse" } } } },
+          "400": { "description": "email/employeeId 둘 다 없음 또는 아무 접근도 없는 계정 (ADM-4001)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "owner 아님 (ADM-4030)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "409": { "description": "이메일 중복 ADM-4090 / 사번 중복 ADM-4091", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/users/{userId}": {
+      "delete": {
+        "operationId": "portalDeleteUser",
+        "summary": "계정 삭제 (UV-50) — owner 전용, 마지막 활성 owner는 409 ADM-4031",
+        "tags": ["portal"],
+        "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthOkResponse" } } } },
+          "409": { "description": "last-owner 가드 ADM-4031", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/users/{userId}/reset-password": {
+      "post": {
+        "operationId": "portalResetUserPassword",
+        "summary": "임시 비밀번호 재발급 (UV-48/50) — owner 전용. 전 세션 무효화 + Set Password 강제 복귀",
+        "tags": ["portal"],
+        "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalIssuedUserResponse" } } } } }
+      }
+    },
+    "/portal/users/{userId}/access": {
+      "put": {
+        "operationId": "portalUpdateUserAccess",
+        "summary": "콘솔 역할·앱 접근 변경 (UV-50) — owner 전용. owner 강등 시 last-owner 가드",
+        "tags": ["portal"],
+        "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalAccessRequest" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalUserResponse" } } } },
+          "409": { "description": "last-owner 가드 ADM-4031", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/users/{userId}/app-search": {
+      "put": {
+        "operationId": "portalSetUserAppSearch",
+        "summary": "앱 인물 검색 권한 (UV-50) — owner 전용",
+        "tags": ["portal"],
+        "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalAppSearchRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalUserResponse" } } } } }
+      }
+    },
+    "/portal/users/{userId}/projects": {
+      "put": {
+        "operationId": "portalUpdateUserProjects",
+        "summary": "앱 프로젝트 가시 범위 (UV-50) — owner|admin",
+        "tags": ["portal"],
+        "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalProjectsRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalUserResponse" } } } } }
+      }
+    },
+    "/portal/users/{userId}/status": {
+      "put": {
+        "operationId": "portalUpdateUserStatus",
+        "summary": "계정 상태 (UV-50) — owner 전용. suspended는 기존 세션 즉시 차단, owner 비활성화 시 last-owner 가드",
+        "tags": ["portal"],
+        "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalStatusRequest" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalUserResponse" } } } },
+          "409": { "description": "last-owner 가드 ADM-4031", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/audit": {
+      "get": {
+        "operationId": "portalListAudit",
+        "summary": "감사 로그 (UV-50, Overview Recent admin activity) — projectId 지정 시 그 프로젝트 + 프로젝트 무관 이벤트, 최신순",
+        "tags": ["portal"],
+        "parameters": [
+          { "name": "projectId", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 50, "maximum": 200 } }
+        ],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalAuditListResponse" } } } } }
       }
     },
     "/dashboard/live-analytics": {
@@ -1133,26 +1364,245 @@
     "schemas": {
       "AuthLoginRequest": {
         "type": "object",
-        "required": ["email", "password"],
+        "description": "identifier(이메일 또는 사번) 또는 email 중 하나 필수 — email은 UV-47 호환 필드",
+        "required": ["password"],
         "properties": {
-          "email": { "type": "string", "example": "admin@univs.ai" },
+          "identifier": { "type": "string", "description": "이메일 또는 사번 (UV-50, 대소문자 무관)", "example": "admin@univs.ai" },
+          "email": { "type": "string", "description": "(호환) identifier가 없을 때 사용", "example": "admin@univs.ai" },
           "password": { "type": "string", "format": "password" },
-          "keepLoggedIn": { "type": "boolean", "default": false, "description": "체크 시 쿠키 Max-Age·서버 세션 30일 (미체크 브라우저 세션 + 12시간)" }
+          "keepLoggedIn": { "type": "boolean", "default": false, "description": "체크 시 쿠키 Max-Age·서버 세션 30일 (미체크 브라우저 세션 + 12시간). Portal 로그인 화면은 보내지 않는다(공유 워크스테이션)" }
         }
       },
       "AuthUserProfile": {
         "type": "object",
-        "description": "로그인 사용자 프로필 (My Page·Navbar 표시용) — 민감 필드 없음",
-        "required": ["name", "email", "accountId", "role", "team", "mustSetPassword"],
+        "description": "로그인 사용자 프로필 (My Page·Navbar·Portal 셸) — 민감 필드 없음. permission/appAccess/appSearch/projectIds는 기획자 스탠드인(currentPortalRole·projectsVisibleInApp·canSearchInApp)이 세션에서 읽어야 하는 값 (UV-50)",
+        "required": ["id", "name", "accountId", "role", "team", "mustSetPassword", "permission", "appAccess", "appSearch", "status", "projectIds"],
         "properties": {
+          "id": { "type": "integer", "format": "int64" },
           "name": { "type": "string", "example": "John Doe" },
-          "email": { "type": "string", "example": "admin@univs.ai" },
+          "email": { "type": "string", "nullable": true, "description": "메일 없는 환경이면 null (사번 로그인)", "example": "admin@univs.ai" },
+          "employeeId": { "type": "string", "nullable": true, "example": "EMP-2041" },
           "accountId": { "type": "string", "description": "화면 표시용 계정 ID", "example": "VCA-ADMIN-8821" },
           "role": { "type": "string", "example": "Smart City Operations Manager" },
           "team": { "type": "string", "example": "Operational Control Team Alpha" },
-          "mustSetPassword": { "type": "boolean", "description": "임시 비밀번호 상태 (UV-48) — true면 화면이 Set Password(/password-setup)를 강제하고, 완료 전 메인 진입을 막는다" }
+          "mustSetPassword": { "type": "boolean", "description": "임시 비밀번호 상태 (UV-48) — true면 화면이 Set Password(/password-setup)를 강제하고, 완료 전 메인 진입을 막는다" },
+          "permission": { "$ref": "#/components/schemas/PortalPermission" },
+          "appAccess": { "type": "boolean", "description": "모니터링 앱 로그인 가능 — 역할과 독립" },
+          "appSearch": { "type": "boolean", "description": "앱 내 인물 검색 권한" },
+          "status": { "$ref": "#/components/schemas/PortalAccountStatus" },
+          "teamId": { "type": "string", "nullable": true },
+          "projectIds": { "type": "array", "items": { "type": "string" }, "description": "앱에서 볼 수 있는 프로젝트 — 비어 있으면 팀의 전 프로젝트" }
         }
       },
+      "PortalPermission": {
+        "type": "string",
+        "enum": ["owner", "admin", "auditor", "none"],
+        "description": "콘솔 역할 — owner: 권한 관리 가능한 유일 역할(활성 0명 불가) / admin: 설치 설정 변경 / auditor: 읽기 전용 / none: 콘솔 없음(앱 전용)"
+      },
+      "PortalAccountStatus": {
+        "type": "string",
+        "enum": ["active", "invited", "suspended"],
+        "description": "invited = 코드/초대 받고 비밀번호 미설정(로그인 시 ADM-4017) / suspended = 정지(ADM-4016, 기존 세션 즉시 차단)"
+      },
+      "PortalMailRequest": {
+        "type": "object",
+        "description": "SMTP 발신 설정 — password는 쓰기 전용(생략 시 기존 값 유지). host 비우면 설정 해제",
+        "properties": {
+          "mailDomain": { "type": "string", "nullable": true },
+          "host": { "type": "string", "nullable": true },
+          "port": { "type": "integer", "nullable": true },
+          "fromAddress": { "type": "string", "nullable": true },
+          "username": { "type": "string", "nullable": true },
+          "password": { "type": "string", "format": "password", "nullable": true },
+          "useTls": { "type": "boolean", "nullable": true }
+        }
+      },
+      "PortalMailView": {
+        "type": "object",
+        "required": ["hasPassword"],
+        "properties": {
+          "mailDomain": { "type": "string", "nullable": true },
+          "host": { "type": "string", "nullable": true },
+          "port": { "type": "integer", "nullable": true },
+          "fromAddress": { "type": "string", "nullable": true },
+          "username": { "type": "string", "nullable": true },
+          "hasPassword": { "type": "boolean" },
+          "useTls": { "type": "boolean", "nullable": true }
+        }
+      },
+      "PortalTeamRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "region": { "type": "string", "nullable": true },
+          "accountManagerName": { "type": "string", "nullable": true, "description": "공급사 측 계약 담당자 — 고객 편집 대상 아님" },
+          "accountManagerEmail": { "type": "string", "nullable": true }
+        }
+      },
+      "PortalTeam": {
+        "type": "object",
+        "required": ["id", "name", "region", "mail", "createdAt"],
+        "properties": {
+          "id": { "type": "string", "example": "team-default" },
+          "name": { "type": "string" },
+          "region": { "type": "string" },
+          "mail": { "$ref": "#/components/schemas/PortalMailView" },
+          "accountManagerName": { "type": "string", "nullable": true },
+          "accountManagerEmail": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortalProjectRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "teamId": { "type": "string", "description": "생성 시 필수" },
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["smart_city", "smart_school"], "default": "smart_city" },
+          "timeZone": { "type": "string", "description": "IANA 존, 기본 Asia/Singapore" },
+          "computeInstance": { "type": "string", "nullable": true },
+          "gpuCount": { "type": "integer", "nullable": true },
+          "modelVersion": { "type": "string", "nullable": true },
+          "regionName": { "type": "string", "nullable": true }
+        }
+      },
+      "PortalLicenseRequest": {
+        "type": "object",
+        "description": "채널·기간은 계약(공급사)이 바꾸는 값 — Portal 화면은 표시만 하고 이 API는 공급사 운영용",
+        "properties": {
+          "plan": { "type": "string", "nullable": true, "description": "Starter | Professional | Enterprise" },
+          "channelLimit": { "type": "integer", "nullable": true, "description": "AI/일반 카메라 공용 단일 채널 풀" },
+          "expiresAt": { "type": "string", "format": "date", "nullable": true, "description": "null = Unlimited" }
+        }
+      },
+      "PortalTimeZoneRequest": {
+        "type": "object",
+        "required": ["timeZone"],
+        "properties": { "timeZone": { "type": "string", "example": "Asia/Singapore" } }
+      },
+      "PortalNetworkIsolationRequest": {
+        "type": "object",
+        "properties": { "override": { "type": "boolean", "nullable": true, "description": "null = 자동 감지로 복귀" } }
+      },
+      "PortalProject": {
+        "type": "object",
+        "required": ["id", "teamId", "name", "type", "timeZone", "mail", "networkIsolated", "networkIsolatedDetected", "createdAt"],
+        "properties": {
+          "id": { "type": "string", "example": "proj-marina-bay-4daf" },
+          "teamId": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["smart_city", "smart_school"] },
+          "timeZone": { "type": "string" },
+          "licensePlan": { "type": "string", "nullable": true },
+          "licenseChannelLimit": { "type": "integer", "nullable": true },
+          "licenseExpiresAt": { "type": "string", "format": "date", "nullable": true, "description": "null = Unlimited" },
+          "mail": { "$ref": "#/components/schemas/PortalMailView" },
+          "networkIsolated": { "type": "boolean", "description": "오버라이드가 있으면 그것, 없으면 감지값" },
+          "networkIsolatedDetected": { "type": "boolean" },
+          "networkIsolatedOverride": { "type": "boolean", "nullable": true },
+          "computeInstance": { "type": "string", "nullable": true },
+          "gpuCount": { "type": "integer", "nullable": true },
+          "modelVersion": { "type": "string", "nullable": true },
+          "regionName": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortalCreateUserRequest": {
+        "type": "object",
+        "description": "email 또는 employeeId 중 하나 필수. 콘솔 역할도 앱 접근도 없는 계정은 400. 임시 비밀번호는 서버 생성 → 응답에 1회만",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "email": { "type": "string", "nullable": true },
+          "employeeId": { "type": "string", "nullable": true, "description": "대문자 정규화 저장" },
+          "accountId": { "type": "string", "nullable": true, "description": "생략 시 VCA-OPS-xxxx 자동" },
+          "role": { "type": "string", "nullable": true },
+          "team": { "type": "string", "nullable": true },
+          "permission": { "$ref": "#/components/schemas/PortalPermission" },
+          "appAccess": { "type": "boolean", "description": "생략 시 콘솔 역할이 없으면 true" },
+          "appSearch": { "type": "boolean", "default": false },
+          "teamId": { "type": "string", "nullable": true },
+          "projectIds": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "PortalAccessRequest": {
+        "type": "object",
+        "properties": {
+          "permission": { "$ref": "#/components/schemas/PortalPermission" },
+          "appAccess": { "type": "boolean" }
+        }
+      },
+      "PortalAppSearchRequest": {
+        "type": "object",
+        "required": ["allowed"],
+        "properties": { "allowed": { "type": "boolean" } }
+      },
+      "PortalProjectsRequest": {
+        "type": "object",
+        "required": ["projectIds"],
+        "properties": { "projectIds": { "type": "array", "items": { "type": "string" } } }
+      },
+      "PortalStatusRequest": {
+        "type": "object",
+        "required": ["status"],
+        "properties": { "status": { "$ref": "#/components/schemas/PortalAccountStatus" } }
+      },
+      "PortalUser": {
+        "type": "object",
+        "description": "Users & Permissions 계정 행 — 자격증명·코드·토큰 원문 없음",
+        "required": ["id", "name", "accountId", "role", "team", "permission", "appAccess", "appSearch", "status", "projectIds", "mustSetPassword", "createdAt"],
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "email": { "type": "string", "nullable": true },
+          "employeeId": { "type": "string", "nullable": true },
+          "name": { "type": "string" },
+          "accountId": { "type": "string" },
+          "role": { "type": "string" },
+          "team": { "type": "string" },
+          "permission": { "$ref": "#/components/schemas/PortalPermission" },
+          "appAccess": { "type": "boolean" },
+          "appSearch": { "type": "boolean" },
+          "status": { "$ref": "#/components/schemas/PortalAccountStatus" },
+          "teamId": { "type": "string", "nullable": true },
+          "projectIds": { "type": "array", "items": { "type": "string" } },
+          "mustSetPassword": { "type": "boolean" },
+          "lastLoginAt": { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortalIssuedUser": {
+        "type": "object",
+        "description": "계정 발급/임시 비밀번호 재발급 응답 — tempPassword는 이 응답에서 단 한 번만 노출 (DB에는 해시만)",
+        "required": ["id", "name", "accountId", "tempPassword"],
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "email": { "type": "string", "nullable": true },
+          "employeeId": { "type": "string", "nullable": true },
+          "name": { "type": "string" },
+          "accountId": { "type": "string" },
+          "tempPassword": { "type": "string" }
+        }
+      },
+      "PortalAuditEvent": {
+        "type": "object",
+        "required": ["id", "actor", "message", "at"],
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "projectId": { "type": "string", "nullable": true, "description": "null = 프로젝트에 묶이지 않는 변경(계정 권한 등)" },
+          "actor": { "type": "string", "description": "행위자 이름, 시스템 작업은 system" },
+          "message": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortalTeamResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalTeam" } } },
+      "PortalTeamListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalTeam" } } } },
+      "PortalProjectResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalProject" } } },
+      "PortalProjectListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalProject" } } } },
+      "PortalUserResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalUser" } } },
+      "PortalUserListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalUser" } } } },
+      "PortalIssuedUserResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalIssuedUser" } } },
+      "PortalAuditListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalAuditEvent" } } } },
       "AuthPasswordSetupRequest": {
         "type": "object",
         "required": ["newPassword"],
