@@ -9,6 +9,7 @@ import ai.univs.vca.admin.audit.AuditService;
 import ai.univs.vca.admin.auth.AuthDtos.CreateUserRequest;
 import ai.univs.vca.admin.auth.AuthDtos.IssuedUser;
 import ai.univs.vca.admin.auth.AuthDtos.UserRow;
+import ai.univs.vca.admin.security.ProjectScope;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -118,7 +119,15 @@ public class UserAdminService {
 
 	@Transactional
 	public UserRow updateProjects(Long userId, List<String> projectIds) {
-		UserAccountEntity user = require(userId);
+		UserAccountEntity user = requireVisible(userId);
+		ProjectScope scope = ProjectScope.current();
+		if (!scope.isUnrestricted()) {
+			// admin은 자기 범위 안의 프로젝트만 배정할 수 있다 — 범위 밖 배정은 권한 상승 (UV-58)
+			(projectIds == null ? List.<String>of() : projectIds).forEach(scope::require);
+			if (user.getProjectIds().stream().anyMatch(id -> !scope.allows(id))) {
+				throw AdminApiException.projectForbidden(null); // 대상이 범위 밖 프로젝트도 갖고 있으면 owner 몫
+			}
+		}
 		user.setProjectIds(projectIds == null ? List.of() : projectIds);
 		audit.record(null, "Project scope for " + user.getName() + " set to " + user.getProjectIds().size()
 				+ " project(s)");
@@ -201,7 +210,24 @@ public class UserAdminService {
 
 	@Transactional(readOnly = true)
 	public List<UserRow> list() {
-		return users.findAll().stream().map(UserRow::of).toList();
+		ProjectScope scope = ProjectScope.current();
+		return users.findAll().stream().filter(u -> visible(scope, u)).map(UserRow::of).toList();
+	}
+
+	/** 비owner에게 보이는 계정: 같은 팀이거나 배정 프로젝트가 하나라도 겹치는 계정 (UV-58) */
+	private static boolean visible(ProjectScope scope, UserAccountEntity u) {
+		if (scope.isUnrestricted()) {
+			return true;
+		}
+		return scope.allowsTeam(u.getTeamId()) || scope.allowsAny(u.getProjectIds());
+	}
+
+	private UserAccountEntity requireVisible(Long userId) {
+		UserAccountEntity u = require(userId);
+		if (!visible(ProjectScope.current(), u)) {
+			throw AdminApiException.projectForbidden(null);
+		}
+		return u;
 	}
 
 	private UserAccountEntity require(Long userId) {

@@ -5,6 +5,7 @@ import java.text.Normalizer;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import ai.univs.vca.admin.AdminApiException;
 import ai.univs.vca.admin.AdminProperties;
@@ -16,6 +17,7 @@ import ai.univs.vca.admin.crypto.CredentialCipher;
 import ai.univs.vca.admin.org.ProjectRepository;
 import ai.univs.vca.admin.provision.MediaSyncClient;
 import ai.univs.vca.admin.provision.ProvisionClient;
+import ai.univs.vca.admin.security.ProjectScope;
 import ai.univs.vca.admin.status.CameraStatusService;
 import ai.univs.vca.admin.status.CameraStatusService.Current;
 import org.springframework.stereotype.Service;
@@ -50,20 +52,21 @@ public class CameraService {
 
 	@Transactional(readOnly = true)
 	public List<CameraResponse> list(String projectId) {
-		List<CameraEntity> rows = projectId == null || projectId.isBlank() ? repository.findAllByOrderByNameAsc()
-				: repository.findByProjectIdOrderByNameAsc(projectId);
+		Set<String> scope = ProjectScope.current().narrow(projectId);
+		List<CameraEntity> rows = scope == null ? repository.findAllByOrderByNameAsc()
+				: repository.findByProjectIdInOrderByNameAsc(scope);
 		return rows.stream().map(this::toResponse).toList();
 	}
 
 	@Transactional(readOnly = true)
 	public CameraResponse get(String cameraId) {
-		return toResponse(find(cameraId));
+		return toResponse(findInScope(cameraId));
 	}
 
 	@Transactional
 	public CameraResponse create(CameraRequest req) {
 		validate(req);
-		String projectId = resolveProject(req.projectId());
+		String projectId = ProjectScope.current().require(resolveProject(req.projectId()));
 		String locationId = req.locationId() != null && !req.locationId().isBlank() ? req.locationId()
 				: "loc-" + slug(req.name());
 		String cameraId = newCameraId(req.name());
@@ -83,7 +86,10 @@ public class CameraService {
 	@Transactional
 	public CameraResponse update(String cameraId, CameraRequest req) {
 		validate(req);
-		CameraEntity entity = find(cameraId);
+		CameraEntity entity = findInScope(cameraId);
+		if (req.projectId() != null && !req.projectId().isBlank() && !req.projectId().equals(entity.getProjectId())) {
+			ProjectScope.current().require(req.projectId()); // 다른 프로젝트로 옮기는 것도 그 프로젝트가 범위 안일 때만
+		}
 		String locationId = req.locationId() != null && !req.locationId().isBlank() ? req.locationId()
 				: entity.getLocationId();
 		boolean rtspChanged = !req.rtspUrl().equals(entity.getRtspUrl());
@@ -100,7 +106,7 @@ public class CameraService {
 
 	@Transactional
 	public void delete(String cameraId) {
-		CameraEntity entity = find(cameraId);
+		CameraEntity entity = findInScope(cameraId);
 		repository.delete(entity);
 		statuses.forget(cameraId);
 		audit.record(entity.getProjectId(), "Camera " + entity.getName() + " (" + entity.getCode() + ") removed");
@@ -150,6 +156,13 @@ public class CameraService {
 		return repository.findById(cameraId).orElseThrow(() -> AdminApiException.cameraNotFound(cameraId));
 	}
 
+	/** 범위 밖 카메라는 403 (UV-58) — 존재 여부를 흘리지 않는다 */
+	private CameraEntity findInScope(String cameraId) {
+		CameraEntity e = find(cameraId);
+		ProjectScope.current().require(e.getProjectId());
+		return e;
+	}
+
 	private List<CameraEntity> requireAll(List<String> cameraIds) {
 		if (cameraIds == null || cameraIds.isEmpty()) {
 			throw AdminApiException.badRequest("cameraIds is required");
@@ -158,16 +171,22 @@ public class CameraService {
 		if (rows.size() != cameraIds.stream().distinct().count()) {
 			throw AdminApiException.badRequest("some cameraIds are unknown");
 		}
+		ProjectScope scope = ProjectScope.current();
+		rows.forEach(c -> scope.require(c.getProjectId()));
 		return rows;
 	}
 
-	/** projectId 생략 시 첫 프로젝트(기본) — UV-42 계약 호출부 호환 */
+	/** projectId 생략 시 — 범위 제한 사용자는 배정이 하나일 때 그것, owner는 첫 프로젝트(UV-42 계약 호출부 호환) */
 	private String resolveProject(String projectId) {
 		if (projectId != null && !projectId.isBlank()) {
 			if (!projects.existsById(projectId)) {
 				throw AdminApiException.projectNotFound(projectId);
 			}
 			return projectId;
+		}
+		String sole = ProjectScope.current().soleProjectOrNull();
+		if (sole != null) {
+			return sole;
 		}
 		return projects.findAll().stream().findFirst().map(p -> p.getId())
 			.orElseThrow(() -> AdminApiException.badRequest("no project exists — create one first"));

@@ -7,6 +7,7 @@ import ai.univs.vca.admin.org.OrgDtos.NetworkIsolationRequest;
 import ai.univs.vca.admin.org.OrgDtos.ProjectRequest;
 import ai.univs.vca.admin.org.OrgDtos.TeamRequest;
 import ai.univs.vca.admin.org.OrgDtos.TimeZoneRequest;
+import ai.univs.vca.admin.security.RequiresOwner;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,6 +40,8 @@ public class OrgController {
 		return ApiEnvelope.ok(service.getTeam(teamId));
 	}
 
+	/** 새 팀은 정의상 모든 비owner의 범위 밖 — owner만 만든다 (UV-58) */
+	@RequiresOwner
 	@PostMapping("/teams")
 	public ResponseEntity<ApiEnvelope> createTeam(@RequestBody TeamRequest req) {
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiEnvelope.ok(service.createTeam(req)));

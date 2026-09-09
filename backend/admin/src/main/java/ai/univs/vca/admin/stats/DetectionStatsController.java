@@ -7,6 +7,7 @@ import ai.univs.vca.admin.ApiEnvelope;
 import ai.univs.vca.admin.camera.CameraRepository;
 import ai.univs.vca.admin.org.ProjectEntity;
 import ai.univs.vca.admin.org.ProjectRepository;
+import ai.univs.vca.admin.security.ProjectScope;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,6 +32,7 @@ public class DetectionStatsController {
 	/** [{daysAgo, total, vip, vehicle, unknown}] newest last. 14일 = 이번 주 vs 지난주 비교용 */
 	@GetMapping("/detections")
 	public ApiEnvelope daily(@PathVariable String projectId, @RequestParam(defaultValue = "14") int days) {
+		ProjectScope.current().require(projectId); // 범위 밖은 403 (UV-58)
 		ProjectEntity p = projects.findById(projectId).orElseThrow(() -> AdminApiException.projectNotFound(projectId));
 		if (days < 1 || days > 90) {
 			throw AdminApiException.badRequest("days must be 1..90");

@@ -8,6 +8,7 @@ import java.util.Set;
 
 import ai.univs.vca.admin.AdminApiException;
 import ai.univs.vca.admin.audit.AuditService;
+import ai.univs.vca.admin.security.ProjectScope;
 import ai.univs.vca.admin.auth.RegistrationCodes;
 import ai.univs.vca.admin.org.ProjectRepository;
 import ai.univs.vca.admin.roster.RosterDtos.BulkResponse;
@@ -39,8 +40,9 @@ public class RosterService {
 
 	@Transactional(readOnly = true)
 	public List<RosterRow> list(String projectId) {
-		List<RosterEntryEntity> rows = projectId == null || projectId.isBlank() ? roster.findAllByOrderByNameAsc()
-				: roster.findByProjectIdOrderByNameAsc(projectId);
+		Set<String> scope = ProjectScope.current().narrow(projectId);
+		List<RosterEntryEntity> rows = scope == null ? roster.findAllByOrderByNameAsc()
+				: roster.findByProjectIdInOrderByNameAsc(scope);
 		return rows.stream().map(RosterRow::of).toList();
 	}
 
@@ -50,6 +52,7 @@ public class RosterService {
 		if (projectId == null || !projects.existsById(projectId)) {
 			throw AdminApiException.projectNotFound(projectId == null ? "" : projectId);
 		}
+		ProjectScope.current().require(projectId);
 		if (entries == null || entries.isEmpty()) {
 			throw AdminApiException.badRequest("entries is required");
 		}
@@ -95,7 +98,7 @@ public class RosterService {
 
 	@Transactional
 	public RosterRow update(String employeeId, RosterEntryRequest r) {
-		RosterEntryEntity e = require(employeeId);
+		RosterEntryEntity e = requireInScope(employeeId);
 		if (r.name() == null || r.name().isBlank()) {
 			throw AdminApiException.badRequest("name is required");
 		}
@@ -114,7 +117,7 @@ public class RosterService {
 	/** 행 삭제 = 미사용 코드를 죽이는 유일한 수단 (별도 revoke 없음 — 기획자 모델과 동일) */
 	@Transactional
 	public void delete(String employeeId) {
-		RosterEntryEntity e = require(employeeId);
+		RosterEntryEntity e = requireInScope(employeeId);
 		roster.delete(e);
 		audit.record(e.getProjectId(), "Roster entry " + e.getName() + " (" + e.getEmployeeId() + ") removed"
 				+ (e.effectiveStatus().equals("unused") ? " — unused code revoked" : ""));
@@ -128,7 +131,7 @@ public class RosterService {
 		}
 		List<IssuedRosterCode> issued = new ArrayList<>();
 		for (String raw : employeeIds) {
-			RosterEntryEntity e = require(normalizeEmployeeId(raw));
+			RosterEntryEntity e = requireInScope(normalizeEmployeeId(raw));
 			String status = e.effectiveStatus();
 			if (status.equals("unused") || status.equals("used")) {
 				continue;
@@ -145,7 +148,7 @@ public class RosterService {
 	/** 재발급 — 이전 코드 즉시 무효, 시계 재시작 */
 	@Transactional
 	public IssuedRosterCode reissueCode(String employeeId) {
-		RosterEntryEntity e = require(employeeId);
+		RosterEntryEntity e = requireInScope(employeeId);
 		if (e.getStatus() == RosterEntryEntity.Status.USED) {
 			throw AdminApiException.badRequest("entry already activated — manage the account instead");
 		}
@@ -163,6 +166,13 @@ public class RosterService {
 		e.issueCode(RegistrationCodes.hash(code));
 		return new IssuedRosterCode(e.getEmployeeId(), e.getName(), code, RegistrationCodes.format(code),
 				e.getCodeIssuedAt(), e.getCodeIssuedAt().plus(RosterEntryEntity.CODE_TTL));
+	}
+
+	/** 범위 밖 명부 행은 403 (UV-58) */
+	private RosterEntryEntity requireInScope(String employeeId) {
+		RosterEntryEntity e = require(employeeId);
+		ProjectScope.current().require(e.getProjectId());
+		return e;
 	}
 
 	private RosterEntryEntity require(String employeeId) {

@@ -214,3 +214,30 @@ state로 들고 있어 종료가 즉시 유효 — 기획자 mypage 주석("stat
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `VCA_ADMIN_MAIL_DEV_LOG` | `false` | 재설정 코드 메일을 보내지 않고 로그로 — 개발 전용 |
+
+## 프로젝트 범위 서버 강제 (UV-58, admin-api.json 0.9.0)
+
+기획 확정(2026-09-09 "기획이 정한 6건" 4번): **owner는 설치 전체, admin·auditor는 배정된 프로젝트만.**
+프론트 필터는 화면 편의일 뿐 요청을 막지 못하므로 `/admin/api/**` 전체에서 서버가 강제한다.
+
+- `security/ProjectScope` — `CurrentUser` 기반 범위 객체. owner와 세션 밖(시더·스케줄러·메일)은 무제한,
+  그 외는 `user_project` 배정 + 자기 `teamId`.
+- 범위 밖 프로젝트는 **403 ADM-4033**(`projectForbidden`). 역할 없음 4030과 구분하고, 존재 여부를 흘리지 않기 위해
+  404가 아니다. 범위 검사가 존재 검사보다 먼저 온다(`OrgService.requireVisibleProject`).
+- `projectId` 생략 시: owner 전체, 그 외 배정 프로젝트 전체(`ProjectScope.narrow`). 카메라 등록에서 생략하면
+  배정이 정확히 하나일 때만 그 프로젝트로 들어간다.
+
+| 대상 | 비owner 규칙 |
+|---|---|
+| cameras / servers / roster | 목록은 배정 프로젝트로 필터, 단건·수정·삭제·일괄·코드 발급은 행의 projectId 검사. 카메라를 다른 프로젝트로 옮길 때 대상도 검사 |
+| projects | 목록 = 배정분, 상세·PUT 5종 검사. 생성은 자기 팀에만 + 생성자 배정에 자동 추가(만든 걸 못 보는 일 방지) |
+| teams | 자기 팀만 보이고 수정 가능. **팀 생성은 owner 전용**(`@RequiresOwner` — 새 팀은 정의상 모든 비owner 범위 밖) |
+| users | 목록 = 같은 팀 또는 배정 프로젝트가 겹치는 계정. `PUT /{id}/projects`는 자기 범위 안 프로젝트만, 대상이 범위 밖 프로젝트를 이미 가지면 거부 |
+| audit | 배정 프로젝트 이벤트만. 프로젝트 무관(null) 이벤트(계정·팀 변경)는 owner 전용 |
+| `/projects/{id}/camera-connectivity·camera-stability·detections` | projectId 검사 |
+
+검증(curl): owner 카메라 8·프로젝트 2·팀 1 / admin(EMP-3001, proj-default 배정) 타 프로젝트 조회·통계·서버·카메라 등록·배정
+변경 전부 ADM-4033, 팀 생성 ADM-4030, 프로젝트 목록 1건, 자기 팀에 프로젝트 생성 후 곧바로 목록·`/auth/me`에 반영.
+
+**범위 밖**: 앱(대시보드)의 모듈 데이터는 v1.10 계약에 프로젝트 개념이 없어 이 강제가 닿지 않는다 — v1.11(VIP.projectId)
+이후 프록시 단계에서 cameraId→projectId 귀속으로 이어간다(기획 16문 회신 4번).
