@@ -25,6 +25,24 @@ docker compose up -d          # PostgreSQL(5433) + MediaMTX(8554/8889/9997/8189u
   기동마다 두 대상(모듈 provisioning + 미디어 서버 path)에 1회 push한다 (재기동 후 수렴 보장).
 - 대상이 죽어 있어도 CRUD는 성공한다 — 원장이 원천이고, `POST /admin/api/provision/sync`로 따라잡는다.
 
+## 스키마 마이그레이션 — Flyway (UV-57)
+
+스키마의 소유자는 `src/main/resources/db/migration/V{n}__*.sql`이다. Hibernate는 `ddl-auto=validate`로
+기동 시 엔티티↔테이블 대조만 하고, 테이블을 만들거나 바꾸지 않는다.
+
+- **`V1__baseline.sql`** — 2026-09-09 시점 엔티티 12종(테이블 13개)과 1:1인 정식 DDL. 수정 금지.
+- **기존 개발 DB**(ddl-auto=update로 만들어진 DB)는 첫 기동에서 `baseline-on-migrate`로 V1이 적용된 것으로
+  표시만 하고(`flyway_schema_history` type=BASELINE), 이후 V2+만 실행한다. 데이터는 건드리지 않는다.
+- **빈 DB**는 V1부터 전부 실행 → 이어서 기존 시드(팀·프로젝트·초기 owner·기본 카메라 8대)가 돈다.
+
+**스키마를 바꿀 때**: 엔티티 수정 + 같은 PR에 `V{n}__{설명}.sql` 추가 (n은 마지막 +1, 파일명은 영문 snake).
+컬럼 추가는 `alter table ... add column`, 기본값이 필요한 not null 컬럼은 `default`를 같이 준다.
+기동 시 validate가 실패하면(`Schema validation: missing column …`) 마이그레이션이 엔티티를 못 따라온 것이다.
+개발 중 스키마를 처음부터 다시 만들려면 DB를 비우면 된다 (`docker compose down -v` 후 재기동).
+
+Spring Boot 4는 Flyway 자동설정이 `spring-boot-starter-flyway`로 분리돼 있다 — `flyway-core`만 넣으면
+아무 로그 없이 실행되지 않으므로 의존성은 스타터 + `flyway-database-postgresql` 두 개를 유지한다.
+
 ## API (Admin 화면 전용 — 계약 초안 `openapi/admin-api.json`, 기획자 협의 대상)
 
 | 메서드·경로 | 설명 |
@@ -118,8 +136,7 @@ ADM-4016 suspended · ADM-4017 notActivated. 잠금(4015)·승인 대기(4018)�
 
 **기동 시드/마이그레이션**: 팀·프로젝트가 없으면 `team-default`/`proj-default` 생성, 계정이 없으면 초기 owner
 시드, 활성 owner가 0명이면 `seed-admin-email` 계정을 owner로 승격, teamId 없는 계정은 기본 팀 귀속.
-개발 DB에서 UV-47 스키마로 만든 `user_account.email`은 NOT NULL이라 한 번 풀어야 한다
-(`alter table user_account alter column email drop not null;` — 운영 이관 전 Flyway 도입 예정).
+(UV-47 시절 개발 DB의 `user_account.email NOT NULL` 수동 해제 안내는 UV-57 Flyway 베이스라인으로 대체 — 아래 "스키마 마이그레이션" 참조.)
 
 ## 인증 v3 — 잠금·등록 코드·초대·임시 비밀번호 TTL (UV-51, admin-api.json 0.6.0)
 

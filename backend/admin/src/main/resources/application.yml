@@ -9,10 +9,16 @@ spring:
     username: ${VCA_ADMIN_DB_USER:vca}
     password: ${VCA_ADMIN_DB_PASSWORD:vca}
   jpa:
-    # P1 골격 단계라 스키마는 엔티티에서 생성 — 운영 이관 전에 마이그레이션 도구(Flyway 등)로 대체할 것
+    # 스키마는 Flyway(db/migration)가 소유 (UV-57). Hibernate는 기동 시 엔티티↔테이블 대조만 한다
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
+  flyway:
+    # ddl-auto=update 시절(UV-41~56)에 만들어진 기존 DB는 V1 베이스라인이 이미 적용된 것으로 표시하고 V2+만 실행
+    # 빈 DB는 V1부터 전부 실행. 스키마 변경은 반드시 V{n}__*.sql 추가 + 엔티티 동시 수정
+    baseline-on-migrate: true
+    baseline-version: 1
+    baseline-description: baseline
 
 vca:
   admin:
