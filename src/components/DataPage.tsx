@@ -2,11 +2,256 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MatchItem, ReIDStatus } from "@/types/reid";
-import { useVcaStore } from "@/lib/vcaStore";
+import { CAMERA_CODES, canSearchInApp, useVcaStore } from "@/lib/vcaStore";
 import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtDateKey } from "@/lib/time";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import RemoveImageButton from "./RemoveImageButton";
-import SidebarToggleIcon from "./SidebarToggleIcon";
+
+import { useLanguage, type AppLanguage } from "@/lib/i18n";
+
+/**
+ * See the per-file pattern note in lib/i18n.ts.
+ *
+ * Two kinds of words live on this screen and only one of them is in here. Camera codes, plate
+ * numbers, VIP names and the seeded target labels are the install's own data and never change.
+ * The attribute VALUES ("Male", "Short Sleeve", "Backpack/Bag") are a third thing: they are what
+ * the model reports and what the filter state holds, so they stay English in state and get
+ * translated only where they are drawn — see ATTR below.
+ */
+const T = {
+  en: {
+    scrollToTop: "Scroll to top",
+    smartSearch: "Smart search",
+    collapse: "Collapse",
+    tabPhoto: "Photo",
+    tabFilter: "Filter",
+    tabVip: "VIP",
+    tabVehicle: "Vehicle",
+    dateRange: "Date range",
+    last7days: "Last 7 days",
+    recentTargets: "Recent targets",
+    targetFace: "Target face",
+    targetBody: "Target body",
+    face: "Face",
+    body: "Body",
+    similarity: "Similarity",
+    labelGender: "Gender",
+    labelHat: "Hat",
+    labelSleeve: "Sleeve length",
+    labelBottoms: "Bottoms",
+    labelBackpack: "Backpack",
+    labelEmotion: "Emotion",
+    labelEthnic: "Ethnic group",
+    topColors: "Top colors",
+    bottomColors: "Bottom colors",
+    shoesColors: "Shoes colors",
+    all: "All",
+    chooseVip: "Choose a VIP",
+    selectedVip: (name: string) => `Selected: ${name}`,
+    licensePlate: "License plate",
+    reset: "Reset",
+    search: "Search",
+    noSearchPermission: "You do not have permission to search people — ask an administrator",
+    searchVips: "Search VIPs",
+    clearSearch: "Clear search",
+    sortRegistered: "Registered",
+    sortAbc: "A–Z",
+    cancel: "Cancel",
+    apply: "Apply",
+    startDate: "Start date",
+    endDate: "End date",
+    allDates: "All dates",
+    person: "Person",
+    similarityAtLeast: (n: number) => `≥ ${n}% similarity`,
+    similarTo: "Similar to",
+    resetFilters: "Reset filters",
+    searchResults: "Search results",
+    noMatches: "No matches for the current filters.",
+    matchedOn: (reasons: string) => `Matched on: ${reasons}`,
+    resultsAsOf: (time: string) => `Results updated as of ${time}`,
+    clickToChange: "Click to change",
+    removeFaceImage: "Remove face image",
+    removeBodyImage: "Remove body image",
+    removeImage: (what: string) => `Remove ${what} image`,
+    noCandidatesMatch: "No candidates match the current filters",
+    chooseTargetOrFilter: "Choose a target or set a filter to see candidates",
+    close: "Close",
+    prevPage: "Previous page",
+    nextPage: "Next page",
+    sharedFramesTitle: "Every frame holding both the primary target and this associate",
+    relationshipAnalytics: "Relationship analytics",
+    sharedFrames: "Shared frames",
+    sharedFramesHint: "Frames the two appear in together, newest first",
+    showEveryFrame: "Show every shared frame again",
+    openFrameFull: "Open this frame full size",
+    colRank: "Rank",
+    colAssociate: "Associate target",
+    colTier: "Tier",
+    colStatus: "Status",
+    colLocations: "Locations",
+    colPeakLocation: "Peak location",
+    colPeakTime: "Peak time",
+    colSpan: "Span",
+    colAction: "Action",
+    fullBody: "Full-body",
+    selectPrimaryTarget: "Select primary target",
+    selectPrimarySub: "Search and select a new target to rebuild RedFace relationship graph",
+    searchByImage: "Search by image",
+    clickToUpload: "Click to upload",
+    labelApparel: "Apparel",
+    labelProps: "Props",
+    topColor: "Top color",
+    bottomColor: "Bottom color",
+    shoesColor: "Shoes color",
+    coCaptureEvidence: "Co-capture evidence",
+    whereWhenCluster: "Where and when the shared frames cluster",
+    first: "First",
+    last: "Last",
+    primaryTarget: "PRIMARY TARGET",
+    primaryTargetHint: "The person everything here is measured against — associates are whoever shares frames with them",
+    prevFrame: "Previous frame",
+    nextFrame: "Next frame",
+    coCaptures: (n: number) => `${n} co-captures`,
+    viewFrames: "View frames",
+    tier: (n: number) => `Tier ${n} link`,
+    lastSeenAt: (when: string, place: string) => `Last seen ${when} · ${place}`,
+    viewPyramid: "See associates laid out by tier",
+    viewGrid: "See associates as a sortable table",
+    pyramidAndZone: "Pyramid & zone",
+    dataGrid: "Data grid",
+    tabLiveMonitoring: "Live Monitoring",
+    tabReid: "Re-ID Analysis",
+    tabRedface: "RedFace",
+    redfaceTooltip: "Finds who shares camera frames with a chosen person, across every camera",
+  },
+  ko: {
+    scrollToTop: "맨 위로",
+    smartSearch: "스마트 검색",
+    collapse: "접기",
+    tabPhoto: "사진",
+    tabFilter: "속성",
+    tabVip: "VIP",
+    tabVehicle: "차량",
+    dateRange: "기간",
+    last7days: "최근 7일",
+    recentTargets: "최근 검색 대상",
+    targetFace: "대상 얼굴",
+    targetBody: "대상 전신",
+    face: "얼굴",
+    body: "전신",
+    similarity: "유사도",
+    labelGender: "성별",
+    labelHat: "모자",
+    labelSleeve: "소매 길이",
+    labelBottoms: "하의",
+    labelBackpack: "가방",
+    labelEmotion: "표정",
+    labelEthnic: "인종",
+    topColors: "상의 색상",
+    bottomColors: "하의 색상",
+    shoesColors: "신발 색상",
+    all: "전체",
+    chooseVip: "VIP를 선택해주세요",
+    selectedVip: (name: string) => `선택: ${name}`,
+    licensePlate: "차량 번호",
+    reset: "초기화",
+    search: "검색",
+    noSearchPermission: "인물 검색 권한이 없습니다 — 관리자에게 요청하세요",
+    searchVips: "VIP 검색",
+    clearSearch: "검색어 지우기",
+    sortRegistered: "등록순",
+    sortAbc: "가나다순",
+    cancel: "취소",
+    apply: "적용",
+    startDate: "시작일",
+    endDate: "종료일",
+    allDates: "전체 기간",
+    person: "사람",
+    similarityAtLeast: (n: number) => `유사도 ${n}% 이상`,
+    similarTo: "유사한 대상:",
+    resetFilters: "조건 초기화",
+    searchResults: "검색 결과",
+    noMatches: "현재 조건에 맞는 결과가 없습니다.",
+    matchedOn: (reasons: string) => `일치한 조건: ${reasons}`,
+    resultsAsOf: (time: string) => `${time} 기준 결과입니다`,
+    clickToChange: "눌러서 변경",
+    removeFaceImage: "얼굴 이미지 삭제",
+    removeBodyImage: "전신 이미지 삭제",
+    removeImage: (what: string) => `${what} 이미지 삭제`,
+    noCandidatesMatch: "현재 조건에 맞는 후보가 없습니다",
+    chooseTargetOrFilter: "대상을 고르거나 조건을 설정하면 후보가 나타납니다",
+    close: "닫기",
+    prevPage: "이전 페이지",
+    nextPage: "다음 페이지",
+    sharedFramesTitle: "기준 대상과 이 동행자가 함께 잡힌 모든 프레임",
+    relationshipAnalytics: "관계 분석",
+    sharedFrames: "함께 잡힌 프레임",
+    sharedFramesHint: "두 사람이 함께 나온 프레임, 최신순",
+    showEveryFrame: "함께 잡힌 프레임 전체 다시 보기",
+    openFrameFull: "이 프레임 원본 크기로 보기",
+    colRank: "순위",
+    colAssociate: "동행 대상",
+    colTier: "단계",
+    colStatus: "상태",
+    colLocations: "장소 수",
+    colPeakLocation: "최다 검출 장소",
+    colPeakTime: "최다 검출 시간",
+    colSpan: "검출 기간",
+    colAction: "동작",
+    fullBody: "전신",
+    selectPrimaryTarget: "기준 대상 선택",
+    selectPrimarySub: "새 대상을 검색해 선택하면 RedFace 관계도를 다시 만듭니다",
+    searchByImage: "이미지로 검색",
+    clickToUpload: "눌러서 업로드",
+    labelApparel: "옷차림",
+    labelProps: "소지품",
+    topColor: "상의 색상",
+    bottomColor: "하의 색상",
+    shoesColor: "신발 색상",
+    coCaptureEvidence: "함께 잡힌 근거",
+    whereWhenCluster: "함께 잡힌 프레임이 몰린 곳과 시간",
+    first: "처음",
+    last: "마지막",
+    primaryTarget: "기준 대상",
+    primaryTargetHint: "여기의 모든 수치가 이 사람을 기준으로 계산됩니다. 동행자는 이 사람과 같은 프레임에 잡힌 사람입니다",
+    prevFrame: "이전 프레임",
+    nextFrame: "다음 프레임",
+    coCaptures: (n: number) => `함께 잡힘 ${n}회`,
+    viewFrames: "프레임 보기",
+    tier: (n: number) => `${n}단계 연결`,
+    lastSeenAt: (when: string, place: string) => `마지막 검출 ${when} · ${place}`,
+    viewPyramid: "단계별로 배치해서 보기",
+    viewGrid: "정렬 가능한 표로 보기",
+    pyramidAndZone: "단계 · 구역",
+    dataGrid: "표로 보기",
+    tabLiveMonitoring: "실시간 관제",
+    tabReid: "Re-ID 분석",
+    tabRedface: "RedFace",
+    redfaceTooltip: "선택한 사람과 같은 프레임에 잡힌 사람을 모든 카메라에서 찾습니다",
+  },
+} as const;
+
+/**
+ * Attribute values the model reports. The state and the search payload keep the English value —
+ * these are what a backend will match on — and this only decides how one is drawn. Anything not
+ * listed falls through unchanged, which is what camera codes and plate numbers rely on.
+ */
+const ATTR_KO: Record<string, string> = {
+  Male: "남성", Female: "여성",
+  Hat: "모자", None: "없음", Exists: "있음",
+  Short: "반팔", Long: "긴팔",
+  "Short Sleeve": "반팔", "Long Sleeve": "긴팔",
+  Trousers: "긴바지", Shorts: "반바지", Skirts: "치마",
+  "Backpack/Bag": "가방", "Wearing Glasses": "안경 착용",
+  Anger: "화남", Disgust: "혐오", Neutral: "무표정", Fear: "두려움",
+  Happiness: "기쁨", Sadness: "슬픔", Surprised: "놀람",
+  "African American": "아프리카계", Indian: "인도계", Asian: "아시아계", Caucasian: "백인계",
+  Person: "사람", Vehicle: "차량",
+  VIP: "VIP", Unknown: "미확인", Suspect: "의심", RedFace: "RedFace",
+};
+function attr(value: string, lang: AppLanguage): string {
+  return lang === "ko" ? (ATTR_KO[value] ?? value) : value;
+}
 
 const BORDER = "1px solid var(--gray-200)";
 export type DataTab = "Live Monitoring" | "Re-ID Analysis" | "Smart Search" | "RedFace";
@@ -77,6 +322,7 @@ function ScoreBadge({ score }: { score: number }) {
 
 // ── Person Detail Modal ────────────────────────────────────────
 function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:MatchItem; onClose:()=>void; onGoRedmap?:()=>void; onGoAnalyzeFrame?:(location:string)=>void }) {
+  const [lang] = useLanguage();
   useEscapeKey(onClose);
   return (
     <div onClick={e => { if (e.target===e.currentTarget) onClose(); }}
@@ -92,7 +338,7 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
                 <p style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>Re-ID Object #REC-{String(item.id).padStart(4,"0")}</p>
                 <ScoreBadge score={item.similarity} />
                 <span style={{ fontSize:"10px", fontWeight:700, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"2px 7px", borderRadius:"999px" }}>{item.cam}</span>
-                <span style={{ fontSize:"10px", fontWeight:800, color:REID_STATUS_STYLE[item.status].text, backgroundColor:`${REID_STATUS_STYLE[item.status].text}1a`, padding:"2px 7px", borderRadius:"999px" }}>{item.status}</span>
+                <span style={{ fontSize:"10px", fontWeight:800, color:REID_STATUS_STYLE[item.status].text, backgroundColor:`${REID_STATUS_STYLE[item.status].text}1a`, padding:"2px 7px", borderRadius:"999px" }}>{attr(item.status, lang)}</span>
               </div>
               <p style={{ fontSize:"10px", color:"var(--gray-400)", marginTop:"1px" }}>{item.time}</p>
             </div>
@@ -113,7 +359,7 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
             </div>
             <div style={{ border:BORDER, borderRadius:"12px", padding:"10px", backgroundColor:"var(--gray-50)", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
               <img src={item.body} alt="" style={{ width:"124px", height:"186px", objectFit:"cover", borderRadius:"12px", border:"2px solid var(--primary-400)" }} />
-              <p style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", letterSpacing:"0.5px" }}>Full-body</p>
+              <p style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", letterSpacing:"0.5px" }}>{T[lang].fullBody}</p>
             </div>
           </div>
 
@@ -219,6 +465,7 @@ function HoverActionBtn({ label, icon, color, onClick }:
 }
 
 function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab, onGoRedmap }: { p: (typeof REID_DATA)[number]; onClick: () => void; showCam?: boolean; fill?: boolean; onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void }) {
+  const [lang] = useLanguage();
   const status = REID_STATUS_STYLE[p.status];
   const [hovered, setHovered] = useState(false);
   return (
@@ -261,7 +508,7 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
         border:"none", borderTop:"none", boxShadow:"none", margin:0, marginBottom:0,
         padding:"7px 11px 24px", boxSizing:"border-box", display:"flex", flexDirection:"column", gap:"2px" }}>
         <div style={{ display:"flex", alignItems:"baseline", gap:"3px" }}>
-          <span style={{ fontSize:"12px", fontWeight:800, color:status.text, letterSpacing:"-0.2px" }}>{p.status}</span>
+          <span style={{ fontSize:"12px", fontWeight:800, color:status.text, letterSpacing:"-0.2px" }}>{attr(p.status, lang)}</span>
           {p.status === "VIP" && p.score !== null && <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-600)" }}>{p.score}%</span>}
         </div>
         <div style={{ display:"flex", gap:"4px", fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>
@@ -318,6 +565,7 @@ function ScrollUpIconSm() {
 // down, so getting back to the top after scanning through results doesn't mean scrolling back up
 // by hand. `containerRef` must point at the actual scrolling element, not a non-scrolling wrapper.
 function ScrollToTopButton({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) {
+  const [lang] = useLanguage();
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const el = containerRef.current;
@@ -330,7 +578,7 @@ function ScrollToTopButton({ containerRef }: { containerRef: React.RefObject<HTM
   return (
     <button
       onClick={() => containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
-      title="Scroll to top"
+      title={T[lang].scrollToTop}
       style={{ position:"absolute", right:"20px", bottom:"20px", width:"40px", height:"40px", borderRadius:"50%",
         backgroundColor:"var(--gray-900)", color:"white", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
         boxShadow:"0 4px 14px rgba(14,22,42,0.3)", zIndex:20 }}
@@ -375,9 +623,9 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
             <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, width:"100%", backgroundColor:"white",
               border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden",
               maxHeight:"320px", display:"flex", flexDirection:"column" }}>
-              <button onClick={() => { onSwitchCam(ALL_CAMERAS_ID); setPickerOpen(false); }} style={{
+              <button className="vca-picker-option" data-on={isAll}
+                onClick={() => { onSwitchCam(ALL_CAMERAS_ID); setPickerOpen(false); }} style={{
                 display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer", flexShrink:0,
-                backgroundColor: isAll ? "var(--primary-100)" : "white",
                 fontSize:"13px", fontWeight: isAll ? 700:500, color: isAll ? "var(--primary-400)":"var(--gray-700)",
               }}>
                 All Cameras
@@ -387,9 +635,9 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
                   this list just kept growing past the bottom of the screen instead of scrolling. */}
               <div className="vca-thin-scrollbar" style={{ overflowY:"auto" }}>
                 {cameras.map(cam => (
-                  <button key={cam.id} onClick={() => { onSwitchCam(cam.code); setPickerOpen(false); }} style={{
+                  <button key={cam.id} className="vca-picker-option" data-on={cam.code===camId}
+                    onClick={() => { onSwitchCam(cam.code); setPickerOpen(false); }} style={{
                     display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
-                    backgroundColor: cam.code===camId ? "var(--primary-100)" : "white",
                     fontSize:"13px", fontWeight: cam.code===camId ? 700:500, color: cam.code===camId ? "var(--primary-400)":"var(--gray-700)",
                   }}>
                     {cam.code}
@@ -511,13 +759,15 @@ function seedLiveFeed(): Record<string, (typeof REID_DATA)> {
 
 // A labeled "All | option | option…" segmented row — Gender/Hat/Sleeve length/Bottoms/Backpack
 // all share this exact shape (one active choice, "All" meaning "don't filter on this").
+// The option strings are the values the filter state holds; `attr()` decides how each is drawn.
 function AllOptionRow({ label, options, value, onChange }: { label:string; options:string[]; value:string; onChange:(v:string)=>void }) {
+  const [lang] = useLanguage();
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
       <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>{label}</span>
       <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
-        <AttrChip label="All" active={value === ""} onClick={() => onChange("")} size="sm" />
-        {options.map(o => <AttrChip key={o} label={o} active={value === o} onClick={() => onChange(o)} size="sm" />)}
+        <AttrChip label={T[lang].all} active={value === ""} onClick={() => onChange("")} size="sm" />
+        {options.map(o => <AttrChip key={o} label={attr(o, lang)} active={value === o} onClick={() => onChange(o)} size="sm" />)}
       </div>
     </div>
   );
@@ -538,7 +788,12 @@ function SimpleSelect({ value, options, onChange }: { value:string; options:stri
     <div style={{ position:"relative", width:"100%" }}>
       <style>{`
         .vca-simple-select-trigger:hover { border-color:var(--primary-300) !important; }
-        .vca-simple-select-option:hover { background-color:var(--gray-50); }
+        /* The option rows set their own background inline (selected vs not), and an inline
+           declaration outranks a plain selector — so this rule did nothing until it carried
+           !important like its neighbours. The selected row keeps its purple on hover: it is
+           already the current value, and graying it would read as losing the selection. */
+        .vca-simple-select-option:hover { background-color:var(--gray-50) !important; }
+        .vca-simple-select-option[data-on="true"]:hover { background-color:var(--primary-100) !important; }
       `}</style>
       <button onClick={() => setOpen(o => !o)} className="vca-simple-select-trigger" style={{
         display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
@@ -555,7 +810,7 @@ function SimpleSelect({ value, options, onChange }: { value:string; options:stri
           {["", ...options].map(o => {
             const active = value === o;
             return (
-              <button key={o || "__all__"} onClick={() => { onChange(o); setOpen(false); }} className="vca-simple-select-option" style={{
+              <button key={o || "__all__"} onClick={() => { onChange(o); setOpen(false); }} className="vca-simple-select-option" data-on={active} style={{
                 display:"flex", alignItems:"center", gap:"6px", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
                 backgroundColor: active ? "var(--primary-100)" : "white",
                 fontSize:"12px", fontWeight: active ? 700 : 500, color: active ? "var(--primary-400)" : "var(--gray-700)",
@@ -582,6 +837,7 @@ type LiveSearchTab = "Photo" | "Filter" | "VIP" | "Car";
 // wrapper's width instead, revealing/hiding it like a drawer — the sidebar's own width never
 // changes, only how much of it the wrapper's overflow:hidden currently exposes.
 function SlidingSearchPanel({ expanded, onExpand, sidebar }: { expanded: boolean; onExpand: () => void; sidebar: React.ReactNode }) {
+  const [lang] = useLanguage();
   return (
     <div style={{
       position:"relative", width: expanded ? "320px" : "48px", height:"100%", flexShrink:0,
@@ -602,7 +858,7 @@ function SlidingSearchPanel({ expanded, onExpand, sidebar }: { expanded: boolean
       }}>
         <button
           onClick={onExpand}
-          title="Smart search"
+          title={T[lang].smartSearch}
           style={{
             width:"48px", height:"48px", borderRadius:"16px",
             backgroundColor:"white", border:"none", display:"flex", alignItems:"center", justifyContent:"center",
@@ -641,6 +897,12 @@ function LiveSearchSidebar({
   cardFace?: string; cardBody?: string;
   onSearch: () => void; onCollapse: () => void;
 }) {
+  // Read from the store rather than threaded through props: this is the only place in Data that
+  // starts a search, so the check belongs next to the button, not in every caller.
+  const portalUsers = useVcaStore(state => state.portalUsers);
+  const searchAllowed = canSearchInApp(portalUsers);
+  const [lang] = useLanguage();
+  const t = T[lang];
   const {
     setSearchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP,
     threshold, setThreshold, gender, setGender,
@@ -693,7 +955,7 @@ function LiveSearchSidebar({
   const bodySrc = uploadedBody ?? target?.body ?? cardBody;
   // Picking a Recent target/VIP after uploading a photo should switch the preview to THAT
   // person, not keep showing the stale upload underneath it. Compared during render rather than
-  // reset from an effect — the same pattern dataNavRequest below uses. An effect would paint one
+  // reset from an effect — compare during render instead. An effect would paint one
   // frame with the new selection and the old upload still on top of it, then paint again.
   const targetKey = `${selectedTarget}|${activeVIP}`;
   const [prevTargetKey, setPrevTargetKey] = useState(targetKey);
@@ -704,10 +966,10 @@ function LiveSearchSidebar({
   }
 
   const TABS: { id: LiveSearchTab; label:string; icon:React.ReactNode }[] = [
-    { id:"Photo",  label:"Photo",  icon:<ImageIconSm size={16} /> },
-    { id:"Filter", label:"Filter", icon:<SlidersIconSm size={16} /> },
-    { id:"VIP",    label:"VIP",    icon:<StarIconSm size={16} /> },
-    { id:"Car",    label:"Vehicle", icon:<VehicleIconSm size={19} /> },
+    { id:"Photo",  label: t.tabPhoto,   icon:<ImageIconSm size={16} /> },
+    { id:"Filter", label: t.tabFilter,  icon:<SlidersIconSm size={16} /> },
+    { id:"VIP",    label: t.tabVip,     icon:<StarIconSm size={16} /> },
+    { id:"Car",    label: t.tabVehicle, icon:<VehicleIconSm size={19} /> },
   ];
   const changeTab = (t: LiveSearchTab) => { onTabChange(t); setSearchType(t === "Car" ? "VEHICLE" : "PERSON"); };
   // Same size/weight/color as the "Date range" section label above — was smaller, muted-gray,
@@ -721,9 +983,9 @@ function LiveSearchSidebar({
       <div style={{ padding:"20px 16px 12px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"8px", color:"var(--gray-900)" }}>
           <SearchIconSm size={16} />
-          <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px" }}>Smart search</span>
+          <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px" }}>{t.smartSearch}</span>
         </div>
-        <button onClick={onCollapse} aria-label="Collapse" style={{ background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
+        <button onClick={onCollapse} aria-label={t.collapse} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </div>
@@ -756,9 +1018,9 @@ function LiveSearchSidebar({
         <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"var(--gray-700)" }}>
             <CalendarIconSm size={12} color="var(--gray-700)" />
-            <span style={{ fontSize:"12px", fontWeight:700 }}>Date range</span>
+            <span style={{ fontSize:"12px", fontWeight:700 }}>{t.dateRange}</span>
           </div>
-          <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="split" size="sm" emptyText="Last 7 days" showIcon={false} />
+          <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="split" size="sm" emptyText={t.last7days} showIcon={false} />
         </div>
 
         {tab === "Photo" && (
@@ -766,7 +1028,7 @@ function LiveSearchSidebar({
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
               <div style={{ display:"flex", alignItems:"center", gap:"6px", color:"var(--gray-700)" }}>
                 <HistoryIconSm />
-                <span style={{ fontSize:"12px", fontWeight:700 }}>Recent targets</span>
+                <span style={{ fontSize:"12px", fontWeight:700 }}>{t.recentTargets}</span>
               </div>
               {/* Same card, scrollbar and selected-first ordering as RedFace's target picker —
                   two places offering the same list were reading as two different features, one
@@ -789,12 +1051,12 @@ function LiveSearchSidebar({
               </div>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>Target face</span>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>{t.targetFace}</span>
               {/* Three sources feed these previews: an upload, a chosen Recent target, or the card
                   this sidebar opened from. Only the first two are the user's to remove — clearing a
                   chosen target reuses its own toggle rather than a second code path, and the card
                   photo is the context, not a selection. */}
-              <ImageDropzoneBox icon={<DefaultFaceIconSm />} label="Face" previewSrc={faceSrc} aspect="square"
+              <ImageDropzoneBox icon={<DefaultFaceIconSm />} label={t.face} previewSrc={faceSrc} aspect="square"
                 onClick={() => faceInputRef.current?.click()}
                 onClear={uploadedFace ? clearUploadedFace
                   : selectedTarget >= 0 ? () => selectRecentTarget(selectedTarget)
@@ -802,8 +1064,8 @@ function LiveSearchSidebar({
               <input ref={faceInputRef} type="file" accept="image/*" onChange={handleFaceUpload} style={{ display:"none" }} />
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>Target body</span>
-              <ImageDropzoneBox icon={<FullBodyIconSm />} label="Body" previewSrc={bodySrc} aspect="portrait"
+              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>{t.targetBody}</span>
+              <ImageDropzoneBox icon={<FullBodyIconSm />} label={t.body} previewSrc={bodySrc} aspect="portrait"
                 onClick={() => bodyInputRef.current?.click()}
                 onClear={uploadedBody ? clearUploadedBody
                   : selectedTarget >= 0 ? () => selectRecentTarget(selectedTarget)
@@ -811,7 +1073,7 @@ function LiveSearchSidebar({
               <input ref={bodyInputRef} type="file" accept="image/*" onChange={handleBodyUpload} style={{ display:"none" }} />
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>Similarity</span>
+              <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>{t.similarity}</span>
               <SimilarityControl value={threshold} onChange={setThreshold} height={32} />
             </div>
           </>
@@ -819,33 +1081,33 @@ function LiveSearchSidebar({
 
         {tab === "Filter" && (
           <>
-            <AllOptionRow label="Gender" options={["Male","Female"]} value={gender} onChange={setGender} />
-            <AllOptionRow label="Hat" options={["Hat","None"]} value={hatFilter} onChange={(v) => onHatChange(v as ""|"Hat"|"None")} />
-            <AllOptionRow label="Sleeve length" options={["Short","Long"]} value={sleeveFilter} onChange={(v) => onSleeveChange(v as ""|"Short"|"Long")} />
-            <AllOptionRow label="Bottoms" options={["Trousers","Shorts","Skirts"]} value={bottomsFilter} onChange={(v) => onBottomsChange(v as ""|"Trousers"|"Shorts"|"Skirts")} />
-            <AllOptionRow label="Backpack" options={["Exists","None"]} value={backpackFilter} onChange={(v) => onBackpackChange(v as ""|"Exists"|"None")} />
+            <AllOptionRow label={t.labelGender} options={["Male","Female"]} value={gender} onChange={setGender} />
+            <AllOptionRow label={t.labelHat} options={["Hat","None"]} value={hatFilter} onChange={(v) => onHatChange(v as ""|"Hat"|"None")} />
+            <AllOptionRow label={t.labelSleeve} options={["Short","Long"]} value={sleeveFilter} onChange={(v) => onSleeveChange(v as ""|"Short"|"Long")} />
+            <AllOptionRow label={t.labelBottoms} options={["Trousers","Shorts","Skirts"]} value={bottomsFilter} onChange={(v) => onBottomsChange(v as ""|"Trousers"|"Shorts"|"Skirts")} />
+            <AllOptionRow label={t.labelBackpack} options={["Exists","None"]} value={backpackFilter} onChange={(v) => onBackpackChange(v as ""|"Exists"|"None")} />
             <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-              <span style={filterLabelStyle}>Emotion</span>
+              <span style={filterLabelStyle}>{t.labelEmotion}</span>
               <SimpleSelect value={emotion} options={EMOTION_OPTIONS} onChange={onEmotionChange} />
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-              <span style={filterLabelStyle}>Ethnic group</span>
+              <span style={filterLabelStyle}>{t.labelEthnic}</span>
               <SimpleSelect value={ethnicGroup} options={ETHNIC_GROUP_OPTIONS} onChange={onEthnicGroupChange} />
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-              <span style={filterLabelStyle}>Top colors</span>
+              <span style={filterLabelStyle}>{t.topColors}</span>
               <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                 {APPAREL_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={topColors.includes(c.id)} onClick={() => toggleTopColor(c.id)} size={18} />)}
               </div>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-              <span style={filterLabelStyle}>Bottom colors</span>
+              <span style={filterLabelStyle}>{t.bottomColors}</span>
               <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                 {APPAREL_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={bottomColors.includes(c.id)} onClick={() => toggleBottomColor(c.id)} size={18} />)}
               </div>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-              <span style={filterLabelStyle}>Shoes colors</span>
+              <span style={filterLabelStyle}>{t.shoesColors}</span>
               <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                 {SHOE_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={shoesColors.includes(c.id)} onClick={() => toggleShoesColor(c.id)} size={18} />)}
               </div>
@@ -856,7 +1118,7 @@ function LiveSearchSidebar({
         {tab === "VIP" && (
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
             <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>
-              {vipName ? `Selected: ${vipName}` : "Choose a VIP"}
+              {vipName ? t.selectedVip(vipName) : t.chooseVip}
             </span>
             <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} />
           </div>
@@ -864,7 +1126,7 @@ function LiveSearchSidebar({
 
         {tab === "Car" && (
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>License plate</span>
+            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-700)" }}>{t.licensePlate}</span>
             <div style={{ display:"flex", alignItems:"center", gap:"6px", height:"34px", padding:"0 10px",
               borderRadius:"8px", border:BORDER, backgroundColor:"white" }}>
               <LicensePlateIconSm />
@@ -881,11 +1143,19 @@ function LiveSearchSidebar({
       </div>
 
       <div style={{ padding:"12px 16px 16px", display:"flex", gap:"8px", flexShrink:0 }}>
-        <button onClick={() => { reset(); setUploadedFace(null); setUploadedBody(null); }} aria-label="Reset" style={{ padding:"0 14px", height:"38px", borderRadius:"8px", border:"1px solid var(--gray-300)", backgroundColor:"white", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <button onClick={() => { reset(); setUploadedFace(null); setUploadedBody(null); }} aria-label={t.reset} style={{ padding:"0 14px", height:"38px", borderRadius:"8px", border:"1px solid var(--gray-300)", backgroundColor:"white", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
           <ResetIconSm />
         </button>
-        <button onClick={onSearch} style={{ flex:1, height:"38px", borderRadius:"8px", border:"none", backgroundColor:"var(--gray-900)", color:"white", fontSize:"13px", fontWeight:700, cursor:"pointer" }}>
-          Search
+        {/* Person search is granted per account (PortalUser.appSearch) — reconstructing where
+            someone went is the app's most invasive action. Disabled with the reason attached rather
+            than hidden: an operator who cannot search should know that the capability exists and
+            who to ask, not conclude the product cannot do it. */}
+        <button
+          onClick={() => { if (searchAllowed) onSearch(); }}
+          disabled={!searchAllowed}
+          title={searchAllowed ? undefined : t.noSearchPermission}
+          style={{ flex:1, height:"38px", borderRadius:"8px", border:"none", backgroundColor: searchAllowed ? "var(--gray-900)" : "var(--gray-100)", color: searchAllowed ? "white" : "var(--gray-400)", fontSize:"13px", fontWeight:700, cursor: searchAllowed ? "pointer" : "not-allowed" }}>
+          {t.search}
         </button>
       </div>
     </div>
@@ -1023,13 +1293,7 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
     : filterReidData({ searchType, gender, apparel: derivedApparel, props: derivedProps, dateRange: searchDateRange, threshold, licensePlate, camera: searchCamera, topColors, bottomColors, shoesColors, emotion, ethnicGroup });
   const searchResultDetailItem = searchDetailId !== null ? searchResults.find(p => p.id===searchDetailId) ?? null : null;
 
-  // Command palette deep-link: "jump to camera X" lands here with cameraCode set.
-  const dataNavRequest = useVcaStore(s => s.dataNavRequest);
-  const [prevCamNavId, setPrevCamNavId] = useState<number | null>(null);
-  if (dataNavRequest?.cameraCode && dataNavRequest.requestId !== prevCamNavId) {
-    setPrevCamNavId(dataNavRequest.requestId);
-    onOpenCamChange(dataNavRequest.cameraCode);
-  }
+
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1163,24 +1427,28 @@ function buildMonthGrid(year: number, month: number) {
 // time" mean what it says while leaving the untouched/default-fallback case alone.
 const ALL_TIME_START = new Date(2000, 0, 1);
 const ALL_TIME_END = new Date(2100, 0, 1);
-const QUICK_RANGES: { label: string; range: () => DateRangeValue }[] = [
-  { label: "Today", range: () => { const t = new Date(); t.setHours(0,0,0,0); return { start: t, end: t }; } },
-  { label: "Last 7 days", range: () => { const t = new Date(); t.setHours(0,0,0,0); const s = new Date(t); s.setDate(s.getDate() - 6); return { start: s, end: t }; } },
-  { label: "This month", range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), t.getMonth(), 1), end: new Date(t.getFullYear(), t.getMonth() + 1, 0) }; } },
-  { label: "Last 3 months", range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), t.getMonth() - 3, 1), end: new Date(t.getFullYear(), t.getMonth() + 1, 0) }; } },
-  { label: "Last 6 months", range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), t.getMonth() - 6, 1), end: new Date(t.getFullYear(), t.getMonth() + 1, 0) }; } },
-  { label: "This year", range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), 0, 1), end: new Date(t.getFullYear(), 11, 31) }; } },
-  { label: "All dates", range: () => ({ start: ALL_TIME_START, end: ALL_TIME_END }) },
+const QUICK_RANGES: { label: Record<AppLanguage, string>; range: () => DateRangeValue }[] = [
+  { label: { en: "Today", ko: "오늘" }, range: () => { const t = new Date(); t.setHours(0,0,0,0); return { start: t, end: t }; } },
+  { label: { en: "Last 7 days", ko: "최근 7일" }, range: () => { const t = new Date(); t.setHours(0,0,0,0); const s = new Date(t); s.setDate(s.getDate() - 6); return { start: s, end: t }; } },
+  { label: { en: "This month", ko: "이번 달" }, range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), t.getMonth(), 1), end: new Date(t.getFullYear(), t.getMonth() + 1, 0) }; } },
+  { label: { en: "Last 3 months", ko: "최근 3개월" }, range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), t.getMonth() - 3, 1), end: new Date(t.getFullYear(), t.getMonth() + 1, 0) }; } },
+  { label: { en: "Last 6 months", ko: "최근 6개월" }, range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), t.getMonth() - 6, 1), end: new Date(t.getFullYear(), t.getMonth() + 1, 0) }; } },
+  { label: { en: "This year", ko: "올해" }, range: () => { const t = new Date(); return { start: new Date(t.getFullYear(), 0, 1), end: new Date(t.getFullYear(), 11, 31) }; } },
+  { label: { en: "All dates", ko: "전체 기간" }, range: () => ({ start: ALL_TIME_START, end: ALL_TIME_END }) },
 ];
 
-const WEEKDAY_LABELS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+const WEEKDAY_LABELS: Record<AppLanguage, string[]> = {
+  en: ["Su","Mo","Tu","We","Th","Fr","Sa"],
+  ko: ["일","월","화","수","목","금","토"],
+};
 
 function DateMonthCalendar({ year, month, tempStart, tempEnd, onPick, onPrev, onNext, showPrev, showNext }: {
   year: number; month: number; tempStart: Date|null; tempEnd: Date|null;
   onPick: (d: Date) => void; onPrev?: () => void; onNext?: () => void; showPrev: boolean; showNext: boolean;
 }) {
+  const [lang] = useLanguage();
   const cells = buildMonthGrid(year, month);
-  const monthLabel = new Date(year, month, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  const monthLabel = new Date(year, month, 1).toLocaleDateString(lang === "ko" ? "ko-KR" : "en-US", { month: "short", year: "numeric" });
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"224px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", height:"24px" }}>
@@ -1195,7 +1463,7 @@ function DateMonthCalendar({ year, month, tempStart, tempEnd, onPick, onPrev, on
         </button>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", justifyItems:"center" }}>
-        {WEEKDAY_LABELS.map(w => <span key={w} style={{ fontSize:"10px", color:"var(--gray-400)", height:"24px", display:"flex", alignItems:"center" }}>{w}</span>)}
+        {WEEKDAY_LABELS[lang].map(w => <span key={w} style={{ fontSize:"10px", color:"var(--gray-400)", height:"24px", display:"flex", alignItems:"center" }}>{w}</span>)}
       </div>
       {/* Ring instead of a background swap for hover — a background would have to fight (and look
           different depending on) whichever state color is already showing (selected/in-range/
@@ -1227,6 +1495,8 @@ function DateRangePopover({ anchorRef, value, onApply, onClose }: {
   anchorRef: React.RefObject<HTMLElement | null>; value: DateRangeValue;
   onApply: (v: DateRangeValue) => void; onClose: () => void;
 }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const base = value.start ?? new Date();
   const [viewYear, setViewYear] = useState(base.getFullYear());
   const [viewMonth, setViewMonth] = useState(base.getMonth());
@@ -1266,13 +1536,13 @@ function DateRangePopover({ anchorRef, value, onApply, onClose }: {
               added here shows up everywhere at once instead of needing to be repeated per screen. */}
           <style>{`.vca-daterange-preset:hover { background-color:var(--gray-100) !important; }`}</style>
           {QUICK_RANGES.map(q => (
-            <button key={q.label} className="vca-daterange-preset" onClick={() => {
+            <button key={q.label.en} className="vca-daterange-preset" onClick={() => {
               const r = q.range();
               setTempStart(r.start); setTempEnd(r.end);
               if (r.start) { setViewYear(r.start.getFullYear()); setViewMonth(r.start.getMonth()); }
             }} style={{ textAlign:"left", padding:"8px", borderRadius:"8px", border:"none", backgroundColor:"transparent", cursor:"pointer",
               fontSize:"13px", color:"var(--gray-900)", fontWeight:600, transition:"background-color 0.15s" }}>
-              {q.label}
+              {q.label[lang]}
             </button>
           ))}
         </div>
@@ -1285,9 +1555,9 @@ function DateRangePopover({ anchorRef, value, onApply, onClose }: {
           </div>
           <div style={{ display:"flex", justifyContent:"flex-end", gap:"8px" }}>
             <button onClick={onClose} style={{ padding:"8px 16px", borderRadius:"8px", border:BORDER,
-              backgroundColor:"white", color:"var(--gray-900)", fontSize:"13px", fontWeight:600, cursor:"pointer" }}>Cancel</button>
+              backgroundColor:"white", color:"var(--gray-900)", fontSize:"13px", fontWeight:600, cursor:"pointer" }}>{t.cancel}</button>
             <button onClick={() => onApply({ start: tempStart, end: tempEnd })} style={{ padding:"8px 16px", borderRadius:"8px", border:"none",
-              backgroundColor:"var(--primary-400)", color:"white", fontSize:"13px", fontWeight:600, cursor:"pointer" }}>Apply</button>
+              backgroundColor:"var(--primary-400)", color:"white", fontSize:"13px", fontWeight:600, cursor:"pointer" }}>{t.apply}</button>
           </div>
         </div>
       </div>
@@ -1298,6 +1568,8 @@ function DateRangePopover({ anchorRef, value, onApply, onClose }: {
 function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyText, showIcon = true }: {
   value: DateRangeValue; onApply: (v: DateRangeValue) => void; mode?: "split"|"merged"; size?: "md"|"sm"; emptyText?: string; showIcon?: boolean;
 }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const compact = size === "sm";
@@ -1322,8 +1594,8 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
   // muted placeholder gray as an actually-empty field. Dark, same as any other active value.
   const emptyTextStyle: React.CSSProperties = { fontSize: compact ? "12px" : "13px", fontWeight:600, color:"var(--gray-900)" };
 
-  const startLabel = value.start ? fmtDate(value.start) : "Start date";
-  const endLabel = value.end ? fmtDate(value.end) : "End date";
+  const startLabel = value.start ? fmtDate(value.start) : t.startDate;
+  const endLabel = value.end ? fmtDate(value.end) : t.endDate;
   const toggle = () => setOpen(o => !o);
 
   return (
@@ -1334,7 +1606,7 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
         <div onClick={toggle} style={{ ...boxStyle, justifyContent:"space-between" }}>
           <span style={{ display:"flex", alignItems:"center", gap: compact ? "6px" : "8px" }}>
             {showIcon && <CalendarIconSm size={compact ? 12 : 14} />}
-            <span style={emptyTextStyle}>{isAllTime ? "All dates" : emptyText}</span>
+            <span style={emptyTextStyle}>{isAllTime ? t.allDates : emptyText}</span>
           </span>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="var(--gray-600)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
@@ -1360,6 +1632,8 @@ function DateRangeTrigger({ value, onApply, mode = "merged", size = "md", emptyT
 }
 
 function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP:number; onSelect:(i:number)=>void; compact?:boolean }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const avatarSize = compact ? 28 : 24;
   const fontSize = compact ? "11px" : "12px";
   // Search + sort so this stays usable once VIP_QUICK grows well past what fits on screen at
@@ -1417,13 +1691,13 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
         <div style={{ flex:1, display:"flex", alignItems:"center", gap:"6px", height:"30px", padding:"0 8px", borderRadius:"6px", border:BORDER, backgroundColor:"white" }}>
           <SearchIconSm />
           <input
-            value={query} onChange={e => setQuery(e.target.value)} placeholder="Search VIPs"
+            value={query} onChange={e => setQuery(e.target.value)} placeholder={t.searchVips}
             style={{ flex:1, border:"none", outline:"none", background:"none", fontSize:"12px", fontWeight:500, color:"var(--gray-900)", minWidth:0 }}
           />
           {/* Picking a VIP doesn't clear this on its own — without a quick way to blank it out,
               searching for someone else means selecting the old query and retyping over it. */}
           {query && (
-            <button onClick={() => setQuery("")} aria-label="Clear search" style={{
+            <button onClick={() => setQuery("")} aria-label={t.clearSearch} style={{
               display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
               width:"16px", height:"16px", borderRadius:"999px", border:"none", backgroundColor:"var(--gray-300)", cursor:"pointer", padding:0,
             }}>
@@ -1434,7 +1708,7 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
           )}
         </div>
         <div style={{ display:"flex", gap:"2px", backgroundColor:"var(--gray-100)", borderRadius:"999px", padding:"2px", flexShrink:0 }}>
-          {([["reg","Registered"],["abc","A–Z"]] as const).map(([id, label]) => {
+          {([["reg", t.sortRegistered], ["abc", t.sortAbc]] as const).map(([id, label]) => {
             const active = sortMode === id;
             return (
               <button key={id} onClick={() => setSortMode(id)} style={{
@@ -1596,6 +1870,7 @@ function FilterChip({ children, icon, avatar, onRemove }: { children:React.React
 // "who/what was captured on this specific camera" instead of only attribute/image matching.
 
 function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_DATA)[number]; onClick: () => void; matchReasons?: string[] }) {
+  const [lang] = useLanguage();
   const status = REID_STATUS_STYLE[p.status];
   return (
     <div onClick={onClick} style={{
@@ -1632,9 +1907,9 @@ function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_D
         <div style={{ display:"flex", alignItems:"baseline", gap:"6px" }}>
           {p.plate
             ? <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)", fontFamily:"monospace", letterSpacing:"-0.24px" }}>{p.plate}</span>
-            : <span style={{ fontSize:"12px", fontWeight:800, color:status.text, letterSpacing:"-0.24px" }}>{p.status}</span>}
+            : <span style={{ fontSize:"12px", fontWeight:800, color:status.text, letterSpacing:"-0.24px" }}>{attr(p.status, lang)}</span>}
           {matchReasons.length > 0 && (
-            <span title={`Matched on: ${matchReasons.join(", ")}`} style={{ fontSize:"10px", fontWeight:800, color:"var(--success-400)", cursor:"help" }}>
+            <span title={T[lang].matchedOn(matchReasons.map(r => attr(r, lang)).join(", "))} style={{ fontSize:"10px", fontWeight:800, color:"var(--success-400)", cursor:"help" }}>
               ✓{matchReasons.length}
             </span>
           )}
@@ -1654,6 +1929,8 @@ function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_D
 function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, topColors, bottomColors, shoesColors, emotion, ethnicGroup }:
   { state: SearchFilterState; results:(typeof REID_DATA); onCardClick:(id:number)=>void; onRefine:()=>void; onReset:()=>void;
     topColors: string[]; bottomColors: string[]; shoesColors: string[]; emotion: string; ethnicGroup: string }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const { searchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP, threshold, gender, apparel, props, dateRange, licensePlate, camera } = state;
   // Captured once when results first land, not read live on every render — otherwise "as of"
   // would silently keep advancing on any unrelated re-render, making the Refresh button's job
@@ -1679,12 +1956,12 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
     ...(camera ? [camera] : []),
   ];
   const activeChips = target
-    ? [searchType === "PERSON" ? "Person" : "Vehicle", `≥ ${threshold}% similarity`]
+    ? [searchType === "PERSON" ? t.person : t.tabVehicle, t.similarityAtLeast(threshold)]
     : [
-        searchType === "PERSON" ? "Person" : "Vehicle",
+        searchType === "PERSON" ? t.person : t.tabVehicle,
         ...(dateRange.start || dateRange.end
           ? [`${dateRange.start ? fmtDate(dateRange.start) : "…"} ~ ${dateRange.end ? fmtDate(dateRange.end) : "…"}`]
-          : ["Last 7 days"]),
+          : [t.last7days]),
         ...(camera ? [camera] : []),
         ...(searchType === "VEHICLE"
           ? (licensePlate ? [licensePlate] : [])
@@ -1703,13 +1980,13 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
         <div className="vca-hide-scrollbar" style={{ display:"flex", alignItems:"center", gap:"8px", overflowX:"auto" }}>
           {target && (
             <FilterChip avatar={target.face} onRemove={clearTarget}>
-              Similar to {"label" in target ? target.label : target.name}
+              {t.similarTo} {"label" in target ? target.label : target.name}
             </FilterChip>
           )}
           {activeChips.map((c, i) => <FilterChip key={i}>{c}</FilterChip>)}
           <button onClick={onReset} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer",
             fontSize:"13px", fontWeight:600, color:"var(--gray-600)", flexShrink:0, padding:"0 4px" }}>
-            <ResetIconSm /> Reset filters
+            <ResetIconSm /> {t.resetFilters}
           </button>
         </div>
         <button onClick={onRefine} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer",
@@ -1721,7 +1998,7 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
       <div style={{ padding:"16px 24px 0" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px", flexWrap:"wrap", gap:"8px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-            <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>Search results</span>
+            <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>{t.searchResults}</span>
             <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-500)" }}>{results.length} matches</span>
             <div style={{ width:"1px", height:"12px", backgroundColor:"var(--gray-200)" }} />
             <span style={{ fontSize:"13px", color:"var(--gray-400)" }}>
@@ -1729,7 +2006,7 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
             </span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
-            <span style={{ fontSize:"12px", color:"var(--gray-400)" }}>Results updated as of {refreshedAt.toLocaleTimeString("en-US", { hour12:false })}</span>
+            <span style={{ fontSize:"12px", color:"var(--gray-400)" }}>{t.resultsAsOf(refreshedAt.toLocaleTimeString(lang === "ko" ? "ko-KR" : "en-US", { hour12:false }))}</span>
             <button onClick={() => setRefreshedAt(new Date())} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:700, color:"var(--gray-600)" }}>
               <RefreshIconSm /> Refresh
             </button>
@@ -1737,7 +2014,7 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
         </div>
         {results.length === 0 ? (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"64px 0", color:"var(--gray-400)", fontSize:"13px", fontWeight:600 }}>
-            No matches for the current filters.
+            {t.noMatches}
           </div>
         ) : (
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(133px, 1fr))", gap:"16px", paddingBottom:"24px" }}>
@@ -1786,7 +2063,10 @@ const REID_GENDER_CYCLE  = ["F","M","F","F","M","F","M","F","F","M","M","F","F",
 const REID_AGE_CYCLE     = ["28yo","28yo","28yo","35yo","28yo","42yo","28yo","28yo","31yo","28yo","35yo","28yo","28yo","29yo","28yo","37yo","28yo","33yo"];
 const REID_SCORE_CYCLE   = [null,null,87.8,null,null,null,87.8,null,null,null,null,87.8,null,null,null,null,87.8,null];
 const REID_CAM_CYCLE     = ["NC-1","NC-2","NC-3","NC-1","NC-4","NC-2","NC-1","NC-3","NC-2","NC-4","NC-1","NC-3","NC-2","NC-1","NC-4","NC-3","NC-1","NC-2"];
-const CAMERA_OPTIONS     = ["NC-1", "NC-2", "NC-3", "NC-4"];
+// The real roster, not a private "NC-1".."NC-4" set. Re-ID's rows and its camera filter now name
+// the same cameras Live Monitoring does, so a camera picked in one tab means the same camera in the
+// other, and the filter can actually match.
+const CAMERA_OPTIONS = CAMERA_CODES;
 const REID_FACE_POOL     = MATCH_DATA.map(m => m.face);
 // Attribute/date/similarity fields backing the Re-ID / Smart Search filter forms — added so
 // Gender/Apparel/Props/Search Period/Similarity actually narrow the result set instead of the
@@ -1924,6 +2204,12 @@ interface ReidCluster {
   id: string;
   thumbnail: string;
   title: string;
+  /**
+   * The person this cluster is about, in REID_DATA's shape. The RedFace button needs an actual
+   * person to hand over: without it that button only switched tabs, so RedFace opened its target
+   * picker and asked you to find — by hand — the person whose row you had just clicked.
+   */
+  subject: (typeof REID_DATA)[number];
   meta: { label: string; value: string }[];
   action: string;
   matches: MatchItem[];
@@ -2011,6 +2297,7 @@ const CLUSTERS: ReidCluster[] = [
   {
     id: "c1",
     thumbnail: SUSPECT_1.url,
+    subject: SUSPECT_1,
     title: "TS017323",
     meta: [
       { label:"Gender", value:"F" },
@@ -2024,6 +2311,7 @@ const CLUSTERS: ReidCluster[] = [
   {
     id: "c2",
     thumbnail: SUSPECT_2.url,
+    subject: SUSPECT_2,
     title: "TS015942",
     meta: [
       { label:"Gender", value:"M" },
@@ -2066,7 +2354,7 @@ function ClusterMatchCard({ item, onClick }: { item: MatchItem; onClick?: () => 
   );
 }
 
-function ClusterCard({ cluster, onNavigateTab, onMatchClick }: { cluster: ReidCluster; onNavigateTab?: (tab: DataTab) => void; onMatchClick?: (id: number) => void }) {
+function ClusterCard({ cluster, onNavigateTab, onMatchClick }: { cluster: ReidCluster; onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number], label?: string) => void; onMatchClick?: (id: number) => void }) {
   return (
     <div style={{ backgroundColor:"white", borderRadius:"12px", padding:"12px 24px", display:"flex", flexDirection:"column", gap:"16px", width:"100%", boxSizing:"border-box" }}>
       <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:"16px" }}>
@@ -2089,7 +2377,7 @@ function ClusterCard({ cluster, onNavigateTab, onMatchClick }: { cluster: ReidCl
             </div>
           </div>
         </div>
-        <button onClick={() => onNavigateTab?.(cluster.action as DataTab)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px", borderRadius:"8px",
+        <button onClick={() => onNavigateTab?.(cluster.action as DataTab, cluster.subject, cluster.title)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px", borderRadius:"8px",
           backgroundColor:"var(--gray-100)", border:"none", cursor:"pointer", flexShrink:0 }}>
           <RedFaceIconSm />
           <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-600)", letterSpacing:"-0.26px", whiteSpace:"nowrap" }}>{cluster.action}</span>
@@ -2151,11 +2439,14 @@ function generateNewRecognition(existingClusters: ReidCluster[]): ReidCluster[] 
     // one fresh hit — a single photo doesn't read as "this identity has been re-identified
     // across cameras," which is the whole point of a Re-ID cluster (same generator Recent
     // Targets/VIP Quick Select search results already use for exactly this).
-    const history = buildTargetResultRows(vip.face, vip.body, genderAbbrev, 20).map(reidToMatchItem);
+    const historyRows = buildTargetResultRows(vip.face, vip.body, genderAbbrev, 20);
     const fresh: ReidCluster = {
       id: `vip-${vip.name}`, thumbnail: vip.face, title: vip.name,
+      // status forced to VIP: the generator marks its rows Unknown, but this cluster IS a
+      // registered VIP and RedFace reads the status to label the primary target.
+      subject: { ...historyRows[0], status: "VIP" as ReIDStatus },
       meta: [{ label:"Gender", value:genderAbbrev }],
-      action: "RedFace", matches: [newMatch, ...history], isVip: true,
+      action: "RedFace", matches: [newMatch, ...historyRows.map(reidToMatchItem)], isVip: true,
     };
     return [fresh, ...existingClusters];
   }
@@ -2164,11 +2455,12 @@ function generateNewRecognition(existingClusters: ReidCluster[]): ReidCluster[] 
   const age = `${20 + Math.floor(Math.random() * 4) * 10}s`;
   const photo = MATCH_DATA[Math.floor(Math.random() * MATCH_DATA.length)];
   const newMatch: MatchItem = { id:matchId, face:photo.face, body:photo.body, cam, date, time, similarity, gender:genderAbbrev, age, plate:null, status:"Unknown" };
-  const history = buildTargetResultRows(photo.face, photo.body, genderAbbrev, 20).map(reidToMatchItem);
+  const historyRows = buildTargetResultRows(photo.face, photo.body, genderAbbrev, 20);
   const fresh: ReidCluster = {
     id: `unk-${matchId}`, thumbnail: photo.face, title: randomTargetName(),
+    subject: historyRows[0],
     meta: [{ label:"Gender", value:genderAbbrev }, { label:"Age", value:age }],
-    action: "RedFace", matches: [newMatch, ...history], isVip: false,
+    action: "RedFace", matches: [newMatch, ...historyRows.map(reidToMatchItem)], isVip: false,
   };
   return [fresh, ...existingClusters];
 }
@@ -2299,6 +2591,7 @@ function ImageDropzoneBox({ icon, label, previewSrc, onClick, onClear, aspect }:
   onClear?: () => void;
   aspect?: "square"|"portrait";
 }) {
+  const [lang] = useLanguage();
   // aspect is opt-in (Live Monitoring's Photo tab, where face/body previews sit one above the
   // other and read clearer at their real proportions) — callers that don't pass it keep the
   // original flex-filled box unchanged (e.g. Re-ID Analysis's side-by-side pair).
@@ -2323,7 +2616,7 @@ function ImageDropzoneBox({ icon, label, previewSrc, onClick, onClear, aspect }:
         {onClick && hovered && <span style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)" }}>{previewSrc ? "Click to change" : "Click to upload"}</span>}
       </div>
       {onClear && hovered && (
-        <RemoveImageButton label={`Remove ${label.toLowerCase()} image`} onRemove={onClear} />
+        <RemoveImageButton label={T[lang].removeImage(label.toLowerCase())} onRemove={onClear} />
       )}
     </div>
   );
@@ -2338,26 +2631,24 @@ function SlidersIconSm({ size = 16 }: { size?: number }) {
 // "Co-occurrence frequency (high → low)" ran on as one line in a 280px-wide sidebar — breaks it
 // onto a second line starting at the "(" instead of wrapping wherever the text box happens to run
 // out of room (mid-word) or truncating with an ellipsis.
-function SortOptionLabel({ label }: { label: string }) {
-  const idx = label.indexOf(" (");
-  if (idx === -1) return <>{label}</>;
-  return <>{label.slice(0, idx)}<br />{label.slice(idx + 1)}</>;
-}
 
 // Same picker look as Live Monitoring's "All Cameras ▾" (CameraDetailView above) — Re-ID's
 // `camera` search filter (already wired into filterReidData) had no UI to actually set it from,
 // same gap the Associate filter's search box used to have. A plain string, not tied to the
 // ALL_CAMERAS_ID sentinel CameraDetailView uses, since this sets a filter value, not which live
 // feed is being browsed — "" just means "no camera filter", same as every other cleared filter.
-// Lists CAMERA_OPTIONS (the "NC-1".."NC-4" labels REID_DATA's own `cam` field actually uses), not
-// the live camera roster from useVcaStore — those are a different id space ("CAM-NOV-001" etc.)
-// that no REID_DATA row's `cam` would ever match, which would make this filter silently return
-// nothing no matter which camera got picked.
+// Lists the same cameras Live Monitoring's picker does, with the same codes and the same
+// online/offline read. Both used to be true at once: this listed "NC-1".."NC-4" because that is
+// what REID_DATA's `cam` field held, so the two tabs showed different names for the same estate
+// and neither could hand a selection to the other. REID_DATA draws from CAMERA_CODES now.
 function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
+  const cameras = useVcaStore(s => s.cameras);
+  const statusOf = (code: string) => cameras.find(c => c.code === code)?.status;
   const label = value || "All Cameras";
   return (
-    <div style={{ position:"relative", width:"152px" }}>
+    /* 152px fitted "NC-1"; a real code plus its ON/OFF needs more, and the label was ellipsing. */
+    <div style={{ position:"relative", width:"186px" }}>
       <button onClick={() => setOpen(o => !o)} style={{
         display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
         padding:"8px 12px", borderRadius:"8px", backgroundColor:"white", border:"1px solid var(--primary-400)",
@@ -2374,24 +2665,35 @@ function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: st
       </button>
       {open && (
         <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, width:"100%", backgroundColor:"white",
-          border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden" }}>
-          <button onClick={() => { onChange(""); setOpen(false); }} style={{
-            display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
-            backgroundColor: !value ? "var(--primary-100)" : "white",
+          border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden",
+          maxHeight:"320px", display:"flex", flexDirection:"column" }}>
+          <button className="vca-picker-option" data-on={!value} onClick={() => { onChange(""); setOpen(false); }} style={{
+            display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer", flexShrink:0,
             fontSize:"13px", fontWeight: !value ? 700:500, color: !value ? "var(--primary-400)":"var(--gray-700)",
           }}>
             All Cameras
           </button>
-          <div style={{ height:"1px", backgroundColor:"var(--gray-200)" }} />
+          <div style={{ height:"1px", backgroundColor:"var(--gray-200)", flexShrink:0 }} />
+          {/* Same scroll region Live Monitoring's picker has. This list was 4 fixed entries and fit
+              in the panel; now it follows the real roster, which grows, and overflow:hidden on the
+              panel meant the extra entries were simply unreachable. "All Cameras" stays pinned
+              above it — it is the reset, not one of the cameras. */}
+          <div className="vca-thin-scrollbar" style={{ overflowY:"auto" }}>
           {CAMERA_OPTIONS.map(code => (
-            <button key={code} onClick={() => { onChange(code); setOpen(false); }} style={{
-              display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
-              backgroundColor: code===value ? "var(--primary-100)" : "white",
+            <button key={code} className="vca-picker-option" data-on={code===value}
+              onClick={() => { onChange(code); setOpen(false); }} style={{
+              display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
               fontSize:"13px", fontWeight: code===value ? 700:500, color: code===value ? "var(--primary-400)":"var(--gray-700)",
             }}>
               {code}
+              {/* Same ON/OFF read as Live Monitoring's picker. Whether a camera is up is part of
+                  what "pick this camera" means, and only one of the two lists was saying it. */}
+              <span style={{ fontSize:"10px", fontWeight:800, color: statusOf(code)==="online" ? "var(--success-400)" : "var(--gray-400)" }}>
+                {statusOf(code)==="online" ? "ON" : "OFF"}
+              </span>
             </button>
           ))}
+          </div>
         </div>
       )}
     </div>
@@ -2400,8 +2702,10 @@ function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: st
 
 function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavigateTab, onGoRedmap, onGoAnalyzeFrame }: {
   camera: string; onCameraChange: (v: string) => void;
-  seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onNavigateTab?: (tab: DataTab) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void;
+  seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void; onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number], label?: string) => void; onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string) => void;
 }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [expanded, setExpanded]         = useState(false);
   // Same collapsible tabbed sidebar as Live Monitoring's Photo/Filter/VIP/Car search (see
   // LiveSearchSidebar) — was its own separate SearchPanel layout before, which meant the two
@@ -2532,13 +2836,17 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
   // correct result. buildTargetResultRows never looks at camera/gender/apparel/props/date, so once
   // a target's picked those stop being real filters — the meta line below only lists what's
   // actually driving the results, same reasoning as Smart Search's results-bar chips.
-  const targetMatches = searchType === "PERSON" && searchTarget
+  const targetRows = searchType === "PERSON" && searchTarget
     ? buildTargetResultRows(searchTarget.face, searchTarget.body, searchTarget.gender === "Male" ? "M" : "F", 20)
         .filter(r => r.similarity >= threshold)
-        .map(reidToMatchItem)
     : null;
+  const targetMatches = targetRows?.map(reidToMatchItem) ?? null;
   const searchResultCluster: ReidCluster | null = hasSearched ? {
     id: "search-result",
+    // Top row of the same generated set, so this cluster's RedFace button hands over the person
+    // that was searched for rather than switching tabs empty-handed. Falls back to the first mock
+    // row for an attribute-only search, where there is no one specific person to carry over.
+    subject: targetRows?.[0] ?? REID_DATA[0],
     thumbnail: searchType === "VEHICLE" ? carSvgDataUri(VEHICLE_COLOR_CYCLE[0]) : (searchTarget?.face ?? MATCH_DATA[0].face),
     title: searchType === "VEHICLE" ? "Vehicle search result" : searchTarget && "label" in searchTarget ? searchTarget.label : searchTarget ? searchTarget.name : "Search result",
     meta: targetMatches ? [
@@ -2599,7 +2907,7 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
           ? clusters.map(c => <ClusterCard key={c.id} cluster={c} onNavigateTab={onNavigateTab} onMatchClick={setDetailId} />)
           : (
             <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)", fontSize:"13px", fontWeight:600 }}>
-              No matches for the current filters.
+              {t.noMatches}
             </div>
           )
         }
@@ -2691,14 +2999,6 @@ function CandidateCard({ c, selected, onClick }:
   );
 }
 
-function CheckSquareIconSm() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <rect x="1.5" y="1.5" width="11" height="11" rx="2" fill="currentColor"/>
-      <path d="M4 7l2 2 4-4.5" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
 function ChevronDownIconSm() {
   return <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>;
 }
@@ -2722,6 +3022,8 @@ function TableIconSm() {
 
 function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   { onConfirm:(c:RedfaceCandidate)=>void; onCancel:()=>void }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   useEscapeKey(onCancel);
   const [searchType, setSearchType]         = useState<"PERSON"|"VEHICLE">("PERSON");
   const [selectedTarget, setSelectedTarget] = useState(-1);
@@ -2780,6 +3082,9 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   // those for the rationale.
   const selectRecentTarget = (i: number) => {
     setFaceCleared(false); setBodyCleared(false);
+    // A stale candidate id from the previous search would otherwise win over the new pick's own
+    // top row and leave the grid selecting someone unrelated.
+    setSelectedCandidate(null);
     if (selectedTarget === i) { setSelectedTarget(-1); setGender(""); setApparel([]); setProps([]); return; }
     setSelectedTarget(i); setActiveVIP(-1);
     const t = RECENT_TARGETS_EN[i];
@@ -2787,15 +3092,20 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   };
   const selectVIP = (i: number) => {
     setFaceCleared(false); setBodyCleared(false);
+    setSelectedCandidate(null);
     if (activeVIP === i) { setActiveVIP(-1); return; }
     setActiveVIP(i); setSelectedTarget(-1);
   };
 
   const target = selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : activeVIP >= 0 ? VIP_QUICK[activeVIP] : null;
-  const hasFace = !!uploadedFace || !!target;
-  const faceSrc = uploadedFace ?? target?.face;
-  const hasBody = !!uploadedBody || !!target;
-  const bodySrc = uploadedBody ?? target?.body;
+  // faceCleared/bodyCleared are consulted here, which is the whole point of them: the ✕ on one
+  // preview sets the flag, and without reading it back the image never went away — the control
+  // looked functional and did nothing. An upload still wins over a cleared target photo, since
+  // uploading is a fresh choice for that slot.
+  const hasFace = !!uploadedFace || (!!target && !faceCleared);
+  const faceSrc = uploadedFace ?? (faceCleared ? undefined : target?.face);
+  const hasBody = !!uploadedBody || (!!target && !bodyCleared);
+  const bodySrc = uploadedBody ?? (bodyCleared ? undefined : target?.body);
   // Selected recent target first — same reason as VipQuickSelectRow's compact ordering. Original
   // indices ride along because selectRecentTarget and selectedTarget are index-based.
   const recentOrder = RECENT_TARGETS_EN.map((t, i) => ({ t, i }));
@@ -2828,15 +3138,19 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   // Live — recomputes on every filter change instead of staying empty until a "Search" click, so
   // the results panel never sits disconnected from the filters actually driving it.
   const candidates = targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, topColors, bottomColors, shoesColors });
-  // Picking a Recent target or a VIP already names one specific person, so it is the primary
-  // target — the candidate grid below exists for finding someone you DON'T have on hand. Making
-  // you then click a lookalike crop to confirm was busywork, and worse: the crop you clicked
-  // belonged to a different sighting, so confirming replaced the person you picked.
-  const pickedTargetObj: RedfaceCandidate | null = target && faceSrc
-    ? { id: -1, url: faceSrc, cam: "", time: "", similarity: 100,
-        label: "label" in target ? target.label : target.name }
-    : null;
-  const selectedObj = candidates.find(c => c.id === selectedCandidate) ?? pickedTargetObj;
+  // Picking a Recent target or a VIP already names one specific person, so its top candidate row
+  // starts selected. That row is not a lookalike: buildTargetResultRows builds it FROM the picked
+  // face at 97%, so it is the same photo — clicking it could only ever choose the same person.
+  // Leaving it unselected meant the grid showed the pick but nothing in it was chosen, and the
+  // confirm button sat disabled over a person already named.
+  const autoSelectId = target && targetCandidates && targetCandidates.length > 0 ? targetCandidates[0].id : null;
+  const effectiveSelected = selectedCandidate ?? autoSelectId;
+  const selectedRow = candidates.find(c => c.id === effectiveSelected) ?? null;
+  // The picked target's own name rides along, so confirming keeps "Mina" or "Target #1024" rather
+  // than falling back to the row's object id.
+  const selectedObj: RedfaceCandidate | null = selectedRow && selectedRow.id === autoSelectId && target
+    ? { ...selectedRow, label: "label" in target ? target.label : target.name }
+    : selectedRow;
   const isVehicle = searchType === "VEHICLE";
   // Distinguishes a genuinely blank slate (nothing chosen yet) from an active search that
   // happens to match nothing — the two deserve different empty-state wording.
@@ -2855,8 +3169,8 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
             <UserCogIconSm />
           </div>
           <div>
-            <p style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-800)", margin:0, letterSpacing:"-0.32px" }}>Select primary target</p>
-            <p style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-500)", margin:0 }}>Search and select a new target to rebuild RedFace relationship graph</p>
+            <p style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-800)", margin:0, letterSpacing:"-0.32px" }}>{t.selectPrimaryTarget}</p>
+            <p style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-500)", margin:0 }}>{t.selectPrimarySub}</p>
           </div>
         </div>
         <button onClick={onCancel} style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex", flexShrink:0 }}>
@@ -2905,7 +3219,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
               <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:"4px", color:"var(--gray-700)" }}>
                   <HistoryIconSm />
-                  <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Recent targets</span>
+                  <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>{t.recentTargets}</span>
                 </div>
                 {/* One scrolling row, same as VIP quick select right below it — the picker used to
                     show the first two of the list and silently drop the rest, so a target used an
@@ -2944,7 +3258,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
               <div style={{ height:"1px", backgroundColor:"var(--gray-200)" }} />
 
               <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-                <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Search by image</span>
+                <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>{t.searchByImage}</span>
                 <ImageDropzoneHoverStyleTag />
                 <div style={{ display:"flex", gap:"10px" }}>
                   <div onClick={() => faceInputRef.current?.click()} className="vca-image-dropzone-clickable"
@@ -2959,11 +3273,11 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                         {!uploadedFace && <div style={{ position:"absolute", inset:0, backgroundColor:"rgba(90,61,251,0.15)" }} />}
                         <div className="vca-dropzone-hint" style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center",
                           backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
-                          <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>Click to change</span>
+                          <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>{t.clickToChange}</span>
                         </div>
                         {hoverImageBox === "face" && (
                           <RemoveImageButton
-                            label="Remove face image"
+                            label={t.removeFaceImage}
                             onRemove={uploadedFace ? clearUploadedFace : () => setFaceCleared(true)}
                           />
                         )}
@@ -2972,7 +3286,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                       <>
                         <DefaultFaceIconSm />
                         <span className="vca-dropzone-label" style={{ fontSize:"10px", color:"var(--gray-400)" }}>Face</span>
-                        <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)", opacity:0 }}>Click to upload</span>
+                        <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)", opacity:0 }}>{t.clickToUpload}</span>
                       </>
                     )}
                     <input ref={faceInputRef} type="file" accept="image/*" onChange={handleFaceUpload} style={{ display:"none" }} />
@@ -2989,11 +3303,11 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                         {!uploadedBody && <div style={{ position:"absolute", inset:0, backgroundColor:"rgba(90,61,251,0.15)" }} />}
                         <div className="vca-dropzone-hint" style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center",
                           backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
-                          <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>Click to change</span>
+                          <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>{t.clickToChange}</span>
                         </div>
                         {hoverImageBox === "body" && (
                           <RemoveImageButton
-                            label="Remove body image"
+                            label={t.removeBodyImage}
                             onRemove={uploadedBody ? clearUploadedBody : () => setBodyCleared(true)}
                           />
                         )}
@@ -3002,7 +3316,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                       <>
                         <FullBodyIconSm />
                         <span className="vca-dropzone-label" style={{ fontSize:"10px", color:"var(--gray-400)" }}>Body</span>
-                        <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)", opacity:0 }}>Click to upload</span>
+                        <span className="vca-dropzone-hint" style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)", opacity:0 }}>{t.clickToUpload}</span>
                       </>
                     )}
                     <input ref={bodyInputRef} type="file" accept="image/*" onChange={handleBodyUpload} style={{ display:"none" }} />
@@ -3013,13 +3327,13 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
           )}
 
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Date range</span>
+            <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>{t.dateRange}</span>
             <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="split" size="sm" emptyText="Last 7 days" />
           </div>
 
           {isVehicle && (
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>License plate</span>
+              <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>{t.licensePlate}</span>
               <div style={{ display:"flex", alignItems:"center", gap:"6px", height:"34px", padding:"0 10px",
                 borderRadius:"8px", border:BORDER, backgroundColor:"white" }}>
                 <LicensePlateIconSm />
@@ -3035,7 +3349,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
           )}
 
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Similarity</span>
+            <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>{t.similarity}</span>
             <SimilarityControl value={threshold} onChange={setThreshold} height={34} />
           </div>
 
@@ -3043,7 +3357,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
             <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
               <button onClick={() => setAttrOpen(o => !o)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
                 width:"100%", background:"none", border:"none", padding:"0 8px 0 0", cursor:"pointer" }}>
-                <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>Filter</span>
+                <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>{t.tabFilter}</span>
                 <span style={{ display:"flex", color:"var(--gray-400)", transform: attrOpen ? "rotate(180deg)" : "none" }}>
                   <ChevronDownIconSm />
                 </span>
@@ -3051,37 +3365,37 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
               {attrOpen && (
                 <>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Gender</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>{t.labelGender}</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {GENDER_CHIPS.map(g => <AttrChip key={g} label={g} active={gender===g} onClick={() => setGender(gender===g ? "" : g)} size="sm" />)}
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Apparel</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>{t.labelApparel}</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {APPAREL_CHIPS.map(a => <AttrChip key={a} label={a} active={apparel.includes(a)} onClick={() => toggleApparel(a)} size="sm" />)}
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Props</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>{t.labelProps}</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {PROPS_CHIPS.map(p => <AttrChip key={p} label={p} active={props.includes(p)} onClick={() => toggleProps(p)} size="sm" />)}
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Top color</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>{t.topColor}</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {APPAREL_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={topColors.includes(c.id)} onClick={() => toggleTopColor(c.id)} size={18} />)}
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Bottom color</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>{t.bottomColor}</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {APPAREL_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={bottomColors.includes(c.id)} onClick={() => toggleBottomColor(c.id)} size={18} />)}
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Shoes color</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>{t.shoesColor}</span>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                       {SHOE_COLORS.map(c => <ColorSwatch key={c.id} hex={c.hex} active={shoesColors.includes(c.id)} onClick={() => toggleShoesColor(c.id)} size={18} />)}
                     </div>
@@ -3096,13 +3410,13 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
         <div style={{ flex:1, padding:"20px", display:"flex", flexDirection:"column", gap:"16px", overflow:"hidden" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-              <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-800)" }}>Search results</span>
+              <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-800)" }}>{t.searchResults}</span>
               <span style={{ fontSize:"10px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"var(--primary-100)", padding:"2px 6px", borderRadius:"4px" }}>{candidates.length}</span>
             </div>
             {/* A muted, easy-to-miss line read as an afterthought — once candidates actually
                 exist, picking one is the ONE thing left to do, so it gets a filled, colored
                 callout instead until a card's actually clicked. */}
-            {candidates.length > 0 && selectedCandidate === null && !pickedTargetObj && (
+            {candidates.length > 0 && effectiveSelected === null && (
               <span style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)", backgroundColor:"var(--primary-100)", padding:"4px 10px", borderRadius:"999px" }}>
                 ↓ Click a candidate below to select
               </span>
@@ -3117,13 +3431,13 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                     screen, so naming the action is enough. */}
                 <SearchIconSm />
                 <span style={{ fontSize:"13px", fontWeight:600 }}>
-                  {hasAnyFilter ? "No candidates match the current filters" : "Choose a target or set a filter to see candidates"}
+                  {hasAnyFilter ? t.noCandidatesMatch : t.chooseTargetOrFilter}
                 </span>
               </div>
             ) : (
               <div style={{ display:"flex", flexWrap:"wrap", gap:"16px" }}>
                 {candidates.map(c => (
-                  <CandidateCard key={c.id} c={c} selected={selectedCandidate === c.id} onClick={() => setSelectedCandidate(c.id)} />
+                  <CandidateCard key={c.id} c={c} selected={effectiveSelected === c.id} onClick={() => setSelectedCandidate(c.id)} />
                 ))}
               </div>
             )}
@@ -3136,7 +3450,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
           <ResetIconSm /> Reset filters
         </button>
         <div style={{ display:"flex", gap:"8px" }}>
-          <button onClick={onCancel} style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid var(--gray-300)", backgroundColor:"white", fontSize:"13px", fontWeight:700, color:"var(--gray-600)", cursor:"pointer" }}>Cancel</button>
+          <button onClick={onCancel} style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid var(--gray-300)", backgroundColor:"white", fontSize:"13px", fontWeight:700, color:"var(--gray-600)", cursor:"pointer" }}>{t.cancel}</button>
           <button disabled={!selectedObj} onClick={() => selectedObj && onConfirm(selectedObj)} style={{ padding:"8px 12px", borderRadius:"8px", border:"none",
             backgroundColor: selectedObj ? "var(--primary-400)" : "var(--primary-200)", color:"white", fontSize:"13px", fontWeight:700,
             cursor: selectedObj ? "pointer" : "default" }}>
@@ -3220,6 +3534,7 @@ function xAt(i: number, count: number, step: number) {
 }
 
 function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { primaryTarget:{ name:string; face:string } | null; rows: PyramidRow[]; onNodeClick:(tier:string, node:RedfaceNode)=>void; selectedNodeId:number|null }) {
+  const [lang] = useLanguage();
   const totalWeight = rows.reduce((s, r) => s + r.weight, 0) || 1;
   const positioned = rows.reduce<{ list: Array<PyramidRow & { top:number; bottom:number; center:number }>; acc:number }>((state, r) => {
     const top = (state.acc / totalWeight) * 100;
@@ -3312,7 +3627,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
         const nodeTopGroup = groupCooccurEvents(nodeEvents)[0];
         const nodeLastSeen = [...nodeEvents].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).pop()!;
         return (
-          <div key={`${r.key}-node-${n.id}`} title={`Last seen ${nodeLastSeen.date} ${nodeLastSeen.time} · ${nodeTopGroup.location}`}
+          <div key={`${r.key}-node-${n.id}`} title={T[lang].lastSeenAt(`${nodeLastSeen.date} ${nodeLastSeen.time}`, nodeTopGroup.location)}
             style={{ position:"absolute", left:`${x}%`, top:`${y}%`, transform:"translate(-50%,-50%)",
             display:"flex", flexDirection:"column", alignItems:"center", gap:"4px", zIndex: r.key === "tier1" ? 4 : r.key === "tier2" ? 3 : 2 }}>
             <div className="redface-avatar-hover" onClick={() => onNodeClick(r.key, n)} style={{ position:"relative", width:r.meta!.nodeSize, height:r.meta!.nodeSize, borderRadius:"10px",
@@ -3366,22 +3681,28 @@ function SwapIconSm() {
 // Strong/Moderate/Weak "correlation" used to sit under the link icon, but it only restated the
 // tier printed directly above it and named a statistic nothing computes. The co-capture count is
 // what the tier is derived FROM, so it says more in the same space.
-const TIER_LINK_META: Record<string, { label:string }> = {
-  tier1: { label:"Tier 1 link" },
-  tier2: { label:"Tier 2 link" },
-  tier3: { label:"Tier 3 link" },
+const TIER_LINK_META: Record<string, { label: Record<AppLanguage, string> }> = {
+  tier1: { label:{ en:"Tier 1 link", ko:"1단계 연결" } },
+  tier2: { label:{ en:"Tier 2 link", ko:"2단계 연결" } },
+  tier3: { label:{ en:"Tier 3 link", ko:"3단계 연결" } },
 };
 
+// Four cameras that ACTUALLY EXIST in Best Frame's CAM_DATA, by both code and location. They used
+// to be invented ("CAM-BGS-007" / "Bugis St Crossing"), which quietly broke the lightbox's Analyze
+// frame button: it hands the location to Best Frame, which matches it against CAM_DATA by substring
+// — and no invented name matched anything, so every click ended in a "No matching camera" toast.
+// Anything added here has to name a real CAM_DATA entry that has at least one detection.
+//
 // One scene per camera. Until the backend serves the actual still behind each detection, every
 // row shared a single image, so paging through 15 pages of frames looked like the same moment
 // listed over and over — the scene is what tells you these are different places. Remote stills
 // come from the same source as the face crops; Bugis keeps the local CCTV asset.
 const CO_SCENE = (id: string) => `https://images.unsplash.com/${id}?w=640&h=368&fit=crop&q=70`;
 const COOCCUR_CAMERAS = [
-  { code:"CAM-GEY-024", location:"Geylang Rd Int.",     scene:CO_SCENE("photo-1493780474015-ba834fd0ce2f") },
-  { code:"CAM-ORC-011", location:"Orchard Rd Junction", scene:CO_SCENE("photo-1449824913935-59a10b8d2000") },
-  { code:"CAM-BGS-007", location:"Bugis St Crossing",   scene:"/cctv-sample.png" },
-  { code:"CAM-CBD-019", location:"Raffles Pl Int.",     scene:CO_SCENE("photo-1519501025264-65ba15a82390") },
+  { code:"CAM_WestGate_BS1B", location:"Bugis MRT",       scene:"/cctv-sample.png" },
+  { code:"CAM_OrchardC_OR2",  location:"Orchard Central", scene:CO_SCENE("photo-1449824913935-59a10b8d2000") },
+  { code:"CAM_TampinesH_TP1", location:"Tampines Hub",    scene:CO_SCENE("photo-1519501025264-65ba15a82390") },
+  { code:"CAM_ClarkeQ_CQ1",   location:"Clarke Quay",     scene:CO_SCENE("photo-1493780474015-ba834fd0ce2f") },
 ];
 
 function assocId(n: RedfaceNode) {
@@ -3559,6 +3880,7 @@ function PagerArrow({ dir }: { dir: -1 | 1 }) {
 function TimelinePager({ page, pageCount, onPage }: {
   page: number; pageCount: number; onPage: (p: number) => void;
 }) {
+  const [lang] = useLanguage();
   const cell = (active: boolean, disabled: boolean) => ({
     minWidth: "24px", height: "24px", padding: "0 5px",
     display: "flex", alignItems: "center", justifyContent: "center",
@@ -3570,14 +3892,14 @@ function TimelinePager({ page, pageCount, onPage }: {
   });
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", paddingTop:"4px" }}>
-      <button onClick={() => onPage(page - 1)} disabled={page === 1} aria-label="Previous page"
+      <button onClick={() => onPage(page - 1)} disabled={page === 1} aria-label={T[lang].prevPage}
         style={cell(false, page === 1)}><PagerArrow dir={-1} /></button>
       {pageWindow(page, pageCount).map((n, i) =>
         n === "gap"
           ? <span key={`gap${i}`} style={{ ...cell(false, true), border:"none" }}>…</span>
           : <button key={n} onClick={() => onPage(n)} style={cell(n === page, false)}>{n}</button>
       )}
-      <button onClick={() => onPage(page + 1)} disabled={page === pageCount} aria-label="Next page"
+      <button onClick={() => onPage(page + 1)} disabled={page === pageCount} aria-label={T[lang].nextPage}
         style={cell(false, page === pageCount)}><PagerArrow dir={1} /></button>
     </div>
   );
@@ -3594,6 +3916,7 @@ function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose,
   onStep: (delta: number) => void; onClose: () => void;
   onAnalyze?: (location: string, at: { date: string; time: string }) => void;
 }) {
+  const [lang] = useLanguage();
   useEscapeKey(onClose);
   const step = (delta: number, label: string) => (
     <button onClick={() => onStep(delta)} aria-label={label} title={label}
@@ -3621,9 +3944,9 @@ function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose,
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
             <span style={{ fontSize:"11px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{index + 1} / {total}</span>
-            {step(-1, "Previous frame")}
-            {step(1, "Next frame")}
-            <button onClick={onClose} aria-label="Close" style={{ width:"32px", height:"32px", padding:0, border:"none",
+            {step(-1, T[lang].prevFrame)}
+            {step(1, T[lang].nextFrame)}
+            <button onClick={onClose} aria-label={T[lang].close} style={{ width:"32px", height:"32px", padding:0, border:"none",
               backgroundColor:"transparent", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)" }}>
               <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
                 <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -3672,6 +3995,8 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
   onClose: () => void;
   onAnalyzeFrame?: (location: string, at: { date: string; time: string }) => void;
 }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const meta = TIER_LINK_META[tier];
   const statusBadge = STATUS_BADGE_META[node.status];
   // Names arrive either bare ("TS700005", "Mina") or with the id in parentheses; take the id when
@@ -3762,9 +4087,9 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
             without a name. The ✕ stays a bare glyph, which is what Best Frame's own close control
             is; the 37px filled square was the outlier. */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px" }}>
-          <p title="Every frame holding both the primary target and this associate" style={{ margin:0, fontSize:"16px", fontWeight:800,
-            color:"var(--gray-900)", letterSpacing:"-0.32px", cursor:"help" }}>Co-capture evidence</p>
-          <button onClick={onClose} aria-label="Close" style={{
+          <p title={t.sharedFramesTitle} style={{ margin:0, fontSize:"16px", fontWeight:800,
+            color:"var(--gray-900)", letterSpacing:"-0.32px", cursor:"help" }}>{t.coCaptureEvidence}</p>
+          <button onClick={onClose} aria-label={t.close} style={{
             width:"26px", height:"26px", flexShrink:0, padding:0,
             backgroundColor:"transparent", border:"none", cursor:"pointer",
             display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)",
@@ -3794,9 +4119,9 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
             {/* Status rides this line now that the analytics block is back to two stat cards —
                 it has nowhere else to sit, and it belongs to the associate, not to the pattern. */}
             <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-500)" }}>
-              {meta.label} · {node.count} co-captures
+              {meta.label[lang]} · {t.coCaptures(node.count)}
               <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
-                padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{node.status.toUpperCase()}</span>
+                padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{lang === "ko" ? attr(node.status, lang) : node.status.toUpperCase()}</span>
             </span>
           </div>
         </div>
@@ -3812,8 +4137,8 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
             of air the block had when the rules were doing the separating. */}
         <div style={{ display:"flex", flexDirection:"column", gap:"8px", margin:"2px 0",
           backgroundColor:"var(--gray-50)", borderRadius:"8px", padding:"10px 12px" }}>
-          <PanelHeading title="Where and when the shared frames cluster" color="var(--primary-400)"
-            icon={<AnalysisSparkleIcon />}>Relationship analytics</PanelHeading>
+          <PanelHeading title={t.whereWhenCluster} color="var(--primary-400)"
+            icon={<AnalysisSparkleIcon />}>{t.relationshipAnalytics}</PanelHeading>
           {/* Border and fill live in the class, not inline: an inline declaration outranks any
               stylesheet selector, so setting them here would silently kill :hover and [data-on]. */}
           <style>{`
@@ -3827,7 +4152,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
               onClick={() => toggleFocus("location")}
               title={`${topGroup.events.length} of ${events.length} shared frames were captured here — click to show only those`}
               style={{ flex:1, minWidth:0, borderRadius:"8px", padding:"6px 10px", textAlign:"left", cursor:"pointer" }}>
-              <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak location</p>
+              <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>{t.colPeakLocation}</p>
               {/* The glyph belongs on the value, not the label — a pin next to the words "Peak
                   location" only restates them, next to "Novena" it marks what kind of thing that is. */}
               <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", display:"flex", alignItems:"center", gap:"4px" }}>
@@ -3841,7 +4166,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
               onClick={() => toggleFocus("time")}
               title={`${bucketCount} of ${events.length} shared frames (${pct}%) were captured in the ${bucket} — click to show only those`}
               style={{ flex:1, minWidth:0, borderRadius:"8px", padding:"6px 10px", textAlign:"left", cursor:"pointer" }}>
-              <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>Peak time</p>
+              <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>{t.colPeakTime}</p>
               {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
                   glyph at all. */}
               <p style={{ margin:"3px 0 0", fontSize:"12px", fontWeight:700, color:"var(--gray-900)", textTransform:"capitalize", display:"flex", alignItems:"center", gap:"4px" }}>
@@ -3861,28 +4186,50 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
               two full timestamps and the badge left nothing between them. The exact second of the
               first sighting isn't a summary-level fact anyway; the frame rows below carry it. */}
           <div style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px" }}>
-            <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>First <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time.slice(0, 5)}</strong></span>
+            <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>{t.first} <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{firstSeen.date} {firstSeen.time.slice(0, 5)}</strong></span>
             <span style={{ flex:1, minWidth:"12px", height:0, borderTop:"1px dashed var(--gray-300)" }} />
-            <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"white",
+            {/* gray-700, not the link colour. This is a plain count of what falls between the two
+                dates — nothing to click — and purple here competed with the heading and the two
+                Peak counts that ARE clickable. (Set once already and lost when this row was
+                rewritten for the dashed rules; don't reintroduce it.) */}
+            <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--gray-700)", backgroundColor:"white",
               padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
               {events.length} FRAMES
             </span>
             <span style={{ flex:1, minWidth:"12px", height:0, borderTop:"1px dashed var(--gray-300)" }} />
-            <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>Last <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time.slice(0, 5)}</strong></span>
+            <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>{t.last} <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time.slice(0, 5)}</strong></span>
           </div>
         </div>
 
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:"8px" }}>
           {/* "Event timeline" named the shape of the list, not its contents — every row here is
               one frame with both people in it, which is the whole reason the row exists. */}
-          <PanelHeading title="Frames the two appear in together, newest first">Shared frames</PanelHeading>
+          <span style={{ display:"flex", alignItems:"center", gap:"10px", minWidth:0 }}>
+            <PanelHeading title={t.sharedFramesHint}>{t.sharedFrames}</PanelHeading>
+            {/* One legend for the whole list. It was burned into every frame, which put twelve
+                identical copies of the same two words on a page — the colour-to-person mapping
+                only needs stating once, and the box colours carry it from there. Out here on white
+                it also stops costing the frames a corner. */}
+            <span style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
+              {[
+                { label:"TARGET", color:"var(--primary-300)" },
+                { label:assocId(node), color:"var(--danger-400)" },
+              ].map(l => (
+                <span key={l.label} style={{ display:"flex", alignItems:"center", gap:"4px",
+                  fontSize:"9px", fontWeight:800, color:"var(--gray-500)", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
+                  <span style={{ width:"7px", height:"7px", borderRadius:"2px", backgroundColor:l.color, flexShrink:0 }} />
+                  {l.label}
+                </span>
+              ))}
+            </span>
+          </span>
           <span style={{ display:"flex", alignItems:"center", gap:"6px", flexShrink:0 }}>
             {/* Names the active filter and clears it. The lit card says which one is on, but not
                 from down here where the count it changed is — and a count that dropped from 110
                 to 66 with no label on it reads as a bug. */}
             {focusLabel && (
               <button onClick={() => { setFocus(null); setPage(1); }}
-                title="Show every shared frame again"
+                title={t.showEveryFrame}
                 style={{ display:"flex", alignItems:"center", gap:"4px", border:"none", cursor:"pointer",
                   fontSize:"9px", fontWeight:800, color:"var(--primary-400)", backgroundColor:"var(--primary-100)",
                   padding:"2px 6px", borderRadius:"999px", textTransform:"capitalize", whiteSpace:"nowrap" }}>
@@ -3912,7 +4259,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
                strongest edges on the page, so any border drawn around them is a second one.
                Scene still is the one Best Frame uses for its camera feeds. */
             <button key={rowIdx} onClick={() => setZoomIdx(rowIdx)}
-              title="Open this frame full size"
+              title={t.openFrameFull}
               style={{ position:"relative", padding:0, border:"none", borderRadius:"6px", overflow:"hidden",
                 backgroundColor:"var(--gray-900)", cursor:"zoom-in", display:"block", width:"100%" }}>
               <img src={e.scene} alt="" style={{ width:"100%", aspectRatio:"1194 / 685", objectFit:"cover", display:"block" }} />
@@ -3927,25 +4274,11 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
                 overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
                 <CameraGlyph size={10} /> {e.location}
               </span>
-              <span style={{ position:"absolute", bottom:4, right:4, fontSize:"9px", fontWeight:700, color:"white",
+              {/* Bottom-LEFT now that the legend has moved out to the section heading — the two
+                  chips read as one column down the frame's left edge instead of straddling it. */}
+              <span style={{ position:"absolute", bottom:4, left:4, fontSize:"9px", fontWeight:700, color:"white",
                 backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", whiteSpace:"nowrap" }}>
                 {e.date.slice(5)} {e.time.slice(0, 5)}
-              </span>
-              {/* Legend rather than labels on the boxes themselves: the two boxes sit 34px apart
-                  in a 203px cell, so two 8px captions above them collided. Colour carries the
-                  identity, the legend says which colour is who. */}
-              <span style={{ position:"absolute", bottom:4, left:4, display:"flex", alignItems:"center", gap:"6px",
-                backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px" }}>
-                {[
-                  { label:"TARGET", color:"var(--primary-300)" },
-                  { label:assocId(node), color:"var(--danger-400)" },
-                ].map(l => (
-                  <span key={l.label} style={{ display:"flex", alignItems:"center", gap:"3px",
-                    fontSize:"8px", fontWeight:800, color:"white", whiteSpace:"nowrap", letterSpacing:"0.2px" }}>
-                    <span style={{ width:"5px", height:"5px", borderRadius:"1px", backgroundColor:l.color, flexShrink:0 }} />
-                    {l.label}
-                  </span>
-                ))}
               </span>
               {[
                 { key:"target", color:"var(--primary-300)", left:e.boxLeft },
@@ -4001,21 +4334,31 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
   sortDir: "desc"|"asc";
   onToggleSort: () => void;
 }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   // Read after mount, not during render: same reason the portal's license countdown does it this
   // way — the clock isn't a pure input, and rendering it during the server pass would mismatch.
   const [nowMs, setNowMs] = useState<number | null>(null);
   useEffect(() => { queueMicrotask(() => setNowMs(Date.now())); }, []);
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", width:"100%" }}>
+    /* Scrolls sideways rather than being clipped. The ten columns need 1092px (880 of fixed widths
+       + 72 of gaps + 140 minimum for the name column) before the 40px of row padding, and the
+       Co-capture evidence panel takes 460 of the window: at 1512 that leaves 1012 and the Action
+       button — the only control in the row — was being cut off the right edge by the page's own
+       overflow:hidden, exactly the way Redmap's Search button was. A table is the one place
+       horizontal scrolling reads as normal, and the alternative here is hiding columns of data.
+       At 1600px and up nothing scrolls. */
+    <div className="vca-thin-scrollbar" style={{ width:"100%", overflowX:"auto" }}>
+    <div style={{ display:"flex", flexDirection:"column", minWidth:"1132px" }}>
       <div style={{ backgroundColor:"var(--gray-50)", borderTop:"1px solid var(--gray-100)", padding:"12px 20px",
         display:"flex", gap:"8px", fontSize:"12px", fontWeight:800, color:"var(--gray-600)" }}>
-        <span style={{ width:"50px", flexShrink:0 }}>Rank</span>
-        <span style={{ flex:1, minWidth:"140px" }}>Associate target</span>
+        <span style={{ width:"50px", flexShrink:0 }}>{t.colRank}</span>
+        <span style={{ flex:1, minWidth:"140px" }}>{t.colAssociate}</span>
         {/* Tier is derived from the co-capture count sitting right next to it, so it doesn't need
             180px and the words "Hierarchy tier & zone" to say it — a coloured number does, and the
             space it gives back pays for the three columns after it. */}
-        <span style={{ width:"44px", flexShrink:0 }}>Tier</span>
+        <span style={{ width:"44px", flexShrink:0 }}>{t.colTier}</span>
         <button onClick={onToggleSort} title={`Sort by co-captures, ${sortDir === "desc" ? "low to high" : "high to low"}`}
           style={{ width:"92px", flexShrink:0, display:"flex", alignItems:"center", gap:"4px", padding:0,
             background:"none", border:"none", cursor:"pointer", font:"inherit", color:"var(--primary-400)", textAlign:"left" }}>
@@ -4026,22 +4369,22 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
         </button>
         {/* The associate's own watchlist standing. It decides which row an operator opens first,
             and it was only visible after opening one. */}
-        <span style={{ width:"76px", flexShrink:0 }}>Status</span>
+        <span style={{ width:"76px", flexShrink:0 }}>{t.colStatus}</span>
         {/* How many distinct cameras the pair was ever framed at. The most discriminating fact
             after the count itself: 12 co-captures at one camera is a shared stop or workplace, 12
             spread over six cameras is two people moving around together. Peak location alone
             can't tell those apart. */}
-        <span style={{ width:"76px", flexShrink:0 }}>Locations</span>
+        <span style={{ width:"76px", flexShrink:0 }}>{t.colLocations}</span>
         {/* "Top camera node" borrowed "node" from the pyramid view, where nodes are people, not
             cameras — and "top" didn't say top by what. This is the same number the inspector panel
             calls Peak location, so it uses that name. */}
-        <span style={{ width:"160px", flexShrink:0 }}>Peak location</span>
-        <span style={{ width:"118px", flexShrink:0 }}>Peak time</span>
+        <span style={{ width:"160px", flexShrink:0 }}>{t.colPeakLocation}</span>
+        <span style={{ width:"118px", flexShrink:0 }}>{t.colPeakTime}</span>
         {/* First and Last were two 150px columns of full timestamps to state one range. Dates
             alone carry the span, and what the two dates never said out loud was how long ago the
             last one was — which is the part that decides whether this pairing is live. */}
-        <span style={{ width:"168px", flexShrink:0 }}>Span</span>
-        <span style={{ width:"96px", flexShrink:0, textAlign:"center" }}>Action</span>
+        <span style={{ width:"168px", flexShrink:0 }}>{t.colSpan}</span>
+        <span style={{ width:"96px", flexShrink:0, textAlign:"center" }}>{t.colAction}</span>
       </div>
       {rows.map((r, i) => {
         const badge = TIER_BADGE_META[r.tier];
@@ -4073,7 +4416,7 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
             <span style={{ width:"92px", flexShrink:0, fontSize:"13px", fontWeight:700, color:COCAPTURE_COLOR[r.tier] }}>{r.node.count}</span>
             <div style={{ width:"76px", flexShrink:0 }}>
               <span style={{ fontSize:"10px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
-                padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{r.node.status.toUpperCase()}</span>
+                padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{lang === "ko" ? attr(r.node.status, lang) : r.node.status.toUpperCase()}</span>
             </div>
             <span style={{ width:"76px", flexShrink:0, fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>{groups.length}</span>
             <span style={{ width:"160px", flexShrink:0, fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>{`${topGroup.location} · ${topGroup.events.length}`}</span>
@@ -4095,20 +4438,22 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
               <button onClick={() => onInspect(r.tier, r.node)} style={{ padding:"4px 10px", borderRadius:"6px", border:"none",
                 backgroundColor: r.node.id === selectedNodeId ? "var(--primary-400)" : "var(--gray-900)", color:"white", cursor:"pointer",
                 fontSize:"12px", fontWeight:700, whiteSpace:"nowrap" }}>
-                {r.node.id === selectedNodeId ? "Close" : "View frames"}
+                {r.node.id === selectedNodeId ? t.close : t.viewFrames}
               </button>
             </div>
           </div>
         );
       })}
     </div>
+    </div>
   );
 }
-
 function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }: {
   primaryTarget:{ name:string; face:string } | null; onSwitchTarget:()=>void;
   onGoAnalyzeFrame?: (location: string, at?: { date: string; time: string }) => void;
 }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [tier1On, setTier1On] = useState(true);
   const [tier2On, setTier2On] = useState(true);
   const [tier3On, setTier3On] = useState(true);
@@ -4159,8 +4504,6 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
   const tier1 = sortNodes(REDFACE_TIER1.filter(n => notExcluded(n) && inDateRange(n)));
   const tier2 = sortNodes(REDFACE_TIER2.filter(n => notExcluded(n) && inDateRange(n)));
   const tier3 = sortNodes(REDFACE_TIER3.filter(n => notExcluded(n) && inDateRange(n)));
-  const totalAll = REDFACE_TIER1.filter(notExcluded).length + REDFACE_TIER2.filter(notExcluded).length + REDFACE_TIER3.filter(notExcluded).length;
-  const totalVisible = (tier1On ? tier1.length : 0) + (tier2On ? tier2.length : 0) + (tier3On ? tier3.length : 0);
   const reset = () => { setTier1On(true); setTier2On(true); setTier3On(true); setSortDir("desc"); setDateRange(DEFAULT_REDFACE_RANGE); };
 
   // No primary target yet means there's nobody to compute co-occurrence against — the tier
@@ -4212,7 +4555,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
               <>
                 <img src={primaryTarget.face} alt="" style={{ width:"44px", height:"44px", borderRadius:"6px", objectFit:"cover", border:"2px solid var(--primary-400)" }} />
                 <div>
-                  <span title="The person everything here is measured against — associates are whoever shares frames with them" style={{ display:"inline-flex", fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"2px 6px", borderRadius:"4px", letterSpacing:"-0.2px", cursor:"help" }}>PRIMARY TARGET</span>
+                  <span title={t.primaryTargetHint} style={{ display:"inline-flex", fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"2px 6px", borderRadius:"4px", letterSpacing:"-0.2px", cursor:"help" }}>{t.primaryTarget}</span>
                   <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", margin:"4px 0 0", letterSpacing:"-0.28px" }}>{primaryTarget.name}</p>
                 </div>
                 <button onClick={onSwitchTarget} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 12px",
@@ -4244,9 +4587,9 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
                 fits a full "2026.09.29 – 2026.10.19" — at 172px the text ran past the box and over
                 the reset button beside it. */}
             <div style={{ width:"212px", display:"flex", flexShrink:0 }}>
-              <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" size="sm" emptyText="All dates" />
+              <DateRangeTrigger value={dateRange} onApply={setDateRange} mode="merged" size="sm" emptyText={t.allDates} />
             </div>
-            <button onClick={reset} title="Reset filters" style={{ display:"flex", alignItems:"center", gap:"6px",
+            <button onClick={reset} title={t.resetFilters} style={{ display:"flex", alignItems:"center", gap:"6px",
               height:"30px", padding:"0 10px", borderRadius:"6px", border:BORDER, backgroundColor:"white", cursor:"pointer",
               fontSize:"12px", fontWeight:600, color:"var(--gray-600)", flexShrink:0, whiteSpace:"nowrap" }}>
               <ResetIconSm /> Reset
@@ -4256,11 +4599,11 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
             {(["pyramid","grid"] as const).map(v => {
               const active = view === v;
               return (
-                <button key={v} onClick={() => setView(v)} title={v === "pyramid" ? "See associates laid out by tier" : "See associates as a sortable table"} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px",
+                <button key={v} onClick={() => setView(v)} title={v === "pyramid" ? t.viewPyramid : t.viewGrid} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"6px 12px",
                   borderRadius:"6px", border:"none", cursor:"pointer",
                   backgroundColor: active ? "white" : "transparent", color: active ? "var(--gray-900)" : "var(--gray-500)",
                   fontSize:"12px", fontWeight: active ? 700 : 600 }}>
-                  {v === "pyramid" ? <LayersIconSm/> : <TableIconSm/>} {v === "pyramid" ? "Pyramid & zone" : "Data grid"}
+                  {v === "pyramid" ? <LayersIconSm/> : <TableIconSm/>} {v === "pyramid" ? t.pyramidAndZone : t.dataGrid}
                 </button>
               );
             })}
@@ -4301,8 +4644,8 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
   );
 }
 
-function RedFaceContent({ seedCard, onSeedConsumed, onGoAnalyzeFrame }: {
-  seedCard?: (typeof REID_DATA)[number] | null; onSeedConsumed?: () => void;
+function RedFaceContent({ seedCard, seedLabel, onSeedConsumed, onGoAnalyzeFrame }: {
+  seedCard?: (typeof REID_DATA)[number] | null; seedLabel?: string | null; onSeedConsumed?: () => void;
   onGoAnalyzeFrame?: (location: string, at?: { date: string; time: string }) => void;
 } = {}) {
   const [primaryTarget, setPrimaryTarget] = useState<{ name:string; face:string } | null>(null);
@@ -4332,7 +4675,9 @@ function RedFaceContent({ seedCard, onSeedConsumed, onGoAnalyzeFrame }: {
   if (seedCard !== prevSeedCard) {
     setPrevSeedCard(seedCard);
     if (seedCard) {
-      const label = seedCard.status === "VIP" ? "VIP Match" : `TS${String(seedCard.id).padStart(6, "0")}`;
+      // The caller's own name for this person wins. Only when it has none do we fall back to the
+      // row's status/id, which is all this component can see on its own.
+      const label = seedLabel ?? (seedCard.status === "VIP" ? "VIP Match" : `TS${String(seedCard.id).padStart(6, "0")}`);
       setPrimaryTarget({ name: label, face: seedCard.url });
       setPickerOpen(false);
     }
@@ -4411,13 +4756,21 @@ export const TAB_ICONS: Record<DataTab, React.ReactNode> = {
 // Smart Search isn't its own top-level tab anymore — it lives inside Live Monitoring (see
 // LiveMonitoringTab), matching how Re-ID Analysis/RedFace each keep their own search UI embedded
 // in place rather than sending the operator to a separate destination to search from.
-const DATA_TABS: DataTab[] = ["Live Monitoring","Re-ID Analysis","RedFace"];
+const DATA_TABS: DataTab[] = ["Live Monitoring", "Re-ID Analysis", "RedFace"];
 // "RedFace" doesn't say what it does on its own — a first-time viewer has no way to guess this
 // is a co-occurrence/associate-finder feature just from the tab label.
-const DATA_TAB_TOOLTIPS: Partial<Record<DataTab, string>> = {
-  "RedFace": "Finds who shares camera frames with a chosen person, across every camera",
+const DATA_TAB_TOOLTIPS: Partial<Record<DataTab, keyof typeof T.en>> = {
+  "RedFace": "redfaceTooltip",
+};
+// The tab ids are route slugs and store values, so only the label changes.
+const DATA_TAB_LABEL: Partial<Record<DataTab, keyof typeof T.en>> = {
+  "Live Monitoring": "tabLiveMonitoring",
+  "Re-ID Analysis": "tabReid",
+  "RedFace": "tabRedface",
 };
 export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?: () => void; onGoAnalyzeFrame?: (location: string, at?: { date: string; time: string }) => void } = {}) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   // Always lands on Live Monitoring — deliberately not persisted, unlike Best Frame's
   // camera selection. Switching sub-tabs while on this screen is normal component state;
   // leaving Data and coming back should start fresh at Live Monitoring.
@@ -4441,33 +4794,28 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
   // Carries a Live Monitoring card's data into whichever tab its hover-action button targets,
   // so that tab lands on real results for that person instead of a bare, empty search form.
   const [seedCard, setSeedCard] = useState<(typeof REID_DATA)[number] | null>(null);
-  const handleNavigateFromCard = (tab: DataTab, card: (typeof REID_DATA)[number]) => {
+  // The name the source screen already knows for that person ("Mina", "TS017323"). Without it
+  // RedFace can only re-derive a label from the row's status and id, which throws away a real
+  // identity the Re-ID cluster was already displaying.
+  const [seedLabel, setSeedLabel] = useState<string | null>(null);
+  const handleNavigateFromCard = (tab: DataTab, card: (typeof REID_DATA)[number], label?: string) => {
     setSeedCard(card);
+    setSeedLabel(label ?? null);
     setActiveTab(tab);
   };
 
-  // Live Monitoring's camera picker (real store codes, e.g. "CAM-NOV-001") and Re-ID's camera
-  // filter (the separate "NC-1".."NC-4" mock id space REID_DATA's own `cam` field uses) can't
-  // share a raw value — a specific selection in one has no equivalent in the other's id space,
-  // and forcing one through would make the other silently filter down to zero real matches. "All
-  // Cameras" is the one state that means the same thing in both spaces, so only that syncs both
-  // ways; a specific pick in either tab stays local to that tab.
+  // Both pickers now name the same cameras (CAMERA_CODES), so a specific code IS meaningful in
+  // either tab. What still differs is only the "no filter" sentinel — Live Monitoring uses
+  // ALL_CAMERAS_ID for "show every feed", Re-ID uses "" for "no camera filter" — so that one state
+  // is translated between them. A specific pick stays local on purpose: switching tabs to compare
+  // the same camera is a deliberate act, and silently carrying a filter across would change what
+  // the other tab was showing without being asked.
   const [liveCam, setLiveCamRaw] = useState<string>(ALL_CAMERAS_ID);
   const [reidCam, setReidCamRaw] = useState<string>("");
   const setLiveCam = (v: string) => { setLiveCamRaw(v); if (v === ALL_CAMERAS_ID) setReidCamRaw(""); };
   const setReidCam = (v: string) => { setReidCamRaw(v); if (v === "") setLiveCamRaw(ALL_CAMERAS_ID); };
 
-  // The global command palette (mounted outside this component, in ClientLayout) can only reach
-  // this deep via the shared store — there's no prop path from there to here. Same
-  // compare-during-render pattern as seedCard below: `requestId` always increments, so switching
-  // to the same tab twice in a row still re-fires for whichever child cares about cameraCode/
-  // vipIndex/recentTargetIndex.
-  const dataNavRequest = useVcaStore(s => s.dataNavRequest);
-  const [prevNavRequestId, setPrevNavRequestId] = useState<number | null>(null);
-  if (dataNavRequest && dataNavRequest.requestId !== prevNavRequestId) {
-    setPrevNavRequestId(dataNavRequest.requestId);
-    setActiveTab(dataNavRequest.tab);
-  }
+
 
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", backgroundColor:"var(--gray-50)" }}>
@@ -4476,23 +4824,24 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
       <div style={{ backgroundColor:"white", borderBottom:BORDER, display:"flex", alignItems:"center", padding:"0 20px", height:"46px", flexShrink:0 }}>
         {DATA_TABS.map(tab => {
           const active = activeTab===tab;
+          const tipKey = DATA_TAB_TOOLTIPS[tab];
           return (
-            <button key={tab} onClick={() => setActiveTab(tab)} title={DATA_TAB_TOOLTIPS[tab]} style={{ height:"100%", padding:"0 18px", background:"none", border:"none", cursor:"pointer",
+            <button key={tab} onClick={() => setActiveTab(tab)} title={tipKey ? (t[tipKey] as string) : undefined} style={{ height:"100%", padding:"0 18px", background:"none", border:"none", cursor:"pointer",
               display:"flex", alignItems:"center", gap:"6px",
               borderBottom: active?"2px solid var(--gray-900)":"2px solid transparent",
               color: active?"var(--gray-900)":"var(--gray-500)",
               fontWeight: 600,
               fontSize:"13px", letterSpacing:"-0.26px", transition:"color 0.15s" }}>
               {TAB_ICONS[tab]}
-              {tab}
+              {(t[DATA_TAB_LABEL[tab] ?? "tabLiveMonitoring"] as string)}
             </button>
           );
         })}
       </div>
 
       {activeTab==="Live Monitoring" && <LiveMonitoringTab openCam={liveCam} onOpenCamChange={setLiveCam} onNavigateTab={handleNavigateFromCard} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
-      {activeTab==="Re-ID Analysis"   && <ReIDContent camera={reidCam} onCameraChange={setReidCam} seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} onNavigateTab={setActiveTab} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
-      {activeTab==="RedFace"          && <RedFaceContent seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
+      {activeTab==="Re-ID Analysis"   && <ReIDContent camera={reidCam} onCameraChange={setReidCam} seedCard={seedCard} onSeedConsumed={() => setSeedCard(null)} onNavigateTab={handleNavigateFromCard} onGoRedmap={onGoRedmap} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
+      {activeTab==="RedFace"          && <RedFaceContent seedCard={seedCard} seedLabel={seedLabel} onSeedConsumed={() => { setSeedCard(null); setSeedLabel(null); }} onGoAnalyzeFrame={onGoAnalyzeFrame} />}
     </div>
   );
 }

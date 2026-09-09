@@ -9,6 +9,106 @@ import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useApiData } from "@/hooks/useApiData";
 import { getDashboardStats, getDevices, getDistricts } from "@/lib/api/dashboard";
 
+import { useLanguage } from "@/lib/i18n";
+
+// See the per-file pattern note in lib/i18n.ts. Camera names, zone names and device names are the
+// customer's own labels and stay as entered — the operator matches them against a rack, not a
+// dictionary.
+const T = {
+  en: {
+    live: "LIVE",
+    out: "OUT",
+    registeredVips: "Registered VIP targets",
+    noVips: "No VIP targets registered.",
+    registeredOn: (date: string) => `Registered ${date}`,
+    close: "Close",
+    vipDetections: "VIP detections",
+    todaysDetections: "Today's detections",
+    selectLocation: "Select location",
+    allLocations: "All locations",
+    liveAnalytics: "Live analytics",
+    all: "All",
+    vipOnly: "VIP only",
+    seenAtCameras: (n: number) => `Seen at ${n} different camera${n === 1 ? "" : "s"}`,
+    stopsOnTrail: (n: number) => `${n} stops on this trail`,
+    stops: (n: number) => `${n} stops`,
+    stopsAcross: (stops: number, cams: number) => `${stops} stops across ${cams} camera${cams === 1 ? "" : "s"}`,
+    sameCameraEarlier: "Same camera as earlier in this trail",
+    return: "RETURN",
+    tracking: "Tracking",
+    filterAll: "All",
+    filterVip: "VIP Detection",
+    filterTracking: "Tracking",
+    noEvents: "No events detected currently.",
+    rangeOf: (from: number, to: number, total: number) => `${from} – ${to} of ${total}`,
+    goToPage: "Go to page",
+    prevPage: "Previous page",
+    nextPage: "Next page",
+    infrastructure: "Infrastructure & debug",
+    linkedCams: "Linked cams",
+    outCams: "Out cams",
+    availability: "Availability",
+    searchDevices: "Search devices",
+    columns: { name: "NAME", status: "STATUS", type: "TYPE", info: "INFO", pin: "PIN" },
+    devicesLoadFailed: "Couldn’t load devices.",
+    retry: "Retry",
+    noDevices: "No devices found.",
+    unknownZone: "Unknown",
+    today: "TODAY",
+    avail: "AVAIL",
+    tabEvents: "EVENTS",
+    tabSystem: "SYSTEM",
+    events: "Events",
+    system: "System",
+  },
+  ko: {
+    live: "정상",
+    out: "중단",
+    registeredVips: "등록된 VIP 대상",
+    noVips: "등록된 VIP 대상이 없습니다.",
+    registeredOn: (date: string) => `${date} 등록`,
+    close: "닫기",
+    vipDetections: "VIP 검출",
+    todaysDetections: "오늘 검출",
+    selectLocation: "장소 선택",
+    allLocations: "전체 장소",
+    liveAnalytics: "실시간 분석",
+    all: "전체",
+    vipOnly: "VIP만",
+    seenAtCameras: (n: number) => `서로 다른 카메라 ${n}대에서 검출`,
+    stopsOnTrail: (n: number) => `이 이동 경로에서 ${n}곳 경유`,
+    stops: (n: number) => `${n}곳 경유`,
+    stopsAcross: (stops: number, cams: number) => `카메라 ${cams}대에서 ${stops}곳 경유`,
+    sameCameraEarlier: "이 경로에서 앞서 지나간 카메라입니다",
+    return: "재방문",
+    tracking: "동선 추적",
+    filterAll: "전체",
+    filterVip: "VIP 검출",
+    filterTracking: "동선 추적",
+    noEvents: "현재 검출된 이벤트가 없습니다.",
+    rangeOf: (from: number, to: number, total: number) => `${total}건 중 ${from} – ${to}`,
+    goToPage: "페이지 이동",
+    prevPage: "이전 페이지",
+    nextPage: "다음 페이지",
+    infrastructure: "인프라 및 진단",
+    linkedCams: "연결된 카메라",
+    outCams: "중단된 카메라",
+    availability: "가동률",
+    searchDevices: "장비 검색",
+    columns: { name: "이름", status: "상태", type: "종류", info: "정보", pin: "고정" },
+    devicesLoadFailed: "장비 목록을 불러오지 못했습니다.",
+    retry: "다시 시도",
+    noDevices: "장비가 없습니다.",
+    unknownZone: "미확인",
+    today: "오늘",
+    avail: "가동률",
+    tabEvents: "이벤트",
+    tabSystem: "시스템",
+    events: "이벤트",
+    system: "시스템",
+  },
+} as const;
+
 const BORDER = "1px solid var(--gray-200)";
 const PAGE_SIZE = 12;
 const SIDEBAR_TAB_STORAGE_KEY = "vca:sidebarTab";
@@ -123,10 +223,13 @@ function AvatarStack() {
   );
 }
 
-function PersonThumb({ isSelected, photoUrl }: { isSelected:boolean; photoUrl:string }) {
+// photoUrl is optional now: a person imported from a CSV has no enrolled face (see Person in
+// vcaStore). Nothing in this app can show a face it does not have, so the tile stays empty rather
+// than drawing a broken image.
+function PersonThumb({ isSelected, photoUrl }: { isSelected:boolean; photoUrl?:string }) {
   return (
     <div style={{ width:54, height:54, borderRadius:8, flexShrink:0, overflow:"hidden", outline: isSelected ? "2px solid var(--primary-400)" : "none", outlineOffset:2 }}>
-      <img src={photoUrl} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} alt="" />
+      {photoUrl && <img src={photoUrl} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} alt="" />}
     </div>
   );
 }
@@ -261,6 +364,8 @@ function AvailabilityIcon() {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const isLive = status === "Live";
   return (
     <div style={{
@@ -270,7 +375,7 @@ function StatusBadge({ status }: { status: string }) {
     }}>
       <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
         <div style={{ width: isLive ? 2 : 5, height: isLive ? 2 : 5, borderRadius:"50%", backgroundColor: isLive ? "var(--success-400)" : "var(--danger-400)", flexShrink:0 }} />
-        <span style={{ fontSize:"10px", fontWeight:800, color: isLive ? "var(--success-400)" : "var(--danger-400)", letterSpacing:"-0.2px" }}>{isLive ? "LIVE" : "OUT"}</span>
+        <span style={{ fontSize:"10px", fontWeight:800, color: isLive ? "var(--success-400)" : "var(--danger-400)", letterSpacing:"-0.2px" }}>{isLive ? t.live : t.out}</span>
       </div>
     </div>
   );
@@ -303,6 +408,8 @@ function useEventCounts() {
 
 /* ── VIP list modal ── */
 function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPersonSelect: (name: string) => void }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const persons = useVcaStore(s => s.persons).filter(p => p.type === "VIP");
   useEscapeKey(onClose);
 
@@ -313,19 +420,19 @@ function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPers
         <div style={{ padding:"14px 16px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
             <Crown size={16} color="var(--primary-400)" />
-            <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>Registered VIP targets</p>
+            <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>{t.registeredVips}</p>
             <span style={{ fontSize:"14px", fontWeight:800, color:"var(--primary-400)" }}>{persons.length}</span>
           </div>
-          <button onClick={onClose} aria-label="Close" style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
+          <button onClick={onClose} aria-label={t.close} style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
         <div style={{ flex:1, overflowY:"auto" }}>
           {persons.length === 0 && (
-            <div style={{ padding:"32px 16px", textAlign:"center", color:"var(--gray-400)", fontSize:"13px" }}>No VIP targets registered.</div>
+            <div style={{ padding:"32px 16px", textAlign:"center", color:"var(--gray-400)", fontSize:"13px" }}>{t.noVips}</div>
           )}
           {persons.map((p, i) => {
-            const registeredLabel = new Date(p.registeredAt).toLocaleDateString("en-US", { year:"numeric", month:"short", day:"numeric" });
+            const registeredLabel = new Date(p.registeredAt).toLocaleDateString(lang === "ko" ? "ko-KR" : "en-US", { year:"numeric", month:"short", day:"numeric" });
             return (
               <div key={p.id}>
                 <button
@@ -340,7 +447,7 @@ function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPers
                     {p.description && (
                       <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.description}</span>
                     )}
-                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>Registered {registeredLabel}</span>
+                    <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>{t.registeredOn(registeredLabel)}</span>
                   </div>
                   <VipBadge />
                 </button>
@@ -357,6 +464,8 @@ function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPers
 
 /* ── EVENTS summary section (always shown) ── */
 function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSelect: (name: string) => void; onToggleDetectionChart?: () => void }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const { vipTargets, watchlistMatch, eventsToday } = useEventCounts();
   const [showVipList, setShowVipList] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -375,7 +484,7 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
             transition:"background-color 0.15s",
           }}
         >
-          <span style={{ fontSize:"16px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.32px" }}>Registered VIP targets</span>
+          <span style={{ fontSize:"16px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.32px" }}>{t.registeredVips}</span>
           <span style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.32px" }}>{vipTargets}</span>
         </button>
       </div>
@@ -399,11 +508,11 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
             borderRadius:"8px", padding:"4px", margin:"-4px", transition:"background-color 0.15s",
           }}
         >
-          <StatCol icon={<WatchlistStatIcon />} label="VIP detections" labelColor="var(--gray-700)" labelFontSize={13} count={watchlistMatch.count} delta={watchlistMatch.delta} deltaPct={watchlistMatch.deltaPct} down={watchlistMatch.down} />
+          <StatCol icon={<WatchlistStatIcon />} label={t.vipDetections} labelColor="var(--gray-700)" labelFontSize={13} count={watchlistMatch.count} delta={watchlistMatch.delta} deltaPct={watchlistMatch.deltaPct} down={watchlistMatch.down} />
         </div>
         <div style={{ width:"1px", backgroundColor:"var(--gray-200)", alignSelf:"stretch", flexShrink:0 }} />
         <div style={{ flex:1, minWidth:0 }}>
-          <StatCol icon={<EventsTodayStatIcon />} label="Today's detections" labelColor="var(--gray-600)" labelFontSize={13} count={eventsToday.count} delta={eventsToday.delta} deltaPct={eventsToday.deltaPct} down={eventsToday.down} />
+          <StatCol icon={<EventsTodayStatIcon />} label={t.todaysDetections} labelColor="var(--gray-600)" labelFontSize={13} count={eventsToday.count} delta={eventsToday.delta} deltaPct={eventsToday.deltaPct} down={eventsToday.down} />
         </div>
       </div>
     </div>
@@ -412,6 +521,8 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
 
 /* ── Location picker modal ── */
 function LocationPickerModal({ current, onSelect, onClose }: { current: string | null; onSelect: (location: string | null) => void; onClose: () => void }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const cameras = useVcaStore(s => s.cameras);
   const locations = Array.from(new Set(cameras.map(c => c.name)));
   useEscapeKey(onClose);
@@ -420,8 +531,8 @@ function LocationPickerModal({ current, onSelect, onClose }: { current: string |
       style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.4)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
       <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"320px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"70vh", overflow:"hidden", boxShadow:"0 20px 60px rgba(14,22,42,0.18)" }}>
         <div style={{ padding:"14px 16px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-          <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>Select location</p>
-          <button onClick={onClose} aria-label="Close" style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
+          <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>{t.selectLocation}</p>
+          <button onClick={onClose} aria-label={t.close} style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
@@ -434,7 +545,7 @@ function LocationPickerModal({ current, onSelect, onClose }: { current: string |
               padding:"9px 10px", borderRadius:"8px", border:"none", cursor:"pointer",
               backgroundColor: !current ? "var(--primary-50)" : "transparent",
               fontSize:"13px", fontWeight:700, color: !current ? "var(--primary-400)" : "var(--gray-700)", transition:"background-color 0.1s",
-            }}>All locations</button>
+            }}>{t.allLocations}</button>
           {locations.map(loc => {
             const active = current === loc;
             return (
@@ -456,6 +567,17 @@ function LocationPickerModal({ current, onSelect, onClose }: { current: string |
       </div>
     </div>,
     document.body
+  );
+}
+
+/** Same drawing as CameraTrailIcon, in a colour that works on a light background — the trail
+ *  version is stroked white because it sits inside a dark pill. */
+function CameraCountIcon({ color = "var(--gray-500)" }: { color?: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <path d="M8 6.5L10.6115 8.241C10.6491 8.26605 10.6929 8.28042 10.7381 8.28258C10.7832 8.28474 10.8281 8.27461 10.868 8.25327C10.9079 8.23192 10.9412 8.20013 10.9645 8.16135C10.9878 8.12256 11.0001 8.07822 11 8.033V3.967C11.0001 3.92178 10.9878 3.87744 10.9645 3.83865C10.9412 3.79987 10.9079 3.76808 10.868 3.74673C10.8281 3.72539 10.7832 3.71526 10.7381 3.71742C10.6929 3.71958 10.6491 3.73395 10.6115 3.759L8 5.5V6.5Z" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7 3H2C1.44772 3 1 3.44772 1 4V8C1 8.55228 1.44772 9 2 9H7C7.55228 9 8 8.55228 8 8V4C8 3.44772 7.55228 3 7 3Z" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
   );
 }
 
@@ -519,6 +641,8 @@ function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; is
     return groups;
   }, []);
   const [isHovered, setIsHovered] = useState(false);
+  const [lang] = useLanguage();
+  const t = T[lang];
   return (
     <div>
       <div
@@ -539,11 +663,28 @@ function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; is
               <span title={event.name} style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-900)", letterSpacing:"-0.26px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                 {event.name}
               </span>
-              <span title={`${distinctCameraCount} camera${distinctCameraCount === 1 ? "" : "s"}`} style={{
-                width:"16px", height:"16px", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center",
-                fontSize:"10px", fontWeight:600, color:"var(--gray-500)",
-                border:"1px solid var(--gray-300)", borderRadius:"50%",
-              }}>{distinctCameraCount}</span>
+              {/* A bare number in a circle said nothing — a first-time reader had no way to tell
+                  whether 4 meant cameras, sightings, or minutes. The camera glyph carries the unit
+                  without spending the width a word would, and it is the same drawing that marks
+                  every row of the trail below, so the association is already established by the
+                  time anyone expands the row. */}
+              <span title={t.seenAtCameras(distinctCameraCount)} style={{
+                flexShrink:0, display:"flex", alignItems:"center", gap:"3px",
+                fontSize:"10px", fontWeight:700, color:"var(--gray-500)",
+                backgroundColor:"var(--gray-100)", padding:"1px 6px 1px 5px", borderRadius:"999px",
+              }}>
+                <CameraCountIcon />{distinctCameraCount}
+              </span>
+              {/* Only when the two differ, i.e. the person doubled back. Without it a collapsed row
+                  says "4 cameras" and expands into seven rows, which is the same surprise the
+                  expanded caption had to explain after the fact. */}
+              {visitGroups.length !== distinctCameraCount && (
+                <span title={t.stopsOnTrail(visitGroups.length)} style={{
+                  flexShrink:0, fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap",
+                }}>
+                  {t.stops(visitGroups.length)}
+                </span>
+              )}
             </div>
             <div style={{ display:"flex", gap:"5px", alignItems:"center", minWidth:0 }}>
               <LocationPinIcon color="var(--gray-700)" />
@@ -572,13 +713,23 @@ function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; is
         <div style={{ marginLeft:"8px", flexShrink:0, alignSelf:"flex-start", marginTop:"10px", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
             <PawTrackIcon size={14} />
-            <span style={{ fontSize:"12px", fontWeight:600, color:"var(--type-tracking)", letterSpacing:"-0.24px", whiteSpace:"nowrap" }}>Tracking</span>
+            <span style={{ fontSize:"12px", fontWeight:600, color:"var(--type-tracking)", letterSpacing:"-0.24px", whiteSpace:"nowrap" }}>{t.tracking}</span>
           </div>
           <ChevronDownIcon rotated={isSelected} />
         </div>
       </div>
       {isSelected && (
         <div style={{ display:"flex", flexDirection:"column", padding:"0 16px 12px 60px" }}>
+          {/* The badge counts cameras, this list counts stops, and the two differ whenever someone
+              doubles back — three cameras can produce four rows with one name appearing twice,
+              which reads as a miscount unless the timeline says which number it is showing. The
+              ×N inside a row already collapses consecutive hits; it cannot collapse a return
+              visit, because that IS the interesting part of a trail. */}
+          {visitGroups.length !== distinctCameraCount && (
+            <p style={{ margin:"0 0 8px", fontSize:"11px", fontWeight:600, color:"var(--gray-400)", letterSpacing:"-0.2px" }}>
+              {t.stopsAcross(visitGroups.length, distinctCameraCount)}
+            </p>
+          )}
           {visitGroups.map(({ hop, count }, i) => {
             const isLast = i === visitGroups.length - 1;
             return (
@@ -597,9 +748,17 @@ function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; is
                     {count > 1 && (
                       <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)" }}>×{count}</span>
                     )}
+                    {/* Marks the row as the same camera seen earlier in the trail, so a repeated
+                        name reads as "came back here" rather than a duplicated row. */}
+                    {visitGroups.slice(0, i).some(g => hopCameraKey(g.hop) === hopCameraKey(hop)) && (
+                      <span title={t.sameCameraEarlier} style={{
+                        fontSize:"9px", fontWeight:800, color:"var(--gray-500)", backgroundColor:"var(--gray-100)",
+                        padding:"1px 5px", borderRadius:"999px", letterSpacing:"0.2px", whiteSpace:"nowrap",
+                      }}>{t.return}</span>
+                    )}
                   </span>
                   <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)", letterSpacing:"-0.2px" }}>
-                    {formatTimeAgo(hop.timestamp)}
+                    {formatTimeAgo(hop.timestamp, lang)}
                   </span>
                 </div>
               </div>
@@ -617,6 +776,7 @@ function VipEventRow({ event, isSelected, photoUrl, onClick, locationFilter }: {
   // (e.g. "CAM-SIM-513...") into ellipsis. Only the camera name is new information here.
   const secondLine = locationFilter ? (event.cameraLabel ?? event.location) : `${event.location}${event.cameraLabel ? ` · ${event.cameraLabel}` : ""}`;
   const [isHovered, setIsHovered] = useState(false);
+  const [lang] = useLanguage();
   return (
     <div
       onClick={onClick}
@@ -647,7 +807,7 @@ function VipEventRow({ event, isSelected, photoUrl, onClick, locationFilter }: {
               {secondLine}
             </span>
             <span style={{ color:"var(--gray-300)", fontSize:"11px", flexShrink:0 }}>·</span>
-            <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)", flexShrink:0 }}>{formatTimeAgo(event.timestamp)}</span>
+            <span style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)", flexShrink:0 }}>{formatTimeAgo(event.timestamp, lang)}</span>
           </div>
         </div>
       </div>
@@ -672,6 +832,8 @@ interface EventsListProps {
 }
 
 function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocationClear, onLocationSelect, districtFilter, onDistrictClear, personFilter, onPersonClear }: EventsListProps) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [filter, setFilter] = useState<FilterType>("All");
   const [page, setPage] = useState(1);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
@@ -716,7 +878,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
       {/* Live Analytics + filter */}
       <div style={{ padding:"20px 20px 12px", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"12px" }}>
-          <span style={{ fontSize:"16px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.32px" }}>Live analytics</span>
+          <span style={{ fontSize:"16px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.32px" }}>{t.liveAnalytics}</span>
           <button
             onClick={() => setShowLocationPicker(true)}
             style={{ display:"flex", alignItems:"center", gap:"4px", background:"none", border:"none", cursor:"pointer", padding:0 }}
@@ -726,7 +888,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
               <path d="M8 8.66602C9.10457 8.66602 10 7.77059 10 6.66602C10 5.56145 9.10457 4.66602 8 4.66602C6.89543 4.66602 6 5.56145 6 6.66602C6 7.77059 6.89543 8.66602 8 8.66602Z" stroke="var(--primary-400)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             <span style={{ fontSize:"13px", fontWeight:700, color:"var(--primary-400)", letterSpacing:"-0.26px" }}>
-              {locationFilter || "All"}
+              {locationFilter || t.all}
             </span>
           </button>
         </div>
@@ -746,7 +908,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
             style={{ display:"flex", alignItems:"center", gap:"5px", background:"var(--primary-50)", border:"none", borderRadius:"999px", padding:"5px 10px", cursor:"pointer", marginBottom:"12px" }}
           >
             <LocationPinIcon color="var(--primary-400)" />
-            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)" }}>{districtLabel} · VIP only</span>
+            <span style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)" }}>{districtLabel} · {t.vipOnly}</span>
             <span style={{ fontSize:"12px", color:"var(--primary-400)", fontWeight:700 }}>✕</span>
           </button>
         )}
@@ -765,7 +927,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
                   color, fontSize:"12px", fontWeight:600, letterSpacing:"-0.24px", transition:"all 0.15s",
                 }}>
                 <FilterPillIcon id={id} color={color} />
-                {id === "VIP Detection" ? "VIP Detection" : id}
+                {id === "All" ? t.filterAll : id === "VIP Detection" ? t.filterVip : t.filterTracking}
               </button>
             );
           })}
@@ -777,7 +939,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
         {paginated.length === 0 && (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", padding:"32px 20px" }}>
             <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-400)", textAlign:"center", letterSpacing:"-0.26px" }}>
-              No events detected currently.
+              {t.noEvents}
             </span>
           </div>
         )}
@@ -799,17 +961,17 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
 
       {/* Pagination */}
       <div style={{ padding:"10px 16px", borderTop:BORDER, flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center", backgroundColor:"white" }}>
-        <span style={{ fontSize:"10px", color:"var(--gray-400)", fontWeight:600 }}>{rangeStart} – {rangeEnd} of {filtered.length}</span>
+        <span style={{ fontSize:"10px", color:"var(--gray-400)", fontWeight:600 }}>{t.rangeOf(rangeStart, rangeEnd, filtered.length)}</span>
         <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-          <span style={{ fontSize:"11px", color:"var(--gray-400)" }}>Go to page</span>
+          <span style={{ fontSize:"11px", color:"var(--gray-400)" }}>{t.goToPage}</span>
           <input type="number" min={1} max={totalPages} value={safePage}
             onChange={e => setPage(Math.max(1, Math.min(totalPages, parseInt(e.target.value) || 1)))}
             style={{ width:"32px", textAlign:"center", fontSize:"12px", fontWeight:700, border:"1px solid var(--gray-200)", borderRadius:"6px", padding:"2px 0", outline:"none", color:"var(--gray-900)" }} />
           <span style={{ fontSize:"11px", color:"var(--gray-400)" }}>/ {totalPages}</span>
-          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={safePage===1} aria-label="Previous page" style={{ ...PAGE_BTN, opacity: safePage===1 ? 0.3 : 1 }}>
+          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={safePage===1} aria-label={t.prevPage} style={{ ...PAGE_BTN, opacity: safePage===1 ? 0.3 : 1 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="var(--gray-700)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
-          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={safePage===totalPages} aria-label="Next page" style={{ ...PAGE_BTN, opacity: safePage===totalPages ? 0.3 : 1 }}>
+          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={safePage===totalPages} aria-label={t.nextPage} style={{ ...PAGE_BTN, opacity: safePage===totalPages ? 0.3 : 1 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="var(--gray-700)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
         </div>
@@ -839,6 +1001,8 @@ interface SystemTabProps {
 const SYSTEM_STATUS_FILTERS: ("All" | DeviceStatus)[] = ["All", "Live", "Off"];
 
 function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabProps) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | DeviceStatus>("All");
   const [page,   setPage]   = useState(1);
@@ -900,22 +1064,22 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
         <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
           <SystemHeaderIcon />
           <p style={{ fontSize:"16px", fontWeight:700, color:"var(--gray-700)", letterSpacing:"-0.32px" }}>
-            Infrastructure & debug
+            {t.infrastructure}
           </p>
         </div>
         <div style={{ display:"flex", alignItems:"flex-start", borderTop:BORDER, borderBottom:BORDER, padding:"12px 0", minHeight:"78px", boxSizing:"border-box" }}>
           <div style={{ flex:1 }}>
-            <StatCol icon={<LinkedCamsIcon />} label="Linked cams" labelFontSize={13} count={linkedCount} delta={linkedCams.delta} deltaPct={linkedCams.deltaPct} down={linkedCams.down} />
+            <StatCol icon={<LinkedCamsIcon />} label={t.linkedCams} labelFontSize={13} count={linkedCount} delta={linkedCams.delta} deltaPct={linkedCams.deltaPct} down={linkedCams.down} />
           </div>
           <div style={{ width:"1px", backgroundColor:"var(--gray-200)", alignSelf:"stretch", flexShrink:0 }} />
           <div style={{ flex:1, paddingLeft:"14px" }}>
-            <StatCol icon={<OfflineCamsIcon />} label="Out cams" labelFontSize={13} count={offlineCount} delta={offlineCams.delta} deltaPct={offlineCams.deltaPct} down={offlineCams.down} />
+            <StatCol icon={<OfflineCamsIcon />} label={t.outCams} labelFontSize={13} count={offlineCount} delta={offlineCams.delta} deltaPct={offlineCams.deltaPct} down={offlineCams.down} />
           </div>
           <div style={{ width:"1px", backgroundColor:"var(--gray-200)", alignSelf:"stretch", flexShrink:0 }} />
           <div style={{ flex:1, paddingLeft:"14px", display:"flex", flexDirection:"column", alignItems:"center" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"6px", alignSelf:"flex-start", marginBottom:"6px" }}>
               <AvailabilityIcon />
-              <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-600)" }}>Availability</span>
+              <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-600)" }}>{t.availability}</span>
             </div>
             <AvailabilityDonut pct={availability} />
           </div>
@@ -925,7 +1089,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
       {/* Search */}
       <div style={{ padding:"20px 20px 12px", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"8px", border:BORDER, borderRadius:"8px", padding:"9px 18px", backgroundColor:"white" }}>
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Enter device name"
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder={t.searchDevices}
             style={{ flex:1, border:"none", background:"none", outline:"none", fontSize:"12px", fontWeight:600, color:"var(--gray-700)" }} />
           <Search size={18} color="var(--gray-600)" />
         </div>
@@ -935,19 +1099,20 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
       <div style={{ display:"flex", gap:"6px", padding:"0 20px 16px", flexShrink:0 }}>
         {SYSTEM_STATUS_FILTERS.map(id => {
           const active = statusFilter === id;
-          const dotColor = id === "Live" ? "var(--success-400)" : id === "Off" ? "var(--danger-400)" : "var(--gray-400)";
           return (
             <button key={id} onClick={() => { setStatusFilter(id); setPage(1); }}
               onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "var(--gray-200)"; }}
               onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor = "var(--gray-100)"; }}
+              // No status dot. These are filters, not statuses — the dot said "green means live"
+              // beside a word that already said Live, and the same colours mean "this row is live"
+              // in the list below, so a filter wearing them read as a row that had been selected.
               style={{
-                display:"flex", alignItems:"center", gap:"5px",
-                padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
+                display:"flex", alignItems:"center",
+                padding:"4px 10px", borderRadius:"999px", border:"none", cursor:"pointer",
                 backgroundColor: active ? "var(--primary-400)" : "var(--gray-100)",
                 color: active ? "white" : "var(--gray-700)", fontSize:"12px", fontWeight:600, letterSpacing:"-0.24px", transition:"all 0.15s",
               }}>
-              <span style={{ width:"6px", height:"6px", borderRadius:"50%", backgroundColor: active ? "white" : dotColor, flexShrink:0 }} />
-              {id === "Off" ? "Out" : id}
+              {id === "All" ? t.all : id === "Live" ? t.live : t.out}
             </button>
           );
         })}
@@ -955,11 +1120,13 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
 
       {/* Table header */}
       <div style={{ display:"grid", gridTemplateColumns:"76px 60px 40px 1fr 32px", padding:"6px 20px", flexShrink:0, gap:"4px" }}>
-        {["NAME","STATUS","TYPE","INFO","PIN"].map(h => (
-          <span key={h} style={{
+        {([
+          ["name", "left"], ["status", "left"], ["type", "center"], ["info", "right"], ["pin", "center"],
+        ] as const).map(([key, align]) => (
+          <span key={key} style={{
             fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.24px",
-            textAlign: h==="TYPE" || h==="PIN" ? "center" : h==="INFO" ? "right" : "left",
-          }}>{h}</span>
+            textAlign: align,
+          }}>{t.columns[key]}</span>
         ))}
       </div>
 
@@ -976,22 +1143,22 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
         {devicesError ? (
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", padding:"32px 20px", gap:"10px" }}>
             <span style={{ fontSize:"13px", fontWeight:600, color:"var(--danger-400)", textAlign:"center", letterSpacing:"-0.26px" }}>
-              Couldn&apos;t load devices.
+              {t.devicesLoadFailed}
             </span>
             <button onClick={refetchDevices} style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)", background:"none", border:"none", cursor:"pointer", padding:0 }}>
-              Retry
+              {t.retry}
             </button>
           </div>
         ) : filtered.length === 0 && (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", padding:"32px 20px" }}>
             <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-400)", textAlign:"center", letterSpacing:"-0.26px" }}>
-              No devices found.
+              {t.noDevices}
             </span>
           </div>
         )}
         {paginated.map((device, i) => {
           const isPinned = device.id === pinnedDeviceId;
-          const zone = nearestZoneName(device.lat, device.lng, cameras);
+          const zone = nearestZoneName(device.lat, device.lng, cameras, t.unknownZone);
           return (
             <div key={device.id} ref={i === 0 ? firstRowRef : undefined}>
             <div
@@ -1026,17 +1193,17 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
 
       {/* Pagination */}
       <div style={{ padding:"10px 16px", borderTop:BORDER, flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <span style={{ fontSize:"10px", color:"var(--gray-400)", fontWeight:600 }}>{rangeStart} – {rangeEnd} of {filtered.length}</span>
+        <span style={{ fontSize:"10px", color:"var(--gray-400)", fontWeight:600 }}>{t.rangeOf(rangeStart, rangeEnd, filtered.length)}</span>
         <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-          <span style={{ fontSize:"11px", color:"var(--gray-400)" }}>Go to page</span>
+          <span style={{ fontSize:"11px", color:"var(--gray-400)" }}>{t.goToPage}</span>
           <input type="number" min={1} max={totalPages} value={safePage}
             onChange={e => setPage(Math.max(1, Math.min(totalPages, parseInt(e.target.value) || 1)))}
             style={{ width:"32px", textAlign:"center", fontSize:"12px", fontWeight:700, border:"1px solid var(--gray-200)", borderRadius:"6px", padding:"2px 0", outline:"none", color:"var(--gray-900)" }} />
           <span style={{ fontSize:"11px", color:"var(--gray-400)" }}>/ {totalPages}</span>
-          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={safePage===1} aria-label="Previous page" style={{ ...PAGE_BTN, opacity: safePage===1 ? 0.3 : 1 }}>
+          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={safePage===1} aria-label={t.prevPage} style={{ ...PAGE_BTN, opacity: safePage===1 ? 0.3 : 1 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="var(--gray-700)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
-          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={safePage===totalPages} aria-label="Next page" style={{ ...PAGE_BTN, opacity: safePage===totalPages ? 0.3 : 1 }}>
+          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={safePage===totalPages} aria-label={t.nextPage} style={{ ...PAGE_BTN, opacity: safePage===totalPages ? 0.3 : 1 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="var(--gray-700)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
         </div>
@@ -1048,14 +1215,14 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
 /* ── Collapsed sidebar (60px) ── */
 // Devices only carry lat/lng, not a location name — approximate one from the nearest
 // registered camera zone rather than inventing a label with no data behind it.
-function nearestZoneName(lat: number, lng: number, cameras: { name: string; lat: number; lng: number }[]): string {
+function nearestZoneName(lat: number, lng: number, cameras: { name: string; lat: number; lng: number }[], unknown = "Unknown"): string {
   let best = cameras[0];
   let bestDist = Infinity;
   for (const c of cameras) {
     const d = (c.lat - lat) ** 2 + (c.lng - lng) ** 2;
     if (d < bestDist) { bestDist = d; best = c; }
   }
-  return best?.name ?? "Unknown";
+  return best?.name ?? unknown;
 }
 
 function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, onPinDevice, pinnedDeviceId }: {
@@ -1065,6 +1232,8 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
   onPinDevice?: (device: Device | null) => void;
   pinnedDeviceId?: string | null;
 }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [tab, setTab] = usePersistedSidebarTab();
   const [hovered, setHovered] = useState<{ id: string; top: number; item: LiveEvent | Device } | null>(null);
   const { vipTargets, watchlistMatch, tracking } = useEventCounts();
@@ -1085,13 +1254,13 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
     <div onMouseLeave={() => setHovered(null)} style={{ width:"60px", flexShrink:0, height:"100%", backgroundColor:"white", ...(position === "right" ? { borderLeft: BORDER } : { borderRight: BORDER }), display:"flex", flexDirection:"column", alignItems:"center", padding:"12px 0", overflow:"hidden", position:"relative" }}>
       {/* Tab toggle */}
       <div style={{ width:"44px", backgroundColor:"var(--gray-100)", borderRadius:"12px", padding:"4px", display:"flex", flexDirection:"column", gap:"4px", flexShrink:0 }}>
-        <button onClick={() => setTab("EVENTS")} aria-label="Events" style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="EVENTS" ? "var(--primary-400)" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
+        <button onClick={() => setTab("EVENTS")} aria-label={t.events} style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="EVENTS" ? "var(--primary-400)" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M1.75 1.75V11.0833C1.75 11.3928 1.87292 11.6895 2.09171 11.9083C2.3105 12.1271 2.60725 12.25 2.91667 12.25H12.25" stroke={tab==="EVENTS" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M11.083 5.25L8.16634 8.16667L5.83301 5.83333L4.08301 7.58333" stroke={tab==="EVENTS" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <button onClick={() => setTab("SYSTEM")} aria-label="System" style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="SYSTEM" ? "var(--primary-400)" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
+        <button onClick={() => setTab("SYSTEM")} aria-label={t.system} style={{ width:"36px", height:"32px", borderRadius:"8px", border:"none", cursor:"pointer", backgroundColor: tab==="SYSTEM" ? "var(--primary-400)" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M9.87887 7.82031H12.0651C12.1677 7.82037 12.2685 7.84663 12.3581 7.89661C12.4477 7.94658 12.523 8.01862 12.5769 8.10587C12.6308 8.19313 12.6615 8.29271 12.6661 8.39517C12.6708 8.49764 12.6491 8.59958 12.6033 8.69133L11.3789 11.1406C11.3325 11.2334 11.2629 11.3127 11.1768 11.3706C11.0907 11.4286 10.9911 11.4633 10.8876 11.4714C10.7842 11.4796 10.6804 11.4608 10.5863 11.417C10.4923 11.3731 10.4111 11.3057 10.3508 11.2213L9.07227 9.43352" stroke={tab==="SYSTEM" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M10.0928 6.04789C10.2354 6.11931 10.3439 6.24445 10.3944 6.39581C10.4448 6.54717 10.4331 6.71236 10.3618 6.8551L8.49219 10.5938C8.45683 10.6645 8.40788 10.7276 8.34814 10.7793C8.28841 10.8311 8.21905 10.8707 8.14403 10.8957C8.06901 10.9206 7.98981 10.9306 7.91094 10.925C7.83208 10.9193 7.75509 10.8982 7.68438 10.8628L1.96893 8.0024C1.55379 7.7933 1.23838 7.42826 1.09173 6.98717C0.945073 6.54608 0.979114 6.06486 1.1864 5.6488L2.01708 3.96938C2.12062 3.76305 2.26378 3.57913 2.43841 3.42813C2.61303 3.27713 2.81568 3.16202 3.0348 3.08935C3.25392 3.01668 3.48521 2.98789 3.71545 3.00462C3.9457 3.02135 4.17039 3.08327 4.3767 3.18685L10.0928 6.04789Z" stroke={tab==="SYSTEM" ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
@@ -1116,7 +1285,7 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
             </div>
             {/* This is just today's detection count, not an alert — plain gray, no red. */}
             <div style={{ width:"38px", height:"38px", borderRadius:"10px", backgroundColor:"var(--gray-100)", border:"1px solid var(--gray-200)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", letterSpacing:"0.3px" }}>TODAY</span>
+              <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)", letterSpacing:"0.3px" }}>{t.today}</span>
               <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-700)", lineHeight:1 }}>{todayTotal}</span>
             </div>
           </>
@@ -1127,7 +1296,7 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
             width:"38px", height:"38px", borderRadius:"10px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
             backgroundColor: availability < 50 ? "var(--danger-100)" : "var(--gray-100)", border: availability < 50 ? "1px solid var(--danger-200)" : "1px solid var(--gray-200)",
           }}>
-            <span style={{ fontSize:"10px", fontWeight:600, color: availability < 50 ? "var(--danger-400)" : "var(--gray-400)", letterSpacing:"0.3px" }}>AVAIL</span>
+            <span style={{ fontSize:"10px", fontWeight:600, color: availability < 50 ? "var(--danger-400)" : "var(--gray-400)", letterSpacing:"0.3px" }}>{t.avail}</span>
             <span style={{ fontSize:"13px", fontWeight:700, color: availability < 50 ? "var(--danger-400)" : "var(--gray-400)", lineHeight:1 }}>{availability}%</span>
           </div>
         )}
@@ -1202,7 +1371,7 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
         } else {
           const device = hovered.item as Device;
           const isLive = device.status === "Live";
-          const zone = nearestZoneName(device.lat, device.lng, cameras);
+          const zone = nearestZoneName(device.lat, device.lng, cameras, t.unknownZone);
           return (
             <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"180px", backgroundColor:"var(--gray-900)", border:"1px solid var(--gray-700)", borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(14, 22, 42,0.2)", pointerEvents:"none" }}>
               <div style={{ fontSize:"10px", color:"var(--gray-400)", marginBottom:"3px" }}>{zone}</div>
@@ -1238,6 +1407,8 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onEventSelect, selectedEventId, locationFilter, onLocationClear, onLocationSelect, districtFilter, onDistrictClear, onPinDevice, pinnedDeviceId, isCollapsed, onToggleDetectionChart, position = "left" }: SidebarProps) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [activeTab, setActiveTab] = usePersistedSidebarTab();
   const [personFilter, setPersonFilter] = useState<string | null>(null);
 
@@ -1282,7 +1453,7 @@ export default function Sidebar({ onEventSelect, selectedEventId, locationFilter
                     <path d="M4.00977 6.01562H4.01458" stroke={active ? "white" : "var(--gray-500)"} strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 )}
-                {tab}
+                {tab === "EVENTS" ? t.tabEvents : t.tabSystem}
               </button>
             );
           })}

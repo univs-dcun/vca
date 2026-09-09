@@ -12,12 +12,12 @@ import SkeletonDashboard from "./SkeletonDashboard";
 import SkeletonBestFrame from "./SkeletonBestFrame";
 import SkeletonData from "./SkeletonData";
 import SkeletonRedmap from "./SkeletonRedmap";
-import DetectionActivityChart from "./DetectionActivityChart";
-import CommandPalette from "./CommandPalette";
+import DetectionActivityChart, { DETECTION_CHART_TITLE } from "./DetectionActivityChart";
 import SidebarToggleIcon from "./SidebarToggleIcon";
 import { ToastProvider, useToast } from "./Toast";
 import { LiveEvent, Device, getFacePhoto } from "@/lib/mockData";
 import { useVcaStore, VIP_SIMULATION_CAMERAS, type Camera } from "@/lib/vcaStore";
+import { useLanguage } from "@/lib/i18n";
 
 export type NavTab = "DASHBOARD" | "BEST FRAME" | "DATA" | "REDMAP";
 const VALID_TABS: NavTab[] = ["DASHBOARD", "BEST FRAME", "DATA", "REDMAP"];
@@ -156,21 +156,12 @@ export default function ClientLayout() {
     setSidebarPositionState(pos);
     localStorage.setItem(SIDEBAR_POSITION_KEY, pos);
   };
-  const [showDetectionChart, setShowDetectionChart] = useState(true);
+  const [lang] = useLanguage();
+  // Closed until asked for. The chart covers the bottom third of the map, and the map is what
+  // this screen is for — the two numbers it summarises are already in the sidebar, so opening it
+  // is a deliberate "show me today's shape", not the resting state.
+  const [showDetectionChart, setShowDetectionChart] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  // Cmd+K (Mac) / Ctrl+K (everywhere else) toggles the global command palette from anywhere in
-  // the app, not just while some particular field has focus.
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPaletteOpen(o => !o);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
   const [bestFrameFocusLocation, setBestFrameFocusLocation] = useState<string | null>(null);
   const [redmapAutoSearchName, setRedmapAutoSearchName] = useState<string | null>(null);
   const [bestFrameAnalyzeLocation, setBestFrameAnalyzeLocation] = useState<string | null>(null);
@@ -203,13 +194,11 @@ export default function ClientLayout() {
   return (
     <ToastProvider>
     <VipAlertTicker onNavigate={handleNotificationNavigate} />
-    <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onGoToPage={setActivePage} />
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
       <Navbar
         activeTab={activePage}
         onTabChange={setActivePage}
         onNotificationSelect={handleNotificationNavigate}
-        onOpenSearch={() => setPaletteOpen(true)}
         // Only actually affects the Dashboard tab's Sidebar+Map layout — hidden on the other tabs
         // (via Navbar's own `{onSidebarPositionChange && (...)}` guard) so the Settings dropdown
         // doesn't show a "Sidebar" control that would do nothing while looking at Best Frame/Data/RedMap.
@@ -249,6 +238,7 @@ export default function ClientLayout() {
               <MapWrapper
                 selectedEvent={selectedEvent}
                 onCameraSelect={(label) => { setLocationFilter((prev) => (prev === label ? null : label)); setDistrictFilter(null); }}
+                districtFilter={districtFilter}
                 onDistrictSelect={(id) => { setDistrictFilter((prev) => (prev === id ? null : id)); setLocationFilter(null); }}
                 pinnedDevice={pinnedDevice}
                 onGoLiveCam={handleGoLiveCam}
@@ -301,8 +291,10 @@ export default function ClientLayout() {
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                     <path d="M4 10L8 6L12 10" stroke="var(--gray-900)" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
+                  {/* Named after the panel it opens, not after itself — it used to say
+                      "Detection topology" over a chart titled "VIP detections today". */}
                   <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", letterSpacing: "-0.24px", whiteSpace: "nowrap" }}>
-                    Detection topology
+                    {DETECTION_CHART_TITLE[lang]}
                   </span>
                 </button>
               )}
