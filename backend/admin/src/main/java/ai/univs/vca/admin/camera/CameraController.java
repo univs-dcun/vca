@@ -1,6 +1,8 @@
 package ai.univs.vca.admin.camera;
 
 import ai.univs.vca.admin.ApiEnvelope;
+import ai.univs.vca.admin.camera.CameraDtos.BulkDeleteRequest;
+import ai.univs.vca.admin.camera.CameraDtos.BulkZoneRequest;
 import ai.univs.vca.admin.camera.CameraDtos.CameraRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,9 +13,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 카메라 원장 CRUD — Admin 화면 전용 (openapi/admin-api.json 초안). VCA 대시보드는 이 API를 직접 호출하지 않는다 */
+/** 카메라 원장 CRUD (UV-42 → UV-53) — Portal Input Sources 카메라 탭. VCA 대시보드는 이 API를 직접 호출하지 않는다 */
 @RestController
 @RequestMapping("/admin/api/cameras")
 public class CameraController {
@@ -25,8 +28,8 @@ public class CameraController {
 	}
 
 	@GetMapping
-	public ApiEnvelope list() {
-		return ApiEnvelope.ok(service.list());
+	public ApiEnvelope list(@RequestParam(required = false) String projectId) {
+		return ApiEnvelope.ok(service.list(projectId));
 	}
 
 	@GetMapping("/{cameraId}")
@@ -48,5 +51,17 @@ public class CameraController {
 	public ApiEnvelope delete(@PathVariable String cameraId) {
 		service.delete(cameraId);
 		return ApiEnvelope.ok(null);
+	}
+
+	/** 일괄 존 변경 — 감사 1줄 */
+	@PutMapping("/bulk/zone")
+	public ApiEnvelope setZone(@RequestBody BulkZoneRequest req) {
+		return ApiEnvelope.ok(service.setZone(req.cameraIds(), req.zone()));
+	}
+
+	/** 일괄 삭제 — 감사 1줄. DELETE 본문 호환성 때문에 POST */
+	@PostMapping("/bulk/delete")
+	public ApiEnvelope deleteAll(@RequestBody BulkDeleteRequest req) {
+		return ApiEnvelope.ok(service.deleteAll(req.cameraIds()));
 	}
 }

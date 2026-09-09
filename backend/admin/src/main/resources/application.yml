@@ -32,6 +32,9 @@ vca:
     seed-admin-password: ${VCA_ADMIN_SEED_PASSWORD:VcaAdmin1234!}
     # 조직 자체 생성(/auth/signup) 허용 (UV-51) — 온프레미스 전용이라 기본 false. 프론트 authConfig.selfSignup과 일치시킬 것
     self-signup: ${VCA_ADMIN_SELF_SIGNUP:false}
+    # EMQX 구독 (UV-53) — 모듈의 cameras/{id}/status(RUNNING|STOPPED)를 적재해 Portal 연결/안정도 집계. 빈 값이면 생략
+    mqtt-broker-url: ${VCA_MQTT_URL:tcp://localhost:1883}
+    mqtt-site-id: ${VCA_SITE_ID:sg}
 
 management:
   endpoints:

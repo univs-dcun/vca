@@ -9,6 +9,7 @@ import java.util.Locale;
 import ai.univs.vca.admin.AdminApiException;
 import ai.univs.vca.admin.AdminProperties;
 import ai.univs.vca.admin.audit.AuditService;
+import ai.univs.vca.admin.camera.CameraRepository;
 import ai.univs.vca.admin.crypto.CredentialCipher;
 import ai.univs.vca.admin.org.OrgDtos.LicenseRequest;
 import ai.univs.vca.admin.org.OrgDtos.MailRequest;
@@ -27,13 +28,16 @@ public class OrgService {
 
 	private final TeamRepository teams;
 	private final ProjectRepository projects;
+	private final CameraRepository cameras;
 	private final CredentialCipher cipher;
 	private final AuditService audit;
 	private final SecureRandom random = new SecureRandom();
 
-	public OrgService(TeamRepository teams, ProjectRepository projects, AdminProperties props, AuditService audit) {
+	public OrgService(TeamRepository teams, ProjectRepository projects, CameraRepository cameras,
+			AdminProperties props, AuditService audit) {
 		this.teams = teams;
 		this.projects = projects;
+		this.cameras = cameras;
 		this.cipher = new CredentialCipher(props.encKey()); // CameraService와 같은 키 — 카메라 자격증명과 SMTP 비밀번호 동일 체계
 		this.audit = audit;
 	}
@@ -85,12 +89,12 @@ public class OrgService {
 	public List<ProjectResponse> listProjects(String teamId) {
 		List<ProjectEntity> rows = teamId == null || teamId.isBlank() ? projects.findAll()
 				: projects.findByTeamIdOrderByCreatedAt(teamId);
-		return rows.stream().map(ProjectResponse::of).toList();
+		return rows.stream().map(this::toProject).toList();
 	}
 
 	@Transactional(readOnly = true)
 	public ProjectResponse getProject(String projectId) {
-		return ProjectResponse.of(requireProject(projectId));
+		return toProject(requireProject(projectId));
 	}
 
 	@Transactional
@@ -103,7 +107,7 @@ public class OrgService {
 				req.regionName());
 		projects.save(p);
 		audit.record(p.getId(), "Project " + p.getName() + " created");
-		return ProjectResponse.of(p);
+		return toProject(p);
 	}
 
 	@Transactional
@@ -116,7 +120,7 @@ public class OrgService {
 			p.setTimeZone(validZone(req.timeZone()));
 		}
 		audit.record(p.getId(), "Project " + p.getName() + " updated");
-		return ProjectResponse.of(p);
+		return toProject(p);
 	}
 
 	@Transactional
@@ -129,7 +133,7 @@ public class OrgService {
 		audit.record(p.getId(), "License updated: " + (req.plan() == null ? "-" : req.plan()) + " / "
 				+ (req.channelLimit() == null ? "-" : req.channelLimit()) + " channels / "
 				+ (req.expiresAt() == null ? "Unlimited" : req.expiresAt()));
-		return ProjectResponse.of(p);
+		return toProject(p);
 	}
 
 	@Transactional
@@ -137,7 +141,7 @@ public class OrgService {
 		ProjectEntity p = requireProject(projectId);
 		p.updateMail(req.mailDomain(), mailConfig(req, p.getSmtp()));
 		audit.record(p.getId(), "Project mail settings updated");
-		return ProjectResponse.of(p);
+		return toProject(p);
 	}
 
 	@Transactional
@@ -145,7 +149,7 @@ public class OrgService {
 		ProjectEntity p = requireProject(projectId);
 		p.setTimeZone(validZone(timeZone));
 		audit.record(p.getId(), "Project time zone set to " + p.getTimeZone());
-		return ProjectResponse.of(p);
+		return toProject(p);
 	}
 
 	@Transactional
@@ -154,16 +158,20 @@ public class OrgService {
 		p.setNetworkIsolatedOverride(override);
 		audit.record(p.getId(), override == null ? "Network isolation set to auto-detect"
 				: "Network isolation manually set to " + (override ? "isolated" : "reachable"));
-		return ProjectResponse.of(p);
+		return toProject(p);
 	}
 
 	// ---- helpers ----
 
-	TeamEntity requireTeam(String teamId) {
+	private ProjectResponse toProject(ProjectEntity p) {
+		return ProjectResponse.of(p, cameras.countByProjectId(p.getId()));
+	}
+
+	public TeamEntity requireTeam(String teamId) {
 		return teams.findById(teamId).orElseThrow(() -> AdminApiException.teamNotFound(teamId));
 	}
 
-	ProjectEntity requireProject(String projectId) {
+	public ProjectEntity requireProject(String projectId) {
 		return projects.findById(projectId).orElseThrow(() -> AdminApiException.projectNotFound(projectId));
 	}
 

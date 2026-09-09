@@ -23,6 +23,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	// BCrypt만 사용 (전체 Spring Security 필터체인은 도입하지 않는다 — 세션은 자체 쿠키 토큰)
 	implementation 'org.springframework.security:spring-security-crypto'
+	// EMQX 구독 — 모듈이 발행하는 cameras/{id}/status를 적재해 연결/안정도 집계 (UV-53, 모듈 계약 무변경)
+	implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

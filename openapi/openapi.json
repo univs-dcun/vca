@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.14.0",
+    "version": "0.15.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -551,6 +551,135 @@
         "tags": ["portal"],
         "parameters": [{ "name": "employeeId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalIssuedRosterCodeResponse" } } } } }
+      }
+    },
+    "/portal/cameras": {
+      "get": {
+        "operationId": "portalListCameras",
+        "summary": "카메라 목록 (UV-53, Input Sources 카메라 탭) — 원장 + 모듈 MQTT status 적재값(status/lastSeenAt) 병합. rtspUrl은 관리자 세션 하에서만 노출",
+        "tags": ["portal"],
+        "parameters": [{ "name": "projectId", "in": "query", "required": false, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalCameraListResponse" } } } } }
+      },
+      "post": {
+        "operationId": "portalCreateCamera",
+        "summary": "카메라 등록 (UV-53) — owner|admin. cameraId(cam-{슬러그}-{4hex})·code(CAM-{ZONE3}-{NNN}) 서버 발급, 모듈 provisioning·미디어 path 즉시 동기화",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalCameraRequest" } } } },
+        "responses": {
+          "201": { "description": "등록", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalCameraResponse" } } } },
+          "400": { "description": "name·rtspUrl·coordinates 필수 / rtsp(s):// / protocol TCP|UDP (ADM-4001)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/cameras/{cameraId}": {
+      "parameters": [{ "name": "cameraId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "operationId": "portalGetCamera",
+        "summary": "카메라 상세 (UV-53, 카메라 상세 모달)",
+        "tags": ["portal"],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalCameraResponse" } } } },
+          "404": { "description": "ADM-4040", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "put": {
+        "operationId": "portalUpdateCamera",
+        "summary": "카메라 수정 (UV-53) — password 생략 시 기존 유지",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalCameraRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalCameraResponse" } } } } }
+      },
+      "delete": {
+        "operationId": "portalDeleteCamera",
+        "summary": "카메라 삭제 (UV-53) — 모듈 분석 중단 + retained 삭제(v1.9 규칙) + 미디어 path 삭제",
+        "tags": ["portal"],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthOkResponse" } } } } }
+      }
+    },
+    "/portal/cameras/bulk/zone": {
+      "put": {
+        "operationId": "portalSetCamerasZone",
+        "summary": "일괄 존 변경 (UV-53) — 감사 로그 1줄(하나의 결정)",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalBulkZoneRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalBulkResultResponse" } } } } }
+      }
+    },
+    "/portal/cameras/bulk/delete": {
+      "post": {
+        "operationId": "portalDeleteCameras",
+        "summary": "일괄 삭제 (UV-53) — 감사 로그 1줄. DELETE 본문 호환성 때문에 POST",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalBulkDeleteRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalBulkResultResponse" } } } } }
+      }
+    },
+    "/portal/projects/{projectId}/camera-connectivity": {
+      "get": {
+        "operationId": "portalCameraConnectivity",
+        "summary": "카메라 연결 집계 (UV-53, Overview 카드·Stream health) — online/offline/error/unknown 카운트 + 카메라별 현재 상태. 원천은 모듈 MQTT status(RUNNING→online, STOPPED→offline) 적재",
+        "tags": ["portal"],
+        "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalConnectivityResponse" } } } } }
+      }
+    },
+    "/portal/projects/{projectId}/camera-stability": {
+      "get": {
+        "operationId": "portalCameraStability",
+        "summary": "카메라 안정도 (UV-53, Overview 불안정 카메라 작업목록) — 최근 days일 일별 끊김(online→offline 전이) 수",
+        "description": "dropsByDay는 oldest-first(index 0 = days-1일 전, 마지막 = 오늘), 프로젝트 시간대 달력일. drops>0만, 내림차순, limit(기본 4 — 최악 포인터. 전 대수가 필요하면 큰 limit). 기획자 README §4-(2) 요청 형태.",
+        "tags": ["portal"],
+        "parameters": [
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7, "minimum": 1, "maximum": 90 } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 4 } }
+        ],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalStabilityResponse" } } } } }
+      }
+    },
+    "/portal/servers": {
+      "get": {
+        "operationId": "portalListServers",
+        "summary": "서버 레지스트리 (UV-53, Server & API › Infrastructure) — 60초마다 자동 도달성 검사",
+        "tags": ["portal"],
+        "parameters": [{ "name": "projectId", "in": "query", "required": false, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalServerListResponse" } } } } }
+      },
+      "post": {
+        "operationId": "portalCreateServer",
+        "summary": "서버 등록 (UV-53) — port 있으면 TCP connect, 없으면 ICMP/echo 도달성(권한·방화벽에 따라 false일 수 있어 port 권장). 등록 즉시 1회 검사",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalServerRequest" } } } },
+        "responses": {
+          "201": { "description": "등록", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalServerResponse" } } } },
+          "400": { "description": "type 5값 외 / port 범위 (ADM-4001)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/servers/{serverId}": {
+      "parameters": [{ "name": "serverId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "put": {
+        "operationId": "portalUpdateServer",
+        "summary": "서버 수정 (UV-53) — 수정 즉시 재검사",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalServerRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalServerResponse" } } } } }
+      },
+      "delete": {
+        "operationId": "portalDeleteServer",
+        "summary": "서버 삭제 (UV-53, 404 ADM-4045)",
+        "tags": ["portal"],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthOkResponse" } } } } }
+      }
+    },
+    "/portal/servers/{serverId}/check": {
+      "post": {
+        "operationId": "portalCheckServer",
+        "summary": "즉시 도달성 검사 (UV-53)",
+        "tags": ["portal"],
+        "parameters": [{ "name": "serverId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalServerResponse" } } } } }
       }
     },
     "/portal/audit": {
@@ -1622,7 +1751,7 @@
       },
       "PortalProject": {
         "type": "object",
-        "required": ["id", "teamId", "name", "type", "timeZone", "mail", "networkIsolated", "networkIsolatedDetected", "createdAt"],
+        "required": ["id", "teamId", "name", "type", "timeZone", "channelsUsed", "mail", "networkIsolated", "networkIsolatedDetected", "createdAt"],
         "properties": {
           "id": { "type": "string", "example": "proj-marina-bay-4daf" },
           "teamId": { "type": "string" },
@@ -1632,6 +1761,7 @@
           "licensePlan": { "type": "string", "nullable": true },
           "licenseChannelLimit": { "type": "integer", "nullable": true },
           "licenseExpiresAt": { "type": "string", "format": "date", "nullable": true, "description": "null = Unlimited" },
+          "channelsUsed": { "type": "integer", "format": "int64", "description": "라이선스 채널 사용량 = 프로젝트 카메라 수 (UV-53, 업로드는 채널 비소모)" },
           "mail": { "$ref": "#/components/schemas/PortalMailView" },
           "networkIsolated": { "type": "boolean", "description": "오버라이드가 있으면 그것, 없으면 감지값" },
           "networkIsolatedDetected": { "type": "boolean" },
@@ -1896,6 +2026,153 @@
       "PortalRosterBulkResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalRosterBulkResult" } } },
       "PortalIssuedRosterCodesResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalIssuedRosterCode" } } } },
       "PortalIssuedRosterCodeResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalIssuedRosterCode" } } },
+      "PortalCameraRequest": {
+        "type": "object",
+        "description": "등록·수정 공용. password 쓰기 전용(수정 시 생략=유지). projectId 생략 시 기본 프로젝트, code 생략 시 CAM-{ZONE3}-{NNN}, zone 생략 시 name, locationId 생략 시 loc-{슬러그}",
+        "required": ["name", "rtspUrl", "coordinates"],
+        "properties": {
+          "projectId": { "type": "string", "nullable": true },
+          "code": { "type": "string", "nullable": true, "description": "화면 표시 코드(CAM-BDK-001) — cameraId(내부 키)와 별개" },
+          "name": { "type": "string" },
+          "ip": { "type": "string", "nullable": true },
+          "mac": { "type": "string", "nullable": true },
+          "maker": { "type": "string", "nullable": true },
+          "model": { "type": "string", "nullable": true },
+          "resolution": { "type": "string", "nullable": true, "example": "FHD (1920×1080)" },
+          "protocol": { "type": "string", "nullable": true, "enum": ["TCP", "UDP", null] },
+          "username": { "type": "string", "nullable": true },
+          "password": { "type": "string", "format": "password", "nullable": true },
+          "rtspUrl": { "type": "string", "description": "rtsp:// 또는 rtsps:// — 민감정보, 관리자 세션 화면에만" },
+          "locationId": { "type": "string", "nullable": true, "pattern": "^[a-z0-9-]{1,64}$" },
+          "zone": { "type": "string", "nullable": true, "description": "구역명(Bedok) — 필터·일괄 변경 단위" },
+          "location": { "type": "string", "nullable": true, "description": "설치 위치 설명(Control Room, Singapore)" },
+          "coordinates": { "$ref": "#/components/schemas/LatLng" },
+          "serverId": { "type": "string", "nullable": true, "description": "처리 서버(PortalServer.id) — 없으면 미배정" },
+          "aiFeatures": { "type": "array", "items": { "type": "string", "enum": ["Re-ID Analysis", "License Plate Recognition"] } },
+          "thumbnail": { "type": "string", "nullable": true }
+        }
+      },
+      "PortalCamera": {
+        "type": "object",
+        "description": "status/lastSeenAt/lastChangeAt은 원장이 아니라 모듈 MQTT status 적재값 — unknown이면 미수신",
+        "required": ["cameraId", "name", "hasCredential", "rtspUrl", "locationId", "zone", "coordinates", "aiFeatures", "status", "createdAt", "updatedAt"],
+        "properties": {
+          "cameraId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+          "projectId": { "type": "string", "nullable": true },
+          "code": { "type": "string", "nullable": true },
+          "name": { "type": "string" },
+          "ip": { "type": "string", "nullable": true },
+          "mac": { "type": "string", "nullable": true },
+          "maker": { "type": "string", "nullable": true },
+          "model": { "type": "string", "nullable": true },
+          "resolution": { "type": "string", "nullable": true },
+          "protocol": { "type": "string", "nullable": true },
+          "username": { "type": "string", "nullable": true },
+          "hasCredential": { "type": "boolean" },
+          "rtspUrl": { "type": "string" },
+          "locationId": { "type": "string" },
+          "zone": { "type": "string" },
+          "location": { "type": "string", "nullable": true },
+          "coordinates": { "$ref": "#/components/schemas/LatLng" },
+          "serverId": { "type": "string", "nullable": true },
+          "aiFeatures": { "type": "array", "items": { "type": "string" } },
+          "thumbnail": { "type": "string", "nullable": true },
+          "status": { "type": "string", "enum": ["online", "offline", "error", "unknown"] },
+          "lastSeenAt": { "type": "string", "format": "date-time", "nullable": true, "description": "마지막 status 수신" },
+          "lastChangeAt": { "type": "string", "format": "date-time", "nullable": true, "description": "마지막 상태 전이" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortalBulkZoneRequest": {
+        "type": "object",
+        "required": ["cameraIds", "zone"],
+        "properties": { "cameraIds": { "type": "array", "items": { "type": "string" } }, "zone": { "type": "string" } }
+      },
+      "PortalBulkDeleteRequest": {
+        "type": "object",
+        "required": ["cameraIds"],
+        "properties": { "cameraIds": { "type": "array", "items": { "type": "string" } } }
+      },
+      "PortalBulkResult": {
+        "type": "object",
+        "required": ["affected", "cameraIds"],
+        "properties": { "affected": { "type": "integer" }, "cameraIds": { "type": "array", "items": { "type": "string" } } }
+      },
+      "PortalConnectivity": {
+        "type": "object",
+        "required": ["total", "online", "offline", "error", "unknown", "cameras"],
+        "properties": {
+          "total": { "type": "integer" },
+          "online": { "type": "integer" },
+          "offline": { "type": "integer" },
+          "error": { "type": "integer", "description": "예약 — 현 모듈 계약은 RUNNING/STOPPED 2값" },
+          "unknown": { "type": "integer", "description": "status 미수신(모듈 미기동·EMQX 미접속)" },
+          "cameras": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["cameraId", "name", "status"],
+              "properties": {
+                "cameraId": { "type": "string" },
+                "code": { "type": "string", "nullable": true },
+                "name": { "type": "string" },
+                "zone": { "type": "string", "nullable": true },
+                "status": { "type": "string", "enum": ["online", "offline", "error", "unknown"] },
+                "lastSeenAt": { "type": "string", "format": "date-time", "nullable": true },
+                "lastChangeAt": { "type": "string", "format": "date-time", "nullable": true }
+              }
+            }
+          }
+        }
+      },
+      "PortalStabilityRow": {
+        "type": "object",
+        "required": ["cameraId", "name", "drops", "dropsByDay"],
+        "properties": {
+          "cameraId": { "type": "string" },
+          "code": { "type": "string", "nullable": true },
+          "name": { "type": "string" },
+          "drops": { "type": "integer", "description": "dropsByDay 합계" },
+          "dropsByDay": { "type": "array", "items": { "type": "integer" }, "description": "oldest-first, 길이 = days" }
+        }
+      },
+      "PortalServerRequest": {
+        "type": "object",
+        "required": ["name", "ip", "type"],
+        "properties": {
+          "projectId": { "type": "string", "description": "생성 시 필수" },
+          "name": { "type": "string" },
+          "ip": { "type": "string" },
+          "port": { "type": "integer", "nullable": true, "description": "헬스체크 TCP 포트 — 없으면 ICMP/echo 도달성" },
+          "type": { "type": "string", "enum": ["AI Camera", "Normal Camera", "Face Recognition", "Image Store", "Database"] },
+          "specification": { "type": "string", "nullable": true }
+        }
+      },
+      "PortalServer": {
+        "type": "object",
+        "required": ["id", "projectId", "name", "ip", "type", "status", "createdAt"],
+        "properties": {
+          "id": { "type": "string", "example": "srv-database-1-3f2a" },
+          "projectId": { "type": "string" },
+          "name": { "type": "string" },
+          "ip": { "type": "string" },
+          "port": { "type": "integer", "nullable": true },
+          "type": { "type": "string" },
+          "specification": { "type": "string", "nullable": true },
+          "status": { "type": "string", "enum": ["success", "error", "unknown"] },
+          "lastCheckedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "lastError": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortalCameraResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalCamera" } } },
+      "PortalCameraListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalCamera" } } } },
+      "PortalBulkResultResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalBulkResult" } } },
+      "PortalConnectivityResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalConnectivity" } } },
+      "PortalStabilityResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalStabilityRow" } } } },
+      "PortalServerResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalServer" } } },
+      "PortalServerListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalServer" } } } },
       "AuthPasswordSetupRequest": {
         "type": "object",
         "required": ["newPassword"],
