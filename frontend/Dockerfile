@@ -1,5 +1,6 @@
 # ── build stage ──────────────────────────────────────────────
-FROM node:22-alpine AS builder
+# node 24 = npm 11 — package-lock.json이 npm 11로 생성돼 npm 10(node 22)의 `npm ci`는 lock 불일치(EUSAGE)로 실패한다 (UV-60)
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci

@@ -24,9 +24,10 @@ npm run msw:init     # 최초 1회
 npm run dev          # http://localhost:5173
 ```
 
-## 배포 (frontend)
-`frontend/Dockerfile` → nginx 이미지로 빌드. `API_UPSTREAM` 환경변수로 백엔드 주소 지정.
+## 배포
+전체 스택(frontend·proxy·admin·postgres·EMQX·MediaMTX·모듈 sim)은 [deploy/](deploy/README.md)의 `docker compose`로 올린다 (UV-60).
 ```bash
-docker build -t vca-frontend ./frontend
-docker run -p 80:80 -e API_UPSTREAM=http://gateway:8080 vca-frontend
+cd deploy && cp .env.example .env   # VCA_HOST·비밀값 채우기
+docker compose up -d --build
 ```
+frontend만 단독으로 쓸 때는 `frontend/Dockerfile` → nginx 이미지, `API_UPSTREAM`(백엔드)·`MEDIA_UPSTREAM`(MediaMTX)·`MQTT_URL`로 연결한다.

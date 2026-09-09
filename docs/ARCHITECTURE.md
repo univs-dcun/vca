@@ -104,6 +104,12 @@ npm run dev
 
 인증: 개발 단계는 익명 허용. 운영 전환 시 JWT + ACL (MQTT SPEC §6, 별도 문서 예정).
 
+## 배포 (개발서버, UV-60)
+
+전체 스택은 [deploy/docker-compose.yml](../deploy/docker-compose.yml) 한 벌 — frontend(nginx) · proxy · admin · postgres · EMQX · MediaMTX(+test-stream) · 모듈 sim.
+서버에서 이미지를 빌드하며(`backend/admin`·`backend/proxy`·`vca-mqtt-broker/sim` Dockerfile), 절차·포트·환경변수는 [deploy/README.md](../deploy/README.md).
+호스트에 여는 것은 80(웹)·8083(MQTT WS)·8554(RTSP)·8189/udp(WebRTC)·선택 8080(proxy)만이고 admin·DB·MediaMTX API·MQTT tcp는 컨테이너 네트워크 안에 둔다.
+
 ## 작업 이력
 
 모든 작업은 Jira [UNIVS-VCA (UV)](https://univsai.atlassian.net/projects/UV) 프로젝트에 티켓으로 기록한다.
