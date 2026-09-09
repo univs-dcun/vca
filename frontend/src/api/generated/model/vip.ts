@@ -12,8 +12,11 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.16.0
+ * OpenAPI spec version: 0.17.0
  */
+import type { VipType } from './vipType';
+import type { VipPriority } from './vipPriority';
+import type { VipEmbeddingStatus } from './vipEmbeddingStatus';
 
 /**
  * 등록 VIP (Registered VIP Targets 모달의 행)
@@ -30,4 +33,20 @@ export interface Vip {
   photoUrl: string;
   /** 등록일 */
   registeredAt: string;
+  /** (v1.11 초안, additive) Portal 등록 분류 */
+  type?: VipType;
+  /** (v1.11 초안, additive) */
+  priority?: VipPriority;
+  /**
+   * (v1.11 초안, additive)
+   * @nullable
+   */
+  groupId?: string | null;
+  /**
+   * (v1.11 초안, additive)
+   * @nullable
+   */
+  groupName?: string | null;
+  /** (v1.11 초안, additive) ready 외는 매칭 불가 — 화면 경고 */
+  embeddingStatus?: VipEmbeddingStatus;
 }

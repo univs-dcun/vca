@@ -14,32 +14,16 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.17.0
  */
-import type { VideoAnalysisStatus } from './videoAnalysisStatus';
 
 /**
- * 업로드 비디오 목록 행 (계약 v1.3, UV-35). contentUrl은 video 태그 src로, thumbnailUrl은 <img src>로 직접 사용
+ * (v1.11 초안, additive)
  */
-export interface VideoItem {
-  videoId: string;
-  /** 업로드 파일명 */
-  name: string;
-  uploadedAt: string;
-  /**
-   * (v1.5) 촬영 시작 시각 메타데이터 — Analyze Frame의 절대 시각 축(클립 구간 = recordedAt ~ +durationSec). 메타가 없으면 null (베스트 프레임 이력 조회 불가)
-   * @nullable
-   */
-  recordedAt?: string | null;
-  analysisStatus: VideoAnalysisStatus;
-  /**
-   * 재생 길이 (초). processing 중 미상이면 null
-   * @nullable
-   */
-  durationSec: number | null;
-  /** MP4 — GET /videos/{videoId}/content (Range 지원) */
-  contentUrl: string;
-  /**
-   * 썸네일 — processing 중 미생성이면 null
-   * @nullable
-   */
-  thumbnailUrl: string | null;
-}
+export type VipPriority = typeof VipPriority[keyof typeof VipPriority];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const VipPriority = {
+  normal: 'normal',
+  high: 'high',
+  very_high: 'very_high',
+} as const;

@@ -187,12 +187,23 @@ Admin envelope 그대로.
 
 ## 6. 모듈 계약 영향 (모듈 개발자 협의 필요분)
 
-| 항목 | 내용 | 단계 |
+| 항목 | 내용 | 단계 | 상태 |
+|---|---|---|---|
+| VIP provisioning | `PUT /v1/provision/vips`(v1.9 패턴, photoUrl pull·photoUpdatedAt 재임베딩) + `GET /provision/vips/status`(임베딩 상태·중복 쌍) + `GET /vips/activity`(최근 목격) → 대시보드 `GET /vips`는 provisioned 뷰. `Vip` additive(type/priority/groupId/groupName/projectId/embeddingStatus) | W5 | **v1.11 초안 작성 (module-api 0.12.0, 2026-09-09) — 협의 대기** |
+| 업로드 ingest | `PUT /v1/ingest/videos/{id}`·`/images/{id}`(multipart, Admin 발급 id, 재전송=교체) · `DELETE` · `GET /ingest/status`. 재생 서빙은 v1.3대로 모듈 책임 유지(사본 보관, 저장 중복 v1 수용). VideoItem/UploadedImage에 targetCount·analysisStatus·failedReason additive | W6 (P3) | **v1.11 초안 작성 — 협의 대기** |
+| 일별 감지 집계 | (b)안 확정 — Admin이 MQTT detections 적재 (UV-56) | W7 | **완료, 모듈 무관** |
+| 감지 분류 이관 | VIP/Tracking 분류·다중 카메라 path를 모듈이 결정해 detections에 additive(`personType`·`trackingPath`)로 발행 → vcaStore `addEvent` 분류 블록 삭제 | W7→협의 | 협의 질문 6번으로 v1.11 패키지에 동봉 — 답에 따라 MQTT SPEC v1.7 초안 |
+
+### 6.1 v1.11 초안의 결정 사항 (2026-09-09)
+
+| 결정 | 선택 | 근거 |
 |---|---|---|
-| VIP provisioning | `PUT /v1/provision/vips`(v1.9 패턴, 사진 전달·임베딩 등록) + 임베딩 상태/중복/최근 목격 조회 → 대시보드 `GET /vips`는 provisioned 뷰. `Vip`에 category/priority additive | W5 (v1.11 후보) |
-| 업로드 ingest | 원본 전달 방식·분석 상태 통지·**서빙 책임 재검토**(v1.3 MP4 Range/썸네일 모듈 책임 → 원본은 Admin 서빙 분리 가능성, 비-additive 주의) | W6 (P3) |
-| 일별 감지 집계 | (a)/(b) 결정 | W7 |
-| 감지 분류 이관 | VIP/Tracking 분류·다중 카메라 path를 모듈이 결정해 발행 → vcaStore `addEvent` 분류 블록 삭제("적응시키지 말고 삭제" — 기획자 주석) | W7 |
+| 식별자 발급 주체 | **Admin** — vipId `vip-{슬러그}-{4hex}`, videoId `vid-…`, imageId `img-…` | 카메라(v1.9)와 동일. 화면·MQTT·모듈이 같은 키 |
+| VIP 사진 전달 | 초안 A안: Admin 내부 URL을 provisioning에 실어 **모듈이 pull** | provisioning 본문이 가볍고 재임베딩 판정(photoUpdatedAt)이 자연스럽다. B안(공유 스토리지)은 협의 질문 1 |
+| 업로드 전달 | 초안 A안: **multipart push**, Admin이 원본 원장 보관 + 모듈이 분석용 사본 | v1.3 서빙 책임(MP4 Range·썸네일·frames)을 모듈에 그대로 두어 브라우저 계약 불변. 저장 중복은 v1 수용 |
+| 임베딩·분석 진행 | 비동기 허용 — 상태 API(`/provision/vips/status`, `/ingest/status`)를 Admin이 폴링 | 콜백은 모듈→Admin 방향 의존을 하나 더 만든다. 폴링 주기는 화면 진입 시 + 처리 중 항목 있을 때만 |
+| registry-health 원천 분리 | missingPhoto = Admin(사진 부재) / embeddingFailed·duplicates = `/provision/vips/status` / detectedLast7d = `/vips/activity` | 원장이 아는 것과 분석이 아는 것을 섞지 않는다 |
+| 기존 조회 계약 | **전부 불변** — 원천만 바뀐다. additive 필드는 v1.11 미구현 모듈이 생략 가능 | 전방 호환 규칙(구독자는 없는 필드를 null로) |
 
 카메라 상태 이력·연결 집계·Portal CRUD 전반은 모듈 무관.
 
@@ -234,3 +245,4 @@ Admin envelope 그대로.
 | 일자 | 내용 |
 |---|---|
 | 2026-09-09 | 초안 — 기획자 전달 패키지 분석, 아키텍처 결정·도메인·인증 v3·작업 패키지 W0~W7 |
+| 2026-09-09 | W1·W2·W4·W7 구현 완료(UV-50/51/53/56). §6 모듈 계약 v1.11 초안(VIP provisioning·ingest) 작성·§6.1 결정 사항 — 모듈 협의 대기 |
