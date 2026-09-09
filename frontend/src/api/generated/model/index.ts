@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.12.0
+ * OpenAPI spec version: 0.13.0
  */
 
 export * from './analysisTags';
@@ -114,6 +114,37 @@ export * from './personSearchHit';
 export * from './personSearchHitMatchedVip';
 export * from './personSearchResponse';
 export * from './personSearchResult';
+export * from './portalAccessRequest';
+export * from './portalAccountStatus';
+export * from './portalAppSearchRequest';
+export * from './portalAuditEvent';
+export * from './portalAuditListResponse';
+export * from './portalCreateUserRequest';
+export * from './portalIssuedUser';
+export * from './portalIssuedUserResponse';
+export * from './portalLicenseRequest';
+export * from './portalListAuditParams';
+export * from './portalListProjectsParams';
+export * from './portalMailRequest';
+export * from './portalMailView';
+export * from './portalNetworkIsolationRequest';
+export * from './portalPermission';
+export * from './portalProject';
+export * from './portalProjectListResponse';
+export * from './portalProjectRequest';
+export * from './portalProjectRequestType';
+export * from './portalProjectResponse';
+export * from './portalProjectType';
+export * from './portalProjectsRequest';
+export * from './portalStatusRequest';
+export * from './portalTeam';
+export * from './portalTeamListResponse';
+export * from './portalTeamRequest';
+export * from './portalTeamResponse';
+export * from './portalTimeZoneRequest';
+export * from './portalUser';
+export * from './portalUserListResponse';
+export * from './portalUserResponse';
 export * from './reidMatch';
 export * from './reidMatchAttributes';
 export * from './reidMatchGender';

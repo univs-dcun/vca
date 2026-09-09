@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA Admin API (초안 — 기획자 협의 대상)",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "description": "VCA Admin 화면 ↔ Admin 백엔드 계약 초안 (docs/design-vca-admin.md §6.1, UV-41/UV-42).\n\n구조: [Admin 화면] --이 계약--> [Admin 백엔드] --provisioning(module-api.json v0.10.0)--> [분석 모듈]\n\n상태: **P1 초안** — Admin 화면은 기획자가 기획·개발 중이라 이 계약은 협의 후 확정한다. 확정 전까지 필드 추가·이름 변경 가능. P2(미디어 서버 동기화)·P3(동영상·이미지 업로드)에서 리소스가 추가된다.\n\n공통 규약:\n- 응답 envelope은 플랫폼 공통 { success, data, message, code } — VCA 공개 계약(openapi.json)과 동일\n- 오류 코드는 ADM-XXXX 대역 (ADM-4001 본문 검증, ADM-4040 카메라 없음, ADM-5000 내부 오류)\n- cameraId·locationId는 ^[a-z0-9-]{1,64}$ (플랫폼 공통), cameraId 발급 주체는 Admin\n\n민감정보 경계 (설계 §3):\n- password는 쓰기 전용 — 어떤 응답에도 없고 hasCredential로 설정 여부만 알린다\n- rtspUrl·ip·자격증명은 Admin 화면·Admin DB·모듈 내부 채널 전용 — VCA 공개 계약(브라우저 대시보드)에는 절대 노출하지 않는다\n\n미결 (설계 §8): Admin 인증(로그인/권한) — 방식 확정 시 이 계약에 보안 스킴 추가",
     "contact": { "name": "계약 담당: 박상훈 (백엔드)" }
   },
@@ -86,6 +86,57 @@
           "401": { "description": "ADM-4011 세션 없음/만료", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } }
         }
       }
+    },
+    "/admin/api/teams": {
+      "get": { "operationId": "listTeams", "summary": "팀 목록 (UV-50). /admin/api/** 공통: 세션 필수(ADM-4011), 콘솔 역할 없음 403 ADM-4030, 변경은 owner|admin, 접근 권한 관리는 owner(ADM-4030)", "tags": ["org"], "responses": { "200": { "description": "data: PortalTeam[]", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } },
+      "post": { "operationId": "createTeam", "summary": "팀 생성 — id team-{슬러그}-{4hex} 서버 발급", "tags": ["org"], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "region": { "type": "string" }, "accountManagerName": { "type": "string" }, "accountManagerEmail": { "type": "string" } } } } } }, "responses": { "201": { "description": "생성", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/teams/{teamId}": {
+      "parameters": [{ "name": "teamId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": { "operationId": "getTeam", "summary": "팀 상세 (404 ADM-4042)", "tags": ["org"], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } },
+      "put": { "operationId": "updateTeam", "summary": "팀 수정", "tags": ["org"], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/teams/{teamId}/mail": {
+      "put": { "operationId": "updateTeamMail", "summary": "팀 SMTP — { mailDomain, host, port, fromAddress, username, password(쓰기 전용, 생략 시 유지), useTls }. host 비우면 해제. 응답은 hasPassword만", "tags": ["org"], "parameters": [{ "name": "teamId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/projects": {
+      "get": { "operationId": "listProjects", "summary": "프로젝트 목록 (?teamId= 생략 시 전체). data: PortalProject[] — timeZone·license*·mail·networkIsolated 포함", "tags": ["org"], "parameters": [{ "name": "teamId", "in": "query", "required": false, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } },
+      "post": { "operationId": "createProject", "summary": "프로젝트 생성 — { teamId, name, type smart_city|smart_school, timeZone(IANA, 기본 Asia/Singapore), computeInstance?, gpuCount?, modelVersion?, regionName? }. id proj-{슬러그}-{4hex}", "tags": ["org"], "responses": { "201": { "description": "생성", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } }, "404": { "description": "팀 없음 ADM-4042", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/projects/{projectId}": {
+      "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": { "operationId": "getProject", "summary": "프로젝트 상세 (404 ADM-4043)", "tags": ["org"], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } },
+      "put": { "operationId": "updateProject", "summary": "프로젝트 수정", "tags": ["org"], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/projects/{projectId}/license": {
+      "put": { "operationId": "updateLicense", "summary": "라이선스 { plan, channelLimit, expiresAt(null=Unlimited) } — 공급사 운영용", "tags": ["org"], "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/projects/{projectId}/mail": {
+      "put": { "operationId": "updateProjectMail", "summary": "프로젝트 SMTP 오버라이드 (팀 mail과 같은 본문)", "tags": ["org"], "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/projects/{projectId}/timezone": {
+      "put": { "operationId": "updateTimeZone", "summary": "{ timeZone } — 알 수 없는 존 400 ADM-4001", "tags": ["org"], "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/projects/{projectId}/network-isolation": {
+      "put": { "operationId": "updateNetworkIsolation", "summary": "{ override: true|false|null } — null이면 자동 감지로 복귀", "tags": ["org"], "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/audit": {
+      "get": { "operationId": "listAudit", "summary": "감사 로그 (UV-50) — 모든 변경 엔드포인트가 기록. ?projectId= 지정 시 그 프로젝트 + 프로젝트 무관 이벤트. data: [{ id, projectId, actor, message, at }] 최신순, limit 기본 50 최대 200", "tags": ["audit"], "parameters": [{ "name": "projectId", "in": "query", "required": false, "schema": { "type": "string" } }, { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 50 } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/users/{userId}": {
+      "delete": { "operationId": "deleteUser", "summary": "계정 삭제 (UV-50) — owner 전용, 마지막 활성 owner 409 ADM-4031", "tags": ["users"], "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/users/{userId}/access": {
+      "put": { "operationId": "updateUserAccess", "summary": "{ permission owner|admin|auditor|none, appAccess } — owner 전용. 콘솔 역할도 앱 접근도 없으면 400, owner 강등은 last-owner 가드", "tags": ["users"], "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/users/{userId}/app-search": {
+      "put": { "operationId": "setUserAppSearch", "summary": "{ allowed } — owner 전용", "tags": ["users"], "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/users/{userId}/projects": {
+      "put": { "operationId": "updateUserProjects", "summary": "{ projectIds[] } — owner|admin", "tags": ["users"], "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
+    },
+    "/admin/api/users/{userId}/status": {
+      "put": { "operationId": "updateUserStatus", "summary": "{ status active|invited|suspended } — owner 전용. suspended는 기존 세션 즉시 삭제, owner 비활성화는 last-owner 가드", "tags": ["users"], "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } } } }
     },
     "/admin/api/users": {
       "get": {

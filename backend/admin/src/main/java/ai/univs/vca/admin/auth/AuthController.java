@@ -40,7 +40,7 @@ public class AuthController {
 	@PostMapping("/login")
 	public ResponseEntity<ApiEnvelope> login(@RequestBody LoginRequest request) {
 		boolean keep = Boolean.TRUE.equals(request.keepLoggedIn());
-		LoginResult result = service.login(request.email(), request.password(), keep);
+		LoginResult result = service.login(request.resolvedIdentifier(), request.password(), keep);
 		// keepLoggedIn 미체크 시 Max-Age 없는 브라우저 세션 쿠키 (서버 만료 12h는 별도로 걸려 있다)
 		ResponseCookie.ResponseCookieBuilder cookie = ResponseCookie.from(SESSION_COOKIE, result.token())
 			.httpOnly(true)

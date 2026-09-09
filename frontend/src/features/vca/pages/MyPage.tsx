@@ -548,7 +548,7 @@ export default function MyPage() {
                 <div style={{ height: "1px", backgroundColor: "var(--gray-200)", width: "100%" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
                   <ReadOnlyField label="Full name" value={me.name} />
-                  <ReadOnlyField label="Email address" value={me.email} />
+                  <ReadOnlyField label="Email address" value={me.email ?? (me as { employeeId?: string | null }).employeeId ?? "—"} />
                   <ReadOnlyField label="Department / team" value={me.team} />
                 </div>
               </Card>

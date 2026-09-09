@@ -12,19 +12,38 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.12.0
+ * OpenAPI spec version: 0.13.0
  */
+import type { PortalPermission } from './portalPermission';
+import type { PortalAccountStatus } from './portalAccountStatus';
 
 /**
- * 로그인 사용자 프로필 (My Page·Navbar 표시용) — 민감 필드 없음
+ * 로그인 사용자 프로필 (My Page·Navbar·Portal 셸) — 민감 필드 없음. permission/appAccess/appSearch/projectIds는 기획자 스탠드인(currentPortalRole·projectsVisibleInApp·canSearchInApp)이 세션에서 읽어야 하는 값 (UV-50)
  */
 export interface AuthUserProfile {
+  id: number;
   name: string;
-  email: string;
+  /**
+   * 메일 없는 환경이면 null (사번 로그인)
+   * @nullable
+   */
+  email?: string | null;
+  /** @nullable */
+  employeeId?: string | null;
   /** 화면 표시용 계정 ID */
   accountId: string;
   role: string;
   team: string;
   /** 임시 비밀번호 상태 (UV-48) — true면 화면이 Set Password(/password-setup)를 강제하고, 완료 전 메인 진입을 막는다 */
   mustSetPassword: boolean;
+  permission: PortalPermission;
+  /** 모니터링 앱 로그인 가능 — 역할과 독립 */
+  appAccess: boolean;
+  /** 앱 내 인물 검색 권한 */
+  appSearch: boolean;
+  status: PortalAccountStatus;
+  /** @nullable */
+  teamId?: string | null;
+  /** 앱에서 볼 수 있는 프로젝트 — 비어 있으면 팀의 전 프로젝트 */
+  projectIds: string[];
 }

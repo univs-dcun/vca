@@ -8,6 +8,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 import ai.univs.vca.admin.AdminApiException;
@@ -17,9 +19,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 로그인/세션 (UV-47). 쿠키에는 불투명 토큰, DB에는 토큰의 SHA-256 해시만 저장.
- * 세션 수명: 기본 12시간, Keep me logged in 시 30일 (쿠키 Max-Age도 동일하게 —
- * 미체크 시에는 브라우저 세션 쿠키라 창을 닫으면 사라진다).
+ * 로그인/세션 (UV-47 → UV-50). 쿠키에는 불투명 토큰, DB에는 토큰의 SHA-256 해시만 저장.
+ * 세션 수명: 기본 12시간, Keep me logged in 시 30일.
+ *
+ * 로그인 판정 순서 (design-vca-portal.md §4.1): 식별자(이메일|사번) 조회 → 비밀번호 → status
+ * (suspended ADM-4016 / invited ADM-4017 — 임시 비밀번호 상태보다 먼저: 정지된 계정이 임시 비밀번호를
+ * 들고 있어도 거부) → 세션 발급. 존재하지 않는 식별자와 비밀번호 불일치는 구분하지 않는다(ADM-4010).
  */
 @Service
 public class AuthService {
@@ -46,14 +51,19 @@ public class AuthService {
 	}
 
 	@Transactional
-	public LoginResult login(String email, String password, boolean keepLoggedIn) {
-		if (email == null || email.isBlank() || password == null || password.isEmpty()) {
-			throw AdminApiException.badRequest("email and password are required");
+	public LoginResult login(String identifier, String password, boolean keepLoggedIn) {
+		if (identifier == null || identifier.isBlank() || password == null || password.isEmpty()) {
+			throw AdminApiException.badRequest("identifier and password are required");
 		}
-		UserAccountEntity user = users.findByEmail(email.trim().toLowerCase())
-			.orElseThrow(AdminApiException::invalidCredentials);
+		UserAccountEntity user = findByIdentifier(identifier).orElseThrow(AdminApiException::invalidCredentials);
 		if (!encoder.matches(password, user.getPasswordHash())) {
 			throw AdminApiException.invalidCredentials();
+		}
+		if (user.getStatus() == AccountStatus.SUSPENDED) {
+			throw AdminApiException.accountSuspended();
+		}
+		if (user.getStatus() == AccountStatus.INVITED) {
+			throw AdminApiException.accountNotActivated();
 		}
 		byte[] raw = new byte[32];
 		random.nextBytes(raw);
@@ -64,9 +74,22 @@ public class AuthService {
 		return new LoginResult(token, keepLoggedIn, UserProfile.of(user));
 	}
 
+	/** 이메일(소문자 저장) 또는 사번(대문자 저장) — 입력은 대소문자 무관 */
+	Optional<UserAccountEntity> findByIdentifier(String identifier) {
+		Optional<UserAccountEntity> byEmail = users.findByEmail(identifier.trim().toLowerCase(Locale.ROOT));
+		return byEmail.isPresent() ? byEmail
+				: users.findByEmployeeId(UserAdminService.normalizeEmployeeId(identifier));
+	}
+
 	@Transactional
 	public UserProfile me(String token) {
 		return UserProfile.of(requireUser(token));
+	}
+
+	/** SessionInterceptor용 — 세션 → 사용자 (없거나 만료면 ADM-4011) */
+	@Transactional
+	public UserAccountEntity resolveSession(String token) {
+		return requireUser(token);
 	}
 
 	@Transactional
@@ -128,7 +151,12 @@ public class AuthService {
 			sessions.delete(session);
 			throw AdminApiException.sessionRequired();
 		}
-		return users.findById(session.getUserId()).orElseThrow(AdminApiException::sessionRequired);
+		UserAccountEntity user = users.findById(session.getUserId()).orElseThrow(AdminApiException::sessionRequired);
+		if (user.getStatus() == AccountStatus.SUSPENDED) {
+			sessions.delete(session); // 정지 즉시 기존 세션도 끊는다
+			throw AdminApiException.accountSuspended();
+		}
+		return user;
 	}
 
 	String encode(String password) {
