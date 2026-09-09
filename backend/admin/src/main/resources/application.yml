@@ -43,6 +43,8 @@ vca:
     mqtt-site-id: ${VCA_SITE_ID:sg}
     # 재설정 코드 메일을 보내지 않고 로그로 (UV-56) — 개발 전용. 운영은 반드시 false
     mail-dev-log: ${VCA_ADMIN_MAIL_DEV_LOG:false}
+    # 인물 검색 감사 기록 보존 일수 (UV-59) — 기획 확정 1년. 운영 감사 로그(audit_event)는 무기한. 0 이하 = 삭제 안 함
+    search-audit-retention-days: ${VCA_ADMIN_SEARCH_AUDIT_RETENTION_DAYS:365}
 
 management:
   endpoints:

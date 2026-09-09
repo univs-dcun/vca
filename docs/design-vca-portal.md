@@ -95,6 +95,7 @@ Admin ──PUT /v1/provision/**──▶ 모듈  /  Admin ──MQTT 구독─�
 | `employeeId?` | 사번 | 로그인 식별자 겸용(unique, nullable) |
 | `email` | **nullable로 변경**(unique) | 메일 없는 회사 대응. email 또는 employeeId 중 하나는 필수 |
 | `teamId`, 프로젝트 배정(`user_project`) | | 앱 프로젝트 가시 범위. **Portal API 범위 강제(UV-58)**: owner 전체 / admin·auditor 배정 프로젝트만 — `security/ProjectScope`, 범위 밖 403 ADM-4033 (기획 확정 2026-09-09) |
+| `search_audit` (신규, UV-59) | 인물 검색 감사 — userId·userName·accountId·projectId(배정 1개일 때만)·feature(redmap/reid/track/redface)·endpoint·criteria·imageSha256·imageBytes·imageCount·resultCount·durationMs·status·errorCode·ip | 프록시가 검색 중계 후 `POST /audit/search`. 이미지 원본 미보관(해시만), 보존 1년(`search-audit-retention-days`) — 기획 확정 2026-09-09 8번. 운영 감사 `audit_event`(무기한)와 분리 |
 | `setupCodeHash?`, `setupCodeIssuedAt?` | | W2. 기존 계정에 발급하는 등록 코드(14일) |
 | `inviteTokenHash?`, `inviteTokenIssuedAt?` | | W2. `/password-setup?token=`(7일, single-use) |
 | `tempPasswordIssuedAt?` | | W2. 임시 비밀번호 24h 만료 |

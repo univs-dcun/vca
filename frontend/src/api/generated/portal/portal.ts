@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.18.0
+ * OpenAPI spec version: 0.19.0
  */
 import {
   useMutation,
@@ -61,6 +61,7 @@ import type {
   PortalListCamerasParams,
   PortalListProjectsParams,
   PortalListRosterParams,
+  PortalListSearchAuditParams,
   PortalListServersParams,
   PortalMailRequest,
   PortalNetworkIsolationRequest,
@@ -73,6 +74,7 @@ import type {
   PortalRosterEntryRequest,
   PortalRosterListResponse,
   PortalRosterRowResponse,
+  PortalSearchAuditListResponse,
   PortalServerListResponse,
   PortalServerRequest,
   PortalServerResponse,
@@ -3325,6 +3327,99 @@ export function usePortalListAudit<TData = Awaited<ReturnType<typeof portalListA
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getPortalListAuditQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * @summary 인물 검색 감사 기록 (UV-59) — 앱의 RedMap·Re-ID·Track on Map·RedFace 호출을 프록시가 자동 기록. 이미지는 SHA-256 해시만(원본 미보관), 보존 1년. 최신순, 프로젝트 범위 적용
+ */
+export const portalListSearchAudit = (
+    params?: PortalListSearchAuditParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalSearchAuditListResponse>(
+      {url: `/portal/search-audit`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
+
+
+
+export const getPortalListSearchAuditQueryKey = (params?: PortalListSearchAuditParams,) => {
+    return [
+    `/portal/search-audit`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getPortalListSearchAuditQueryOptions = <TData = Awaited<ReturnType<typeof portalListSearchAudit>>, TError = unknown>(params?: PortalListSearchAuditParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListSearchAudit>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPortalListSearchAuditQueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof portalListSearchAudit>>> = ({ signal }) => portalListSearchAudit(params, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof portalListSearchAudit>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PortalListSearchAuditQueryResult = NonNullable<Awaited<ReturnType<typeof portalListSearchAudit>>>
+export type PortalListSearchAuditQueryError = unknown
+
+
+export function usePortalListSearchAudit<TData = Awaited<ReturnType<typeof portalListSearchAudit>>, TError = unknown>(
+ params: undefined |  PortalListSearchAuditParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListSearchAudit>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalListSearchAudit>>,
+          TError,
+          Awaited<ReturnType<typeof portalListSearchAudit>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalListSearchAudit<TData = Awaited<ReturnType<typeof portalListSearchAudit>>, TError = unknown>(
+ params?: PortalListSearchAuditParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListSearchAudit>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalListSearchAudit>>,
+          TError,
+          Awaited<ReturnType<typeof portalListSearchAudit>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalListSearchAudit<TData = Awaited<ReturnType<typeof portalListSearchAudit>>, TError = unknown>(
+ params?: PortalListSearchAuditParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListSearchAudit>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 인물 검색 감사 기록 (UV-59) — 앱의 RedMap·Re-ID·Track on Map·RedFace 호출을 프록시가 자동 기록. 이미지는 SHA-256 해시만(원본 미보관), 보존 1년. 최신순, 프로젝트 범위 적용
+ */
+
+export function usePortalListSearchAudit<TData = Awaited<ReturnType<typeof portalListSearchAudit>>, TError = unknown>(
+ params?: PortalListSearchAuditParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListSearchAudit>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPortalListSearchAuditQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

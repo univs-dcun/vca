@@ -20,9 +20,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param mqttSiteId 토픽 접두 vca/v1/{siteId}/ 의 siteId (SPEC §2)
  * @param mailDevLog true면 메일을 보내지 않고 로그에 남긴다 (UV-56, 개발 전용 — 운영 false). SMTP 없는 로컬에서
  *                   재설정 코드 흐름을 검증하기 위한 스위치
+ * @param searchAuditRetentionDays 인물 검색 감사 기록 보존 일수 (UV-59, 기획 확정 1년=365). 운영 감사 로그는 무기한이지만
+ *                   검색 기록은 직원 행동 기록이 되므로 기간을 둔다. 0 이하면 삭제하지 않음(계약상 필요한 설치)
  */
 @ConfigurationProperties(prefix = "vca.admin")
 public record AdminProperties(String moduleBaseUrl, Duration moduleTimeout, String mediaApiBaseUrl, String encKey,
 		boolean seedDefaultCameras, boolean sessionCookieSecure, String seedAdminEmail, String seedAdminPassword,
-		boolean selfSignup, String mqttBrokerUrl, String mqttSiteId, boolean mailDevLog) {
+		boolean selfSignup, String mqttBrokerUrl, String mqttSiteId, boolean mailDevLog,
+		int searchAuditRetentionDays) {
 }
