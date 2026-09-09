@@ -9,6 +9,8 @@ public interface RosterRepository extends JpaRepository<RosterEntryEntity, Strin
 
 	List<RosterEntryEntity> findByProjectIdOrderByNameAsc(String projectId);
 
+	List<RosterEntryEntity> findByProjectIdInOrderByNameAsc(java.util.Collection<String> projectIds);
+
 	List<RosterEntryEntity> findAllByOrderByNameAsc();
 
 	Optional<RosterEntryEntity> findByCodeHash(String codeHash);

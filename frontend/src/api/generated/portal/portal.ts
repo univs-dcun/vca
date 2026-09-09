@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.17.0
+ * OpenAPI spec version: 0.18.0
  */
 import {
   useMutation,
@@ -92,7 +92,7 @@ import { customInstance } from '../../axios-instance';
 
 
 /**
- * Portal 그룹 공통: 세션 필수(401 ADM-4011), 콘솔 역할 없음 403 ADM-4030(none), 변경은 owner|admin, 접근 권한 관리는 owner. Admin 미가동 502 VCA-5021.
+ * Portal 그룹 공통: 세션 필수(401 ADM-4011), 콘솔 역할 없음 403 ADM-4030(none), 변경은 owner|admin, 접근 권한 관리는 owner. Admin 미가동 502 VCA-5021. 프로젝트 범위(UV-58): owner 전체 / admin·auditor 배정 프로젝트만 — 범위 밖 projectId는 403 ADM-4033, 생략 시 허용 프로젝트 전체.
  * @summary 팀(조직) 목록 (UV-50) — Portal 셸 팀 전환. 프록시가 Admin /admin/api/teams로 패스스루
  */
 export const portalListTeams = (

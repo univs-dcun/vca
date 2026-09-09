@@ -8,5 +8,7 @@ public interface ServerRepository extends JpaRepository<ServerEntity, String> {
 
 	List<ServerEntity> findByProjectIdOrderByNameAsc(String projectId);
 
+	List<ServerEntity> findByProjectIdInOrderByNameAsc(java.util.Collection<String> projectIds);
+
 	List<ServerEntity> findAllByOrderByNameAsc();
 }

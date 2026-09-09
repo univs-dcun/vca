@@ -7,6 +7,7 @@ import ai.univs.vca.admin.ApiEnvelope;
 import ai.univs.vca.admin.camera.CameraRepository;
 import ai.univs.vca.admin.org.ProjectEntity;
 import ai.univs.vca.admin.org.ProjectRepository;
+import ai.univs.vca.admin.security.ProjectScope;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -54,6 +55,7 @@ public class CameraStatsController {
 	}
 
 	private ProjectEntity requireProject(String projectId) {
+		ProjectScope.current().require(projectId); // 범위 밖은 403 (UV-58)
 		return projects.findById(projectId).orElseThrow(() -> AdminApiException.projectNotFound(projectId));
 	}
 }

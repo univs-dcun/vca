@@ -104,6 +104,17 @@ public class AdminApiException extends RuntimeException {
 	}
 
 	/** 활성 owner가 0명이 되는 변경 — 아무도 권한을 줄 수 없는 설치가 된다 */
+	/** 프로젝트 범위 밖 (UV-58) — 역할 없음(4030)과 구분. 존재 여부를 흘리지 않기 위해 404가 아니라 403 */
+	public static AdminApiException projectForbidden(String projectId) {
+		return new AdminApiException(HttpStatus.FORBIDDEN, "ADM-4033",
+				"project is outside your scope" + (projectId == null ? "" : ": " + projectId));
+	}
+
+	public static AdminApiException teamForbidden(String teamId) {
+		return new AdminApiException(HttpStatus.FORBIDDEN, "ADM-4033",
+				"team is outside your scope" + (teamId == null ? "" : ": " + teamId));
+	}
+
 	public static AdminApiException lastOwner() {
 		return new AdminApiException(HttpStatus.CONFLICT, "ADM-4031", "cannot remove the last active owner");
 	}

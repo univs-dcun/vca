@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 import ai.univs.vca.admin.security.CurrentUser;
+import ai.univs.vca.admin.security.ProjectScope;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,9 +38,16 @@ public class AuditService {
 	@Transactional(readOnly = true)
 	public List<AuditRow> recent(String projectId, int limit) {
 		PageRequest page = PageRequest.of(0, Math.min(Math.max(limit, 1), MAX_LIMIT));
-		List<AuditEventEntity> rows = projectId == null || projectId.isBlank()
-				? repository.findAllByOrderByAtDesc(page)
-				: repository.findByProjectIdOrProjectIdIsNullOrderByAtDesc(projectId, page);
+		ProjectScope scope = ProjectScope.current();
+		List<AuditEventEntity> rows;
+		if (scope.isUnrestricted()) {
+			rows = projectId == null || projectId.isBlank() ? repository.findAllByOrderByAtDesc(page)
+					: repository.findByProjectIdOrProjectIdIsNullOrderByAtDesc(projectId, page);
+		}
+		else {
+			// 범위 제한 사용자(UV-58): 배정 프로젝트 이벤트만. 계정·팀 같은 프로젝트 무관 이벤트는 owner 전용
+			rows = repository.findByProjectIdInOrderByAtDesc(scope.narrow(projectId), page);
+		}
 		return rows.stream()
 			.map(e -> new AuditRow(e.getId(), e.getProjectId(), e.getActorName(), e.getMessage(), e.getAt()))
 			.toList();
