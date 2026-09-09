@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.15.0",
+    "version": "0.16.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -148,6 +148,76 @@
           "200": { "description": "생성 + 세션", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthProfileResponse" } } } },
           "403": { "description": "self-signup 불가 (ADM-4032)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
         }
+      }
+    },
+    "/auth/password/reset/request": {
+      "post": {
+        "operationId": "resetPasswordRequest",
+        "summary": "셀프 재설정 코드 발송 (UV-56) — 8자리 숫자, 10분. 계정 존재 여부와 무관하게 200(열거 방지). 재발송 겸용(3회·30초 쿨다운)",
+        "description": "메일 대신 코드인 이유: 메일함을 여는 기계가 VCA에 도달할 수 없는 환경 + 토큰을 URL 밖에. 팀/프로젝트 SMTP 미설정이면 409 ADM-4029 → 화면은 adminOnly(관리자 임시 비밀번호 수교) 안내.",
+        "tags": ["auth"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResetRequest" } } } },
+        "responses": {
+          "200": { "description": "발송(또는 계정 없음) — 화면 인쇄용 숫자 동봉", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResetRequestResponse" } } } },
+          "409": { "description": "메일 경로 없음 — adminOnly (ADM-4029)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "429": { "description": "재발송 한도 ADM-4028 / 쿨다운 ADM-4027", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "502": { "description": "메일 발송 실패 ADM-5021", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/password/reset/verify": {
+      "post": {
+        "operationId": "resetPasswordVerify",
+        "summary": "코드 검증 (UV-56) → 단기 토큰(10분). 프론트 CodeFailure 계약: wrong ADM-4025 / expired ADM-4026 / throttled ADM-4027(5회) / resendLimit ADM-4028",
+        "tags": ["auth"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResetVerifyRequest" } } } },
+        "responses": {
+          "200": { "description": "검증 통과", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResetVerifyResponse" } } } },
+          "400": { "description": "wrong (ADM-4025)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "410": { "description": "expired (ADM-4026)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "429": { "description": "throttled (ADM-4027)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/password/reset/complete": {
+      "post": {
+        "operationId": "resetPasswordComplete",
+        "summary": "새 비밀번호 설정 (UV-56) — verify가 준 토큰 + 새 비밀번호. 전 세션 무효화, 토큰 소진",
+        "tags": ["auth"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResetCompleteRequest" } } } },
+        "responses": {
+          "200": { "description": "완료 — 로그인 화면으로", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthOkResponse" } } } },
+          "400": { "description": "형식 위반 (ADM-4001)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "410": { "description": "토큰 무효/만료/사용됨 (ADM-4026)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/sessions": {
+      "get": {
+        "operationId": "listSessions",
+        "summary": "내 로그인 세션 목록 (UV-56, My Page Active login sessions) — current 표시, 기기(User-Agent)·IP·마지막 활동",
+        "tags": ["auth"],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthSessionListResponse" } } } },
+          "401": { "description": "ADM-4011", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/sessions/others": {
+      "delete": {
+        "operationId": "terminateOtherSessions",
+        "summary": "다른 기기 전부 종료 (UV-56, Terminate All Others) — 서버 세션 저장소라 즉시 무효",
+        "tags": ["auth"],
+        "responses": { "200": { "description": "data: { terminated: n }", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthOkResponse" } } } } }
+      }
+    },
+    "/auth/sessions/{sessionId}": {
+      "delete": {
+        "operationId": "terminateSession",
+        "summary": "세션 1개 종료 (UV-56) — 내 것만. 현재 세션이면 로그아웃과 같다",
+        "tags": ["auth"],
+        "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK (멱등)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthOkResponse" } } } } }
       }
     },
     "/auth/password/setup": {
@@ -613,6 +683,19 @@
         "tags": ["portal"],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalBulkDeleteRequest" } } } },
         "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalBulkResultResponse" } } } } }
+      }
+    },
+    "/portal/projects/{projectId}/detections": {
+      "get": {
+        "operationId": "portalDailyDetections",
+        "summary": "일별 감지 (UV-56, Overview Detections · last 7 days) — [{daysAgo, total, vip, vehicle, unknown}] newest last. 원천: 모듈 MQTT detections 적재(시간 버킷), 모듈 계약 무변경",
+        "description": "daysAgo 0 = 오늘(진행 중). 프로젝트 시간대 달력일. daysAgo 기준이라 7일/14일 요청이 같은 날에 같은 값(이번 주 vs 지난주 비교가 한 시리즈에서). unknown = total - vip - vehicle (staff·unauthorized·unknown·false_positive). 기획자 README §4-(1) 요청 형태.",
+        "tags": ["portal"],
+        "parameters": [
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "days", "in": "query", "required": false, "schema": { "type": "integer", "default": 14, "minimum": 1, "maximum": 90 } }
+        ],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalDailyDetectionsResponse" } } } } }
       }
     },
     "/portal/projects/{projectId}/camera-connectivity": {
@@ -2173,6 +2256,90 @@
       "PortalStabilityResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalStabilityRow" } } } },
       "PortalServerResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalServer" } } },
       "PortalServerListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalServer" } } } },
+      "AuthResetRequest": {
+        "type": "object",
+        "required": ["identifier"],
+        "properties": { "identifier": { "type": "string", "description": "이메일 또는 사번" } }
+      },
+      "AuthResetRequestResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": {
+            "type": "object",
+            "required": ["delivery", "resendLimit", "ttlMinutes", "resendCooldownSec"],
+            "properties": {
+              "delivery": { "type": "string", "enum": ["email"] },
+              "resendLimit": { "type": "integer", "example": 3 },
+              "ttlMinutes": { "type": "integer", "example": 10 },
+              "resendCooldownSec": { "type": "integer", "example": 30 }
+            }
+          }
+        }
+      },
+      "AuthResetVerifyRequest": {
+        "type": "object",
+        "required": ["identifier", "code"],
+        "properties": {
+          "identifier": { "type": "string" },
+          "code": { "type": "string", "description": "8자리 숫자 (구분자 무관)" }
+        }
+      },
+      "AuthResetVerifyResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": {
+            "type": "object",
+            "required": ["resetToken", "ttlMinutes"],
+            "properties": {
+              "resetToken": { "type": "string", "description": "완료 단계 전용 단기 토큰 — URL에 싣지 않는다" },
+              "ttlMinutes": { "type": "integer", "example": 10 }
+            }
+          }
+        }
+      },
+      "AuthResetCompleteRequest": {
+        "type": "object",
+        "required": ["resetToken", "newPassword"],
+        "properties": {
+          "resetToken": { "type": "string" },
+          "newPassword": { "type": "string", "format": "password" }
+        }
+      },
+      "AuthSession": {
+        "type": "object",
+        "required": ["id", "current", "createdAt", "expiresAt", "keepLoggedIn"],
+        "properties": {
+          "id": { "type": "string", "description": "세션 해시 — 토큰을 역산할 수 없다" },
+          "current": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "lastSeenAt": { "type": "string", "format": "date-time", "nullable": true, "description": "1분 간격 갱신" },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "keepLoggedIn": { "type": "boolean" },
+          "userAgent": { "type": "string", "nullable": true },
+          "ip": { "type": "string", "nullable": true }
+        }
+      },
+      "AuthSessionListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/AuthSession" } } } },
+      "PortalDailyDetections": {
+        "type": "object",
+        "required": ["daysAgo", "total", "vip", "vehicle", "unknown"],
+        "properties": {
+          "daysAgo": { "type": "integer", "description": "0 = 오늘(진행 중)" },
+          "total": { "type": "integer" },
+          "vip": { "type": "integer" },
+          "vehicle": { "type": "integer" },
+          "unknown": { "type": "integer", "description": "total - vip - vehicle" }
+        }
+      },
+      "PortalDailyDetectionsResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalDailyDetections" } } } },
       "AuthPasswordSetupRequest": {
         "type": "object",
         "required": ["newPassword"],

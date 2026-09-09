@@ -35,6 +35,8 @@ vca:
     # EMQX 구독 (UV-53) — 모듈의 cameras/{id}/status(RUNNING|STOPPED)를 적재해 Portal 연결/안정도 집계. 빈 값이면 생략
     mqtt-broker-url: ${VCA_MQTT_URL:tcp://localhost:1883}
     mqtt-site-id: ${VCA_SITE_ID:sg}
+    # 재설정 코드 메일을 보내지 않고 로그로 (UV-56) — 개발 전용. 운영은 반드시 false
+    mail-dev-log: ${VCA_ADMIN_MAIL_DEV_LOG:false}
 
 management:
   endpoints:

@@ -170,3 +170,30 @@ false일 수 있어 **port 지정 권장**). 등록·수정 즉시 + 60초마다
 |---|---|---|
 | `VCA_MQTT_URL` | `tcp://localhost:1883` | EMQX — 빈 값이면 구독 생략(상태 unknown) |
 | `VCA_SITE_ID` | `sg` | 토픽 접두 `vca/v1/{siteId}/` |
+
+## 일별 감지 집계 · 이메일 코드 재설정 · 세션 목록/종료 (UV-56, admin-api.json 0.8.0)
+
+**일별 감지** (`stats/`): `MqttStatusSubscriber`가 `cameras/+/detections`(SPEC §3.2, QoS 0)도 구독 — `category`·
+`detectedAt`만 메모리 버퍼에 카운트하고 **10초마다 `detection_hourly`(카메라×UTC 시각)에 upsert**(감지 1건마다 DB를
+치지 않음). `GET /admin/api/projects/{id}/detections?days=14` → `[{daysAgo, total, vip, vehicle, unknown}]` newest
+last, 프로젝트 시간대 달력일(시각 버킷을 접으므로 30분 경계 존은 ±30분 오차). vip/vehicle 외 카테고리는 unknown.
+**모듈 계약 무변경** — 설계 §5.1 (b)안.
+
+**셀프 재설정 — 이메일 코드** (`auth/PasswordReset*`, `mail/MailService`): 링크가 아니라 8자리 코드(메일함을 여는
+기계가 VCA에 도달할 수 없는 환경, 토큰을 URL 밖에). 팀(프로젝트 오버라이드 우선) SMTP로 **sender 역할만** —
+`MailService.resolveFor`. 미설정이면 409 ADM-4029 → 화면은 adminOnly(관리자 임시 비밀번호 수교).
+| 단계 | 규칙 |
+|---|---|
+| `POST /auth/password/reset/request` | 계정 없어도 200(열거 방지). 10분, 재발송 3회(ADM-4028), 30초 쿨다운(ADM-4027) |
+| `POST /auth/password/reset/verify` | wrong ADM-4025 → 5회 후 throttled ADM-4027(코드 폐기, 재요청) / expired ADM-4026 → 단기 토큰(10분) |
+| `POST /auth/password/reset/complete` | 토큰 + 새 비밀번호 → 변경, 전 세션 무효화, 토큰 소진 |
+사용자당 활성 재설정 1개 — 새 요청이 이전 코드를 대체(관리자 발송 코드와의 상호 무효화는 기획 확인 항목).
+개발에서는 `VCA_ADMIN_MAIL_DEV_LOG=true`로 발송 대신 로그(`[mail-dev-log]`) — **운영 false**.
+
+**세션 목록/종료** (`/auth/sessions`): 로그인 시 User-Agent·IP(프록시 X-Forwarded-For) 기록, `lastSeenAt`은 1분 간격
+갱신. `GET` 목록(current 표시, id=해시), `DELETE /others`(다른 기기 전부), `DELETE /{id}`(내 것만). 서버가 세션을
+state로 들고 있어 종료가 즉시 유효 — 기획자 mypage 주석("stateless 토큰만으로는 revoke할 것이 없다") 해소.
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `VCA_ADMIN_MAIL_DEV_LOG` | `false` | 재설정 코드 메일을 보내지 않고 로그로 — 개발 전용 |

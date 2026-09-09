@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.15.0
+ * OpenAPI spec version: 0.16.0
  */
 import {
   useMutation,
@@ -48,6 +48,8 @@ import type {
   PortalCameraStabilityParams,
   PortalConnectivityResponse,
   PortalCreateUserRequest,
+  PortalDailyDetectionsParams,
+  PortalDailyDetectionsResponse,
   PortalIssueCodesRequest,
   PortalIssuedCodeResponse,
   PortalIssuedInviteResponse,
@@ -2604,6 +2606,107 @@ export const usePortalDeleteCameras = <TError = unknown,
       return useMutation(mutationOptions, queryClient);
     }
     /**
+ * daysAgo 0 = 오늘(진행 중). 프로젝트 시간대 달력일. daysAgo 기준이라 7일/14일 요청이 같은 날에 같은 값(이번 주 vs 지난주 비교가 한 시리즈에서). unknown = total - vip - vehicle (staff·unauthorized·unknown·false_positive). 기획자 README §4-(1) 요청 형태.
+ * @summary 일별 감지 (UV-56, Overview Detections · last 7 days) — [{daysAgo, total, vip, vehicle, unknown}] newest last. 원천: 모듈 MQTT detections 적재(시간 버킷), 모듈 계약 무변경
+ */
+export const portalDailyDetections = (
+    projectId: string,
+    params?: PortalDailyDetectionsParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalDailyDetectionsResponse>(
+      {url: `/portal/projects/${projectId}/detections`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
+
+
+
+export const getPortalDailyDetectionsQueryKey = (projectId?: string,
+    params?: PortalDailyDetectionsParams,) => {
+    return [
+    `/portal/projects/${projectId}/detections`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getPortalDailyDetectionsQueryOptions = <TData = Awaited<ReturnType<typeof portalDailyDetections>>, TError = unknown>(projectId: string,
+    params?: PortalDailyDetectionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalDailyDetections>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPortalDailyDetectionsQueryKey(projectId,params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof portalDailyDetections>>> = ({ signal }) => portalDailyDetections(projectId,params, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(projectId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof portalDailyDetections>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PortalDailyDetectionsQueryResult = NonNullable<Awaited<ReturnType<typeof portalDailyDetections>>>
+export type PortalDailyDetectionsQueryError = unknown
+
+
+export function usePortalDailyDetections<TData = Awaited<ReturnType<typeof portalDailyDetections>>, TError = unknown>(
+ projectId: string,
+    params: undefined |  PortalDailyDetectionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalDailyDetections>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalDailyDetections>>,
+          TError,
+          Awaited<ReturnType<typeof portalDailyDetections>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalDailyDetections<TData = Awaited<ReturnType<typeof portalDailyDetections>>, TError = unknown>(
+ projectId: string,
+    params?: PortalDailyDetectionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalDailyDetections>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalDailyDetections>>,
+          TError,
+          Awaited<ReturnType<typeof portalDailyDetections>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalDailyDetections<TData = Awaited<ReturnType<typeof portalDailyDetections>>, TError = unknown>(
+ projectId: string,
+    params?: PortalDailyDetectionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalDailyDetections>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 일별 감지 (UV-56, Overview Detections · last 7 days) — [{daysAgo, total, vip, vehicle, unknown}] newest last. 원천: 모듈 MQTT detections 적재(시간 버킷), 모듈 계약 무변경
+ */
+
+export function usePortalDailyDetections<TData = Awaited<ReturnType<typeof portalDailyDetections>>, TError = unknown>(
+ projectId: string,
+    params?: PortalDailyDetectionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalDailyDetections>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPortalDailyDetectionsQueryOptions(projectId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
  * @summary 카메라 연결 집계 (UV-53, Overview 카드·Stream health) — online/offline/error/unknown 카운트 + 카메라별 현재 상태. 원천은 모듈 MQTT status(RUNNING→online, STOPPED→offline) 적재
  */
 export const portalCameraConnectivity = (

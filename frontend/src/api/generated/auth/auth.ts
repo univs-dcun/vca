@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.15.0
+ * OpenAPI spec version: 0.16.0
  */
 import {
   useMutation,
@@ -44,6 +44,12 @@ import type {
   AuthPasswordVerifyRequest,
   AuthProfileResponse,
   AuthRegisterRequest,
+  AuthResetCompleteRequest,
+  AuthResetRequest,
+  AuthResetRequestResponse,
+  AuthResetVerifyRequest,
+  AuthResetVerifyResponse,
+  AuthSessionListResponse,
   AuthSignupRequest,
   ErrorResponse
 } from '.././model';
@@ -530,6 +536,413 @@ export const useSignup = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getSignupMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * 메일 대신 코드인 이유: 메일함을 여는 기계가 VCA에 도달할 수 없는 환경 + 토큰을 URL 밖에. 팀/프로젝트 SMTP 미설정이면 409 ADM-4029 → 화면은 adminOnly(관리자 임시 비밀번호 수교) 안내.
+ * @summary 셀프 재설정 코드 발송 (UV-56) — 8자리 숫자, 10분. 계정 존재 여부와 무관하게 200(열거 방지). 재발송 겸용(3회·30초 쿨다운)
+ */
+export const resetPasswordRequest = (
+    authResetRequest: AuthResetRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AuthResetRequestResponse>(
+      {url: `/auth/password/reset/request`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: authResetRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getResetPasswordRequestMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPasswordRequest>>, TError,{data: AuthResetRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof resetPasswordRequest>>, TError,{data: AuthResetRequest}, TContext> => {
+
+const mutationKey = ['resetPasswordRequest'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetPasswordRequest>>, {data: AuthResetRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  resetPasswordRequest(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetPasswordRequestMutationResult = NonNullable<Awaited<ReturnType<typeof resetPasswordRequest>>>
+    export type ResetPasswordRequestMutationBody = AuthResetRequest
+    export type ResetPasswordRequestMutationError = ErrorResponse
+
+    /**
+ * @summary 셀프 재설정 코드 발송 (UV-56) — 8자리 숫자, 10분. 계정 존재 여부와 무관하게 200(열거 방지). 재발송 겸용(3회·30초 쿨다운)
+ */
+export const useResetPasswordRequest = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPasswordRequest>>, TError,{data: AuthResetRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resetPasswordRequest>>,
+        TError,
+        {data: AuthResetRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getResetPasswordRequestMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 코드 검증 (UV-56) → 단기 토큰(10분). 프론트 CodeFailure 계약: wrong ADM-4025 / expired ADM-4026 / throttled ADM-4027(5회) / resendLimit ADM-4028
+ */
+export const resetPasswordVerify = (
+    authResetVerifyRequest: AuthResetVerifyRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AuthResetVerifyResponse>(
+      {url: `/auth/password/reset/verify`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: authResetVerifyRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getResetPasswordVerifyMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPasswordVerify>>, TError,{data: AuthResetVerifyRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof resetPasswordVerify>>, TError,{data: AuthResetVerifyRequest}, TContext> => {
+
+const mutationKey = ['resetPasswordVerify'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetPasswordVerify>>, {data: AuthResetVerifyRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  resetPasswordVerify(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetPasswordVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof resetPasswordVerify>>>
+    export type ResetPasswordVerifyMutationBody = AuthResetVerifyRequest
+    export type ResetPasswordVerifyMutationError = ErrorResponse
+
+    /**
+ * @summary 코드 검증 (UV-56) → 단기 토큰(10분). 프론트 CodeFailure 계약: wrong ADM-4025 / expired ADM-4026 / throttled ADM-4027(5회) / resendLimit ADM-4028
+ */
+export const useResetPasswordVerify = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPasswordVerify>>, TError,{data: AuthResetVerifyRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resetPasswordVerify>>,
+        TError,
+        {data: AuthResetVerifyRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getResetPasswordVerifyMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 새 비밀번호 설정 (UV-56) — verify가 준 토큰 + 새 비밀번호. 전 세션 무효화, 토큰 소진
+ */
+export const resetPasswordComplete = (
+    authResetCompleteRequest: AuthResetCompleteRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AuthOkResponse>(
+      {url: `/auth/password/reset/complete`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: authResetCompleteRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getResetPasswordCompleteMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPasswordComplete>>, TError,{data: AuthResetCompleteRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof resetPasswordComplete>>, TError,{data: AuthResetCompleteRequest}, TContext> => {
+
+const mutationKey = ['resetPasswordComplete'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetPasswordComplete>>, {data: AuthResetCompleteRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  resetPasswordComplete(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetPasswordCompleteMutationResult = NonNullable<Awaited<ReturnType<typeof resetPasswordComplete>>>
+    export type ResetPasswordCompleteMutationBody = AuthResetCompleteRequest
+    export type ResetPasswordCompleteMutationError = ErrorResponse
+
+    /**
+ * @summary 새 비밀번호 설정 (UV-56) — verify가 준 토큰 + 새 비밀번호. 전 세션 무효화, 토큰 소진
+ */
+export const useResetPasswordComplete = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPasswordComplete>>, TError,{data: AuthResetCompleteRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resetPasswordComplete>>,
+        TError,
+        {data: AuthResetCompleteRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getResetPasswordCompleteMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 내 로그인 세션 목록 (UV-56, My Page Active login sessions) — current 표시, 기기(User-Agent)·IP·마지막 활동
+ */
+export const listSessions = (
+    
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AuthSessionListResponse>(
+      {url: `/auth/sessions`, method: 'GET', signal
+    },
+      );
+    }
+  
+
+
+
+export const getListSessionsQueryKey = () => {
+    return [
+    `/auth/sessions`
+    ] as const;
+    }
+
+    
+export const getListSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSessionsQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSessions>>> = ({ signal }) => listSessions(signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listSessions>>>
+export type ListSessionsQueryError = ErrorResponse
+
+
+export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listSessions>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listSessions>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 내 로그인 세션 목록 (UV-56, My Page Active login sessions) — current 표시, 기기(User-Agent)·IP·마지막 활동
+ */
+
+export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * @summary 다른 기기 전부 종료 (UV-56, Terminate All Others) — 서버 세션 저장소라 즉시 무효
+ */
+export const terminateOtherSessions = (
+    
+ ) => {
+      
+      
+      return customInstance<AuthOkResponse>(
+      {url: `/auth/sessions/others`, method: 'DELETE'
+    },
+      );
+    }
+  
+
+
+export const getTerminateOtherSessionsMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof terminateOtherSessions>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof terminateOtherSessions>>, TError,void, TContext> => {
+
+const mutationKey = ['terminateOtherSessions'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof terminateOtherSessions>>, void> = () => {
+          
+
+          return  terminateOtherSessions()
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TerminateOtherSessionsMutationResult = NonNullable<Awaited<ReturnType<typeof terminateOtherSessions>>>
+    
+    export type TerminateOtherSessionsMutationError = unknown
+
+    /**
+ * @summary 다른 기기 전부 종료 (UV-56, Terminate All Others) — 서버 세션 저장소라 즉시 무효
+ */
+export const useTerminateOtherSessions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof terminateOtherSessions>>, TError,void, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof terminateOtherSessions>>,
+        TError,
+        void,
+        TContext
+      > => {
+
+      const mutationOptions = getTerminateOtherSessionsMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 세션 1개 종료 (UV-56) — 내 것만. 현재 세션이면 로그아웃과 같다
+ */
+export const terminateSession = (
+    sessionId: string,
+ ) => {
+      
+      
+      return customInstance<AuthOkResponse>(
+      {url: `/auth/sessions/${sessionId}`, method: 'DELETE'
+    },
+      );
+    }
+  
+
+
+export const getTerminateSessionMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof terminateSession>>, TError,{sessionId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof terminateSession>>, TError,{sessionId: string}, TContext> => {
+
+const mutationKey = ['terminateSession'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof terminateSession>>, {sessionId: string}> = (props) => {
+          const {sessionId} = props ?? {};
+
+          return  terminateSession(sessionId,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TerminateSessionMutationResult = NonNullable<Awaited<ReturnType<typeof terminateSession>>>
+    
+    export type TerminateSessionMutationError = unknown
+
+    /**
+ * @summary 세션 1개 종료 (UV-56) — 내 것만. 현재 세션이면 로그아웃과 같다
+ */
+export const useTerminateSession = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof terminateSession>>, TError,{sessionId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof terminateSession>>,
+        TError,
+        {sessionId: string},
+        TContext
+      > => {
+
+      const mutationOptions = getTerminateSessionMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

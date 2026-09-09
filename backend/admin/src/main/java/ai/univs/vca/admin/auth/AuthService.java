@@ -57,6 +57,11 @@ public class AuthService {
 	 */
 	@Transactional
 	public LoginResult login(String identifier, String password, boolean keepLoggedIn) {
+		return login(identifier, password, keepLoggedIn, null, null);
+	}
+
+	@Transactional
+	public LoginResult login(String identifier, String password, boolean keepLoggedIn, String userAgent, String ip) {
 		if (identifier == null || identifier.isBlank() || password == null || password.isEmpty()) {
 			throw AdminApiException.badRequest("identifier and password are required");
 		}
@@ -81,19 +86,59 @@ public class AuthService {
 			throw AdminApiException.tempPasswordExpired();
 		}
 		attempts.clear(attemptKey);
-		return startSession(user, keepLoggedIn);
+		return startSession(user, keepLoggedIn, userAgent, ip);
 	}
 
 	/** 세션 발급 — 로그인과 활성화 경로(등록 코드·초대·self-signup)가 공유 */
 	@Transactional
 	public LoginResult startSession(UserAccountEntity user, boolean keepLoggedIn) {
+		return startSession(user, keepLoggedIn, null, null);
+	}
+
+	/** 세션 발급 + 기기 메타(My Page 세션 목록용, UV-56) */
+	@Transactional
+	public LoginResult startSession(UserAccountEntity user, boolean keepLoggedIn, String userAgent, String ip) {
 		byte[] raw = new byte[32];
 		random.nextBytes(raw);
 		String token = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
 		Duration ttl = keepLoggedIn ? SESSION_TTL_KEEP : SESSION_TTL;
-		sessions.save(new UserSessionEntity(hash(token), user.getId(), keepLoggedIn, Instant.now().plus(ttl)));
+		UserSessionEntity session = new UserSessionEntity(hash(token), user.getId(), keepLoggedIn,
+				Instant.now().plus(ttl));
+		session.setClient(userAgent, ip);
+		sessions.save(session);
 		user.markLogin(Instant.now());
 		return new LoginResult(token, keepLoggedIn, UserProfile.of(user));
+	}
+
+	/** 내 세션 목록 — 현재 세션 표시. id는 해시(토큰 역산 불가) */
+	@Transactional(readOnly = true)
+	public java.util.List<AuthDtos.SessionRow> sessions(String token) {
+		UserAccountEntity user = requireUser(token);
+		String mine = hash(token);
+		Instant now = Instant.now();
+		return sessions.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+			.filter(s -> s.getExpiresAt().isAfter(now))
+			.map(s -> new AuthDtos.SessionRow(s.getTokenHash(), s.getTokenHash().equals(mine), s.getCreatedAt(),
+					s.getLastSeenAt(), s.getExpiresAt(), s.isKeepLoggedIn(), s.getUserAgent(), s.getIp()))
+			.toList();
+	}
+
+	/** 세션 1개 종료 — 내 것만. 현재 세션을 지우면 로그아웃과 같다 */
+	@Transactional
+	public void terminateSession(String token, String sessionId) {
+		UserAccountEntity user = requireUser(token);
+		sessions.findById(sessionId).filter(s -> s.getUserId().equals(user.getId())).ifPresent(sessions::delete);
+	}
+
+	/** 다른 기기 전부 종료 */
+	@Transactional
+	public int terminateOtherSessions(String token) {
+		UserAccountEntity user = requireUser(token);
+		String mine = hash(token);
+		int before = (int) sessions.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+			.filter(s -> !s.getTokenHash().equals(mine)).count();
+		sessions.deleteOtherSessions(user.getId(), mine);
+		return before;
 	}
 
 	/** 이메일(소문자 저장) 또는 사번(대문자 저장) — 입력은 대소문자 무관 */
@@ -173,6 +218,7 @@ public class AuthService {
 			sessions.delete(session);
 			throw AdminApiException.sessionRequired();
 		}
+		session.touch(Instant.now()); // dirty면 트랜잭션 커밋 시 lastSeenAt 갱신(1분 간격)
 		UserAccountEntity user = users.findById(session.getUserId()).orElseThrow(AdminApiException::sessionRequired);
 		if (user.getStatus() == AccountStatus.SUSPENDED) {
 			sessions.delete(session); // 정지 즉시 기존 세션도 끊는다

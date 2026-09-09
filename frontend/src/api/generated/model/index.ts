@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.15.0
+ * OpenAPI spec version: 0.16.0
  */
 
 export * from './analysisTags';
@@ -42,6 +42,16 @@ export * from './authPasswordSetupRequest';
 export * from './authPasswordVerifyRequest';
 export * from './authProfileResponse';
 export * from './authRegisterRequest';
+export * from './authResetCompleteRequest';
+export * from './authResetRequest';
+export * from './authResetRequestResponse';
+export * from './authResetRequestResponseData';
+export * from './authResetRequestResponseDataDelivery';
+export * from './authResetVerifyRequest';
+export * from './authResetVerifyResponse';
+export * from './authResetVerifyResponseData';
+export * from './authSession';
+export * from './authSessionListResponse';
 export * from './authSignupRequest';
 export * from './authUserProfile';
 export * from './bBox';
@@ -144,6 +154,9 @@ export * from './portalConnectivityCamerasItem';
 export * from './portalConnectivityCamerasItemStatus';
 export * from './portalConnectivityResponse';
 export * from './portalCreateUserRequest';
+export * from './portalDailyDetections';
+export * from './portalDailyDetectionsParams';
+export * from './portalDailyDetectionsResponse';
 export * from './portalIssueCodesRequest';
 export * from './portalIssuedCode';
 export * from './portalIssuedCodeResponse';
