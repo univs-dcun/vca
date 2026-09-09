@@ -166,7 +166,10 @@ sim은 P1부터 provisioning·ingest를 수용하는 참조 구현으로 확장�
 
 ~~① AI Camera ② Associated Server ③ bestframe 존치~~ — 2026-08-27 확정 (§2 추가 확정 표).
 
-1. **Admin 저장소·배포**: DB 선정(PostgreSQL 권고), 업로드 원본 보관 위치(로컬 볼륨/객체
-   스토리지), Admin 레포 위치(모노레포 `backend/admin` + `frontend-admin`? 별도 레포?)
-2. **Admin 인증**: 관리자 서비스라 로그인/권한이 필요할 것 — 범위·방식(기존 계정 체계 유무)
+1. **Admin 저장소·배포**: DB 선정(PostgreSQL — 확정, `backend/admin`), 업로드 원본 보관 위치(로컬 볼륨/객체
+   스토리지 — **미결, W6**), Admin 레포 위치 → **단일 SPA로 확정** (Portal 화면이 기획자 프론트 단일 앱에
+   포함 — [design-vca-portal.md](design-vca-portal.md) §2, 2026-09-09)
+2. **Admin 인증**: 로그인/세션 v1·v2(UV-47/48)로 기반 확정. Portal 권한 모델(역할 4단·appAccess)과 Admin API
+   게이트는 [design-vca-portal.md](design-vca-portal.md) §3.2·§4 — Associated Server는 Portal "Server & API"
+   화면으로 부활(§3.1 `server`)
 3. **기존 등록분 이관**: Old VCA에 등록된 카메라 데이터의 마이그레이션 필요 여부
