@@ -7,6 +7,7 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferLimitException;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -31,8 +32,9 @@ import reactor.core.publisher.Mono;
  *   3. 모듈 오류({code, message} + 상태코드) → 같은 상태코드의 envelope 오류
  *   4. 연결 실패 502 VCA-5020 / 타임아웃 504 VCA-5040 / 그 외 500 VCA-5000
  *   5. 예외: 이미지 리소스(VIP 사진, best frame, 감지 스냅샷, 검색 hit 크롭)는 바이너리를 envelope 없이 스트리밍
- *   6. 예외: 인물 검색(POST /persons/search)은 multipart 본문을 파싱 없이 그대로 중계하고
- *      전용 타임아웃(search-timeout)을 쓴다 — 영상 검색은 통상 조회보다 오래 걸린다 (계약 v1.2, UV-34)
+ *   6. 예외: 검색 계열 POST(persons/search·reid-search, targets/*)는 본문을 상한 내에서 모아 그대로 중계하고
+ *      전용 타임아웃(search-timeout)을 쓴다 — 영상 검색은 통상 조회보다 오래 걸린다 (계약 v1.2, UV-34).
+ *      중계 결과와 함께 인물 검색 감사 기록을 Admin에 보낸다 (UV-59, SearchAuditReporter — 이미지는 해시만)
  *   7. 예외: 비디오 콘텐츠(/videos/{id}/content)는 Range 헤더를 전달하고 상태(200/206)·관련 헤더와
  *      함께 본문을 버퍼링 없이 스트리밍한다 — 수백 MB MP4가 메모리 한도(max-response-size)를
  *      지나지 않아야 하고, 시킹은 Range 패스스루가 전제다 (계약 v1.3, UV-35)
@@ -47,14 +49,16 @@ public class ProxyController {
 	private final MediaProperties mediaProps;
 	private final MediaStreamsClient mediaStreams;
 	private final ObjectMapper mapper;
+	private final SearchAuditReporter searchAudit;
 
 	public ProxyController(WebClient moduleApiClient, ModuleApiProperties props, MediaProperties mediaProps,
-			MediaStreamsClient mediaStreams, ObjectMapper mapper) {
+			MediaStreamsClient mediaStreams, ObjectMapper mapper, SearchAuditReporter searchAudit) {
 		this.moduleApi = moduleApiClient;
 		this.props = props;
 		this.mediaProps = mediaProps;
 		this.mediaStreams = mediaStreams;
 		this.mapper = mapper;
+		this.searchAudit = searchAudit;
 	}
 
 	@GetMapping("/api/vips/{vipId}/photo")
@@ -154,106 +158,33 @@ public class ProxyController {
 	}
 
 	/**
-	 * 인물 검색 중계 (계약 v1.2). multipart 본문(얼굴/바디 이미지)을 파싱하지 않고 Content-Type
-	 * 헤더(boundary 포함)와 함께 그대로 스트리밍한다 — 프록시가 이미지를 메모리에 모으지 않는다.
-	 * 응답은 일반 조회와 동일하게 envelope 포장 + URL 재작성(faceUrl/bodyUrl → /api).
+	 * 인물 검색 중계 (계약 v1.2, REDMAP). 쿼리와 multipart 본문(얼굴/바디 이미지)을 파싱 없이 모듈에 그대로 전달한다.
+	 * UV-59부터 본문을 상한(vca.search-audit.max-body) 내에서 한 번 모아 넘긴다 — 감사 기록이 이미지 해시를 남겨야 하기
+	 * 때문이며, 원본은 프록시도 Admin도 저장하지 않는다. 응답은 envelope 포장 + URL 재작성(faceUrl/bodyUrl → /api).
 	 */
 	@PostMapping("/api/persons/search")
 	public Mono<ResponseEntity<ApiEnvelope>> searchPersons(ServerHttpRequest request) {
-		String query = request.getURI().getRawQuery();
-		String uri = query == null ? "/persons/search" : "/persons/search?" + query;
-		MediaType contentType = request.getHeaders().getContentType();
-
-		return moduleApi.post()
-				.uri(uri)
-				.headers(h -> {
-					if (contentType != null) h.setContentType(contentType);
-					long len = request.getHeaders().getContentLength();
-					if (len >= 0) h.set(HttpHeaders.CONTENT_LENGTH, Long.toString(len));
-				})
-				.body(BodyInserters.fromDataBuffers(request.getBody()))
-				.retrieve()
-				.bodyToMono(JsonNode.class)
-				.timeout(props.searchTimeout())
-				.map(body -> ResponseEntity.ok(ApiEnvelope.ok(ModuleUrlRewriter.rewrite(body))))
-				.onErrorResume(WebClientResponseException.class, e -> Mono.just(moduleError(e)))
-				.onErrorResume(this::isConnectionError, e -> Mono.just(
-						ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-								.body(ApiEnvelope.error("VCA-5020", "모듈 API에 연결할 수 없습니다"))))
-				.onErrorResume(TimeoutException.class, e -> Mono.just(
-						ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
-								.body(ApiEnvelope.error("VCA-5040", "인물 검색 응답 시간 초과 — 기간을 줄여 다시 시도하세요"))))
-				.onErrorResume(e -> {
-					log.error("프록시 내부 오류: POST /persons/search", e);
-					return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-							.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류")));
-				});
+		return auditedSearch("/persons/search", "redmap", request, false,
+				"인물 검색 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
 	}
 
 	/**
-	 * Re-ID 인물 검색 중계 (계약 v1.7, UV-39). 중계 방식은 /persons/search와 동일 — 쿼리 파라미터
-	 * (vipId·필터)와 multipart 본문을 파싱 없이 그대로 스트리밍하고 searchTimeout(60초)을 쓴다.
-	 * vipId 참조 검색은 본문이 없을 수 있다(Content-Type null 허용).
+	 * Re-ID 인물 검색 중계 (계약 v1.7, UV-39). /persons/search와 동일 — 쿼리(vipId·필터)와 multipart 본문,
+	 * searchTimeout(60초). vipId 참조 검색은 본문이 없을 수 있다(Content-Type null 허용).
 	 */
 	@PostMapping("/api/persons/reid-search")
 	public Mono<ResponseEntity<ApiEnvelope>> reidSearchPersons(ServerHttpRequest request) {
-		String query = request.getURI().getRawQuery();
-		String uri = query == null ? "/persons/reid-search" : "/persons/reid-search?" + query;
-		MediaType contentType = request.getHeaders().getContentType();
-
-		return moduleApi.post()
-				.uri(uri)
-				.headers(h -> {
-					if (contentType != null) h.setContentType(contentType);
-					long len = request.getHeaders().getContentLength();
-					if (len >= 0) h.set(HttpHeaders.CONTENT_LENGTH, Long.toString(len));
-				})
-				.body(BodyInserters.fromDataBuffers(request.getBody()))
-				.retrieve()
-				.bodyToMono(JsonNode.class)
-				.timeout(props.searchTimeout())
-				.map(body -> ResponseEntity.ok(ApiEnvelope.ok(ModuleUrlRewriter.rewrite(body))))
-				.onErrorResume(WebClientResponseException.class, e -> Mono.just(moduleError(e)))
-				.onErrorResume(this::isConnectionError, e -> Mono.just(
-						ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-								.body(ApiEnvelope.error("VCA-5020", "모듈 API에 연결할 수 없습니다"))))
-				.onErrorResume(TimeoutException.class, e -> Mono.just(
-						ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
-								.body(ApiEnvelope.error("VCA-5040", "Re-ID 검색 응답 시간 초과 — 기간을 줄여 다시 시도하세요"))))
-				.onErrorResume(e -> {
-					log.error("프록시 내부 오류: POST /persons/reid-search", e);
-					return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-							.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류")));
-				});
+		return auditedSearch("/persons/reid-search", "reid", request, false,
+				"Re-ID 검색 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
 	}
 
 	/**
 	 * Track on Map 중계 (계약 v1.4). JSON 본문(대상 참조)을 그대로 전달한다 — 시간 창·유사도는
-	 * 모듈 소유 정책이라 파라미터가 없다. 검색 계열이므로 searchTimeout(60초) 적용, 응답은
-	 * envelope 포장 + URL 재작성(faceUrl/bodyUrl/cropUrl → /api).
+	 * 모듈 소유 정책이라 파라미터가 없다. 검색 계열이므로 searchTimeout(60초) 적용.
 	 */
 	@PostMapping("/api/targets/track-on-map")
 	public Mono<ResponseEntity<ApiEnvelope>> trackTargetOnMap(ServerHttpRequest request) {
-		return moduleApi.post()
-				.uri("/targets/track-on-map")
-				.headers(h -> h.setContentType(MediaType.APPLICATION_JSON))
-				.body(BodyInserters.fromDataBuffers(request.getBody()))
-				.retrieve()
-				.bodyToMono(JsonNode.class)
-				.timeout(props.searchTimeout())
-				.map(body -> ResponseEntity.ok(ApiEnvelope.ok(ModuleUrlRewriter.rewrite(body))))
-				.onErrorResume(WebClientResponseException.class, e -> Mono.just(moduleError(e)))
-				.onErrorResume(this::isConnectionError, e -> Mono.just(
-						ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-								.body(ApiEnvelope.error("VCA-5020", "모듈 API에 연결할 수 없습니다"))))
-				.onErrorResume(TimeoutException.class, e -> Mono.just(
-						ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
-								.body(ApiEnvelope.error("VCA-5040", "추적 검색 응답 시간 초과"))))
-				.onErrorResume(e -> {
-					log.error("프록시 내부 오류: POST /targets/track-on-map", e);
-					return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-							.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류")));
-				});
+		return auditedSearch("/targets/track-on-map", "track", request, true, "추적 검색 응답 시간 초과");
 	}
 
 	/**
@@ -262,45 +193,76 @@ public class ProxyController {
 	 */
 	@PostMapping("/api/targets/associates")
 	public Mono<ResponseEntity<ApiEnvelope>> listTargetAssociates(ServerHttpRequest request) {
-		return searchJsonPost("/targets/associates", request, "동반 감지 집계 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
+		return auditedSearch("/targets/associates", "redface", request, true,
+				"동반 감지 집계 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
 	}
 
 	/** RedFace Joint Evidence 중계 (계약 v1.8) — 동료 목록과 동일 규칙 */
 	@PostMapping("/api/targets/associate-evidence")
 	public Mono<ResponseEntity<ApiEnvelope>> getAssociateEvidence(ServerHttpRequest request) {
-		return searchJsonPost("/targets/associate-evidence", request, "동반 패턴 집계 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
+		return auditedSearch("/targets/associate-evidence", "redface", request, true,
+				"동반 패턴 집계 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
 	}
 
 	@PostMapping("/api/targets/associate-frames")
 	public Mono<ResponseEntity<ApiEnvelope>> listAssociateFrames(ServerHttpRequest request) {
-		return searchJsonPost("/targets/associate-frames", request, "동시 포착 프레임 조회 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
+		return auditedSearch("/targets/associate-frames", "redface", request, true,
+				"동시 포착 프레임 조회 응답 시간 초과 — 기간을 줄여 다시 시도하세요");
 	}
 
-	/** 검색·집계 계열 JSON POST 패스스루 공통 골격 — searchTimeout + envelope + URL 재작성.
-	 *  쿼리(page/size 등, v1.10 associate-frames)는 그대로 전달한다 */
-	private Mono<ResponseEntity<ApiEnvelope>> searchJsonPost(String path, ServerHttpRequest request, String timeoutMessage) {
+	/**
+	 * 검색·집계 계열 POST 공통 골격 (UV-59) — 본문을 상한 내에서 모아 모듈에 전달하고, 응답/오류와 함께
+	 * SearchAuditReporter로 감사 기록을 보낸다(비동기, 실패해도 검색 결과 불변). searchTimeout + envelope + URL 재작성.
+	 * 쿼리(page/size, vipId·필터)는 그대로 전달한다. json=true면 Content-Type을 application/json으로 고정.
+	 */
+	private Mono<ResponseEntity<ApiEnvelope>> auditedSearch(String path, String feature, ServerHttpRequest request,
+			boolean json, String timeoutMessage) {
 		String query = request.getURI().getRawQuery();
 		String uri = query == null ? path : path + "?" + query;
-		return moduleApi.post()
-				.uri(uri)
-				.headers(h -> h.setContentType(MediaType.APPLICATION_JSON))
-				.body(BodyInserters.fromDataBuffers(request.getBody()))
-				.retrieve()
-				.bodyToMono(JsonNode.class)
-				.timeout(props.searchTimeout())
-				.map(body -> ResponseEntity.ok(ApiEnvelope.ok(ModuleUrlRewriter.rewrite(body))))
-				.onErrorResume(WebClientResponseException.class, e -> Mono.just(moduleError(e)))
-				.onErrorResume(this::isConnectionError, e -> Mono.just(
-						ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-								.body(ApiEnvelope.error("VCA-5020", "모듈 API에 연결할 수 없습니다"))))
-				.onErrorResume(TimeoutException.class, e -> Mono.just(
-						ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
-								.body(ApiEnvelope.error("VCA-5040", timeoutMessage))))
-				.onErrorResume(e -> {
-					log.error("프록시 내부 오류: POST {}", path, e);
-					return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-							.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류")));
-				});
+		MediaType contentType = json ? MediaType.APPLICATION_JSON : request.getHeaders().getContentType();
+		long start = System.nanoTime();
+		return searchAudit.readBody(request)
+				.flatMap(body -> {
+					WebClient.RequestBodySpec spec = moduleApi.post()
+							.uri(uri)
+							.headers(h -> {
+								if (contentType != null) h.setContentType(contentType);
+							});
+					WebClient.RequestHeadersSpec<?> ready = body.length == 0 ? spec : spec.bodyValue(body);
+					return ready.retrieve()
+							.bodyToMono(JsonNode.class)
+							.timeout(props.searchTimeout())
+							.map(node -> {
+								searchAudit.report(request, feature, body, contentType,
+										SearchAuditReporter.resultCount(node), start, "ok", null);
+								return ResponseEntity.ok(ApiEnvelope.ok(ModuleUrlRewriter.rewrite(node)));
+							})
+							.onErrorResume(WebClientResponseException.class, e -> {
+								ResponseEntity<ApiEnvelope> res = moduleError(e);
+								searchAudit.report(request, feature, body, contentType, null, start, "error",
+										res.getBody() == null ? "VCA-5000" : res.getBody().code());
+								return Mono.just(res);
+							})
+							.onErrorResume(this::isConnectionError, e -> {
+								searchAudit.report(request, feature, body, contentType, null, start, "error", "VCA-5020");
+								return Mono.just(ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+										.body(ApiEnvelope.error("VCA-5020", "모듈 API에 연결할 수 없습니다")));
+							})
+							.onErrorResume(TimeoutException.class, e -> {
+								searchAudit.report(request, feature, body, contentType, null, start, "error", "VCA-5040");
+								return Mono.just(ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+										.body(ApiEnvelope.error("VCA-5040", timeoutMessage)));
+							})
+							.onErrorResume(e -> {
+								log.error("프록시 내부 오류: POST {}", path, e);
+								searchAudit.report(request, feature, body, contentType, null, start, "error", "VCA-5000");
+								return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+										.body(ApiEnvelope.error("VCA-5000", "프록시 내부 오류")));
+							});
+				})
+				.onErrorResume(DataBufferLimitException.class, e -> Mono.just(
+						ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+								.body(ApiEnvelope.error("VCA-4130", "검색 요청이 너무 큽니다 — 이미지 크기를 줄여 다시 시도하세요"))));
 	}
 
 	/** 이미지 리소스 패스스루 — 모듈 응답의 상태코드·Content-Type을 유지한 채 envelope 없이 전달 */

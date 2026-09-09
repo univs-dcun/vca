@@ -7,7 +7,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @SpringBootApplication
-@EnableConfigurationProperties({ ModuleApiProperties.class, MediaProperties.class, AdminApiProperties.class })
+@EnableConfigurationProperties({ ModuleApiProperties.class, MediaProperties.class, AdminApiProperties.class,
+		SearchAuditProperties.class })
 public class VcaProxyApplication {
 
 	public static void main(String[] args) {

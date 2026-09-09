@@ -241,3 +241,23 @@ state로 들고 있어 종료가 즉시 유효 — 기획자 mypage 주석("stat
 
 **범위 밖**: 앱(대시보드)의 모듈 데이터는 v1.10 계약에 프로젝트 개념이 없어 이 강제가 닿지 않는다 — v1.11(VIP.projectId)
 이후 프록시 단계에서 cameraId→projectId 귀속으로 이어간다(기획 16문 회신 4번).
+
+## 인물 검색 감사 기록 (UV-59, admin-api.json 0.10.0)
+
+기획 16문 회신 7·8번 이행. 앱의 RedMap(`/api/persons/search`)·Re-ID(`/api/persons/reid-search`)·Track on Map
+(`/api/targets/track-on-map`)·RedFace(`/api/targets/associates·associate-evidence·associate-frames`) 호출을
+**프록시가 자동 기록**한다 — 브라우저 코드는 바뀌지 않는다. 검색 호출이 전부 지나는 유일한 자리가 프록시이기 때문.
+
+- 프록시 `SearchAuditReporter`: 중계가 끝나면 Admin `POST /audit/search`로 이벤트를 보낸다(세션 쿠키 전달 → Admin이
+  행위자 확정, 기록 실패는 검색 결과에 영향 없음). multipart는 `vca.search-audit.max-body`(32MB) 안에서 한 번 모아
+  파일 파트 **SHA-256·크기·개수만** 추출하고 텍스트 파트·쿼리·JSON 본문은 criteria로 남긴다. 초과 시 413 VCA-4130.
+- Admin `search_audit`(Flyway V2): 누가(userId·이름·accountId)·언제·어떤 기능·경로·조건·이미지 해시·결과 건수·소요 시간·
+  상태·IP. **대상 이미지 원본은 어디에도 저장하지 않는다** — 기획 확정(2026-09-09 8번): 사진을 보관하면 감사 기록이
+  그 자체로 개인정보 보관처가 되고, "같은 사진으로 다시 찍었나"는 해시로 확인된다.
+- `POST /audit/search`는 `/admin/api` 게이트 밖(앱 전용 계정도 행위자가 되어야 하므로)이며 브라우저에는 열지 않는다 —
+  프록시 라우트가 없고, 배포에서 Admin 포트(8082)는 내부망 전용이어야 한다.
+- 조회 `GET /admin/api/search-audit?projectId&limit`(≤200, 최신순) — ProjectScope(UV-58) 적용. 앱 호출에는 프로젝트가
+  없어 행위자 배정이 정확히 1개일 때만 귀속하고, 아니면 null(owner만 조회).
+- **보존 1년**: `vca.admin.search-audit-retention-days`(기본 365, env `VCA_ADMIN_SEARCH_AUDIT_RETENTION_DAYS`) — 매일
+  03:10 초과분 삭제. 운영 감사 로그(`audit_event`)는 무기한 — 검색 기록은 "직원 행동 기록"이 되므로 기간을 둔다(기획).
+  계약상 더 필요한 설치는 값을 늘리고, 0 이하면 삭제하지 않는다.

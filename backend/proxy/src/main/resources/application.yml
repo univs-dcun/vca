@@ -24,6 +24,11 @@ vca:
   admin-api:
     base-url: ${VCA_ADMIN_API_BASE_URL:http://localhost:8082}
     timeout: 5s
+  # 인물 검색 감사 (UV-59) — 검색 계열 POST를 중계한 뒤 Admin POST /audit/search로 기록(세션 쿠키로 행위자 확정).
+  # 이미지는 SHA-256 해시만. max-body는 기록을 위해 multipart를 한 번 모으는 상한 — 초과 시 413 VCA-4130
+  search-audit:
+    enabled: ${VCA_SEARCH_AUDIT_ENABLED:true}
+    max-body: 32MB
 
 management:
   endpoints:
