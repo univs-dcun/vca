@@ -16,9 +16,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param seedAdminPassword 초기 운영자 비밀번호 — 개발 기본값. 운영에서는 반드시 환경변수로 주입 후 첫 로그인 시 변경
  * @param selfSignup 조직 자체 생성(/auth/signup) 허용 여부 (UV-51) — 온프레미스는 false(2026-09-02 결정). 프론트
  *                   authConfig.selfSignup의 거울: 화면이 숨겨도 서버가 거절해야 구멍이 닫힌다
+ * @param mqttBrokerUrl EMQX 주소 (UV-53) — 카메라 status retained 토픽 구독. 빈 값이면 구독 생략(상태 unknown)
+ * @param mqttSiteId 토픽 접두 vca/v1/{siteId}/ 의 siteId (SPEC §2)
  */
 @ConfigurationProperties(prefix = "vca.admin")
 public record AdminProperties(String moduleBaseUrl, Duration moduleTimeout, String mediaApiBaseUrl, String encKey,
 		boolean seedDefaultCameras, boolean sessionCookieSecure, String seedAdminEmail, String seedAdminPassword,
-		boolean selfSignup) {
+		boolean selfSignup, String mqttBrokerUrl, String mqttSiteId) {
 }

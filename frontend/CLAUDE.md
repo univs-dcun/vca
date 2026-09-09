@@ -180,6 +180,10 @@ Portal 화면 배선은 W3(UV-52) 반입 때.
 UV-51(계약 0.14.0): /auth/register/lookup·register·invite/redeem·signup, /portal/roster 그룹,
 users setup-code·invite-token — 훅만 생성. 반입 시 기획자 register·forgot-password·password-setup
 화면의 demo= 쿼리·클라이언트 카운터·generateTemporaryPassword()·issueInviteToken() 목업은 삭제(기획자 지시).
+UV-53(계약 0.15.0): /portal/cameras(CRUD·bulk zone/delete — 응답에 모듈 MQTT status 적재값 status/lastSeenAt),
+/portal/projects/{id}/camera-connectivity·camera-stability(기획자 README §4-(2) unstableCameras 형태),
+/portal/servers(CRUD·check), PortalProject.channelsUsed — 훅만 생성. 반입 시 vcaStore Camera.status/lastSeenAt·
+unstableCameras()·servers·projectChannelLimit 소비처가 이 API로 옮겨간다.
 
 첫 로그인 흐름(UV-48, 계약 0.12.0): 기획 확정 — 계정은 담당자가 발급(임시 비밀번호 오프라인
 전달, 발급 화면은 Admin(portal) 소관·API는 admin-api /admin/api/users). 프로필에

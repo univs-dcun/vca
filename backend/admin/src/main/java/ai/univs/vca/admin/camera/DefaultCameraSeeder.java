@@ -3,6 +3,7 @@ package ai.univs.vca.admin.camera;
 import java.util.List;
 
 import ai.univs.vca.admin.AdminProperties;
+import ai.univs.vca.admin.org.ProjectRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -39,11 +40,14 @@ public class DefaultCameraSeeder implements ApplicationRunner {
 
 	private final CameraRepository repository;
 	private final CameraService service;
+	private final ProjectRepository projects;
 	private final AdminProperties props;
 
-	public DefaultCameraSeeder(CameraRepository repository, CameraService service, AdminProperties props) {
+	public DefaultCameraSeeder(CameraRepository repository, CameraService service, ProjectRepository projects,
+			AdminProperties props) {
 		this.repository = repository;
 		this.service = service;
+		this.projects = projects;
 		this.props = props;
 	}
 
@@ -57,6 +61,22 @@ public class DefaultCameraSeeder implements ApplicationRunner {
 						"rtsp://127.0.0.1:8554/test", s.locationId(), s.lat(), s.lng()))
 				.toList());
 			log.info("기본 카메라 {}대 시드 완료 (원장 비어 있음)", DEFAULT_CAMERAS.size());
+		}
+		// UV-53 마이그레이션 — 프로젝트·표시 코드 없는 행(UV-42 시드·이전 등록분)을 기본 프로젝트에 귀속하고 코드 발급
+		String defaultProject = projects.findAll().stream().findFirst().map(p -> p.getId()).orElse(null);
+		for (CameraEntity c : repository.findAllByOrderByNameAsc()) {
+			boolean changed = false;
+			if (c.getProjectId() == null && defaultProject != null) {
+				c.setProjectId(defaultProject);
+				changed = true;
+			}
+			if (c.getCode() == null) {
+				c.setCode(service.newCode(c.getZone() == null ? c.getName() : c.getZone()));
+				changed = true;
+			}
+			if (changed) {
+				repository.save(c);
+			}
 		}
 		service.syncModule();
 	}

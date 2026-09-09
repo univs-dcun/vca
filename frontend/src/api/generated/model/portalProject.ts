@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.14.0
+ * OpenAPI spec version: 0.15.0
  */
 import type { PortalProjectType } from './portalProjectType';
 import type { PortalMailView } from './portalMailView';
@@ -32,6 +32,8 @@ export interface PortalProject {
    * @nullable
    */
   licenseExpiresAt?: string | null;
+  /** 라이선스 채널 사용량 = 프로젝트 카메라 수 (UV-53, 업로드는 채널 비소모) */
+  channelsUsed: number;
   mail: PortalMailView;
   /** 오버라이드가 있으면 그것, 없으면 감지값 */
   networkIsolated: boolean;

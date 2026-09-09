@@ -141,3 +141,32 @@ single-use · 만료(코드 14일 / 초대 7일 / 임시 비밀번호 24h — �
 주소(IP, 프록시 X-Forwarded-For) 단위 5회/15분 → throttled. 숫자는 프론트 화면에 인쇄되는 값과 동일(§4.5).
 
 로그인 판정 순서: 잠금 → 자격증명(실패 카운트) → suspended(4016) → invited(4017) → 임시 비밀번호 만료(4019) → 세션.
+
+## 카메라 확장·상태 이력·서버 레지스트리·라이선스 (UV-53, admin-api.json 0.7.0)
+
+Portal Input Sources / Overview / Server & API / License 화면의 백엔드 (design-vca-portal.md §3.1·§5.1).
+
+**카메라 원장 확장**: `projectId`(생략 시 기본 프로젝트), `code`(CAM-{ZONE3}-{NNN} 자동 — 화면 표시 코드, cameraId와
+별개), `mac`·`resolution`·`protocol`(TCP|UDP)·`zone`(구역, 기본 name)·`location`(설치 위치 설명)·`serverId`·
+`aiFeatures[]`·`thumbnail`. **좌표 필드명이 `location{lat,lng}` → `coordinates`로 바뀜**(0.7.0 비호환 —
+Portal mock의 `location: string`과 충돌). 일괄 `PUT /cameras/bulk/zone`·`POST /cameras/bulk/delete`(감사 1줄).
+응답의 `status/lastSeenAt/lastChangeAt`은 원장이 아니라 아래 적재값.
+
+**카메라 상태 적재** (`status/`): `MqttStatusSubscriber`가 EMQX `vca/v1/{siteId}/cameras/+/status`(SPEC §3.1,
+retained)를 구독 — RUNNING→online, STOPPED→offline, 빈 페이로드→캐시 해제. 상태가 **바뀔 때만**
+`camera_status_history`에 한 줄. 기동 시 마지막 상태 복원, EMQX 미접속이면 unknown(치명 아님, 자동 재접속).
+**모듈 계약 무변경** — 발행분을 적재하는 것뿐.
+- `GET /admin/api/projects/{id}/camera-connectivity` — online/offline/error/unknown + 카메라별 현재 상태
+- `GET /admin/api/projects/{id}/camera-stability?days=7&limit=4` — 일별 끊김(online→offline) `dropsByDay[days]`
+  oldest-first, 프로젝트 시간대 달력일, drops>0만 내림차순 (기획자 README §4-(2) 형태)
+
+**서버 레지스트리** (`server/`): 타입 5값(AI Camera / Normal Camera / Face Recognition / Image Store / Database),
+도달성 검사 = `port` 있으면 TCP connect 2초, 없으면 `InetAddress.isReachable`(ICMP/echo — 권한·방화벽에 따라
+false일 수 있어 **port 지정 권장**). 등록·수정 즉시 + 60초마다 자동 검사(`@Scheduled`). `POST /{id}/check` 즉시 검사.
+
+**라이선스**: `ProjectResponse.channelsUsed` = 프로젝트 카메라 수(파생). 업로드는 채널 비소모.
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `VCA_MQTT_URL` | `tcp://localhost:1883` | EMQX — 빈 값이면 구독 생략(상태 unknown) |
+| `VCA_SITE_ID` | `sg` | 토픽 접두 `vca/v1/{siteId}/` |

@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.14.0
+ * OpenAPI spec version: 0.15.0
  */
 
 export * from './analysisTags';
@@ -127,6 +127,22 @@ export * from './portalAccountStatus';
 export * from './portalAppSearchRequest';
 export * from './portalAuditEvent';
 export * from './portalAuditListResponse';
+export * from './portalBulkDeleteRequest';
+export * from './portalBulkResult';
+export * from './portalBulkResultResponse';
+export * from './portalBulkZoneRequest';
+export * from './portalCamera';
+export * from './portalCameraListResponse';
+export * from './portalCameraRequest';
+export * from './portalCameraRequestAiFeaturesItem';
+export * from './portalCameraRequestProtocol';
+export * from './portalCameraResponse';
+export * from './portalCameraStabilityParams';
+export * from './portalCameraStatus';
+export * from './portalConnectivity';
+export * from './portalConnectivityCamerasItem';
+export * from './portalConnectivityCamerasItemStatus';
+export * from './portalConnectivityResponse';
 export * from './portalCreateUserRequest';
 export * from './portalIssueCodesRequest';
 export * from './portalIssuedCode';
@@ -140,8 +156,10 @@ export * from './portalIssuedUser';
 export * from './portalIssuedUserResponse';
 export * from './portalLicenseRequest';
 export * from './portalListAuditParams';
+export * from './portalListCamerasParams';
 export * from './portalListProjectsParams';
 export * from './portalListRosterParams';
+export * from './portalListServersParams';
 export * from './portalMailRequest';
 export * from './portalMailView';
 export * from './portalNetworkIsolationRequest';
@@ -165,6 +183,14 @@ export * from './portalRosterRow';
 export * from './portalRosterRowPermission';
 export * from './portalRosterRowResponse';
 export * from './portalRosterRowStatus';
+export * from './portalServer';
+export * from './portalServerListResponse';
+export * from './portalServerRequest';
+export * from './portalServerRequestType';
+export * from './portalServerResponse';
+export * from './portalServerStatus';
+export * from './portalStabilityResponse';
+export * from './portalStabilityRow';
 export * from './portalStatusRequest';
 export * from './portalTeam';
 export * from './portalTeamListResponse';

@@ -52,14 +52,15 @@ public final class OrgDtos {
 	public record NetworkIsolationRequest(Boolean override) {
 	}
 
+	/** channelsUsed = 프로젝트 카메라 수(파생, UV-53) — 라이선스 채널 사용량. 업로드는 채널 비소모 */
 	public record ProjectResponse(String id, String teamId, String name, String type, String timeZone,
-			String licensePlan, Integer licenseChannelLimit, LocalDate licenseExpiresAt, MailView mail,
-			boolean networkIsolated, boolean networkIsolatedDetected, Boolean networkIsolatedOverride,
+			String licensePlan, Integer licenseChannelLimit, LocalDate licenseExpiresAt, long channelsUsed,
+			MailView mail, boolean networkIsolated, boolean networkIsolatedDetected, Boolean networkIsolatedOverride,
 			String computeInstance, Integer gpuCount, String modelVersion, String regionName, Instant createdAt) {
 
-		static ProjectResponse of(ProjectEntity p) {
+		static ProjectResponse of(ProjectEntity p, long channelsUsed) {
 			return new ProjectResponse(p.getId(), p.getTeamId(), p.getName(), p.getType().json(), p.getTimeZone(),
-					p.getLicensePlan(), p.getLicenseChannelLimit(), p.getLicenseExpiresAt(),
+					p.getLicensePlan(), p.getLicenseChannelLimit(), p.getLicenseExpiresAt(), channelsUsed,
 					MailView.of(p.getMailDomain(), p.getSmtp()), p.isNetworkIsolated(), p.isNetworkIsolatedDetected(),
 					p.getNetworkIsolatedOverride(), p.getComputeInstance(), p.getGpuCount(), p.getModelVersion(),
 					p.getRegionName(), p.getCreatedAt());

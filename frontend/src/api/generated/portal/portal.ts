@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.14.0
+ * OpenAPI spec version: 0.15.0
  */
 import {
   useMutation,
@@ -39,6 +39,14 @@ import type {
   PortalAccessRequest,
   PortalAppSearchRequest,
   PortalAuditListResponse,
+  PortalBulkDeleteRequest,
+  PortalBulkResultResponse,
+  PortalBulkZoneRequest,
+  PortalCameraListResponse,
+  PortalCameraRequest,
+  PortalCameraResponse,
+  PortalCameraStabilityParams,
+  PortalConnectivityResponse,
   PortalCreateUserRequest,
   PortalIssueCodesRequest,
   PortalIssuedCodeResponse,
@@ -48,8 +56,10 @@ import type {
   PortalIssuedUserResponse,
   PortalLicenseRequest,
   PortalListAuditParams,
+  PortalListCamerasParams,
   PortalListProjectsParams,
   PortalListRosterParams,
+  PortalListServersParams,
   PortalMailRequest,
   PortalNetworkIsolationRequest,
   PortalProjectListResponse,
@@ -61,6 +71,10 @@ import type {
   PortalRosterEntryRequest,
   PortalRosterListResponse,
   PortalRosterRowResponse,
+  PortalServerListResponse,
+  PortalServerRequest,
+  PortalServerResponse,
+  PortalStabilityResponse,
   PortalStatusRequest,
   PortalTeamListResponse,
   PortalTeamRequest,
@@ -2085,6 +2099,1044 @@ export const usePortalReissueRosterCode = <TError = unknown,
       > => {
 
       const mutationOptions = getPortalReissueRosterCodeMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 카메라 목록 (UV-53, Input Sources 카메라 탭) — 원장 + 모듈 MQTT status 적재값(status/lastSeenAt) 병합. rtspUrl은 관리자 세션 하에서만 노출
+ */
+export const portalListCameras = (
+    params?: PortalListCamerasParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalCameraListResponse>(
+      {url: `/portal/cameras`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
+
+
+
+export const getPortalListCamerasQueryKey = (params?: PortalListCamerasParams,) => {
+    return [
+    `/portal/cameras`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getPortalListCamerasQueryOptions = <TData = Awaited<ReturnType<typeof portalListCameras>>, TError = unknown>(params?: PortalListCamerasParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListCameras>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPortalListCamerasQueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof portalListCameras>>> = ({ signal }) => portalListCameras(params, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof portalListCameras>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PortalListCamerasQueryResult = NonNullable<Awaited<ReturnType<typeof portalListCameras>>>
+export type PortalListCamerasQueryError = unknown
+
+
+export function usePortalListCameras<TData = Awaited<ReturnType<typeof portalListCameras>>, TError = unknown>(
+ params: undefined |  PortalListCamerasParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListCameras>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalListCameras>>,
+          TError,
+          Awaited<ReturnType<typeof portalListCameras>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalListCameras<TData = Awaited<ReturnType<typeof portalListCameras>>, TError = unknown>(
+ params?: PortalListCamerasParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListCameras>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalListCameras>>,
+          TError,
+          Awaited<ReturnType<typeof portalListCameras>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalListCameras<TData = Awaited<ReturnType<typeof portalListCameras>>, TError = unknown>(
+ params?: PortalListCamerasParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListCameras>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 카메라 목록 (UV-53, Input Sources 카메라 탭) — 원장 + 모듈 MQTT status 적재값(status/lastSeenAt) 병합. rtspUrl은 관리자 세션 하에서만 노출
+ */
+
+export function usePortalListCameras<TData = Awaited<ReturnType<typeof portalListCameras>>, TError = unknown>(
+ params?: PortalListCamerasParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListCameras>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPortalListCamerasQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * @summary 카메라 등록 (UV-53) — owner|admin. cameraId(cam-{슬러그}-{4hex})·code(CAM-{ZONE3}-{NNN}) 서버 발급, 모듈 provisioning·미디어 path 즉시 동기화
+ */
+export const portalCreateCamera = (
+    portalCameraRequest: PortalCameraRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalCameraResponse>(
+      {url: `/portal/cameras`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: portalCameraRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getPortalCreateCameraMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalCreateCamera>>, TError,{data: PortalCameraRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalCreateCamera>>, TError,{data: PortalCameraRequest}, TContext> => {
+
+const mutationKey = ['portalCreateCamera'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalCreateCamera>>, {data: PortalCameraRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  portalCreateCamera(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalCreateCameraMutationResult = NonNullable<Awaited<ReturnType<typeof portalCreateCamera>>>
+    export type PortalCreateCameraMutationBody = PortalCameraRequest
+    export type PortalCreateCameraMutationError = ErrorResponse
+
+    /**
+ * @summary 카메라 등록 (UV-53) — owner|admin. cameraId(cam-{슬러그}-{4hex})·code(CAM-{ZONE3}-{NNN}) 서버 발급, 모듈 provisioning·미디어 path 즉시 동기화
+ */
+export const usePortalCreateCamera = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalCreateCamera>>, TError,{data: PortalCameraRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalCreateCamera>>,
+        TError,
+        {data: PortalCameraRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalCreateCameraMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 카메라 상세 (UV-53, 카메라 상세 모달)
+ */
+export const portalGetCamera = (
+    cameraId: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalCameraResponse>(
+      {url: `/portal/cameras/${cameraId}`, method: 'GET', signal
+    },
+      );
+    }
+  
+
+
+
+export const getPortalGetCameraQueryKey = (cameraId?: string,) => {
+    return [
+    `/portal/cameras/${cameraId}`
+    ] as const;
+    }
+
+    
+export const getPortalGetCameraQueryOptions = <TData = Awaited<ReturnType<typeof portalGetCamera>>, TError = ErrorResponse>(cameraId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalGetCamera>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPortalGetCameraQueryKey(cameraId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof portalGetCamera>>> = ({ signal }) => portalGetCamera(cameraId, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(cameraId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof portalGetCamera>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PortalGetCameraQueryResult = NonNullable<Awaited<ReturnType<typeof portalGetCamera>>>
+export type PortalGetCameraQueryError = ErrorResponse
+
+
+export function usePortalGetCamera<TData = Awaited<ReturnType<typeof portalGetCamera>>, TError = ErrorResponse>(
+ cameraId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalGetCamera>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalGetCamera>>,
+          TError,
+          Awaited<ReturnType<typeof portalGetCamera>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalGetCamera<TData = Awaited<ReturnType<typeof portalGetCamera>>, TError = ErrorResponse>(
+ cameraId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalGetCamera>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalGetCamera>>,
+          TError,
+          Awaited<ReturnType<typeof portalGetCamera>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalGetCamera<TData = Awaited<ReturnType<typeof portalGetCamera>>, TError = ErrorResponse>(
+ cameraId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalGetCamera>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 카메라 상세 (UV-53, 카메라 상세 모달)
+ */
+
+export function usePortalGetCamera<TData = Awaited<ReturnType<typeof portalGetCamera>>, TError = ErrorResponse>(
+ cameraId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalGetCamera>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPortalGetCameraQueryOptions(cameraId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * @summary 카메라 수정 (UV-53) — password 생략 시 기존 유지
+ */
+export const portalUpdateCamera = (
+    cameraId: string,
+    portalCameraRequest: PortalCameraRequest,
+ ) => {
+      
+      
+      return customInstance<PortalCameraResponse>(
+      {url: `/portal/cameras/${cameraId}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: portalCameraRequest
+    },
+      );
+    }
+  
+
+
+export const getPortalUpdateCameraMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalUpdateCamera>>, TError,{cameraId: string;data: PortalCameraRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalUpdateCamera>>, TError,{cameraId: string;data: PortalCameraRequest}, TContext> => {
+
+const mutationKey = ['portalUpdateCamera'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalUpdateCamera>>, {cameraId: string;data: PortalCameraRequest}> = (props) => {
+          const {cameraId,data} = props ?? {};
+
+          return  portalUpdateCamera(cameraId,data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalUpdateCameraMutationResult = NonNullable<Awaited<ReturnType<typeof portalUpdateCamera>>>
+    export type PortalUpdateCameraMutationBody = PortalCameraRequest
+    export type PortalUpdateCameraMutationError = unknown
+
+    /**
+ * @summary 카메라 수정 (UV-53) — password 생략 시 기존 유지
+ */
+export const usePortalUpdateCamera = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalUpdateCamera>>, TError,{cameraId: string;data: PortalCameraRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalUpdateCamera>>,
+        TError,
+        {cameraId: string;data: PortalCameraRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalUpdateCameraMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 카메라 삭제 (UV-53) — 모듈 분석 중단 + retained 삭제(v1.9 규칙) + 미디어 path 삭제
+ */
+export const portalDeleteCamera = (
+    cameraId: string,
+ ) => {
+      
+      
+      return customInstance<AuthOkResponse>(
+      {url: `/portal/cameras/${cameraId}`, method: 'DELETE'
+    },
+      );
+    }
+  
+
+
+export const getPortalDeleteCameraMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalDeleteCamera>>, TError,{cameraId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalDeleteCamera>>, TError,{cameraId: string}, TContext> => {
+
+const mutationKey = ['portalDeleteCamera'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalDeleteCamera>>, {cameraId: string}> = (props) => {
+          const {cameraId} = props ?? {};
+
+          return  portalDeleteCamera(cameraId,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalDeleteCameraMutationResult = NonNullable<Awaited<ReturnType<typeof portalDeleteCamera>>>
+    
+    export type PortalDeleteCameraMutationError = unknown
+
+    /**
+ * @summary 카메라 삭제 (UV-53) — 모듈 분석 중단 + retained 삭제(v1.9 규칙) + 미디어 path 삭제
+ */
+export const usePortalDeleteCamera = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalDeleteCamera>>, TError,{cameraId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalDeleteCamera>>,
+        TError,
+        {cameraId: string},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalDeleteCameraMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 일괄 존 변경 (UV-53) — 감사 로그 1줄(하나의 결정)
+ */
+export const portalSetCamerasZone = (
+    portalBulkZoneRequest: PortalBulkZoneRequest,
+ ) => {
+      
+      
+      return customInstance<PortalBulkResultResponse>(
+      {url: `/portal/cameras/bulk/zone`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: portalBulkZoneRequest
+    },
+      );
+    }
+  
+
+
+export const getPortalSetCamerasZoneMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalSetCamerasZone>>, TError,{data: PortalBulkZoneRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalSetCamerasZone>>, TError,{data: PortalBulkZoneRequest}, TContext> => {
+
+const mutationKey = ['portalSetCamerasZone'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalSetCamerasZone>>, {data: PortalBulkZoneRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  portalSetCamerasZone(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalSetCamerasZoneMutationResult = NonNullable<Awaited<ReturnType<typeof portalSetCamerasZone>>>
+    export type PortalSetCamerasZoneMutationBody = PortalBulkZoneRequest
+    export type PortalSetCamerasZoneMutationError = unknown
+
+    /**
+ * @summary 일괄 존 변경 (UV-53) — 감사 로그 1줄(하나의 결정)
+ */
+export const usePortalSetCamerasZone = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalSetCamerasZone>>, TError,{data: PortalBulkZoneRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalSetCamerasZone>>,
+        TError,
+        {data: PortalBulkZoneRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalSetCamerasZoneMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 일괄 삭제 (UV-53) — 감사 로그 1줄. DELETE 본문 호환성 때문에 POST
+ */
+export const portalDeleteCameras = (
+    portalBulkDeleteRequest: PortalBulkDeleteRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalBulkResultResponse>(
+      {url: `/portal/cameras/bulk/delete`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: portalBulkDeleteRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getPortalDeleteCamerasMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalDeleteCameras>>, TError,{data: PortalBulkDeleteRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalDeleteCameras>>, TError,{data: PortalBulkDeleteRequest}, TContext> => {
+
+const mutationKey = ['portalDeleteCameras'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalDeleteCameras>>, {data: PortalBulkDeleteRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  portalDeleteCameras(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalDeleteCamerasMutationResult = NonNullable<Awaited<ReturnType<typeof portalDeleteCameras>>>
+    export type PortalDeleteCamerasMutationBody = PortalBulkDeleteRequest
+    export type PortalDeleteCamerasMutationError = unknown
+
+    /**
+ * @summary 일괄 삭제 (UV-53) — 감사 로그 1줄. DELETE 본문 호환성 때문에 POST
+ */
+export const usePortalDeleteCameras = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalDeleteCameras>>, TError,{data: PortalBulkDeleteRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalDeleteCameras>>,
+        TError,
+        {data: PortalBulkDeleteRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalDeleteCamerasMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 카메라 연결 집계 (UV-53, Overview 카드·Stream health) — online/offline/error/unknown 카운트 + 카메라별 현재 상태. 원천은 모듈 MQTT status(RUNNING→online, STOPPED→offline) 적재
+ */
+export const portalCameraConnectivity = (
+    projectId: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalConnectivityResponse>(
+      {url: `/portal/projects/${projectId}/camera-connectivity`, method: 'GET', signal
+    },
+      );
+    }
+  
+
+
+
+export const getPortalCameraConnectivityQueryKey = (projectId?: string,) => {
+    return [
+    `/portal/projects/${projectId}/camera-connectivity`
+    ] as const;
+    }
+
+    
+export const getPortalCameraConnectivityQueryOptions = <TData = Awaited<ReturnType<typeof portalCameraConnectivity>>, TError = unknown>(projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalCameraConnectivity>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPortalCameraConnectivityQueryKey(projectId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof portalCameraConnectivity>>> = ({ signal }) => portalCameraConnectivity(projectId, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(projectId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof portalCameraConnectivity>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PortalCameraConnectivityQueryResult = NonNullable<Awaited<ReturnType<typeof portalCameraConnectivity>>>
+export type PortalCameraConnectivityQueryError = unknown
+
+
+export function usePortalCameraConnectivity<TData = Awaited<ReturnType<typeof portalCameraConnectivity>>, TError = unknown>(
+ projectId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalCameraConnectivity>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalCameraConnectivity>>,
+          TError,
+          Awaited<ReturnType<typeof portalCameraConnectivity>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalCameraConnectivity<TData = Awaited<ReturnType<typeof portalCameraConnectivity>>, TError = unknown>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalCameraConnectivity>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalCameraConnectivity>>,
+          TError,
+          Awaited<ReturnType<typeof portalCameraConnectivity>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalCameraConnectivity<TData = Awaited<ReturnType<typeof portalCameraConnectivity>>, TError = unknown>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalCameraConnectivity>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 카메라 연결 집계 (UV-53, Overview 카드·Stream health) — online/offline/error/unknown 카운트 + 카메라별 현재 상태. 원천은 모듈 MQTT status(RUNNING→online, STOPPED→offline) 적재
+ */
+
+export function usePortalCameraConnectivity<TData = Awaited<ReturnType<typeof portalCameraConnectivity>>, TError = unknown>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalCameraConnectivity>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPortalCameraConnectivityQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * dropsByDay는 oldest-first(index 0 = days-1일 전, 마지막 = 오늘), 프로젝트 시간대 달력일. drops>0만, 내림차순, limit(기본 4 — 최악 포인터. 전 대수가 필요하면 큰 limit). 기획자 README §4-(2) 요청 형태.
+ * @summary 카메라 안정도 (UV-53, Overview 불안정 카메라 작업목록) — 최근 days일 일별 끊김(online→offline 전이) 수
+ */
+export const portalCameraStability = (
+    projectId: string,
+    params?: PortalCameraStabilityParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalStabilityResponse>(
+      {url: `/portal/projects/${projectId}/camera-stability`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
+
+
+
+export const getPortalCameraStabilityQueryKey = (projectId?: string,
+    params?: PortalCameraStabilityParams,) => {
+    return [
+    `/portal/projects/${projectId}/camera-stability`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getPortalCameraStabilityQueryOptions = <TData = Awaited<ReturnType<typeof portalCameraStability>>, TError = unknown>(projectId: string,
+    params?: PortalCameraStabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalCameraStability>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPortalCameraStabilityQueryKey(projectId,params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof portalCameraStability>>> = ({ signal }) => portalCameraStability(projectId,params, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(projectId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof portalCameraStability>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PortalCameraStabilityQueryResult = NonNullable<Awaited<ReturnType<typeof portalCameraStability>>>
+export type PortalCameraStabilityQueryError = unknown
+
+
+export function usePortalCameraStability<TData = Awaited<ReturnType<typeof portalCameraStability>>, TError = unknown>(
+ projectId: string,
+    params: undefined |  PortalCameraStabilityParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalCameraStability>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalCameraStability>>,
+          TError,
+          Awaited<ReturnType<typeof portalCameraStability>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalCameraStability<TData = Awaited<ReturnType<typeof portalCameraStability>>, TError = unknown>(
+ projectId: string,
+    params?: PortalCameraStabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalCameraStability>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalCameraStability>>,
+          TError,
+          Awaited<ReturnType<typeof portalCameraStability>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalCameraStability<TData = Awaited<ReturnType<typeof portalCameraStability>>, TError = unknown>(
+ projectId: string,
+    params?: PortalCameraStabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalCameraStability>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 카메라 안정도 (UV-53, Overview 불안정 카메라 작업목록) — 최근 days일 일별 끊김(online→offline 전이) 수
+ */
+
+export function usePortalCameraStability<TData = Awaited<ReturnType<typeof portalCameraStability>>, TError = unknown>(
+ projectId: string,
+    params?: PortalCameraStabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalCameraStability>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPortalCameraStabilityQueryOptions(projectId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * @summary 서버 레지스트리 (UV-53, Server & API › Infrastructure) — 60초마다 자동 도달성 검사
+ */
+export const portalListServers = (
+    params?: PortalListServersParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalServerListResponse>(
+      {url: `/portal/servers`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
+
+
+
+export const getPortalListServersQueryKey = (params?: PortalListServersParams,) => {
+    return [
+    `/portal/servers`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getPortalListServersQueryOptions = <TData = Awaited<ReturnType<typeof portalListServers>>, TError = unknown>(params?: PortalListServersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListServers>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPortalListServersQueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof portalListServers>>> = ({ signal }) => portalListServers(params, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof portalListServers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PortalListServersQueryResult = NonNullable<Awaited<ReturnType<typeof portalListServers>>>
+export type PortalListServersQueryError = unknown
+
+
+export function usePortalListServers<TData = Awaited<ReturnType<typeof portalListServers>>, TError = unknown>(
+ params: undefined |  PortalListServersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListServers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalListServers>>,
+          TError,
+          Awaited<ReturnType<typeof portalListServers>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalListServers<TData = Awaited<ReturnType<typeof portalListServers>>, TError = unknown>(
+ params?: PortalListServersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListServers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalListServers>>,
+          TError,
+          Awaited<ReturnType<typeof portalListServers>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalListServers<TData = Awaited<ReturnType<typeof portalListServers>>, TError = unknown>(
+ params?: PortalListServersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListServers>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 서버 레지스트리 (UV-53, Server & API › Infrastructure) — 60초마다 자동 도달성 검사
+ */
+
+export function usePortalListServers<TData = Awaited<ReturnType<typeof portalListServers>>, TError = unknown>(
+ params?: PortalListServersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListServers>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPortalListServersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * @summary 서버 등록 (UV-53) — port 있으면 TCP connect, 없으면 ICMP/echo 도달성(권한·방화벽에 따라 false일 수 있어 port 권장). 등록 즉시 1회 검사
+ */
+export const portalCreateServer = (
+    portalServerRequest: PortalServerRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalServerResponse>(
+      {url: `/portal/servers`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: portalServerRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getPortalCreateServerMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalCreateServer>>, TError,{data: PortalServerRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalCreateServer>>, TError,{data: PortalServerRequest}, TContext> => {
+
+const mutationKey = ['portalCreateServer'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalCreateServer>>, {data: PortalServerRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  portalCreateServer(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalCreateServerMutationResult = NonNullable<Awaited<ReturnType<typeof portalCreateServer>>>
+    export type PortalCreateServerMutationBody = PortalServerRequest
+    export type PortalCreateServerMutationError = ErrorResponse
+
+    /**
+ * @summary 서버 등록 (UV-53) — port 있으면 TCP connect, 없으면 ICMP/echo 도달성(권한·방화벽에 따라 false일 수 있어 port 권장). 등록 즉시 1회 검사
+ */
+export const usePortalCreateServer = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalCreateServer>>, TError,{data: PortalServerRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalCreateServer>>,
+        TError,
+        {data: PortalServerRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalCreateServerMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 서버 수정 (UV-53) — 수정 즉시 재검사
+ */
+export const portalUpdateServer = (
+    serverId: string,
+    portalServerRequest: PortalServerRequest,
+ ) => {
+      
+      
+      return customInstance<PortalServerResponse>(
+      {url: `/portal/servers/${serverId}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: portalServerRequest
+    },
+      );
+    }
+  
+
+
+export const getPortalUpdateServerMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalUpdateServer>>, TError,{serverId: string;data: PortalServerRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalUpdateServer>>, TError,{serverId: string;data: PortalServerRequest}, TContext> => {
+
+const mutationKey = ['portalUpdateServer'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalUpdateServer>>, {serverId: string;data: PortalServerRequest}> = (props) => {
+          const {serverId,data} = props ?? {};
+
+          return  portalUpdateServer(serverId,data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalUpdateServerMutationResult = NonNullable<Awaited<ReturnType<typeof portalUpdateServer>>>
+    export type PortalUpdateServerMutationBody = PortalServerRequest
+    export type PortalUpdateServerMutationError = unknown
+
+    /**
+ * @summary 서버 수정 (UV-53) — 수정 즉시 재검사
+ */
+export const usePortalUpdateServer = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalUpdateServer>>, TError,{serverId: string;data: PortalServerRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalUpdateServer>>,
+        TError,
+        {serverId: string;data: PortalServerRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalUpdateServerMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 서버 삭제 (UV-53, 404 ADM-4045)
+ */
+export const portalDeleteServer = (
+    serverId: string,
+ ) => {
+      
+      
+      return customInstance<AuthOkResponse>(
+      {url: `/portal/servers/${serverId}`, method: 'DELETE'
+    },
+      );
+    }
+  
+
+
+export const getPortalDeleteServerMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalDeleteServer>>, TError,{serverId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalDeleteServer>>, TError,{serverId: string}, TContext> => {
+
+const mutationKey = ['portalDeleteServer'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalDeleteServer>>, {serverId: string}> = (props) => {
+          const {serverId} = props ?? {};
+
+          return  portalDeleteServer(serverId,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalDeleteServerMutationResult = NonNullable<Awaited<ReturnType<typeof portalDeleteServer>>>
+    
+    export type PortalDeleteServerMutationError = unknown
+
+    /**
+ * @summary 서버 삭제 (UV-53, 404 ADM-4045)
+ */
+export const usePortalDeleteServer = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalDeleteServer>>, TError,{serverId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalDeleteServer>>,
+        TError,
+        {serverId: string},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalDeleteServerMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 즉시 도달성 검사 (UV-53)
+ */
+export const portalCheckServer = (
+    serverId: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalServerResponse>(
+      {url: `/portal/servers/${serverId}/check`, method: 'POST', signal
+    },
+      );
+    }
+  
+
+
+export const getPortalCheckServerMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalCheckServer>>, TError,{serverId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalCheckServer>>, TError,{serverId: string}, TContext> => {
+
+const mutationKey = ['portalCheckServer'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalCheckServer>>, {serverId: string}> = (props) => {
+          const {serverId} = props ?? {};
+
+          return  portalCheckServer(serverId,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalCheckServerMutationResult = NonNullable<Awaited<ReturnType<typeof portalCheckServer>>>
+    
+    export type PortalCheckServerMutationError = unknown
+
+    /**
+ * @summary 즉시 도달성 검사 (UV-53)
+ */
+export const usePortalCheckServer = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalCheckServer>>, TError,{serverId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalCheckServer>>,
+        TError,
+        {serverId: string},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalCheckServerMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
