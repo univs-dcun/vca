@@ -120,3 +120,24 @@ ADM-4016 suspended · ADM-4017 notActivated. 잠금(4015)·승인 대기(4018)�
 시드, 활성 owner가 0명이면 `seed-admin-email` 계정을 owner로 승격, teamId 없는 계정은 기본 팀 귀속.
 개발 DB에서 UV-47 스키마로 만든 `user_account.email`은 NOT NULL이라 한 번 풀어야 한다
 (`alter table user_account alter column email drop not null;` — 운영 이관 전 Flyway 도입 예정).
+
+## 인증 v3 — 잠금·등록 코드·초대·임시 비밀번호 TTL (UV-51, admin-api.json 0.6.0)
+
+기획자 인증 플로우 문서 §02/03/06/07 이행 (design-vca-portal.md §4).
+
+| 경로 | 설명 |
+|---|---|
+| `POST /auth/register/lookup` | 등록 코드 조회 — 명부 코드/셋업 코드 풀을 서버가 판별. unknown 404 ADM-4020 · used 409 4021 · expired 410 4022 · throttled 429 4023 |
+| `POST /auth/register` | 활성화 — **코드 소각 + 계정 생성/활성화 + 비밀번호 + 세션이 한 트랜잭션**. 명부 admin → 콘솔 admin+앱, operator → none+앱 |
+| `POST /auth/invite/redeem` | 초대 링크(`/password-setup?token=`) 완료 — 7일·single-use, 무효 410 ADM-4024 |
+| `POST /auth/signup` | 조직 자체 생성 — `vca.admin.self-signup=false`(기본) 또는 owner 존재 시 항상 403 ADM-4032 |
+| `POST /admin/api/users/{id}/setup-code` | 기존 계정 셋업 코드(14일) — owner 전용, 계정 invited 전환 |
+| `POST /admin/api/users/{id}/invite-token` | 초대 토큰(7일) — owner 전용 |
+| `/admin/api/roster` | 명부 CRUD(벌크 추가 행별 결과), `codes/issue`(일괄), `{id}/codes/reissue` |
+
+**집행 규칙**: 코드·토큰은 **해시만 저장**(원문은 발급 응답 1회 — "다시 보기" 없음, 인쇄 슬립은 발급 시점에) ·
+single-use · 만료(코드 14일 / 초대 7일 / 임시 비밀번호 24h — 로그인 시 ADM-4019) · 재발급은 이전 코드 즉시 무효 ·
+**시도 스로틀** `auth_attempt`: 로그인은 계정(식별자) 단위 5회/15분 → 15분 잠금(ADM-4015), 코드 조회/활성화는
+주소(IP, 프록시 X-Forwarded-For) 단위 5회/15분 → throttled. 숫자는 프론트 화면에 인쇄되는 값과 동일(§4.5).
+
+로그인 판정 순서: 잠금 → 자격증명(실패 카운트) → suspended(4016) → invited(4017) → 임시 비밀번호 만료(4019) → 세션.

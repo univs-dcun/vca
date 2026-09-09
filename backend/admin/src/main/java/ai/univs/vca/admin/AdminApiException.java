@@ -7,7 +7,9 @@ import org.springframework.http.HttpStatus;
  * ADM-4001(본문 검증), ADM-4040(카메라 없음), ADM-4041(사용자 없음), ADM-4042(팀 없음), ADM-4043(프로젝트 없음),
  * ADM-4010(자격증명 불일치), ADM-4011(세션 없음/만료), ADM-4012(현재 비밀번호 불일치),
  * ADM-4013(이미 본인 비밀번호 설정됨), ADM-4015(잠금), ADM-4016(정지 계정), ADM-4017(미활성 계정),
- * ADM-4018(승인 대기), ADM-4030(역할 부족), ADM-4031(last-owner 가드),
+ * ADM-4018(승인 대기), ADM-4019(임시 비밀번호 만료),
+ * ADM-4020~4023(등록 코드 unknown/used/expired/throttled), ADM-4024(초대 토큰 무효),
+ * ADM-4030(역할 부족), ADM-4031(last-owner 가드), ADM-4032(self-signup 불가),
  * ADM-4090(이메일 중복), ADM-4091(사번 중복)
  *
  * 로그인 실패 7종은 기획자 프론트 authErrors.ts의 상태와 1:1 (design-vca-portal.md §4.1).
@@ -63,6 +65,38 @@ public class AdminApiException extends RuntimeException {
 
 	public static AdminApiException pendingApproval() {
 		return new AdminApiException(HttpStatus.FORBIDDEN, "ADM-4018", "access request pending approval");
+	}
+
+	/** 임시 비밀번호 24h 초과 — 담당자 재발급 필요 */
+	public static AdminApiException tempPasswordExpired() {
+		return new AdminApiException(HttpStatus.FORBIDDEN, "ADM-4019", "temporary password expired — ask for a new one");
+	}
+
+	// ---- 등록 코드 (프론트 CODE_ERRORS unknown/used/expired + throttled) ----
+
+	public static AdminApiException codeUnknown() {
+		return new AdminApiException(HttpStatus.NOT_FOUND, "ADM-4020", "unknown registration code");
+	}
+
+	public static AdminApiException codeUsed() {
+		return new AdminApiException(HttpStatus.CONFLICT, "ADM-4021", "registration code already used");
+	}
+
+	public static AdminApiException codeExpired() {
+		return new AdminApiException(HttpStatus.GONE, "ADM-4022", "registration code expired");
+	}
+
+	public static AdminApiException codeThrottled() {
+		return new AdminApiException(HttpStatus.TOO_MANY_REQUESTS, "ADM-4023", "too many attempts — try again later");
+	}
+
+	public static AdminApiException inviteInvalid() {
+		return new AdminApiException(HttpStatus.GONE, "ADM-4024", "invite link is invalid or expired");
+	}
+
+	/** 온프레미스: 조직 자체 생성 없음. 최상위 관리자가 이미 있으면 플래그와 무관하게 거절 */
+	public static AdminApiException selfSignupDisabled() {
+		return new AdminApiException(HttpStatus.FORBIDDEN, "ADM-4032", "self-signup is not available on this installation");
 	}
 
 	public static AdminApiException forbidden(String message) {

@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.13.0
+ * OpenAPI spec version: 0.14.0
  */
 
 export * from './analysisTags';
@@ -28,6 +28,12 @@ export * from './associatesRequest';
 export * from './associatesResponse';
 export * from './associatesResult';
 export * from './associatesResultApplied';
+export * from './authCodeLookupRequest';
+export * from './authCodeLookupResponse';
+export * from './authCodeLookupResponseData';
+export * from './authCodeLookupResponseDataKind';
+export * from './authCodeLookupResponseDataPermission';
+export * from './authInviteRedeemRequest';
 export * from './authLoginRequest';
 export * from './authOkResponse';
 export * from './authOkResponseData';
@@ -35,6 +41,8 @@ export * from './authPasswordChangeRequest';
 export * from './authPasswordSetupRequest';
 export * from './authPasswordVerifyRequest';
 export * from './authProfileResponse';
+export * from './authRegisterRequest';
+export * from './authSignupRequest';
 export * from './authUserProfile';
 export * from './bBox';
 export * from './bestFrameHistory';
@@ -120,11 +128,20 @@ export * from './portalAppSearchRequest';
 export * from './portalAuditEvent';
 export * from './portalAuditListResponse';
 export * from './portalCreateUserRequest';
+export * from './portalIssueCodesRequest';
+export * from './portalIssuedCode';
+export * from './portalIssuedCodeResponse';
+export * from './portalIssuedInvite';
+export * from './portalIssuedInviteResponse';
+export * from './portalIssuedRosterCode';
+export * from './portalIssuedRosterCodeResponse';
+export * from './portalIssuedRosterCodesResponse';
 export * from './portalIssuedUser';
 export * from './portalIssuedUserResponse';
 export * from './portalLicenseRequest';
 export * from './portalListAuditParams';
 export * from './portalListProjectsParams';
+export * from './portalListRosterParams';
 export * from './portalMailRequest';
 export * from './portalMailView';
 export * from './portalNetworkIsolationRequest';
@@ -136,6 +153,18 @@ export * from './portalProjectRequestType';
 export * from './portalProjectResponse';
 export * from './portalProjectType';
 export * from './portalProjectsRequest';
+export * from './portalRosterBulkRequest';
+export * from './portalRosterBulkResponse';
+export * from './portalRosterBulkResult';
+export * from './portalRosterBulkResultRowsItem';
+export * from './portalRosterBulkResultRowsItemReason';
+export * from './portalRosterEntryRequest';
+export * from './portalRosterEntryRequestPermission';
+export * from './portalRosterListResponse';
+export * from './portalRosterRow';
+export * from './portalRosterRowPermission';
+export * from './portalRosterRowResponse';
+export * from './portalRosterRowStatus';
 export * from './portalStatusRequest';
 export * from './portalTeam';
 export * from './portalTeamListResponse';

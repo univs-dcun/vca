@@ -52,6 +52,20 @@ public class UserAdminController {
 		return ApiEnvelope.ok(service.resetPassword(userId));
 	}
 
+	/** 셋업 코드(14일) — 응답 code 1회 노출, 계정은 invited로 */
+	@RequiresOwner
+	@PostMapping("/{userId}/setup-code")
+	public ApiEnvelope issueSetupCode(@PathVariable Long userId) {
+		return ApiEnvelope.ok(service.issueSetupCode(userId));
+	}
+
+	/** 초대 링크 토큰(7일, single-use) — 응답 token 1회 노출 */
+	@RequiresOwner
+	@PostMapping("/{userId}/invite-token")
+	public ApiEnvelope issueInviteToken(@PathVariable Long userId) {
+		return ApiEnvelope.ok(service.issueInviteToken(userId));
+	}
+
 	@RequiresOwner
 	@PutMapping("/{userId}/access")
 	public ApiEnvelope updateAccess(@PathVariable Long userId, @RequestBody AccessUpdateRequest req) {

@@ -67,6 +67,38 @@ public final class AuthDtos {
 	public record StatusUpdateRequest(String status) {
 	}
 
+	// ---- 등록 코드 / 초대 / self-signup (UV-51) ----
+
+	public record CodeLookupRequest(String code) {
+	}
+
+	/**
+	 * 코드 조회 결과 — 누구의 코드인지 화면이 확인시킨다. kind: roster(명부 → 신규 계정) | setup(기존 계정 활성화).
+	 * permission은 명부의 2값 언어(admin|operator)로 붕괴 — 프론트 register 화면과 동일
+	 */
+	public record CodeLookupResponse(String kind, String name, String employeeId, String permission,
+			String projectId, String projectName) {
+	}
+
+	public record RegisterRequest(String code, String password) {
+	}
+
+	public record InviteRedeemRequest(String token, String password) {
+	}
+
+	/** 조직 자체 생성 마법사(account → team) — selfSignup=true이고 owner가 없을 때만 */
+	public record SignupRequest(String name, String email, String password, String teamName, String region) {
+	}
+
+	/** 셋업 코드 발급 응답 — code는 이 응답에서 단 한 번만 노출 (표시 XXXX-XXXX, 14일) */
+	public record IssuedCode(Long userId, String code, String codeFormatted, java.time.Instant issuedAt,
+			java.time.Instant expiresAt) {
+	}
+
+	/** 초대 토큰 발급 응답 — token은 이 응답에서 단 한 번만 노출 (/password-setup?token=, 7일, single-use) */
+	public record IssuedInvite(Long userId, String token, java.time.Instant issuedAt, java.time.Instant expiresAt) {
+	}
+
 	/** 생성/재발급 응답 — tempPassword는 이 응답에서 단 한 번만 노출된다 (DB에는 해시만) */
 	public record IssuedUser(Long id, String email, String employeeId, String name, String accountId,
 			String tempPassword) {

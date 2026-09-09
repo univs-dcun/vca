@@ -14,8 +14,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param sessionCookieSecure 세션 쿠키 Secure 플래그 (UV-47) — 로컬 http 개발이라 기본 false, TLS 운영에서는 true로 주입
  * @param seedAdminEmail 계정 원장이 비어 있으면 시드할 초기 운영자 이메일 — 빈 값이면 시드 생략
  * @param seedAdminPassword 초기 운영자 비밀번호 — 개발 기본값. 운영에서는 반드시 환경변수로 주입 후 첫 로그인 시 변경
+ * @param selfSignup 조직 자체 생성(/auth/signup) 허용 여부 (UV-51) — 온프레미스는 false(2026-09-02 결정). 프론트
+ *                   authConfig.selfSignup의 거울: 화면이 숨겨도 서버가 거절해야 구멍이 닫힌다
  */
 @ConfigurationProperties(prefix = "vca.admin")
 public record AdminProperties(String moduleBaseUrl, Duration moduleTimeout, String mediaApiBaseUrl, String encKey,
-		boolean seedDefaultCameras, boolean sessionCookieSecure, String seedAdminEmail, String seedAdminPassword) {
+		boolean seedDefaultCameras, boolean sessionCookieSecure, String seedAdminEmail, String seedAdminPassword,
+		boolean selfSignup) {
 }

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.13.0",
+    "version": "0.14.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -89,6 +89,64 @@
               "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
             }
           }
+        }
+      }
+    },
+    "/auth/register/lookup": {
+      "post": {
+        "operationId": "registerLookup",
+        "summary": "등록 코드 조회 (UV-51) — 누구의 코드인지 확인. 명부 코드(신규 계정)와 셋업 코드(기존 계정)를 서버가 판별",
+        "description": "코드 8자(ABCDEFGHJKLMNPQRSTUVWXYZ23456789, 대시·소문자 무관). 실패는 주소(IP) 단위 5회/15분 → throttled. 사용됨/만료는 8자를 맞춘 사람에게만 구분해 알린다 (기획 결정 2026-09-02).",
+        "tags": ["auth"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthCodeLookupRequest" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthCodeLookupResponse" } } } },
+          "404": { "description": "unknown (ADM-4020)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "409": { "description": "used (ADM-4021)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "410": { "description": "expired (ADM-4022)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "429": { "description": "throttled (ADM-4023)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "register",
+        "summary": "등록 코드 활성화 (UV-51) — 코드 소각 + 계정 생성/활성화 + 비밀번호 설정 + 세션 발급, 단일 트랜잭션",
+        "description": "명부 코드: admin → 콘솔 admin + 앱, operator → 콘솔 없음(none) + 앱. 셋업 코드: 기존 계정 active. 성공 시 로그인과 같은 Set-Cookie. 오류 코드는 lookup과 동일 + 형식 위반 400 ADM-4001.",
+        "tags": ["auth"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthRegisterRequest" } } } },
+        "responses": {
+          "200": { "description": "활성화 + 세션", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthProfileResponse" } } } },
+          "400": { "description": "비밀번호 형식 (ADM-4001)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "unknown (ADM-4020)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "409": { "description": "used (ADM-4021) / 이메일·사번 중복 (ADM-4090/4091)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "410": { "description": "expired (ADM-4022)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "429": { "description": "throttled (ADM-4023)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/invite/redeem": {
+      "post": {
+        "operationId": "redeemInvite",
+        "summary": "초대 링크 완료 (UV-51) — /password-setup?token= 의 토큰 + 새 비밀번호 → 활성화 + 세션. 7일, single-use",
+        "tags": ["auth"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthInviteRedeemRequest" } } } },
+        "responses": {
+          "200": { "description": "활성화 + 세션", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthProfileResponse" } } } },
+          "410": { "description": "토큰 무효/만료/사용됨 (ADM-4024)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/signup": {
+      "post": {
+        "operationId": "signup",
+        "summary": "조직 자체 생성 (UV-51) — 온프레미스는 항상 403 ADM-4032. selfSignup=true이고 owner가 없을 때만 팀 + owner + 세션",
+        "description": "프론트 authConfig.selfSignup을 숨기는 것은 화면을 닫는 것이고 구멍을 닫는 것이 아니다 — 서버가 같은 호출을 거절한다 (기획자 HANDOFF signup/page.tsx:15).",
+        "tags": ["auth"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthSignupRequest" } } } },
+        "responses": {
+          "200": { "description": "생성 + 세션", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthProfileResponse" } } } },
+          "403": { "description": "self-signup 불가 (ADM-4032)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
         }
       }
     },
@@ -416,6 +474,83 @@
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalUserResponse" } } } },
           "409": { "description": "last-owner 가드 ADM-4031", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
         }
+      }
+    },
+    "/portal/users/{userId}/setup-code": {
+      "post": {
+        "operationId": "portalIssueSetupCode",
+        "summary": "셋업 코드 발급 (UV-51) — owner 전용. 계정은 invited로 전환(기존 세션 종료), /register에서 코드 + 비밀번호로 활성화. code는 응답 1회만",
+        "tags": ["portal"],
+        "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalIssuedCodeResponse" } } } },
+          "409": { "description": "last-owner 가드 ADM-4031", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/users/{userId}/invite-token": {
+      "post": {
+        "operationId": "portalIssueInviteToken",
+        "summary": "초대 링크 토큰 발급 (UV-51) — owner 전용. /password-setup?token={token}, 7일, single-use. token은 응답 1회만",
+        "tags": ["portal"],
+        "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalIssuedInviteResponse" } } } },
+          "409": { "description": "last-owner 가드 ADM-4031", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/roster": {
+      "get": {
+        "operationId": "portalListRoster",
+        "summary": "명부 목록 (UV-51, Users & Permissions › On the roster) — status는 issuedAt + 14일로 판정",
+        "tags": ["portal"],
+        "parameters": [{ "name": "projectId", "in": "query", "required": false, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalRosterListResponse" } } } } }
+      },
+      "post": {
+        "operationId": "portalAddRoster",
+        "summary": "명부 벌크 추가 (UV-51, CSV import 커밋) — 행별 결과(부분 성공). employeeId 전역 유일. owner|admin",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalRosterBulkRequest" } } } },
+        "responses": {
+          "200": { "description": "행별 결과", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalRosterBulkResponse" } } } },
+          "404": { "description": "프로젝트 없음 ADM-4043", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/portal/roster/{employeeId}": {
+      "parameters": [{ "name": "employeeId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "put": {
+        "operationId": "portalUpdateRosterEntry",
+        "summary": "명부 행 수정 (UV-51) — employeeId는 키라 편집 불가",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalRosterEntryRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalRosterRowResponse" } } } } }
+      },
+      "delete": {
+        "operationId": "portalDeleteRosterEntry",
+        "summary": "명부 행 삭제 (UV-51) — 미사용 코드를 죽이는 유일한 수단",
+        "tags": ["portal"],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthOkResponse" } } } } }
+      }
+    },
+    "/portal/roster/codes/issue": {
+      "post": {
+        "operationId": "portalIssueRosterCodes",
+        "summary": "등록 코드 일괄 발급 (UV-51) — 이미 유효한 코드가 있거나 사용 완료된 행은 건너뜀. code는 응답 1회만(해시 저장, 다시 보기 없음)",
+        "tags": ["portal"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalIssueCodesRequest" } } } },
+        "responses": { "200": { "description": "발급된 행만", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalIssuedRosterCodesResponse" } } } } }
+      }
+    },
+    "/portal/roster/{employeeId}/codes/reissue": {
+      "post": {
+        "operationId": "portalReissueRosterCode",
+        "summary": "등록 코드 재발급 (UV-51) — 이전 코드 즉시 무효, 14일 시계 재시작",
+        "tags": ["portal"],
+        "parameters": [{ "name": "employeeId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalIssuedRosterCodeResponse" } } } } }
       }
     },
     "/portal/audit": {
@@ -1603,6 +1738,164 @@
       "PortalUserListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalUser" } } } },
       "PortalIssuedUserResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalIssuedUser" } } },
       "PortalAuditListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalAuditEvent" } } } },
+      "AuthCodeLookupRequest": {
+        "type": "object",
+        "required": ["code"],
+        "properties": { "code": { "type": "string", "description": "8자, 대시·공백·소문자 무관", "example": "BPXW-4762" } }
+      },
+      "AuthCodeLookupResponse": {
+        "type": "object",
+        "required": ["success", "code", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "code": { "type": "string" },
+          "message": { "type": "string", "nullable": true },
+          "data": {
+            "type": "object",
+            "required": ["kind", "name", "permission"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["roster", "setup"], "description": "roster = 명부 코드(신규 계정) / setup = 기존 계정 셋업 코드" },
+              "name": { "type": "string" },
+              "employeeId": { "type": "string", "nullable": true },
+              "permission": { "type": "string", "enum": ["admin", "operator"], "description": "명부의 2값 언어 — 화면 확인 문구용" },
+              "projectId": { "type": "string", "nullable": true },
+              "projectName": { "type": "string", "nullable": true }
+            }
+          }
+        }
+      },
+      "AuthRegisterRequest": {
+        "type": "object",
+        "required": ["code", "password"],
+        "properties": {
+          "code": { "type": "string" },
+          "password": { "type": "string", "format": "password", "description": "8자 이상 + 영문 + 숫자 + 특수문자" }
+        }
+      },
+      "AuthInviteRedeemRequest": {
+        "type": "object",
+        "required": ["token", "password"],
+        "properties": {
+          "token": { "type": "string", "description": "/password-setup?token= 값 (opaque, single-use)" },
+          "password": { "type": "string", "format": "password" }
+        }
+      },
+      "AuthSignupRequest": {
+        "type": "object",
+        "required": ["name", "email", "password", "teamName"],
+        "properties": {
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "password": { "type": "string", "format": "password" },
+          "teamName": { "type": "string" },
+          "region": { "type": "string", "nullable": true }
+        }
+      },
+      "PortalIssuedCode": {
+        "type": "object",
+        "description": "셋업 코드 발급 — code는 이 응답에서 단 한 번만 (해시 저장). 14일",
+        "required": ["userId", "code", "codeFormatted", "issuedAt", "expiresAt"],
+        "properties": {
+          "userId": { "type": "integer", "format": "int64" },
+          "code": { "type": "string" },
+          "codeFormatted": { "type": "string", "example": "BPXW-4762" },
+          "issuedAt": { "type": "string", "format": "date-time" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortalIssuedInvite": {
+        "type": "object",
+        "description": "초대 토큰 발급 — token은 이 응답에서 단 한 번만. 링크는 /password-setup?token={token}. 7일, single-use",
+        "required": ["userId", "token", "issuedAt", "expiresAt"],
+        "properties": {
+          "userId": { "type": "integer", "format": "int64" },
+          "token": { "type": "string" },
+          "issuedAt": { "type": "string", "format": "date-time" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortalRosterEntryRequest": {
+        "type": "object",
+        "required": ["employeeId", "name"],
+        "properties": {
+          "employeeId": { "type": "string", "description": "명부 전역 유일(대문자 정규화)" },
+          "name": { "type": "string" },
+          "department": { "type": "string", "nullable": true },
+          "email": { "type": "string", "nullable": true, "description": "메일 없는 회사는 비움" },
+          "permission": { "type": "string", "enum": ["admin", "operator"], "default": "operator", "description": "가입 시 계정 권한: admin → 콘솔 admin + 앱 / operator → 콘솔 없음 + 앱" }
+        }
+      },
+      "PortalRosterBulkRequest": {
+        "type": "object",
+        "required": ["projectId", "entries"],
+        "properties": {
+          "projectId": { "type": "string" },
+          "entries": { "type": "array", "items": { "$ref": "#/components/schemas/PortalRosterEntryRequest" } }
+        }
+      },
+      "PortalRosterBulkResult": {
+        "type": "object",
+        "required": ["added", "rejected", "rows"],
+        "properties": {
+          "added": { "type": "integer" },
+          "rejected": { "type": "integer" },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["employeeId", "ok"],
+              "properties": {
+                "employeeId": { "type": "string", "nullable": true },
+                "ok": { "type": "boolean" },
+                "reason": { "type": "string", "nullable": true, "enum": ["missing-employee-id", "missing-name", "duplicate-in-file", "duplicate-in-roster", "bad-permission", null], "description": "프론트 rosterImport.ts ImportIssue와 동일 어휘" }
+              }
+            }
+          }
+        }
+      },
+      "PortalRosterRow": {
+        "type": "object",
+        "required": ["employeeId", "projectId", "name", "permission", "status", "createdAt"],
+        "properties": {
+          "employeeId": { "type": "string" },
+          "projectId": { "type": "string" },
+          "name": { "type": "string" },
+          "department": { "type": "string", "nullable": true },
+          "email": { "type": "string", "nullable": true },
+          "permission": { "type": "string", "enum": ["admin", "operator"] },
+          "status": { "type": "string", "enum": ["not-issued", "unused", "used", "expired"], "description": "expired는 저장값이 아니라 issuedAt + 14일로 판정" },
+          "codeIssuedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "codeExpiresAt": { "type": "string", "format": "date-time", "nullable": true },
+          "usedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "userId": { "type": "integer", "format": "int64", "nullable": true, "description": "활성화로 생긴 계정" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortalIssueCodesRequest": {
+        "type": "object",
+        "required": ["employeeIds"],
+        "properties": { "employeeIds": { "type": "array", "items": { "type": "string" } } }
+      },
+      "PortalIssuedRosterCode": {
+        "type": "object",
+        "description": "명부 코드 발급 — code는 이 응답에서 단 한 번만 (해시 저장). 인쇄 슬립은 이 시점에",
+        "required": ["employeeId", "name", "code", "codeFormatted", "issuedAt", "expiresAt"],
+        "properties": {
+          "employeeId": { "type": "string" },
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "codeFormatted": { "type": "string" },
+          "issuedAt": { "type": "string", "format": "date-time" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortalIssuedCodeResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalIssuedCode" } } },
+      "PortalIssuedInviteResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalIssuedInvite" } } },
+      "PortalRosterListResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalRosterRow" } } } },
+      "PortalRosterRowResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalRosterRow" } } },
+      "PortalRosterBulkResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalRosterBulkResult" } } },
+      "PortalIssuedRosterCodesResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/PortalIssuedRosterCode" } } } },
+      "PortalIssuedRosterCodeResponse": { "type": "object", "required": ["success", "code", "data"], "properties": { "success": { "type": "boolean" }, "code": { "type": "string" }, "message": { "type": "string", "nullable": true }, "data": { "$ref": "#/components/schemas/PortalIssuedRosterCode" } } },
       "AuthPasswordSetupRequest": {
         "type": "object",
         "required": ["newPassword"],

@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.13.0
+ * OpenAPI spec version: 0.14.0
  */
 import {
   useMutation,
@@ -40,16 +40,27 @@ import type {
   PortalAppSearchRequest,
   PortalAuditListResponse,
   PortalCreateUserRequest,
+  PortalIssueCodesRequest,
+  PortalIssuedCodeResponse,
+  PortalIssuedInviteResponse,
+  PortalIssuedRosterCodeResponse,
+  PortalIssuedRosterCodesResponse,
   PortalIssuedUserResponse,
   PortalLicenseRequest,
   PortalListAuditParams,
   PortalListProjectsParams,
+  PortalListRosterParams,
   PortalMailRequest,
   PortalNetworkIsolationRequest,
   PortalProjectListResponse,
   PortalProjectRequest,
   PortalProjectResponse,
   PortalProjectsRequest,
+  PortalRosterBulkRequest,
+  PortalRosterBulkResponse,
+  PortalRosterEntryRequest,
+  PortalRosterListResponse,
+  PortalRosterRowResponse,
   PortalStatusRequest,
   PortalTeamListResponse,
   PortalTeamRequest,
@@ -1542,6 +1553,538 @@ export const usePortalUpdateUserStatus = <TError = ErrorResponse,
       > => {
 
       const mutationOptions = getPortalUpdateUserStatusMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 셋업 코드 발급 (UV-51) — owner 전용. 계정은 invited로 전환(기존 세션 종료), /register에서 코드 + 비밀번호로 활성화. code는 응답 1회만
+ */
+export const portalIssueSetupCode = (
+    userId: number,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalIssuedCodeResponse>(
+      {url: `/portal/users/${userId}/setup-code`, method: 'POST', signal
+    },
+      );
+    }
+  
+
+
+export const getPortalIssueSetupCodeMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalIssueSetupCode>>, TError,{userId: number}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalIssueSetupCode>>, TError,{userId: number}, TContext> => {
+
+const mutationKey = ['portalIssueSetupCode'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalIssueSetupCode>>, {userId: number}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  portalIssueSetupCode(userId,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalIssueSetupCodeMutationResult = NonNullable<Awaited<ReturnType<typeof portalIssueSetupCode>>>
+    
+    export type PortalIssueSetupCodeMutationError = ErrorResponse
+
+    /**
+ * @summary 셋업 코드 발급 (UV-51) — owner 전용. 계정은 invited로 전환(기존 세션 종료), /register에서 코드 + 비밀번호로 활성화. code는 응답 1회만
+ */
+export const usePortalIssueSetupCode = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalIssueSetupCode>>, TError,{userId: number}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalIssueSetupCode>>,
+        TError,
+        {userId: number},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalIssueSetupCodeMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 초대 링크 토큰 발급 (UV-51) — owner 전용. /password-setup?token={token}, 7일, single-use. token은 응답 1회만
+ */
+export const portalIssueInviteToken = (
+    userId: number,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalIssuedInviteResponse>(
+      {url: `/portal/users/${userId}/invite-token`, method: 'POST', signal
+    },
+      );
+    }
+  
+
+
+export const getPortalIssueInviteTokenMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalIssueInviteToken>>, TError,{userId: number}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalIssueInviteToken>>, TError,{userId: number}, TContext> => {
+
+const mutationKey = ['portalIssueInviteToken'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalIssueInviteToken>>, {userId: number}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  portalIssueInviteToken(userId,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalIssueInviteTokenMutationResult = NonNullable<Awaited<ReturnType<typeof portalIssueInviteToken>>>
+    
+    export type PortalIssueInviteTokenMutationError = ErrorResponse
+
+    /**
+ * @summary 초대 링크 토큰 발급 (UV-51) — owner 전용. /password-setup?token={token}, 7일, single-use. token은 응답 1회만
+ */
+export const usePortalIssueInviteToken = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalIssueInviteToken>>, TError,{userId: number}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalIssueInviteToken>>,
+        TError,
+        {userId: number},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalIssueInviteTokenMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 명부 목록 (UV-51, Users & Permissions › On the roster) — status는 issuedAt + 14일로 판정
+ */
+export const portalListRoster = (
+    params?: PortalListRosterParams,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalRosterListResponse>(
+      {url: `/portal/roster`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+  
+
+
+
+export const getPortalListRosterQueryKey = (params?: PortalListRosterParams,) => {
+    return [
+    `/portal/roster`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+    
+export const getPortalListRosterQueryOptions = <TData = Awaited<ReturnType<typeof portalListRoster>>, TError = unknown>(params?: PortalListRosterParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListRoster>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPortalListRosterQueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof portalListRoster>>> = ({ signal }) => portalListRoster(params, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof portalListRoster>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PortalListRosterQueryResult = NonNullable<Awaited<ReturnType<typeof portalListRoster>>>
+export type PortalListRosterQueryError = unknown
+
+
+export function usePortalListRoster<TData = Awaited<ReturnType<typeof portalListRoster>>, TError = unknown>(
+ params: undefined |  PortalListRosterParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListRoster>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalListRoster>>,
+          TError,
+          Awaited<ReturnType<typeof portalListRoster>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalListRoster<TData = Awaited<ReturnType<typeof portalListRoster>>, TError = unknown>(
+ params?: PortalListRosterParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListRoster>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof portalListRoster>>,
+          TError,
+          Awaited<ReturnType<typeof portalListRoster>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePortalListRoster<TData = Awaited<ReturnType<typeof portalListRoster>>, TError = unknown>(
+ params?: PortalListRosterParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListRoster>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 명부 목록 (UV-51, Users & Permissions › On the roster) — status는 issuedAt + 14일로 판정
+ */
+
+export function usePortalListRoster<TData = Awaited<ReturnType<typeof portalListRoster>>, TError = unknown>(
+ params?: PortalListRosterParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof portalListRoster>>, TError, TData>>, }
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPortalListRosterQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * @summary 명부 벌크 추가 (UV-51, CSV import 커밋) — 행별 결과(부분 성공). employeeId 전역 유일. owner|admin
+ */
+export const portalAddRoster = (
+    portalRosterBulkRequest: PortalRosterBulkRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalRosterBulkResponse>(
+      {url: `/portal/roster`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: portalRosterBulkRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getPortalAddRosterMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalAddRoster>>, TError,{data: PortalRosterBulkRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalAddRoster>>, TError,{data: PortalRosterBulkRequest}, TContext> => {
+
+const mutationKey = ['portalAddRoster'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalAddRoster>>, {data: PortalRosterBulkRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  portalAddRoster(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalAddRosterMutationResult = NonNullable<Awaited<ReturnType<typeof portalAddRoster>>>
+    export type PortalAddRosterMutationBody = PortalRosterBulkRequest
+    export type PortalAddRosterMutationError = ErrorResponse
+
+    /**
+ * @summary 명부 벌크 추가 (UV-51, CSV import 커밋) — 행별 결과(부분 성공). employeeId 전역 유일. owner|admin
+ */
+export const usePortalAddRoster = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalAddRoster>>, TError,{data: PortalRosterBulkRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalAddRoster>>,
+        TError,
+        {data: PortalRosterBulkRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalAddRosterMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 명부 행 수정 (UV-51) — employeeId는 키라 편집 불가
+ */
+export const portalUpdateRosterEntry = (
+    employeeId: string,
+    portalRosterEntryRequest: PortalRosterEntryRequest,
+ ) => {
+      
+      
+      return customInstance<PortalRosterRowResponse>(
+      {url: `/portal/roster/${employeeId}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: portalRosterEntryRequest
+    },
+      );
+    }
+  
+
+
+export const getPortalUpdateRosterEntryMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalUpdateRosterEntry>>, TError,{employeeId: string;data: PortalRosterEntryRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalUpdateRosterEntry>>, TError,{employeeId: string;data: PortalRosterEntryRequest}, TContext> => {
+
+const mutationKey = ['portalUpdateRosterEntry'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalUpdateRosterEntry>>, {employeeId: string;data: PortalRosterEntryRequest}> = (props) => {
+          const {employeeId,data} = props ?? {};
+
+          return  portalUpdateRosterEntry(employeeId,data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalUpdateRosterEntryMutationResult = NonNullable<Awaited<ReturnType<typeof portalUpdateRosterEntry>>>
+    export type PortalUpdateRosterEntryMutationBody = PortalRosterEntryRequest
+    export type PortalUpdateRosterEntryMutationError = unknown
+
+    /**
+ * @summary 명부 행 수정 (UV-51) — employeeId는 키라 편집 불가
+ */
+export const usePortalUpdateRosterEntry = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalUpdateRosterEntry>>, TError,{employeeId: string;data: PortalRosterEntryRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalUpdateRosterEntry>>,
+        TError,
+        {employeeId: string;data: PortalRosterEntryRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalUpdateRosterEntryMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 명부 행 삭제 (UV-51) — 미사용 코드를 죽이는 유일한 수단
+ */
+export const portalDeleteRosterEntry = (
+    employeeId: string,
+ ) => {
+      
+      
+      return customInstance<AuthOkResponse>(
+      {url: `/portal/roster/${employeeId}`, method: 'DELETE'
+    },
+      );
+    }
+  
+
+
+export const getPortalDeleteRosterEntryMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalDeleteRosterEntry>>, TError,{employeeId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalDeleteRosterEntry>>, TError,{employeeId: string}, TContext> => {
+
+const mutationKey = ['portalDeleteRosterEntry'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalDeleteRosterEntry>>, {employeeId: string}> = (props) => {
+          const {employeeId} = props ?? {};
+
+          return  portalDeleteRosterEntry(employeeId,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalDeleteRosterEntryMutationResult = NonNullable<Awaited<ReturnType<typeof portalDeleteRosterEntry>>>
+    
+    export type PortalDeleteRosterEntryMutationError = unknown
+
+    /**
+ * @summary 명부 행 삭제 (UV-51) — 미사용 코드를 죽이는 유일한 수단
+ */
+export const usePortalDeleteRosterEntry = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalDeleteRosterEntry>>, TError,{employeeId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalDeleteRosterEntry>>,
+        TError,
+        {employeeId: string},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalDeleteRosterEntryMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 등록 코드 일괄 발급 (UV-51) — 이미 유효한 코드가 있거나 사용 완료된 행은 건너뜀. code는 응답 1회만(해시 저장, 다시 보기 없음)
+ */
+export const portalIssueRosterCodes = (
+    portalIssueCodesRequest: PortalIssueCodesRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalIssuedRosterCodesResponse>(
+      {url: `/portal/roster/codes/issue`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: portalIssueCodesRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getPortalIssueRosterCodesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalIssueRosterCodes>>, TError,{data: PortalIssueCodesRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalIssueRosterCodes>>, TError,{data: PortalIssueCodesRequest}, TContext> => {
+
+const mutationKey = ['portalIssueRosterCodes'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalIssueRosterCodes>>, {data: PortalIssueCodesRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  portalIssueRosterCodes(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalIssueRosterCodesMutationResult = NonNullable<Awaited<ReturnType<typeof portalIssueRosterCodes>>>
+    export type PortalIssueRosterCodesMutationBody = PortalIssueCodesRequest
+    export type PortalIssueRosterCodesMutationError = unknown
+
+    /**
+ * @summary 등록 코드 일괄 발급 (UV-51) — 이미 유효한 코드가 있거나 사용 완료된 행은 건너뜀. code는 응답 1회만(해시 저장, 다시 보기 없음)
+ */
+export const usePortalIssueRosterCodes = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalIssueRosterCodes>>, TError,{data: PortalIssueCodesRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalIssueRosterCodes>>,
+        TError,
+        {data: PortalIssueCodesRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalIssueRosterCodesMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 등록 코드 재발급 (UV-51) — 이전 코드 즉시 무효, 14일 시계 재시작
+ */
+export const portalReissueRosterCode = (
+    employeeId: string,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<PortalIssuedRosterCodeResponse>(
+      {url: `/portal/roster/${employeeId}/codes/reissue`, method: 'POST', signal
+    },
+      );
+    }
+  
+
+
+export const getPortalReissueRosterCodeMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalReissueRosterCode>>, TError,{employeeId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof portalReissueRosterCode>>, TError,{employeeId: string}, TContext> => {
+
+const mutationKey = ['portalReissueRosterCode'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof portalReissueRosterCode>>, {employeeId: string}> = (props) => {
+          const {employeeId} = props ?? {};
+
+          return  portalReissueRosterCode(employeeId,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PortalReissueRosterCodeMutationResult = NonNullable<Awaited<ReturnType<typeof portalReissueRosterCode>>>
+    
+    export type PortalReissueRosterCodeMutationError = unknown
+
+    /**
+ * @summary 등록 코드 재발급 (UV-51) — 이전 코드 즉시 무효, 14일 시계 재시작
+ */
+export const usePortalReissueRosterCode = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof portalReissueRosterCode>>, TError,{employeeId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof portalReissueRosterCode>>,
+        TError,
+        {employeeId: string},
+        TContext
+      > => {
+
+      const mutationOptions = getPortalReissueRosterCodeMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

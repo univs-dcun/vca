@@ -92,6 +92,21 @@ public class UserAccountEntity {
 	@Column(nullable = false, columnDefinition = "boolean not null default false")
 	private boolean mustSetPassword;
 
+	/** 임시 비밀번호 발급 시각 — TEMP_PASSWORD_TTL(24h) 지나면 로그인 거부(ADM-4019), 재발급 필요 (UV-51) */
+	private Instant tempPasswordIssuedAt;
+
+	/** 기존 계정용 등록(셋업) 코드 — 해시만, 14일 (UV-51). 원문은 발급 응답에서 1회 */
+	@Column(length = 64)
+	private String setupCodeHash;
+
+	private Instant setupCodeIssuedAt;
+
+	/** 초대 토큰(/password-setup?token=) — 해시만, 7일, single-use (UV-51) */
+	@Column(length = 64)
+	private String inviteTokenHash;
+
+	private Instant inviteTokenIssuedAt;
+
 	@Column(nullable = false)
 	private Instant createdAt;
 
@@ -122,12 +137,38 @@ public class UserAccountEntity {
 	public void changePassword(String passwordHash) {
 		this.passwordHash = passwordHash;
 		this.mustSetPassword = false;
+		this.tempPasswordIssuedAt = null;
 	}
 
-	/** 담당자 발급/재발급 — 임시 비밀번호로 교체하고 Set Password 강제 상태로 되돌린다 */
+	/** 담당자 발급/재발급 — 임시 비밀번호로 교체하고 Set Password 강제 상태로 되돌린다 (24h 시계 시작) */
 	public void issueTemporaryPassword(String passwordHash) {
 		this.passwordHash = passwordHash;
 		this.mustSetPassword = true;
+		this.tempPasswordIssuedAt = Instant.now();
+	}
+
+	public void issueSetupCode(String codeHash) {
+		this.setupCodeHash = codeHash;
+		this.setupCodeIssuedAt = Instant.now();
+		this.status = AccountStatus.INVITED;
+	}
+
+	public void issueInviteToken(String tokenHash) {
+		this.inviteTokenHash = tokenHash;
+		this.inviteTokenIssuedAt = Instant.now();
+		this.status = AccountStatus.INVITED;
+	}
+
+	/** 코드/토큰 활성화 — 비밀번호 설정 + 코드·토큰 동시 소진 + active (단일 트랜잭션에서 호출) */
+	public void activate(String passwordHash) {
+		this.passwordHash = passwordHash;
+		this.mustSetPassword = false;
+		this.tempPasswordIssuedAt = null;
+		this.setupCodeHash = null;
+		this.setupCodeIssuedAt = null;
+		this.inviteTokenHash = null;
+		this.inviteTokenIssuedAt = null;
+		this.status = AccountStatus.ACTIVE;
 	}
 
 	public void markLogin(Instant at) {
@@ -213,6 +254,26 @@ public class UserAccountEntity {
 
 	public boolean isMustSetPassword() {
 		return mustSetPassword;
+	}
+
+	public Instant getTempPasswordIssuedAt() {
+		return tempPasswordIssuedAt;
+	}
+
+	public String getSetupCodeHash() {
+		return setupCodeHash;
+	}
+
+	public Instant getSetupCodeIssuedAt() {
+		return setupCodeIssuedAt;
+	}
+
+	public String getInviteTokenHash() {
+		return inviteTokenHash;
+	}
+
+	public Instant getInviteTokenIssuedAt() {
+		return inviteTokenIssuedAt;
 	}
 
 	public Instant getCreatedAt() {
