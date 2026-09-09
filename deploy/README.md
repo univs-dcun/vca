@@ -68,6 +68,21 @@ async rewrites() {
 앱은 `API_BASE_URL=/api`만 쓰고, 실시간은 `ws://<VCA_HOST>:8083/mqtt`(EMQX WebSocket) — 모노레포 Vite SPA의 `src/lib/realtime/mqttClient`가
 구독하는 토픽과 같다(`vca/v1/{siteId}/cameras/+/status`, `…/detections`). 반입(W3) 시 이 계층은 백엔드가 연결한다.
 
+## 현재 개발서버 (vca-dev, 2026-09-09 1단계 배포 완료)
+
+| 항목 | 값 |
+|---|---|
+| 호스트 | `192.168.0.135` (Ubuntu 24.04, 24코어/31GB), SSH 별칭 `vca-dev`(계정 univs, 키 `id_ed25519_vca_dev`) |
+| 코드 | `~/platform/vca` (public, https) + `~/platform/vca/backend/vca-mqtt-broker` (private — 서버의 읽기 전용 배포 키 `github.com-vca-broker` 별칭으로 클론) |
+| 웹 | **http://192.168.0.135:8088** — 80/8080/5432는 같은 서버의 `gate` 프로젝트가 사용하므로 8088/18080 사용 |
+| proxy 직접 | http://192.168.0.135:18080 (기획 Next.js rewrites 대상) |
+| MQTT WS | ws://192.168.0.135:8083/mqtt (config.js 기본값과 일치해 `VCA_MQTT_WS_URL` 비움) |
+| RTSP / WebRTC | 8554 / 8189udp · EMQX 콘솔 127.0.0.1:18083 |
+| 갱신 | `ssh vca-dev 'cd ~/platform/vca && git pull && git -C backend/vca-mqtt-broker pull && cd deploy && docker compose up -d --build'` |
+
+첫 배포에서 배운 것: `VCA_ADMIN_SEED_PASSWORD`가 비밀번호 규칙(8자+영문+숫자+특수문자)에 어긋나면 admin이 기동 직후
+종료·재시작을 반복하고 proxy·frontend가 올라오지 않는다 — `docker compose logs admin`에 `password must be at least 8 characters…`.
+
 ## 운영으로 갈 때 바꿀 것
 
 - TLS 앞단(리버스 프록시) + `VCA_COOKIE_SECURE=true`, `VCA_MQTT_WS_URL=wss://…`
