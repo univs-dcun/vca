@@ -27,6 +27,10 @@ dependencies {
 	implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5'
 	// 이메일 코드 비밀번호 재설정 (UV-56) — 고객사 SMTP(팀/프로젝트 설정)로 sender 역할만
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
+	// 스키마 마이그레이션 (UV-57) — src/main/resources/db/migration/V*.sql, ddl-auto=validate로 엔티티와 대조
+	// Spring Boot 4는 Flyway 자동설정이 별도 스타터로 분리됨 (flyway-core만 넣으면 실행되지 않는다)
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
