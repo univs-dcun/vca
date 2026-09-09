@@ -37,6 +37,26 @@ public class AuthProxyController {
 		return forwarder.forward(HttpMethod.GET, "/auth/me", request, null);
 	}
 
+	@PostMapping("/api/auth/register/lookup")
+	public Mono<ResponseEntity<String>> registerLookup(ServerHttpRequest request, @RequestBody String body) {
+		return forwarder.forward(HttpMethod.POST, "/auth/register/lookup", request, body);
+	}
+
+	@PostMapping("/api/auth/register")
+	public Mono<ResponseEntity<String>> register(ServerHttpRequest request, @RequestBody String body) {
+		return forwarder.forward(HttpMethod.POST, "/auth/register", request, body);
+	}
+
+	@PostMapping("/api/auth/invite/redeem")
+	public Mono<ResponseEntity<String>> redeemInvite(ServerHttpRequest request, @RequestBody String body) {
+		return forwarder.forward(HttpMethod.POST, "/auth/invite/redeem", request, body);
+	}
+
+	@PostMapping("/api/auth/signup")
+	public Mono<ResponseEntity<String>> signup(ServerHttpRequest request, @RequestBody String body) {
+		return forwarder.forward(HttpMethod.POST, "/auth/signup", request, body);
+	}
+
 	@PostMapping("/api/auth/password/setup")
 	public Mono<ResponseEntity<String>> setupPassword(ServerHttpRequest request, @RequestBody String body) {
 		return forwarder.forward(HttpMethod.POST, "/auth/password/setup", request, body);

@@ -28,6 +28,12 @@ public class AuditService {
 		repository.save(new AuditEventEntity(projectId, CurrentUser.actorId(), CurrentUser.actorName(), message));
 	}
 
+	/** 세션 밖의 본인 행위(등록 코드·초대 활성화) — actor는 그 사람 자신 */
+	@Transactional
+	public void recordAs(String projectId, Long actorId, String actorName, String message) {
+		repository.save(new AuditEventEntity(projectId, actorId, actorName, message));
+	}
+
 	@Transactional(readOnly = true)
 	public List<AuditRow> recent(String projectId, int limit) {
 		PageRequest page = PageRequest.of(0, Math.min(Math.max(limit, 1), MAX_LIMIT));

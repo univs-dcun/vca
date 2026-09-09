@@ -12,4 +12,10 @@ public interface UserAccountRepository extends JpaRepository<UserAccountEntity, 
 
 	/** last-owner 가드 — 활성 owner 수 */
 	long countByPermissionAndStatus(PortalPermission permission, AccountStatus status);
+
+	long countByPermission(PortalPermission permission);
+
+	Optional<UserAccountEntity> findBySetupCodeHash(String setupCodeHash);
+
+	Optional<UserAccountEntity> findByInviteTokenHash(String inviteTokenHash);
 }

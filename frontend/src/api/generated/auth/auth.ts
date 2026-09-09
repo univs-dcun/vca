@@ -12,7 +12,7 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.13.0
+ * OpenAPI spec version: 0.14.0
  */
 import {
   useMutation,
@@ -34,12 +34,17 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AuthCodeLookupRequest,
+  AuthCodeLookupResponse,
+  AuthInviteRedeemRequest,
   AuthLoginRequest,
   AuthOkResponse,
   AuthPasswordChangeRequest,
   AuthPasswordSetupRequest,
   AuthPasswordVerifyRequest,
   AuthProfileResponse,
+  AuthRegisterRequest,
+  AuthSignupRequest,
   ErrorResponse
 } from '.././model';
 
@@ -270,6 +275,265 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
 
 
 /**
+ * 코드 8자(ABCDEFGHJKLMNPQRSTUVWXYZ23456789, 대시·소문자 무관). 실패는 주소(IP) 단위 5회/15분 → throttled. 사용됨/만료는 8자를 맞춘 사람에게만 구분해 알린다 (기획 결정 2026-09-02).
+ * @summary 등록 코드 조회 (UV-51) — 누구의 코드인지 확인. 명부 코드(신규 계정)와 셋업 코드(기존 계정)를 서버가 판별
+ */
+export const registerLookup = (
+    authCodeLookupRequest: AuthCodeLookupRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AuthCodeLookupResponse>(
+      {url: `/auth/register/lookup`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: authCodeLookupRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getRegisterLookupMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerLookup>>, TError,{data: AuthCodeLookupRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof registerLookup>>, TError,{data: AuthCodeLookupRequest}, TContext> => {
+
+const mutationKey = ['registerLookup'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerLookup>>, {data: AuthCodeLookupRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  registerLookup(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterLookupMutationResult = NonNullable<Awaited<ReturnType<typeof registerLookup>>>
+    export type RegisterLookupMutationBody = AuthCodeLookupRequest
+    export type RegisterLookupMutationError = ErrorResponse
+
+    /**
+ * @summary 등록 코드 조회 (UV-51) — 누구의 코드인지 확인. 명부 코드(신규 계정)와 셋업 코드(기존 계정)를 서버가 판별
+ */
+export const useRegisterLookup = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerLookup>>, TError,{data: AuthCodeLookupRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof registerLookup>>,
+        TError,
+        {data: AuthCodeLookupRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getRegisterLookupMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * 명부 코드: admin → 콘솔 admin + 앱, operator → 콘솔 없음(none) + 앱. 셋업 코드: 기존 계정 active. 성공 시 로그인과 같은 Set-Cookie. 오류 코드는 lookup과 동일 + 형식 위반 400 ADM-4001.
+ * @summary 등록 코드 활성화 (UV-51) — 코드 소각 + 계정 생성/활성화 + 비밀번호 설정 + 세션 발급, 단일 트랜잭션
+ */
+export const register = (
+    authRegisterRequest: AuthRegisterRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AuthProfileResponse>(
+      {url: `/auth/register`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: authRegisterRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getRegisterMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: AuthRegisterRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: AuthRegisterRequest}, TContext> => {
+
+const mutationKey = ['register'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof register>>, {data: AuthRegisterRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  register(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterMutationResult = NonNullable<Awaited<ReturnType<typeof register>>>
+    export type RegisterMutationBody = AuthRegisterRequest
+    export type RegisterMutationError = ErrorResponse
+
+    /**
+ * @summary 등록 코드 활성화 (UV-51) — 코드 소각 + 계정 생성/활성화 + 비밀번호 설정 + 세션 발급, 단일 트랜잭션
+ */
+export const useRegister = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: AuthRegisterRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof register>>,
+        TError,
+        {data: AuthRegisterRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getRegisterMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * @summary 초대 링크 완료 (UV-51) — /password-setup?token= 의 토큰 + 새 비밀번호 → 활성화 + 세션. 7일, single-use
+ */
+export const redeemInvite = (
+    authInviteRedeemRequest: AuthInviteRedeemRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AuthProfileResponse>(
+      {url: `/auth/invite/redeem`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: authInviteRedeemRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getRedeemInviteMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redeemInvite>>, TError,{data: AuthInviteRedeemRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof redeemInvite>>, TError,{data: AuthInviteRedeemRequest}, TContext> => {
+
+const mutationKey = ['redeemInvite'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof redeemInvite>>, {data: AuthInviteRedeemRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  redeemInvite(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RedeemInviteMutationResult = NonNullable<Awaited<ReturnType<typeof redeemInvite>>>
+    export type RedeemInviteMutationBody = AuthInviteRedeemRequest
+    export type RedeemInviteMutationError = ErrorResponse
+
+    /**
+ * @summary 초대 링크 완료 (UV-51) — /password-setup?token= 의 토큰 + 새 비밀번호 → 활성화 + 세션. 7일, single-use
+ */
+export const useRedeemInvite = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redeemInvite>>, TError,{data: AuthInviteRedeemRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof redeemInvite>>,
+        TError,
+        {data: AuthInviteRedeemRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getRedeemInviteMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
+ * 프론트 authConfig.selfSignup을 숨기는 것은 화면을 닫는 것이고 구멍을 닫는 것이 아니다 — 서버가 같은 호출을 거절한다 (기획자 HANDOFF signup/page.tsx:15).
+ * @summary 조직 자체 생성 (UV-51) — 온프레미스는 항상 403 ADM-4032. selfSignup=true이고 owner가 없을 때만 팀 + owner + 세션
+ */
+export const signup = (
+    authSignupRequest: AuthSignupRequest,
+ signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<AuthProfileResponse>(
+      {url: `/auth/signup`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: authSignupRequest, signal
+    },
+      );
+    }
+  
+
+
+export const getSignupMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signup>>, TError,{data: AuthSignupRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof signup>>, TError,{data: AuthSignupRequest}, TContext> => {
+
+const mutationKey = ['signup'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof signup>>, {data: AuthSignupRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  signup(data,)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SignupMutationResult = NonNullable<Awaited<ReturnType<typeof signup>>>
+    export type SignupMutationBody = AuthSignupRequest
+    export type SignupMutationError = ErrorResponse
+
+    /**
+ * @summary 조직 자체 생성 (UV-51) — 온프레미스는 항상 403 ADM-4032. selfSignup=true이고 owner가 없을 때만 팀 + owner + 세션
+ */
+export const useSignup = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signup>>, TError,{data: AuthSignupRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof signup>>,
+        TError,
+        {data: AuthSignupRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getSignupMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
  * 담당자 발급 계정(임시 비밀번호)으로 로그인한 뒤 본인 비밀번호를 설정한다. 완료 시 mustSetPassword 해제 + 현재 세션 외 전 세션 무효화. 임시 상태가 아니면 400 ADM-4013 (그 경우는 /auth/password 변경 API 몫).
  * @summary 첫 로그인 Set Password (UV-48) — 임시 비밀번호 상태의 세션만 허용, 현재 비밀번호 불요
  */

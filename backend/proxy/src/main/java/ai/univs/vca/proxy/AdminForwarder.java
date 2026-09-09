@@ -47,6 +47,10 @@ public class AdminForwarder {
 				if (cookie != null) {
 					h.set(HttpHeaders.COOKIE, cookie);
 				}
+				// 브라우저 주소 — Admin의 주소 단위 시도 스로틀(등록 코드) 키 (UV-51)
+				if (request.getRemoteAddress() != null && request.getRemoteAddress().getAddress() != null) {
+					h.set("X-Forwarded-For", request.getRemoteAddress().getAddress().getHostAddress());
+				}
 			});
 		WebClient.RequestHeadersSpec<?> withBody = body != null
 				? spec.contentType(MediaType.APPLICATION_JSON).bodyValue(body)

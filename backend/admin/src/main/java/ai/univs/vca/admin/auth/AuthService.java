@@ -1,13 +1,9 @@
 package ai.univs.vca.admin.auth;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -37,34 +33,60 @@ public class AuthService {
 	private static final Pattern HAS_DIGIT = Pattern.compile("[0-9]");
 	private static final Pattern HAS_SPECIAL = Pattern.compile("[^a-zA-Z0-9]");
 
+	/** 임시 비밀번호 유효 기간 — 관리자가 화면에서 읽어 전화로 전달하므로 실제 만료가 이 숫자여야 한다 (UV-51) */
+	public static final Duration TEMP_PASSWORD_TTL = Duration.ofHours(24);
+
 	private final UserAccountRepository users;
 	private final UserSessionRepository sessions;
+	private final AttemptService attempts;
 	private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 	private final SecureRandom random = new SecureRandom();
 
-	public AuthService(UserAccountRepository users, UserSessionRepository sessions) {
+	public AuthService(UserAccountRepository users, UserSessionRepository sessions, AttemptService attempts) {
 		this.users = users;
 		this.sessions = sessions;
+		this.attempts = attempts;
 	}
 
 	public record LoginResult(String token, boolean keepLoggedIn, UserProfile profile) {
 	}
 
+	/**
+	 * 판정 순서: 잠금(ADM-4015) → 식별자·비밀번호(ADM-4010, 실패 카운트) → 정지(4016) → 미활성(4017)
+	 * → 임시 비밀번호 만료(4019) → 세션. 잠금은 계정(식별자) 단위 5회/15분 (AttemptService).
+	 */
 	@Transactional
 	public LoginResult login(String identifier, String password, boolean keepLoggedIn) {
 		if (identifier == null || identifier.isBlank() || password == null || password.isEmpty()) {
 			throw AdminApiException.badRequest("identifier and password are required");
 		}
-		UserAccountEntity user = findByIdentifier(identifier).orElseThrow(AdminApiException::invalidCredentials);
-		if (!encoder.matches(password, user.getPasswordHash())) {
+		String attemptKey = AttemptService.loginKey(identifier);
+		if (attempts.isLocked(attemptKey)) {
+			throw AdminApiException.accountLocked();
+		}
+		Optional<UserAccountEntity> found = findByIdentifier(identifier);
+		if (found.isEmpty() || !encoder.matches(password, found.get().getPasswordHash())) {
+			attempts.recordFailure(attemptKey);
 			throw AdminApiException.invalidCredentials();
 		}
+		UserAccountEntity user = found.get();
 		if (user.getStatus() == AccountStatus.SUSPENDED) {
 			throw AdminApiException.accountSuspended();
 		}
 		if (user.getStatus() == AccountStatus.INVITED) {
 			throw AdminApiException.accountNotActivated();
 		}
+		if (user.isMustSetPassword() && user.getTempPasswordIssuedAt() != null
+				&& user.getTempPasswordIssuedAt().plus(TEMP_PASSWORD_TTL).isBefore(Instant.now())) {
+			throw AdminApiException.tempPasswordExpired();
+		}
+		attempts.clear(attemptKey);
+		return startSession(user, keepLoggedIn);
+	}
+
+	/** 세션 발급 — 로그인과 활성화 경로(등록 코드·초대·self-signup)가 공유 */
+	@Transactional
+	public LoginResult startSession(UserAccountEntity user, boolean keepLoggedIn) {
 		byte[] raw = new byte[32];
 		random.nextBytes(raw);
 		String token = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
@@ -164,12 +186,6 @@ public class AuthService {
 	}
 
 	private static String hash(String token) {
-		try {
-			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
-		}
-		catch (NoSuchAlgorithmException e) {
-			throw new IllegalStateException(e);
-		}
+		return Hashes.sha256(token);
 	}
 }

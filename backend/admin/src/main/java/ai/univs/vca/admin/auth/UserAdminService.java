@@ -160,6 +160,45 @@ public class UserAdminService {
 		audit.record(null, "Account " + user.getName() + " removed");
 	}
 
+	/**
+	 * 기존 계정용 셋업 코드 (UV-51) — 계정은 invited로 전환, /register에서 코드 + 비밀번호로 활성화.
+	 * 응답의 code는 1회만 노출(해시 저장). 14일. 재발급은 같은 호출 — 이전 코드 즉시 무효
+	 */
+	@Transactional
+	public AuthDtos.IssuedCode issueSetupCode(Long userId) {
+		UserAccountEntity user = require(userId);
+		if (user.getPermission() == PortalPermission.OWNER) {
+			guardLastOwner(user); // invited 전환 = 비활성 — 마지막 owner면 거부
+		}
+		String code;
+		do {
+			code = RegistrationCodes.generate();
+		}
+		while (users.findBySetupCodeHash(RegistrationCodes.hash(code)).isPresent());
+		user.issueSetupCode(RegistrationCodes.hash(code));
+		sessions.deleteOtherSessions(user.getId(), "");
+		audit.record(null, "Setup code issued for " + user.getName());
+		return new AuthDtos.IssuedCode(user.getId(), code, RegistrationCodes.format(code), user.getSetupCodeIssuedAt(),
+				user.getSetupCodeIssuedAt().plus(RegistrationService.SETUP_CODE_TTL));
+	}
+
+	/** 초대 링크 토큰 (UV-51) — /password-setup?token=, 7일, single-use. 응답의 token은 1회만 노출 */
+	@Transactional
+	public AuthDtos.IssuedInvite issueInviteToken(Long userId) {
+		UserAccountEntity user = require(userId);
+		if (user.getPermission() == PortalPermission.OWNER) {
+			guardLastOwner(user);
+		}
+		byte[] raw = new byte[24];
+		random.nextBytes(raw);
+		String token = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+		user.issueInviteToken(Hashes.sha256("invite:" + token));
+		sessions.deleteOtherSessions(user.getId(), "");
+		audit.record(null, "Invite link issued for " + user.getName());
+		return new AuthDtos.IssuedInvite(user.getId(), token, user.getInviteTokenIssuedAt(),
+				user.getInviteTokenIssuedAt().plus(RegistrationService.INVITE_TOKEN_TTL));
+	}
+
 	@Transactional(readOnly = true)
 	public List<UserRow> list() {
 		return users.findAll().stream().map(UserRow::of).toList();
