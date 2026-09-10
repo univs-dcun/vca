@@ -15,7 +15,7 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
     fetchAuthMe().then((res) => {
       if (cancelled) return
       if (res.status === 'rejected') {
-        navigate('/login', { replace: true })
+        navigate('/login?reason=sessionExpired', { replace: true })
       } else if (res.status === 'ok' && res.user?.mustSetPassword) {
         // 담당자 발급 임시 비밀번호 상태 — 본인 비밀번호 설정 전에는 메인을 볼 수 없다 (UV-48)
         navigate('/password-setup', { replace: true })

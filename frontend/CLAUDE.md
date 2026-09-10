@@ -204,3 +204,38 @@ mustSetPassword — true면 본인 비밀번호 설정 전 메인 진입 불가.
 - `lib/vcaStore.ts` addEvent — 확정 행 규칙(VIP 누적 + 카메라 전환 기준 Tracking 별개 1행, UV-31)
   구현의 단일 소유자. 라이브 브리지도 이 addEvent를 호출하므로, 반입으로 이전 병합 규칙이
   되돌아오면 mock/라이브 모두 깨진다 — 기획자 원본 레포에 동일 변경 반영을 요청해 둔 상태.
+
+반입 20260909 (UV-52 W3, import-snapshot-20260909 = portal-handoff-v1): Portal 6탭(`components/portal/` 19파일)·인증
+화면 4종(forgot-password·register·request-access·signup → `pages/*Page.tsx`)·i18n(`lib/i18n.ts`, 모든 화면 `T` 테이블)·
+Navbar 프로젝트 전환·시각 피커 재설계·CommandPalette 삭제·self-host 폰트(`public/fonts`)가 들어옴. 3-way base는 태그
+`import-snapshot-20260827`(기획자 원본 레이아웃 `src/…`) — 이번 스냅샷도 같은 계보의 `import/frontend-ui-20260909` 브랜치에
+한 커밋으로 동결해 다음 반입의 base가 된다. 충돌 45 hunk(DataPage 16·BestFrameDetail 7…)는 "우리 주입 + 기획 i18n" 양쪽 유지가
+원칙 — 해소 규칙은 반입 PR(UV-52) 본문. 라우트: `/portal`(RequireAuth → RequirePortal → PortalPage), `/forgot-password`·`/register`·
+`/request-access`·`/signup`(가드 없음, 화면은 아직 mock — 2차 배선 대상). `next/navigation` shim에 `redirect()` 추가(signup).
+
+**Portal 데이터 연결(UV-52) — 화면은 Zustand 스토어만 본다, 스토어를 서버로 채운다**
+- `lib/vca-bridge/session.ts` — /auth/me 스냅샷(unknown·ok·rejected·unavailable). `auth.ts`의 fetchAuthMe/authLogin/authLogout이
+  기록, `useAuthProfile()`은 이 스냅샷을 구독(각자 /auth/me 부르지 않음, 동시 호출 1회 합침).
+- 스탠드인 4곳 본문 교체(`vcaStore.ts` — 기획 지시 "호출부 유지·본문만"): `currentPortalUser`·`currentPortalRole`·
+  `projectsVisibleInApp`·`canSearchInApp`이 세션을 읽는다. 세션 없음 = 거부(none·[]·false, fail-closed), 인증 서버 미가동
+  ('unavailable')만 기존 mock 신원. `currentPortalUser`는 세션당 객체 1개를 캐시(셀렉터 무한 재렌더 방지).
+- `lib/vca-bridge/RequirePortal.tsx` — 세션 permission none이면 "/"로. 진짜 문은 서버(ADM-4030).
+- `lib/vca-bridge/portalLive.ts` — `usePortalLive()`가 PortalShell(30초 폴링)·ClientLayout(폴링 없음)에 한 줄 주입.
+  hydrate = 목록 7종(teams·projects·cameras·servers·portalUsers·staffRoster·auditLog) + 집계(`liveAggregates[projectId]` =
+  detections 14일·camera-stability 7일)를 한 번에 setState. `installLiveActions()`가 스토어의 변경 액션을 API 호출 + 재조회로
+  교체(카메라 CRUD/일괄, 프로젝트 생성·라이선스·메일·타임존·망분리, 팀 생성·메일, 계정 발급·권한·앱검색·배정·상태·삭제·
+  임시비번·셋업코드·초대토큰, 서버 CRUD, 명부 추가·수정·삭제·코드 발급/재발급). 반환값이 필요한 7개 액션은 타입을
+  `X | Promise<X>`로 넓히고 호출부 7곳에 `await` 주입(PortalUsersPage·ProjectRosterTab·RosterImportModal·TeamSwitcher·
+  PortalShell·PortalNewProjectWizard·PortalSignupWizard). 명부 코드 원문은 서버가 다시 주지 않으므로 이번 세션 발급분만
+  `issuedRosterCodes`로 잠시 보여준다. `dailyDetections()`/`unstableCameras()`는 `liveAggregates`가 있으면 그것을 돌려주고,
+  PortalProjectDetailPage의 memo deps에 `liveAggregates` 추가.
+- 서버 상태 매핑: unknown(상태 미수신)→offline(기획 확정 "error는 offline에 합침"), error→error. Camera.status 원천은 MQTT 적재.
+- **mock 그대로 남은 것(다음 단계)**: VIP persons/groups(W5), uploads(W6), accessRequests(authConfig.accessRequest=false),
+  register/forgot-password/request-access 화면의 데모 분기(`?demo=`·DEMO_* 상수) — 배선 시 삭제(기획 지시). 로그인의
+  `?demo=`는 이번에 삭제하고 `?reason=sessionExpired|signedOut`(RequireAuth·로그아웃이 실어 보냄)으로 대체.
+- LoginPage: 실로그인 후 mustSetPassword → /password-setup, 콘솔 역할 → /portal, 아니면 "/". 서버 거절 코드는
+  `loginFailureFromCode()`(ADM-4010 badCredentials·4015 locked·4016 suspended·4017/4019 notActivated·4018 pendingApproval·
+  4011 sessionExpired)로 기획 authErrors 7종 notice에 매핑, 매핑 밖은 버튼 위 error 행. "Keep me logged in"은 기획이 제거
+  (공유 워크스테이션) → authLogin(…, false). PasswordSetupPage: `?token=` 초대 활성화(`authRedeemInvite` → 4024면 "링크 만료"
+  화면) / 토큰 없음·`?reason=temp` = 임시 비밀번호 세션(authSetupPassword → 역할별 진입).
+

@@ -1,6 +1,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DISTRICTS } from "@/lib/mockData";
+import { MAP_TILE_URL, MAP_TILE_FILTER, tileLayerOptions } from "@/lib/mapTiles";
+import { useLanguage } from "@/lib/i18n";
+
+// The one word this map draws itself, on the card marking the most recent sighting. Inline rather
+// than in a file dictionary: the markup is built as an HTML string for Leaflet, so there is no
+// component here to hold a `t`.
+const LAST_SEEN = { en: "LAST SEEN", ko: "마지막 검출" } as const;
 
 export interface TrackingHit {
   lat: number;
@@ -136,6 +143,7 @@ export default function RedmapMap({
   onMarkerClick,
   visibleGroupIds = null,
 }: RedmapMapProps) {
+  const [lang] = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<unknown>(null);
   const overlayLayersRef = useRef<unknown[]>([]);
@@ -167,14 +175,7 @@ export default function RedmapMap({
 
       if (cancelled) { map.remove(); return; }
 
-      L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-        {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          subdomains: "abcd",
-          maxZoom: 20,
-        }
-      ).addTo(map);
+      L.tileLayer(MAP_TILE_URL, tileLayerOptions()).addTo(map);
 
       map.zoomControl.setPosition("topright");
       map.on("zoomend", () => setZoom(map.getZoom()));
@@ -350,7 +351,7 @@ export default function RedmapMap({
                  <div style="position:relative;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1.5px solid ${color}">
                    <div style="background:${color};color:white;font-size:11px;font-weight:800;padding:6px 12px;display:flex;align-items:center;gap:4px;white-space:nowrap">
                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M6 0.5L1.5 6.5H5L4.5 10.5L9.5 4.5H6L6 0.5Z" fill="white"/></svg>
-                     LAST SEEN
+                     ${LAST_SEEN[lang]}
                    </div>
                    <div style="background:white;padding:8px 12px 10px;white-space:nowrap">
                      <div style="font-size:15px;font-weight:800;color:var(--gray-900)">${node.label}</div>
@@ -387,20 +388,23 @@ export default function RedmapMap({
 
     return () => { stale = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackingActive, showStatus, activeNode, hits, zoom, mapReady, visibleGroupIds]);
+  }, [trackingActive, showStatus, activeNode, hits, zoom, mapReady, visibleGroupIds, lang]);
 
   return (
     <>
-      <style>{`
-        .vca-route-line {
-          stroke-dasharray: 10 8;
-          animation: vca-route-flow 0.9s linear infinite;
-        }
-        @keyframes vca-route-flow {
-          to { stroke-dashoffset: -18; }
-        }
-      `}</style>
-      <div ref={mapRef} style={{ width: "100%", height: "100%", position: "relative", backgroundColor: "var(--gray-100)" }} />
+      {/* .vca-route-line lives in globals.css. It used to be declared here TOO, with a different
+          dash pattern (10 8 / -18) and the same class and @keyframes names as the global one
+          (7 6 / -13) — so on this page the two fought, and whichever won per property could leave
+          a 13px offset animating an 18px dash cycle. That mismatch restarts the loop mid-dash,
+          which reads as the line blinking or stretching rather than flowing. One definition only. */}
+      <div
+        ref={mapRef}
+        style={{
+          // Read by .leaflet-tile-pane in globals.css — see MapView for why it is set here.
+          ["--map-tile-filter" as string]: MAP_TILE_FILTER,
+          width: "100%", height: "100%", position: "relative", backgroundColor: "var(--gray-100)",
+        }}
+      />
     </>
   );
 }
