@@ -1,17 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, Clock, Crosshair, Link2, Map as MapIcon, MapPin, Network, Play, Scan } from "lucide-react";
+import { Activity, Clock, Crosshair, Cpu, Link2, Map as MapIcon, MapPin, Network, Play, Server as ServerIcon } from "lucide-react";
 import { useVcaStore, type Camera } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { BORDER } from "./PortalShared";
-import { sgtClockMinutes, sgtDateKey } from "@/lib/time";
+import { PROJECT_TIME_ZONE, clockMinutesIn, dateKeyIn } from "@/lib/time";
 import { usePortalLanguage } from "@/lib/i18n";
-
-const AI_OVERLAY_COLORS: Record<string, string> = {
-  "Re-ID Analysis": "var(--success-400)",
-  "License Plate Recognition": "var(--primary-400)",
-};
 
 const T = {
   en: {
@@ -28,8 +23,9 @@ const T = {
     protocol: "Protocol",
     coordinates: "Coordinates",
     rtspUrl: "RTSP Stream URL",
-    mappedAiEngines: "Mapped AI engines",
-    noAiEngines: "No AI engines mapped to this camera yet.",
+    server: "Server",
+    noServer: "Not assigned",
+    hardware: "Make and model",
     lastDetection: "Last detection",
     detectionCount: "Detections on record",
     detectionCountValue: (n: number) => `${n}`,
@@ -50,8 +46,9 @@ const T = {
     protocol: "프로토콜",
     coordinates: "좌표",
     rtspUrl: "RTSP 스트림 URL",
-    mappedAiEngines: "연결된 AI 엔진",
-    noAiEngines: "이 카메라에 연결된 AI 엔진이 아직 없습니다.",
+    server: "서버",
+    noServer: "미할당",
+    hardware: "제조사·모델",
     lastDetection: "마지막 탐지",
     detectionCount: "기록된 탐지",
     detectionCountValue: (n: number) => `${n}건`,
@@ -63,6 +60,10 @@ const T = {
 export default function CameraStreamModal({ camera, onClose }: { camera: Camera; onClose: () => void }) {
   useEscapeKey(onClose);
   const events = useVcaStore(s => s.events);
+  const servers = useVcaStore(s => s.servers);
+  // The camera's own project, not the one the monitoring app happens to have selected — this
+  // modal opens from a Portal screen, and siteTimeZone() answers for the app's selection.
+  const projectZone = useVcaStore(s => s.projects.find(p => p.id === camera.projectId)?.timeZone) ?? PROJECT_TIME_ZONE;
   const [lang] = usePortalLanguage();
   const t = T[lang];
 
@@ -79,10 +80,10 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
   const [playing, setPlaying] = useState(false);
   const cameraEvents = events.filter(e => e.cameraId === camera.id);
   // Newest first, then take the top one — the store's order is not guaranteed to be chronological.
+  const server = servers.find(sv => sv.id === camera.serverId);
   const lastDetection = cameraEvents.length === 0
     ? null
     : new Date(Math.max(...cameraEvents.map(e => new Date(e.timestamp).getTime())));
-  const aiFeatures = camera.aiFeatures ?? [];
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -166,15 +167,9 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
                 <span style={{ fontSize: "12px", fontWeight: 700, color: "white" }}>{t.streamOffline}</span>
               </div>
             )}
-            {online && aiFeatures.map((feature, i) => (
-              <div key={feature} style={{
-                position: "absolute", left: `${12 + i * 10}%`, top: `${60 - i * 14}%`,
-                border: `2px solid ${AI_OVERLAY_COLORS[feature]}`, backgroundColor: `${AI_OVERLAY_COLORS[feature]}22`,
-                padding: "4px 8px", borderRadius: "6px", fontSize: "10px", fontWeight: 600, color: "white",
-              }}>
-                {feature}
-              </div>
-            ))}
+            {/* The overlay boxes that used to be drawn over this still are gone with the
+                per-camera engine list they were keyed on (2026-09-09): labelled rectangles at fixed
+                percentages of the frame, which is a picture of an analysis nobody ran. */}
           </div>
 
           {/*
@@ -208,7 +203,15 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
               [t.location, camera.location || "—", <MapPin key="l" size={11} strokeWidth={2.2} />],
               [t.protocol, camera.protocol ?? "TCP", <Network key="p" size={11} strokeWidth={2.2} />],
               [t.coordinates, camera.lat !== undefined && camera.lng !== undefined ? `${camera.lat}, ${camera.lng}` : "—", <Crosshair key="c" size={11} strokeWidth={2.2} />],
-              [t.lastDetection, lastDetection ? `${sgtDateKey(lastDetection).slice(5)} ${sgtClockMinutes(lastDetection)}` : t.noRecentDetections, <Clock key="t" size={11} strokeWidth={2.2} />],
+              // The server does the analysis, so which one this camera is attached to is the
+              // difference between a stream being watched and a stream being carried. It appeared
+              // on no screen until now.
+              [t.server, server?.name ?? t.noServer, <ServerIcon key="s" size={11} strokeWidth={2.2} />],
+              // Moved here from the table, which now shows the server in its place: a make and
+              // model are settled when the camera is bought and read once, which is what a detail
+              // sheet is for.
+              [t.hardware, [camera.maker, camera.model].filter(Boolean).join(" ") || "—", <Cpu key="h" size={11} strokeWidth={2.2} />],
+              [t.lastDetection, lastDetection ? `${dateKeyIn(lastDetection, projectZone).slice(5)} ${clockMinutesIn(lastDetection, projectZone)}` : t.noRecentDetections, <Clock key="t" size={11} strokeWidth={2.2} />],
               [t.detectionCount, t.detectionCountValue(cameraEvents.length), <Activity key="a" size={11} strokeWidth={2.2} />],
             ] as [string, string, React.ReactNode][]).map(([label, value, icon]) => (
               <div key={label} style={{ minWidth: 0 }}>
@@ -216,7 +219,7 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
                   <span style={{ display: "flex", color: "var(--gray-400)", flexShrink: 0 }}>{icon}</span>
                   {label}
                 </p>
-                <p style={{ fontSize: "13px", fontWeight: 700, color: value === "—" || value === t.noRecentDetections ? "var(--gray-400)" : "var(--gray-900)", marginTop: "2px", wordBreak: "break-word" }}>{value}</p>
+                <p style={{ fontSize: "13px", fontWeight: 700, color: value === "—" || value === t.noRecentDetections || value === t.noServer ? "var(--gray-400)" : "var(--gray-900)", marginTop: "2px", wordBreak: "break-word" }}>{value}</p>
               </div>
             ))}
             {/* Full width: a stream URL does not fit half a sheet. */}
@@ -232,20 +235,9 @@ export default function CameraStreamModal({ camera, onClose }: { camera: Camera;
                   a form. Same size, same weight, same family: a value is a value. */}
               <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", marginTop: "2px", wordBreak: "break-all" }}>{camera.rtspUrl}</p>
             </div>
-            <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
-              <p style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", lineHeight: "14px", color: "var(--gray-500)" }}>
-                <span style={{ display: "flex", color: "var(--gray-400)", flexShrink: 0 }}><Scan size={11} strokeWidth={2.2} /></span>
-                {t.mappedAiEngines}
-              </p>
-              {/* Text, not chips. Every other value on this sheet is 13px/700 in the body face, and
-                  the engines were 10px/600 pills in primary — the one field that looked like a
-                  different kind of thing, when it is the same kind: a labelled value. Pills earn
-                  their keep in a table, where a value repeats down a column and the shape helps you
-                  scan it; in a detail sheet read once, they are decoration with a smaller font. */}
-              <p style={{ fontSize: "13px", fontWeight: 700, color: aiFeatures.length === 0 ? "var(--gray-400)" : "var(--gray-900)", marginTop: "2px" }}>
-                {aiFeatures.length === 0 ? t.noAiEngines : aiFeatures.join(", ")}
-              </p>
-            </div>
+            {/* Nothing here about engines or camera kind. This sheet carried "Mapped AI engines"
+                and then "Source type"; both described a camera that decides its own analysis, and
+                neither exists — one site-wide module analyses every provisioned camera. */}
           </div>
         </div>
 

@@ -3,11 +3,11 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthHeader from "@/components/AuthHeader";
-import { PersonFieldIcon, LockFieldIcon, EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
+import { EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
 import VerificationCodeInput from "@/components/VerificationCodeInput";
 import { isPasswordFormatValid, PASSWORD_RULE_TEXT, RESET_CODE_LENGTH, RESET_CODE_TTL_MIN } from "@/lib/password";
 import { getAuthConfig } from "@/lib/authConfig";
-import { useLanguage, type AppLanguage } from "@/lib/i18n";
+import { josa, useLanguage, type AppLanguage } from "@/lib/i18n";
 
 // See the per-file pattern note in lib/i18n.ts.
 const T = {
@@ -17,7 +17,6 @@ const T = {
     adminTitle: "Contact your administrator",
     adminSub: "This system can’t send reset emails",
     whoToContact: "WHO TO CONTACT",
-    securityTeam: "Your security operations team",
     adminRemedies: "They’ll give you a temporary password or a setup code.",
     backToLogin: "Back to log in",
     haveCode: "Already have a code?",
@@ -50,6 +49,8 @@ const T = {
     passwordTitle: "Set a new password",
     passwordSub: "Choose one you haven’t used before",
     newPassword: "New password",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
     confirmPassword: "Confirm password",
     mismatch: "Passwords don’t match",
     changePassword: "Change password",
@@ -62,7 +63,6 @@ const T = {
     adminTitle: "관리자에게 문의해주세요",
     adminSub: "이 시스템은 재설정 메일을 보낼 수 없습니다",
     whoToContact: "문의할 곳",
-    securityTeam: "보안 관제 담당자",
     adminRemedies: "임시 비밀번호나 설정 코드를 받게 됩니다.",
     backToLogin: "로그인으로 돌아가기",
     haveCode: "이미 코드를 받으셨나요?",
@@ -80,7 +80,7 @@ const T = {
     throttledSub: "코드 입력이 잠시 차단되었습니다",
     throttledBody: "몇 분 뒤에 다시 시도하시거나 관리자에게 문의해주세요.",
     codeTitle: "인증 코드를 입력해주세요",
-    codeSentTo: (address: string) => `${address}으로 코드를 보냈습니다`,
+    codeSentTo: (address: string) => `${address}${josa(address, "으로", "로")} 코드를 보냈습니다`,
     codeSentToAccount: "계정에 등록된 이메일로 코드를 보냈습니다",
     expiresIn: (min: number) => `${min}분 후 만료됩니다`,
     sendNewCode: "새 코드 보내기",
@@ -95,6 +95,8 @@ const T = {
     passwordTitle: "새 비밀번호를 설정해주세요",
     passwordSub: "이전에 쓰지 않은 비밀번호로 정해주세요",
     newPassword: "새 비밀번호",
+    showPassword: "비밀번호 표시",
+    hidePassword: "비밀번호 숨기기",
     confirmPassword: "비밀번호 확인",
     mismatch: "비밀번호가 일치하지 않습니다",
     changePassword: "비밀번호 변경",
@@ -281,6 +283,10 @@ function ForgotPasswordFlow() {
     if (resends + 1 > MAX_RESENDS) {
       setDigits(Array(RESET_CODE_LENGTH).fill(""));
       setCodeFailure("resendLimit");
+      // Held down as well as refused. Without a cooldown the link stayed live under the notice
+      // that had just said no, so it could be pressed again and again with nothing happening —
+      // which reads as a broken link rather than a limit.
+      setCooldown(RESEND_COOLDOWN_SEC);
       return;
     }
     setResends(n => n + 1);
@@ -316,7 +322,7 @@ function ForgotPasswordFlow() {
       onClick={onClick}
       disabled={!enabled}
       style={{
-        height: "48px", width: "100%", border: "none", borderRadius: "8px",
+        height: "52px", width: "100%", border: "none", borderRadius: "8px",
         backgroundColor: enabled ? "var(--primary-400)" : "var(--gray-100)",
         color: enabled ? "white" : "var(--gray-400)",
         fontSize: "16px", fontWeight: 800, letterSpacing: "-0.32px",
@@ -355,10 +361,18 @@ function ForgotPasswordFlow() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", backgroundColor: "white" }}>
       <AuthHeader />
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflowY: "auto" }}>
+      <div className="vca-auth-scroll" style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto" }}>
         <div style={{
-          width: "480px", maxWidth: "480px", backgroundColor: "white",
-          borderRadius: "28px", padding: "36px", margin: "40px 0",
+          // No card. Every one of these screens is white on a white page, so a white panel with a
+          // 28px radius drew nothing — the radius and the horizontal padding were doing invisible
+          // work, and the padding was quietly narrowing the fields to 348px. A card separates
+          // content from a DIFFERENT surface; there is no different surface here. Eight of the ten
+          // reference logins sit the form straight on the background for the same reason (Stripe's
+          // card works because it sits on a gradient, not on white).
+          // 400 is the measure now, and it is the field width: in the reference range, and wider
+          // than the padding was leaving.
+          width: "400px", maxWidth: "400px",
+          margin: "auto 0",
           display: "flex", flexDirection: "column", gap: "40px", alignItems: "center",
         }}>
 
@@ -414,9 +428,8 @@ function ForgotPasswordFlow() {
                   <label style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.28px" }}>
                     {authConfig.employeeIdLogin ? t.identifierWithId : t.identifierEmailOnly}
                   </label>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "48px", padding: "8px",
+                  <div style={{ display: "flex", alignItems: "center", height: "52px", padding: "0 18px",
                     border: identifierError ? "1px solid var(--danger-400)" : FIELD_BORDER, borderRadius: "8px" }}>
-                    <PersonFieldIcon />
                     <input
                       value={identifier}
                       onChange={e => setIdentifier(e.target.value)}
@@ -424,7 +437,7 @@ function ForgotPasswordFlow() {
                       onKeyDown={e => { if (e.key === "Enter") sendCode(); }}
                       placeholder={authConfig.employeeIdLogin ? "EMP-2041 or user@email.com" : "user@email.com"}
                       autoFocus
-                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-900)", letterSpacing: "-0.35px" }}
+                      style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-900)", letterSpacing: "-0.35px" }}
                     />
                   </div>
                   {identifierError ? (
@@ -568,27 +581,29 @@ function ForgotPasswordFlow() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
                     <label style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.28px" }}>{t.newPassword}</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "48px", padding: "8px", border: fieldBorder(focusedField === "new"), borderRadius: "8px" }}>
-                      <LockFieldIcon />
+                    <div style={{ display: "flex", alignItems: "center", height: "52px", padding: "0 18px", border: fieldBorder(focusedField === "new"), borderRadius: "8px" }}>
                       <input
                         type={showNew ? "text" : "password"}
                         value={newPassword}
                         onChange={e => setNewPassword(e.target.value)}
                         onFocus={() => setFocusedField("new")}
                         onBlur={() => setFocusedField(null)}
+                        onKeyDown={e => { if (e.key === "Enter") savePassword(); }}
+                        autoComplete="new-password"
                         placeholder="••••••••"
                         autoFocus
-                        style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
+                        style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
                       />
-                      <button onClick={() => setShowNew(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
+                      <button type="button" onClick={() => setShowNew(s => !s)}
+                        aria-label={showNew ? t.hidePassword : t.showPassword}
+                        style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                         {showNew ? <EyeIcon /> : <EyeOffIcon />}
                       </button>
                     </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
                     <label style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.28px" }}>{t.confirmPassword}</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "48px", padding: "8px", border: fieldBorder(focusedField === "confirm"), borderRadius: "8px" }}>
-                      <LockFieldIcon />
+                    <div style={{ display: "flex", alignItems: "center", height: "52px", padding: "0 18px", border: fieldBorder(focusedField === "confirm"), borderRadius: "8px" }}>
                       <input
                         type={showConfirm ? "text" : "password"}
                         value={confirmPassword}
@@ -596,10 +611,13 @@ function ForgotPasswordFlow() {
                         onFocus={() => setFocusedField("confirm")}
                         onBlur={() => setFocusedField(null)}
                         onKeyDown={e => { if (e.key === "Enter") savePassword(); }}
+                        autoComplete="new-password"
                         placeholder="••••••••"
-                        style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
+                        style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
                       />
-                      <button onClick={() => setShowConfirm(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
+                      <button type="button" onClick={() => setShowConfirm(s => !s)}
+                        aria-label={showConfirm ? t.hidePassword : t.showPassword}
+                        style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                         {showConfirm ? <EyeIcon /> : <EyeOffIcon />}
                       </button>
                     </div>

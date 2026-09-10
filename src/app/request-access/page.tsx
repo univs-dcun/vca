@@ -3,8 +3,10 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthHeader from "@/components/AuthHeader";
-import { PersonFieldIcon, ErrorCircleIcon } from "@/components/AuthIcons";
+import { ErrorCircleIcon } from "@/components/AuthIcons";
 import { isMailDeliverable, resolveMailConfig, useVcaStore } from "@/lib/vcaStore";
+import { getAuthConfig } from "@/lib/authConfig";
+import { redirect } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 
 
@@ -75,8 +77,17 @@ const FIELD_BORDER = "1px solid var(--gray-300)";
  * Nothing routes here yet. Reaching it requires a route guard noticing "no permission", and no
  * route in the app is gated at all until the session model lands (see the handoff note in
  * src/app/login/page.tsx). The screen is built now so that wiring is the only step left.
+ *
+ * Closed by authConfig.accessRequest, like /signup is by selfSignup. Login only hid the link,
+ * which left the route open: typing the URL rendered the form, submitting it wrote a real record
+ * into the master's approval queue through a flow the product decided not to have — and the email
+ * field answered "this address already has access to this project" to anyone who typed one, which
+ * is exactly the account-existence question /login and /forgot-password refuse to answer.
+ *
+ * HANDOFF NOTE: this closes the screen, not the hole. The backend must refuse the same call.
  */
 export default function RequestAccessPage() {
+  if (!getAuthConfig().accessRequest) redirect("/login");
   return (
     <Suspense fallback={null}>
       <RequestAccessForm />
@@ -151,10 +162,18 @@ function RequestAccessForm() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", backgroundColor: "white" }}>
       <AuthHeader />
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflowY: "auto" }}>
+      <div className="vca-auth-scroll" style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto" }}>
         <div style={{
-          width: "480px", maxWidth: "480px", backgroundColor: "white",
-          borderRadius: "28px", padding: "36px", margin: "40px 0",
+          // No card. Every one of these screens is white on a white page, so a white panel with a
+          // 28px radius drew nothing — the radius and the horizontal padding were doing invisible
+          // work, and the padding was quietly narrowing the fields to 348px. A card separates
+          // content from a DIFFERENT surface; there is no different surface here. Eight of the ten
+          // reference logins sit the form straight on the background for the same reason (Stripe's
+          // card works because it sits on a gradient, not on white).
+          // 400 is the measure now, and it is the field width: in the reference range, and wider
+          // than the padding was leaving.
+          width: "400px", maxWidth: "400px",
+          margin: "auto 0",
           display: "flex", flexDirection: "column", gap: "40px", alignItems: "center",
         }}>
 
@@ -173,7 +192,7 @@ function RequestAccessForm() {
               <button
                 onClick={() => router.push("/login")}
                 style={{
-                  height: "48px", width: "100%", border: "none", borderRadius: "8px",
+                  height: "52px", width: "100%", border: "none", borderRadius: "8px",
                   backgroundColor: "var(--primary-400)", color: "white",
                   fontSize: "16px", fontWeight: 800, letterSpacing: "-0.32px", cursor: "pointer",
                 }}
@@ -210,15 +229,14 @@ function RequestAccessForm() {
                   {/* Name */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
                     <label style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.28px" }}>{t.name}</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "48px", padding: "8px",
+                    <div style={{ display: "flex", alignItems: "center", height: "52px", padding: "0 18px",
                       border: nameError ? "1px solid var(--danger-400)" : FIELD_BORDER, borderRadius: "8px" }}>
-                      <PersonFieldIcon />
                       <input
                         value={name}
                         onChange={e => setName(e.target.value)}
                         onBlur={() => setTouched(t => ({ ...t, name: true }))}
                         placeholder={t.namePlaceholder}
-                        style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-900)", letterSpacing: "-0.35px" }}
+                        style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-900)", letterSpacing: "-0.35px" }}
                       />
                     </div>
                     <FieldError text={nameError} />
@@ -228,15 +246,14 @@ function RequestAccessForm() {
                       so under the field rather than letting someone use a throwaway address. */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
                     <label style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.28px" }}>{t.email}</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "48px", padding: "8px",
+                    <div style={{ display: "flex", alignItems: "center", height: "52px", padding: "0 18px",
                       border: emailError ? "1px solid var(--danger-400)" : FIELD_BORDER, borderRadius: "8px" }}>
-                      <PersonFieldIcon />
                       <input
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                         onBlur={() => setTouched(t => ({ ...t, email: true }))}
                         placeholder="user@email.com"
-                        style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-900)", letterSpacing: "-0.35px" }}
+                        style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-900)", letterSpacing: "-0.35px" }}
                       />
                     </div>
                     {emailError
@@ -273,7 +290,7 @@ function RequestAccessForm() {
                     onClick={handleSubmit}
                     disabled={!canSubmit}
                     style={{
-                      height: "48px", width: "100%", border: "none", borderRadius: "8px",
+                      height: "52px", width: "100%", border: "none", borderRadius: "8px",
                       backgroundColor: canSubmit ? "var(--primary-400)" : "var(--gray-100)",
                       color: canSubmit ? "white" : "var(--gray-400)",
                       fontSize: "16px", fontWeight: 800, letterSpacing: "-0.32px",

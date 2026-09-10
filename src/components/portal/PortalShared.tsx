@@ -1,10 +1,55 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
-import { SUPPORT_CONTACT, type ProjectType } from "@/lib/vcaStore";
+import { ArrowDown, ArrowUp, Check } from "lucide-react";
+import { SUPPORT_CONTACT, canEditPortal, currentPortalUser, useVcaStore, type ProjectType } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { usePortalLanguage } from "@/lib/i18n";
+
+/**
+ * Whether the person at this console may change anything on it, and the sentence to show when
+ * they may not.
+ *
+ * The Auditor role was advertised as read-only and enforced nowhere. The Access-and-roles modal
+ * printed "Cameras, VIP, roster, license, server — View only" for Auditor, derived from
+ * canEditPortal so the table could not lie — and canEditPortal had exactly that one call site.
+ * No tab checked it. An auditor could delete cameras, delete enrolled faces and rewrite the
+ * roster, having just read a screen promising they could not. A security officer is given that
+ * account precisely because of the promise.
+ *
+ * Fails OPEN when the stand-in identity matches no account, the same as every other gate in
+ * Portal: there is no session yet, and a lock keyed on "we could not identify you" would shut
+ * the demo out of its own console. See currentPortalUser.
+ *
+ * HANDOFF NOTE: this decides what to show and what to disable, nothing more. Every mutating
+ * endpoint checks the caller's role again — auth-flow doc, section 07.
+ */
+export function usePortalEditAccess(): { mayEdit: boolean; reason: string | undefined } {
+  const portalUsers = useVcaStore(s => s.portalUsers);
+  const [lang] = usePortalLanguage();
+  const me = currentPortalUser(portalUsers);
+  const mayEdit = me ? canEditPortal(me.permission) : true;
+  return { mayEdit, reason: mayEdit ? undefined : READ_ONLY_REASON[lang] };
+}
+
+/**
+ * The handful of strings the shared components own.
+ *
+ * They had none: the kebab menu's only label was a hardcoded `title="More actions"` — untranslated
+ * in Korean, and the single thing a screen reader had to go on for an icon-only button used in six
+ * Portal tables — and FilterSelect fell back to an English "Select" whenever its value matched no
+ * option (reachable, e.g. a camera whose assigned server was deleted).
+ */
+const SHARED_LABELS = {
+  en: { moreActions: "More actions", select: "Select", typeSmartCity: "Smart City", typeSmartSchool: "Smart School" },
+  ko: { moreActions: "더 보기", select: "선택", typeSmartCity: "스마트시티", typeSmartSchool: "스마트스쿨" },
+} as const;
+
+/** Why a control is disabled, said in the role's own words rather than "no permission". */
+const READ_ONLY_REASON = {
+  en: "Auditor accounts have view-only access to this console.",
+  ko: "감사자 계정은 이 콘솔을 보기만 할 수 있습니다.",
+} as const;
 
 /**
  * Every hairline in Portal — card edges, table rules, row dividers, field borders.
@@ -17,6 +62,18 @@ import { usePortalLanguage } from "@/lib/i18n";
 export const BORDER = "1px solid var(--line)";
 /** A card's edge is the same hairline as everything else. One line colour, one weight. */
 export const CARD_BORDER = BORDER;
+/**
+ * A card's corner. One number, because two was the whole problem.
+ *
+ * Content panels and the boxes a table lives in were split between 12 and 16 with nothing
+ * distinguishing them — the VIP registry's table card at 16 and the Users page's request panel
+ * at 12, the VIP grid tile at 16 and the camera grid tile at 12, doing the same job side by
+ * side on screens a reader moves between.
+ *
+ * The summary strip keeps its own 12 deliberately: it is a band of cells, not a card, and it
+ * sits directly above one — a strip as round as the card under it reads as a second card.
+ */
+export const CARD_RADIUS = "16px";
 // Every control that can sit on a toolbar row — search input, FilterSelect, pill buttons, the
 // table/grid segmented toggle — is this tall, so a row of them lines up regardless of padding
 // or font size. Set the height, not the vertical padding.
@@ -188,10 +245,32 @@ export const BREADCRUMB_PROJECT_MAX_WIDTH = "min(320px, 22vw)";
  */
 export const PANEL_SHADOW = "0 1px 2px rgba(14,22,42,0.03), 0 1px 3px rgba(14,22,42,0.03)";
 
+/**
+ * What kind of project it is, as a chip.
+ *
+ * The ground was `white`, which was right while the only place this chip appeared was the licence
+ * page's gray-900 hero. That head is gone (2026-09-09) and a white chip on a white card is a
+ * coloured word floating between two chips that have grounds, so each type now carries its own
+ * tint — the same 100 step every other status chip in Portal sits on.
+ */
+/**
+ * The two project types, and how a chip for one is coloured.
+ *
+ * `label` stays English here because it is also a data value shared with screens that do not
+ * localise; `useTypeLabel()` below is what a rendered chip should use. Three Portal screens were
+ * printing TYPE_META.label straight into a Korean UI while the project wizard translated the
+ * same two words correctly, so the console showed both spellings.
+ */
 export const TYPE_META: Record<ProjectType, { label: string; bg: string; color: string }> = {
-  smart_city: { label: "Smart City", bg: "white", color: "var(--primary-400)" },
-  smart_school: { label: "Smart School", bg: "white", color: "var(--success-400)" },
+  smart_city: { label: "Smart City", bg: "var(--primary-100)", color: "var(--primary-400)" },
+  smart_school: { label: "Smart School", bg: "var(--success-100)", color: "var(--success-400)" },
 };
+
+/** The project type's name in the reader's language. */
+export function useTypeLabel(): (type: ProjectType) => string {
+  const [lang] = usePortalLanguage();
+  return type => (type === "smart_city" ? SHARED_LABELS[lang].typeSmartCity : SHARED_LABELS[lang].typeSmartSchool);
+}
 
 interface RowAction {
   label: string;
@@ -245,6 +324,7 @@ export function FilterSelect({ value, onChange, options, fitContent, footerActio
    */
   fitContent?: boolean;
 }) {
+  const [lang] = usePortalLanguage();
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [hoveredOption, setHoveredOption] = useState<string | null>(null);
@@ -295,8 +375,9 @@ export function FilterSelect({ value, onChange, options, fitContent, footerActio
           {options.map(o => (
             /* The trigger's own type, plus its box: 12 left padding, then 12 right padding + 8 gap
                + 12 chevron on the other side. Same numbers as the button below — if those change,
-               these do. */
-            <div key={o.value} style={{ fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", padding: "0 32px 0 12px" }}>{o.label}</div>
+               these do. It measured 13/600 while the trigger drew 10/700, so every fitContent
+               select reserved room for a label it was not drawing. */
+            <div key={o.value} style={{ fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap", padding: "0 32px 0 12px" }}>{o.label}</div>
           ))}
         </div>
       )}
@@ -324,11 +405,11 @@ export function FilterSelect({ value, onChange, options, fitContent, footerActio
           ...(open ? FIELD_FOCUS : { border: hovered ? "1px solid var(--gray-400)" : BORDER }),
         }}
       >
-        {/* 10px, the size the action buttons in the same toolbar use. The typed content of a
-            text field stays at 13 — that is the reader's own text and it has to be comfortable —
-            but a select shows a label we wrote, and a toolbar reads as one row of controls only
-            if its words are one size. */}
-        <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--gray-900)", overflow: "hidden", textOverflow: "ellipsis" }}>{selected?.label ?? "Select"}</span>
+        {/* 12px, the size the action buttons in the same toolbar use, and the size of the options
+            this trigger opens — at 10 the control was smaller than its own list. The typed content
+            of a text field stays at 13: that is the reader's own text and it has to be
+            comfortable, but a select shows a label we wrote. */}
+        <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", overflow: "hidden", textOverflow: "ellipsis" }}>{selected?.label ?? SHARED_LABELS[lang].select}</span>
         <span style={{ display: "flex", color: "var(--gray-600)", flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.87" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </span>
@@ -412,6 +493,7 @@ export function FilterSelect({ value, onChange, options, fitContent, footerActio
 // always-visible icon buttons with one trigger, matching how Vimeo (and most SaaS admin tables)
 // keep row actions compact and consistent as more of them get added over time.
 export function RowActionsMenu({ actions }: { actions: RowAction[] }) {
+  const [lang] = usePortalLanguage();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -433,7 +515,8 @@ export function RowActionsMenu({ actions }: { actions: RowAction[] }) {
     <div ref={ref} style={{ position: "relative", justifySelf: "end" }}>
       <button
         onClick={() => setOpen(o => !o)}
-        title="More actions"
+        title={SHARED_LABELS[lang].moreActions}
+        aria-label={SHARED_LABELS[lang].moreActions}
         style={{ border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex", padding: "4px", borderRadius: "6px" }}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -540,6 +623,15 @@ export interface SummaryCell {
   figure: React.ReactNode;
   /** The small word after the figure: "people", "of 104", "cameras". */
   unit?: string;
+  /**
+   * How the figure compares with the window before it, drawn after the unit.
+   *
+   * Grey and un-tinted whichever way it points, like the Overview's detection trend: more or fewer
+   * is neither good news nor bad, and colouring it would send the reader hunting for a fault
+   * nobody reported. `text` is the whole phrase so the caller keeps its own wording and its own
+   * language; this only supplies the arrow and the colour.
+   */
+  trend?: { direction: "up" | "down" | "flat"; text: string };
   label: string;
   /** warning (amber) for a defect somebody has to fix, neutral (plain black) for a fact. */
   tone?: "warning" | "neutral";
@@ -548,21 +640,29 @@ export interface SummaryCell {
   /** Tooltip — say what pressing it does, since the cell itself is a number. */
   title?: string;
   /**
-   * Marks the label as carrying an explanation, with the dotted underline Portal uses for that
-   * everywhere else. For cells whose label names a state rather than a thing — "invited",
-   * "suspended", "on the roster" — where the word is the whole question and the tooltip is the
-   * answer. A tooltip nobody knows is there is a tooltip nobody reads.
+   * A sentence explaining what the label means, shown on hover with the dotted underline that
+   * advertises it.
+   *
+   * For cells whose label names a state rather than a thing — "invited", "suspended", "on the
+   * roster" — where the word is the whole question and this is the answer.
+   *
+   * Our own Tooltip, not the browser's `title`: that one waits about a second with the pointer
+   * held still, so an underline promising an explanation delivered nothing to anybody moving at
+   * normal speed. It was `explain: true` plus a `title`, which is exactly that mistake.
    */
-  explain?: boolean;
+  explanation?: string;
 }
 
 export function SummaryStrip({ cells }: { cells: SummaryCell[] }) {
   if (cells.length === 0) return null;
   return (
+    /* No overflow:hidden. It kept the cells' active tint inside the rounded corners, and clipped
+       the one thing that has to escape — the explanation tooltip, which hangs below its label. The
+       corners are handled by rounding the end cells instead. */
     <div style={{
       display: "flex", alignItems: "stretch", flexWrap: "wrap",
       backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px",
-      marginBottom: "12px", overflow: "hidden",
+      marginBottom: "12px",
     }}>
       {cells.map((cell, i) => {
         // A defect is amber. Anything else is the plain text colour: these cells state a fact
@@ -577,11 +677,28 @@ export function SummaryStrip({ cells }: { cells: SummaryCell[] }) {
               <span style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
                 <span style={{ fontSize: "20px", fontWeight: 800, color: accent, lineHeight: "22px" }}>{cell.figure}</span>
                 {cell.unit && <span style={{ fontSize: "11px", color: "var(--gray-400)" }}>{cell.unit}</span>}
+                {cell.trend && (
+                  /* alignItems center rather than the row's baseline: the arrow is a glyph-sized
+                     box with no text baseline of its own, and on the baseline it hangs low. */
+                  <span style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "11px", color: "var(--gray-500)", whiteSpace: "nowrap" }}>
+                    {cell.trend.direction === "up" && <ArrowUp size={11} strokeWidth={2.6} />}
+                    {cell.trend.direction === "down" && <ArrowDown size={11} strokeWidth={2.6} />}
+                    {cell.trend.text}
+                  </span>
+                )}
               </span>
-              <span style={{
-                fontSize: "11px", lineHeight: "14px", fontWeight: 600, color: "var(--gray-600)", whiteSpace: "nowrap",
-                ...(cell.explain ? { borderBottom: "1px dotted var(--gray-400)", cursor: "help" } : null),
-              }}>{cell.label}</span>
+              {cell.explanation ? (
+                <Tooltip text={cell.explanation}>
+                  <span style={{
+                    fontSize: "11px", lineHeight: "14px", fontWeight: 600, color: "var(--gray-600)", whiteSpace: "nowrap",
+                    borderBottom: "1px dotted var(--gray-400)", cursor: "help",
+                  }}>{cell.label}</span>
+                </Tooltip>
+              ) : (
+                <span style={{ fontSize: "11px", lineHeight: "14px", fontWeight: 600, color: "var(--gray-600)", whiteSpace: "nowrap" }}>
+                  {cell.label}
+                </span>
+              )}
             </span>
             {/* marginTop 4 puts the mark's centre on the figure's line rather than at the top of
                 the cell's padding. */}
@@ -596,6 +713,10 @@ export function SummaryStrip({ cells }: { cells: SummaryCell[] }) {
           // panel with nothing else to separate the cells, and at #e7e7f1 on white the middle
           // divider was there in the markup and invisible on the screen.
           borderLeft: i === 0 ? "none" : "1px solid var(--gray-200)",
+          // The end cells carry the strip's own corners, so a tinted cell does not square them off
+          // now that the container no longer clips.
+          ...(i === 0 ? { borderTopLeftRadius: "12px", borderBottomLeftRadius: "12px" } : null),
+          ...(i === cells.length - 1 ? { borderTopRightRadius: "12px", borderBottomRightRadius: "12px" } : null),
         };
         return cell.onClick ? (
           <button
@@ -615,8 +736,12 @@ export function SummaryStrip({ cells }: { cells: SummaryCell[] }) {
               borderTop: "none", borderRight: "none", borderBottom: "none",
               cursor: "pointer", fontFamily: "inherit", textAlign: "left",
               // The selected cell is tinted rather than outlined: on a panel, "this filter is on"
-              // is a state of the cell, not an annotation on its label.
-              backgroundColor: cell.active ? "var(--warning-100)" : "transparent",
+              // is a state of the cell, not an annotation on its label. The tint follows the tone
+              // — an amber wash under a cell that is not raising a defect would report a fault the
+              // cell never claimed.
+              backgroundColor: cell.active
+                ? (cell.tone === "warning" ? "var(--warning-100)" : "var(--gray-100)")
+                : "transparent",
             }}
           >
             {body}
@@ -628,6 +753,102 @@ export function SummaryStrip({ cells }: { cells: SummaryCell[] }) {
     </div>
   );
 }
+
+/**
+ * One band of the card, headed the way the licence card heads INCLUDED FEATURES.
+ *
+ * 10px small caps rather than the 13px bold each of these had as a card title of its own: a
+ * heading inside a card is furniture, and at 13px bold it competed with the values under it for
+ * the same weight. The hairline above does the separating that three floating cards used to.
+ */
+/**
+ * One section of the settings card: what it is on the left, what you can do on the right.
+ *
+ * It was a full-width stack under a 10px small-caps label, and two things were wrong with that.
+ * The label was the smallest, lightest text in its own section — under the 12px pair captions
+ * and the 14px values it was meant to govern — so a section never announced itself; and on the
+ * 1600px shell the content under it ran the whole width, which put a value an arm's length from
+ * the word naming it and set every paragraph on a measure nobody can track back to.
+ *
+ * The rail fixes both at once. A heading with the room to be one (15px above the 14px values it
+ * governs, which is the order they should have been in), the section's own explanation under it
+ * rather than as a paragraph the controls have to be read past, and a content column that stops
+ * at 520px however wide the window gets. Time2book, ClickUp and Later's settings all converge on
+ * this shape, and for the same reason: a settings page is read one section at a time.
+ *
+ * `desc` is optional because not every section has something to explain — Account is five facts
+ * about you, and a sentence saying so would be furniture.
+ */
+export function CardSection({ heading, desc, first, children }: { heading: string; desc?: string; first?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="portal-settings-section" style={{ padding: "22px 24px", borderTop: first ? "none" : BORDER }}>
+      <div>
+        {/* <p>, not <h2>: nothing in Portal uses heading elements yet, and one lone h2 under no h1
+            is not an outline. Giving Portal a real heading order is its own pass. */}
+        <p style={{ fontSize: "15px", fontWeight: 800, color: "var(--gray-900)", lineHeight: "20px" }}>{heading}</p>
+        {desc && (
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.65, marginTop: "6px" }}>{desc}</p>
+        )}
+      </div>
+      {/* 520px, not 1fr. The rail alone would still let a four-column grid of pairs open up on a
+          wide screen — the cap is the half of this that holds at 1600px. */}
+      <div style={{ minWidth: 0, maxWidth: "520px" }}>{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Two columns of label-above-value pairs, the shape the camera sheet uses.
+ *
+ * It was one ruled row per fact, label left and value right — five rules in the first card alone,
+ * and on a 720px column the value ended up a hand's width from the word naming it. Stacking the
+ * pair puts the two together, and two columns halve the height, so the rules have nothing left to
+ * separate: whitespace does it.
+ */
+export function PairGrid({ children }: { children: React.ReactNode }) {
+  return (
+    /* Two columns in practice, and by arithmetic rather than by a hard-coded 2: the section's
+       content column is capped at 520px, so 220px tracks fit twice and never three times. It is
+       written as auto-fit so the grid drops to one column when the section stacks on a narrow
+       card, which a fixed two would not do. */
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px 20px" }}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * One fact, or one setting.
+ *
+ * A step larger than the camera sheet this pattern comes from — 12px caption over a 14px value,
+ * where the sheet runs 11 over 13. The sheet is a dense popup read at a glance with a dozen facts
+ * competing; this is a settings page with five, on a column with room to spare, and at 11px the
+ * captions read as fine print on a page that has no fine print.
+ *
+ * The icon tracks the caption: 12px at stroke 2.2 is a 1.1px line, still under the 1.4px Portal
+ * draws elsewhere, because a mark beside an 12px caption has to match its weight as well as its
+ * height — a 14px glyph at 1.4px stands taller than the letters and heavier than their stems.
+ */
+export function PairItem({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <p style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", lineHeight: "16px", color: "var(--gray-500)" }}>
+        <span style={{ display: "flex", color: "var(--gray-400)", flexShrink: 0 }}>{icon}</span>
+        {label}
+      </p>
+      {typeof children === "string"
+        ? <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)", marginTop: "3px", wordBreak: "break-word" }}>{children}</p>
+        : (
+          /* flex, not a plain block: FilterSelect's trigger is inline-grid, so in a block it sits
+             on a text baseline and inherits this column's 24px line height — about twenty pixels
+             of leading above it that read as the control having drifted away from its own label.
+             A flex container has no line box, so the gap is the 6px written here and nothing else. */
+          <div style={{ display: "flex", marginTop: "6px" }}>{children}</div>
+        )}
+    </div>
+  );
+}
+
 
 export function ActiveFilterCount({ count, onClear, label }: { count: number; onClear: () => void; label: string }) {
   const [hovered, setHovered] = useState(false);
@@ -643,7 +864,10 @@ export function ActiveFilterCount({ count, onClear, label }: { count: number; on
         display: "flex", alignItems: "center", gap: "6px", flexShrink: 0,
         height: CONTROL_HEIGHT, padding: "0 12px", borderRadius: "8px", cursor: "pointer",
         border: "none", backgroundColor: hovered ? "var(--gray-200)" : "var(--gray-100)",
-        fontSize: "10px", fontWeight: 700, color: "var(--gray-900)", fontFamily: "inherit",
+        /* 12px, matching the table below and the buttons beside it. A filter keeps its border —
+           it is an input, and an input with no edge does not read as somewhere you can type or
+           choose — but it should not be the smallest text on the screen while doing it. */
+        fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", fontFamily: "inherit",
       }}
     >
       {label}
@@ -821,19 +1045,9 @@ export function MetricCard({ label, iconBg, iconColor, icon, accentBorder, dense
   );
 }
 
-/** A dot-and-label pair for a metric card's footer — "56 online", "3 offline". */
-export function SubStat({ color, label }: { color: string; label: string }) {
-  return (
-    <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 600, color }}>
-      <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: color, flexShrink: 0 }} />
-      {label}
-    </span>
-  );
-}
-
 // ── Sortable table headings ──────────────────────────────────────────────────
 
-export type SortDirection = "asc" | "desc";
+type SortDirection = "asc" | "desc";
 export interface SortState<K extends string> {
   key: K;
   direction: SortDirection;
@@ -940,13 +1154,29 @@ export function SortableHeader<K extends string>({ label, sortKey, sort, onToggl
  * Remove) predate it and still carry their own markup — worth folding in here, but not while they
  * are untouched by the change that needed this.
  */
-export function ConfirmModal({ title, body, confirmLabel, cancelLabel, danger, altAction, onConfirm, onClose }: {
+export function ConfirmModal({ title, body, confirmLabel, cancelLabel, danger, confirmDisabled, altAction, onConfirm, onClose, children }: {
   title: string;
   body: string;
+  /**
+   * One field the confirmation needs, under the body.
+   *
+   * For the confirmations that are not purely yes/no — releasing somebody from the watchlist has to
+   * record why, and a second dialog stacked on this one to ask a single question is a stack nobody
+   * wants to be two deep in.
+   */
+  children?: React.ReactNode;
   confirmLabel: string;
   cancelLabel: string;
   /** Red confirm button — for the ones that take access away or cannot be undone from the menu. */
   danger?: boolean;
+  /**
+   * Holds the confirm button shut until the `children` field says otherwise.
+   *
+   * For the one class of dialog where "are you sure" is not enough: deleting a project takes a
+   * city's cameras and a watchlist of named people at once, and a red button is still one click.
+   * The caller decides what unlocks it — typing the name back, in that case.
+   */
+  confirmDisabled?: boolean;
   /**
    * A second answer to the same question, for the dialogs where "yes" has two meanings and neither
    * is safe to guess at — deleting a group of registered faces is the case this exists for: the
@@ -967,6 +1197,7 @@ export function ConfirmModal({ title, body, confirmLabel, cancelLabel, danger, a
         <div style={{ padding: "20px" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{title}</p>
           <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "8px", lineHeight: 1.6 }}>{body}</p>
+          {children}
         </div>
         {/* No rule above the buttons.
             Every modal in Portal drew one, and stacked with the header rule, the card edges, the
@@ -995,8 +1226,13 @@ export function ConfirmModal({ title, body, confirmLabel, cancelLabel, danger, a
           {/* Non-danger confirms are gray-900, not primary: restoring an account is a normal
               administrative act, and primary-400 here would spend the page's accent on a dialog
               nobody is meant to linger in. */}
-          <button onClick={onConfirm}
-            style={{ padding: "10px 16px", borderRadius: "8px", border: "none", backgroundColor: danger ? "var(--danger-400)" : "var(--gray-900)", color: "white", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={onConfirm} disabled={confirmDisabled}
+            style={{
+              padding: "10px 16px", borderRadius: "8px", border: "none",
+              backgroundColor: confirmDisabled ? "var(--gray-200)" : danger ? "var(--danger-400)" : "var(--gray-900)",
+              color: confirmDisabled ? "var(--gray-400)" : "white",
+              fontSize: "13px", fontWeight: 700, cursor: confirmDisabled ? "not-allowed" : "pointer",
+            }}>
             {confirmLabel}
           </button>
         </div>
@@ -1158,8 +1394,11 @@ export function SupportContactModal({ onClose }: { onClose: () => void }) {
               {SUPPORT_CONTACT.email}
             </a>
           ))}
-          {row(t.phone, SUPPORT_CONTACT.phone)}
-          {row(t.hours, SUPPORT_CONTACT.hours[lang])}
+          {/* Only the rows this desk actually has. A missing number is dropped, not printed as a
+              dash: a dash in a contact sheet reads as "there is one and we lost it", and the
+              reader spends a moment looking for it. */}
+          {SUPPORT_CONTACT.phone && row(t.phone, SUPPORT_CONTACT.phone)}
+          {SUPPORT_CONTACT.hours && row(t.hours, SUPPORT_CONTACT.hours[lang])}
           <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.6, marginTop: "4px" }}>
             {t.contractNote}
           </p>

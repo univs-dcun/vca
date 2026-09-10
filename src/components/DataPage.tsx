@@ -2,8 +2,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MatchItem, ReIDStatus } from "@/types/reid";
-import { CAMERA_CODES, canSearchInApp, useVcaStore } from "@/lib/vcaStore";
-import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtDateKey } from "@/lib/time";
+import {
+  CAMERA_CODES, canSearchInApp,
+  useActiveProjectId, useProjectCameras, useVcaStore, type Camera,
+} from "@/lib/vcaStore";
+import { useCameraStatus, getCameraStatus, runStateOf } from "@/lib/realtime/cameraStatus";
+import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtClockTime, sgtDateKey } from "@/lib/time";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import RemoveImageButton from "./RemoveImageButton";
 
@@ -52,6 +56,51 @@ const T = {
     reset: "Reset",
     search: "Search",
     noSearchPermission: "You do not have permission to search people — ask an administrator",
+    allCameras: "All cameras",
+    labelType: "Type",
+    associatesCount: (n: number) => `${n} ${n === 1 ? "ASSOCIATE" : "ASSOCIATES"}`,
+    associateNo: (n: string) => `Associate #${n}`,
+    noTiersSelected: "No tiers selected",
+    switchPrimary: "Switch primary target",
+    framesCount: (n: number) => `${n} ${n === 1 ? "FRAME" : "FRAMES"}`,
+    pageRange: (a: number, b: number, n: number) => `${a}–${b} of ${n}`,
+    colCoCaptures: "Co-captures",
+    analyzeFrame: "Analyze frame",
+    agoOf: (d: string) => `${d} ago`,
+    reidObject: (id: string) => `Re-ID object #REC-${id}`,
+    attrClassification: "Attribute classification",
+    genderAge: "Gender / age",
+    belongings: "Belongings",
+    trackOnMap: "Track on map",
+    clickCandidate: "Click a candidate below to select",
+    setPrimaryTarget: "Set as primary target",
+    vipQuickSelect: "VIP quick select",
+    selectedLabel: "Selected",
+    targetNo: (id: string) => `Target #TS${id}`,
+    todayAt: (time: string) => `today ${time}`,
+    peakLocationTip: (here: number, total: number) => `${here} of ${total} shared frames were captured here — click to show only those`,
+    peakTimeTip: (here: number, total: number, pct: number, bucket: string) => `${here} of ${total} shared frames (${pct}%) were captured in the ${bucket} — click to show only those`,
+    sortByCoCaptures: (asc: boolean) => `Sort by co-captures, ${asc ? "low to high" : "high to low"}`,
+    primaryBadge: "PRIMARY",
+    plate: "Plate",
+    labelCamera: "Camera",
+    refineSearch: "Refine search",
+    refresh: "Refresh",
+    matchesFound: (n: number) => `${n} ${n === 1 ? "match" : "matches"}`,
+    aboveSimilarity: (n: number) => `Showing targets above ${n}% similarity`,
+    vehicleSearchResult: "Vehicle search result",
+    searchResultTitle: "Search result",
+    noVipMatch: (q: string) => `No VIPs match “${q}”`,
+    filterAll: "All",
+    camOnline: "ONLINE",
+    camOffline: "OFFLINE",
+    rtspConnected: "RTSP connected",
+    noFeedTitle: "No feed to show",
+    noFeedBody: "This camera is not running, so there is nothing being captured. The device list shows when it was last seen.",
+    noReidTitle: "Person search permission required",
+    noReidBody: "Re-ID Analysis answers where one person has been seen across the site's cameras, which is a person search. An administrator can grant the permission in the Portal, under Users & Permissions.",
+    noRedFaceTitle: "Person search permission required",
+    noRedFaceBody: "RedFace matches a face against the registry and builds an association network from it, so with no search permission there is nothing it can show. An administrator can grant it in the Portal, under Users & Permissions.",
     searchVips: "Search VIPs",
     clearSearch: "Clear search",
     sortRegistered: "Registered",
@@ -157,6 +206,51 @@ const T = {
     reset: "초기화",
     search: "검색",
     noSearchPermission: "인물 검색 권한이 없습니다 — 관리자에게 요청하세요",
+    allCameras: "전체 카메라",
+    labelType: "종류",
+    associatesCount: (n: number) => `동행 ${n}명`,
+    associateNo: (n: string) => `동행 #${n}`,
+    noTiersSelected: "선택된 단계가 없습니다",
+    switchPrimary: "대상 바꾸기",
+    framesCount: (n: number) => `프레임 ${n}장`,
+    pageRange: (a: number, b: number, n: number) => `${n}건 중 ${a}–${b}`,
+    colCoCaptures: "동반검출",
+    analyzeFrame: "프레임 분석",
+    agoOf: (d: string) => `${d} 전`,
+    reidObject: (id: string) => `Re-ID 객체 #REC-${id}`,
+    attrClassification: "속성 분류",
+    genderAge: "성별 / 나이",
+    belongings: "소지품",
+    trackOnMap: "지도에서 추적",
+    clickCandidate: "아래에서 후보를 눌러 고르세요",
+    setPrimaryTarget: "이 대상으로 확정",
+    vipQuickSelect: "VIP 빠른 선택",
+    selectedLabel: "선택됨",
+    targetNo: (id: string) => `대상 #TS${id}`,
+    todayAt: (time: string) => `오늘 ${time}`,
+    peakLocationTip: (here: number, total: number) => `같이 찍힌 ${total}장 중 ${here}장이 이곳에서 촬영됐습니다 — 누르면 그 장면만 봅니다`,
+    peakTimeTip: (here: number, total: number, pct: number, bucket: string) => `같이 찍힌 ${total}장 중 ${here}장(${pct}%)이 ${bucket}에 촬영됐습니다 — 누르면 그 장면만 봅니다`,
+    sortByCoCaptures: (asc: boolean) => `동반검출 ${asc ? "적은 순" : "많은 순"}으로 정렬`,
+    primaryBadge: "대상",
+    plate: "번호판",
+    labelCamera: "카메라",
+    refineSearch: "조건 다시 설정",
+    refresh: "새로 고침",
+    matchesFound: (n: number) => `${n}건`,
+    aboveSimilarity: (n: number) => `유사도 ${n}% 이상만 표시`,
+    vehicleSearchResult: "차량 검색 결과",
+    searchResultTitle: "검색 결과",
+    noVipMatch: (q: string) => `“${q}”에 해당하는 VIP가 없습니다`,
+    filterAll: "전체",
+    camOnline: "정상",
+    camOffline: "중단",
+    rtspConnected: "RTSP 연결됨",
+    noFeedTitle: "표시할 화면이 없습니다",
+    noFeedBody: "이 카메라는 가동 중이 아니라 촬영되는 것이 없습니다. 마지막 신호 시각은 장비 목록에서 볼 수 있습니다.",
+    noReidTitle: "인물 검색 권한이 필요합니다",
+    noReidBody: "Re-ID 분석은 한 사람이 이 현장의 카메라들에서 언제 어디서 보였는지를 답하는 화면입니다. 인물 검색에 해당하므로 권한이 필요합니다. 관리자에게 요청하면 포털의 사용자 및 권한에서 열어 줄 수 있습니다.",
+    noRedFaceTitle: "인물 검색 권한이 필요합니다",
+    noRedFaceBody: "RedFace는 얼굴을 등록부와 대조해 동행 관계를 만드는 화면이라, 검색 권한 없이는 보여줄 것이 없습니다. 관리자에게 요청하면 포털의 사용자 및 권한에서 열어 줄 수 있습니다.",
     searchVips: "VIP 검색",
     clearSearch: "검색어 지우기",
     sortRegistered: "등록순",
@@ -335,7 +429,7 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
             <div style={{ width:"10px", height:"10px", borderRadius:"50%", backgroundColor:"var(--success-400)", flexShrink:0 }} />
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                <p style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>Re-ID Object #REC-{String(item.id).padStart(4,"0")}</p>
+                <p style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)" }}>{T[lang].reidObject(String(item.id).padStart(4,"0"))}</p>
                 <ScoreBadge score={item.similarity} />
                 <span style={{ fontSize:"10px", fontWeight:700, color:"var(--gray-600)", backgroundColor:"var(--gray-100)", padding:"2px 7px", borderRadius:"999px" }}>{item.cam}</span>
                 <span style={{ fontSize:"10px", fontWeight:800, color:REID_STATUS_STYLE[item.status].text, backgroundColor:`${REID_STATUS_STYLE[item.status].text}1a`, padding:"2px 7px", borderRadius:"999px" }}>{attr(item.status, lang)}</span>
@@ -355,7 +449,7 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
             <div style={{ border:BORDER, borderRadius:"12px", padding:"10px", backgroundColor:"var(--gray-50)", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
               <img src={item.face} alt="" style={{ width:"156px", height:"156px", objectFit:"cover", borderRadius:"12px", border:"2px solid var(--primary-400)" }} />
-              <p style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", letterSpacing:"0.5px" }}>Face</p>
+              <p style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", letterSpacing:"0.5px" }}>{T[lang].face}</p>
             </div>
             <div style={{ border:BORDER, borderRadius:"12px", padding:"10px", backgroundColor:"var(--gray-50)", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
               <img src={item.body} alt="" style={{ width:"124px", height:"186px", objectFit:"cover", borderRadius:"12px", border:"2px solid var(--primary-400)" }} />
@@ -365,13 +459,13 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
 
           {/* AI attrs */}
           <div>
-            <p style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)", marginBottom:"8px" }}>AI attribute classification</p>
+            <p style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-900)", marginBottom:"8px" }}>{T[lang].attrClassification}</p>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"8px" }}>
               {([
-                ["Gender/age", item.gender==="F"?`Female | ${item.age}`:`Male | ${item.age}`, item.gender==="F"?"#ec4899":"var(--primary-400)"],
-                ["Top color", "White Jacket", "var(--gray-700)"],
-                ["Bottom color", "Dark Accent", "var(--gray-700)"],
-                ["Belongings", "Black Handbag", "var(--gray-700)"],
+                [T[lang].genderAge, `${attr(item.gender==="F"?"Female":"Male", lang)} | ${item.age}`, item.gender==="F"?"#ec4899":"var(--primary-400)"],
+                [T[lang].topColor, attr("White Jacket", lang), "var(--gray-700)"],
+                [T[lang].bottomColor, attr("Dark Accent", lang), "var(--gray-700)"],
+                [T[lang].belongings, attr("Black Handbag", lang), "var(--gray-700)"],
               ] as [string,string,string][]).map(([label,val,color]) => (
                 <div key={label} style={{ padding:"8px 10px", borderRadius:"10px", backgroundColor:"var(--gray-50)", border:BORDER }}>
                   <p style={{ fontSize:"10px", color:"var(--gray-400)", fontWeight:600, marginBottom:"2px" }}>{label}</p>
@@ -391,10 +485,10 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
             onClick={() => onGoAnalyzeFrame?.(item.cam)}
             style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", border:BORDER, backgroundColor:"white", fontSize:"12px", fontWeight:600, color:"var(--gray-500)", cursor:"pointer" }}
           >
-            Analyze Frame
+            {T[lang].analyzeFrame}
           </button>
           <button onClick={onGoRedmap} style={{ display:"flex", alignItems:"center", gap:"5px", padding:"7px 14px", borderRadius:"8px", backgroundColor:"var(--gray-900)", border:"none", color:"white", fontSize:"12px", fontWeight:700, cursor:"pointer" }}>
-            Track on Map
+            {T[lang].trackOnMap}
           </button>
         </div>
       </div>
@@ -467,9 +561,21 @@ function HoverActionBtn({ label, icon, color, onClick }:
 function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab, onGoRedmap }: { p: (typeof REID_DATA)[number]; onClick: () => void; showCam?: boolean; fill?: boolean; onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void }) {
   const [lang] = useLanguage();
   const status = REID_STATUS_STYLE[p.status];
+  // Shown on hover AND on keyboard focus. The three actions on this card were the only way to
+  // send a detection to Re-ID, RedFace or Redmap, and they were rendered only while the pointer
+  // was over the card — so for anyone on a keyboard, or on a touch screen, they did not exist.
+  // The card itself takes focus for the same reason: it was a div with an onClick.
   const [hovered, setHovered] = useState(false);
+  const [focusWithin, setFocusWithin] = useState(false);
+  const showActions = hovered || focusWithin;
   return (
-    <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{
+    <div onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      onFocus={() => setFocusWithin(true)}
+      onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusWithin(false); }}
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{
       position:"relative", height:"254px",
       // Capped flex-grow — absorbs the common case (a trailing row that's nearly full) without
       // letting a row with only 1-2 leftover cards balloon into an oversized full-width photo.
@@ -496,7 +602,7 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
           REDFACE
         </div>
       )}
-      {hovered && (
+      {showActions && (
         <div style={{ position:"absolute", inset:0, backgroundColor:"rgba(14,22,42,0.6)",
           display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", zIndex:20 }}>
           <HoverActionBtn label="Re-ID" icon={<ReidIconSm />} color="var(--primary-400)" onClick={e => { e.stopPropagation(); onNavigateTab?.("Re-ID Analysis", p); }} />
@@ -593,11 +699,14 @@ function ScrollToTopButton({ containerRef }: { containerRef: React.RefObject<HTM
 // landing page (horizontal per-camera carousels) used to show. ───────────
 function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTab, onGoRedmap }:
   { camId:string; items:(typeof REID_DATA); onSwitchCam:(camId:string)=>void; onCardClick:(id:number)=>void; onNavigateTab?:(tab:DataTab, card:(typeof REID_DATA)[number])=>void; onGoRedmap?:()=>void }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [pickerOpen, setPickerOpen] = useState(false);
-  const cameras = useVcaStore(s => s.cameras);
+  const cameras = useProjectCameras();
   const camera = cameras.find(c => c.code === camId);
   const isAll = camId === ALL_CAMERAS_ID;
-  const pickerLabel = isAll ? "All Cameras" : camId;
+  // The camera code itself is data and stays as it is; only the "everything" option is wording.
+  const pickerLabel = isAll ? t.allCameras : camId;
   const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -628,7 +737,7 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
                 display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer", flexShrink:0,
                 fontSize:"13px", fontWeight: isAll ? 700:500, color: isAll ? "var(--primary-400)":"var(--gray-700)",
               }}>
-                All Cameras
+                {t.allCameras}
               </button>
               <div style={{ height:"1px", backgroundColor:"var(--gray-200)", flexShrink:0 }} />
               {/* The camera roster can run to dozens of entries — without its own scroll region
@@ -641,8 +750,8 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
                     fontSize:"13px", fontWeight: cam.code===camId ? 700:500, color: cam.code===camId ? "var(--primary-400)":"var(--gray-700)",
                   }}>
                     {cam.code}
-                    <span style={{ fontSize:"10px", fontWeight:800, color: cam.status==="online" ? "var(--success-400)" : "var(--gray-400)" }}>
-                      {cam.status==="online" ? "ON" : "OFF"}
+                    <span style={{ fontSize:"10px", fontWeight:800, color: runStateOf(cam.status)==="running" ? "var(--success-400)" : "var(--gray-400)" }}>
+                      {runStateOf(cam.status)==="running" ? "ON" : "OFF"}
                     </span>
                   </button>
                 ))}
@@ -652,19 +761,29 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
         </div>
         {camera && (
           <>
-            <span style={{ fontSize:"10px", fontWeight:800, color: camera.status==="online" ? "var(--success-400)" : "var(--gray-400)",
-              backgroundColor: camera.status==="online" ? "var(--success-100)" : "var(--gray-100)", padding:"4px 10px", borderRadius:"999px" }}>
-              {camera.status==="online" ? "ONLINE" : "OFFLINE"}
+            <span style={{ fontSize:"10px", fontWeight:800, color: runStateOf(camera.status)==="running" ? "var(--success-400)" : "var(--gray-400)",
+              backgroundColor: runStateOf(camera.status)==="running" ? "var(--success-100)" : "var(--gray-100)", padding:"4px 10px", borderRadius:"999px" }}>
+              {runStateOf(camera.status)==="running" ? t.camOnline : t.camOffline}
             </span>
-            <span style={{ fontSize:"12px", color:"var(--gray-400)" }}>IP {camera.ip} · RTSP Connected</span>
+            <span style={{ fontSize:"12px", color:"var(--gray-400)" }}>IP {camera.ip} · {t.rtspConnected}</span>
           </>
         )}
       </div>
 
       {/* flex-wrap + flex-grow (not CSS grid) — see the "All Cameras" grid above for why. */}
+      {items.length === 0 ? (
+        // Nothing captured, which happens for a real reason: this camera is not running, or the
+        // whole site is stopped. The wall used to render a header over blank white and leave the
+        // operator to guess whether the screen had failed.
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"72px 24px", gap:"6px" }}>
+          <p style={{ margin:0, fontSize:"14px", fontWeight:700, color:"var(--gray-600)" }}>{t.noFeedTitle}</p>
+          <p style={{ margin:0, fontSize:"13px", fontWeight:500, color:"var(--gray-400)", textAlign:"center", maxWidth:"360px", lineHeight:1.6 }}>{t.noFeedBody}</p>
+        </div>
+      ) : (
       <div style={{ display:"flex", flexWrap:"wrap", gap:"12px" }}>
         {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} showCam={isAll} fill onNavigateTab={onNavigateTab} onGoRedmap={onGoRedmap} />)}
       </div>
+      )}
     </div>
     <ScrollToTopButton containerRef={scrollRef} />
     </div>
@@ -688,17 +807,18 @@ const LIVE_FEED_STATUS_CYCLE: ReIDStatus[] = ["VIP","Unknown","Unknown"];
 // RedFace's cooccurrence dates, Smart Search) — this used to bundle both into one "Aug 06,14:16:29"
 // `time` string while a separate, unrelated `date` field cycled through REID_DATE_CYCLE independently,
 // so showing both together (to match everywhere else) produced a nonsense double date.
+//
+// The SITE's clock, not the machine's. These stamp a live capture, and everything that reads them
+// back measures against the site: cardTimestamp compares the date to the site's today, and the
+// activity chart buckets by the site's hour. Written with getFullYear()/getHours() they were the
+// viewer's own clock, so on this machine (Asia/Seoul) against a Singapore site a frame captured
+// at 00:30 was stamped "Sep 9 16:30" — the wrong day AND the wrong time, on a card that had just
+// appeared.
 function formatCapturedDate(d: Date): string {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  return sgtDateKey(d);
 }
 function formatCapturedTime(d: Date): string {
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${hh}:${mi}:${ss}`;
+  return sgtClockTime(d);
 }
 
 const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -751,7 +871,13 @@ function makeLiveItem(seed: number, camId: string, index: number): (typeof REID_
 
 function seedLiveFeed(): Record<string, (typeof REID_DATA)> {
   const feed: Record<string, (typeof REID_DATA)> = {};
-  useVcaStore.getState().cameras.forEach((cam, camIndex) => {
+  // This site's RUNNING cameras only. Seeding every site's meant the wall showed feeds from
+  // cameras that are not on this screen's site, and the "All Cameras" view counted them — and
+  // seeding stopped ones meant a camera that is dark had 120 captures under its name, a third of
+  // them badged "VIP · 87.8%". The picker offers stopped cameras (with an OFF badge), so that
+  // wall was one click away, while the "All Cameras" view already excluded them: the two views
+  // of the same site disagreed. A camera that is not running captured nothing.
+  getCameraStatus().running.forEach((cam, camIndex) => {
     feed[cam.code] = Array.from({ length: 120 }, (_, i) => makeLiveItem(500000 + camIndex * 1000 + i, cam.code, i));
   });
   return feed;
@@ -783,6 +909,12 @@ const ETHNIC_GROUP_OPTIONS = ["African American","Indian","Asian","Caucasian"];
 // a native <select>'s browser/OS-drawn list, so it looks identical everywhere rather than however
 // the current OS happens to render native selects.
 function SimpleSelect({ value, options, onChange }: { value:string; options:string[]; onChange:(v:string)=>void }) {
+  // The values stay English in state — they are what the model reports and what the filter holds
+  // — and are translated here, where they are drawn. Its sibling AllOptionRow already did this;
+  // this widget did not, so the two rows above it read Korean while Emotion and Ethnic group
+  // stayed "All / Neutral / Caucasian" with translations sitting unused in ATTR_KO.
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [open, setOpen] = useState(false);
   return (
     <div style={{ position:"relative", width:"100%" }}>
@@ -799,7 +931,7 @@ function SimpleSelect({ value, options, onChange }: { value:string; options:stri
         display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
         height:"32px", padding:"0 10px", borderRadius:"8px", border:BORDER, backgroundColor:"white", cursor:"pointer",
       }}>
-        <span style={{ fontSize:"12px", fontWeight:600, color: value ? "var(--gray-900)" : "var(--gray-400)" }}>{value || "All"}</span>
+        <span style={{ fontSize:"12px", fontWeight:600, color: value ? "var(--gray-900)" : "var(--gray-400)" }}>{value ? attr(value, lang) : t.filterAll}</span>
         <span style={{ display:"flex", color:"var(--gray-600)", transform: open ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}>
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </span>
@@ -818,7 +950,7 @@ function SimpleSelect({ value, options, onChange }: { value:string; options:stri
                 <span style={{ display:"flex", width:"12px", flexShrink:0 }}>
                   {active && <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                 </span>
-                {o || "All"}
+                {o ? attr(o, lang) : t.filterAll}
               </button>
             );
           })}
@@ -1152,12 +1284,22 @@ function LiveSearchSidebar({
             who to ask, not conclude the product cannot do it. */}
         <button
           onClick={() => { if (searchAllowed) onSearch(); }}
-          disabled={!searchAllowed}
+          // Not `disabled`: a disabled button takes no focus, so the one place that says WHY —
+          // the tooltip — could not be reached by keyboard, screen reader or touch, which is
+          // every way of using this screen except a mouse. aria-disabled states the same fact
+          // to assistive tech while leaving the control reachable, and the sentence below says
+          // it in text for everyone else.
+          aria-disabled={!searchAllowed}
           title={searchAllowed ? undefined : t.noSearchPermission}
           style={{ flex:1, height:"38px", borderRadius:"8px", border:"none", backgroundColor: searchAllowed ? "var(--gray-900)" : "var(--gray-100)", color: searchAllowed ? "white" : "var(--gray-400)", fontSize:"13px", fontWeight:700, cursor: searchAllowed ? "pointer" : "not-allowed" }}>
           {t.search}
         </button>
       </div>
+      {!searchAllowed && (
+        <p style={{ margin:"8px 0 0", fontSize:"11px", fontWeight:600, color:"var(--gray-500)", lineHeight:1.6 }}>
+          {t.noSearchPermission}
+        </p>
+      )}
     </div>
   );
 }
@@ -1170,6 +1312,17 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
   const [detailId, setDetailId] = useState<number|null>(null);
   const [feed, setFeed]         = useState(seedLiveFeed);
   const seedRef = useRef(1);
+  // Re-seed when the header switches site. Without this the wall keeps the previous site's cards
+  // — the seed runs once at mount, and nothing else would clear them.
+  const scopedProjectId = useActiveProjectId();
+  // Every search on this screen is answerable only from this site's cameras — see
+  // useSiteCameraCodes.
+  const siteCameras = useSiteCameraCodes();
+  const firstFeedRef = useRef(true);
+  useEffect(() => {
+    if (firstFeedRef.current) { firstFeedRef.current = false; return; }
+    setFeed(seedLiveFeed());
+  }, [scopedProjectId]);
 
   // Smart Search used to be its own top-level Data tab, disconnected from the camera view it was
   // actually meant to search from. Every other Data tab keeps its search filters in a collapsible
@@ -1206,6 +1359,23 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
   const [searchDateRange, setSearchDateRange]   = useState<DateRangeValue>({ start:null, end:null });
   const [licensePlate, setLicensePlate]         = useState("");
   const [searchCamera, setSearchCamera]         = useState("");
+
+  // The search outcome goes when the header switches site, for the same reason the wall is
+  // re-seeded above — declared here rather than beside that effect only because these states are
+  // declared below it.
+  const firstSearchSiteRef = useRef(true);
+  useEffect(() => {
+    if (firstSearchSiteRef.current) { firstSearchSiteRef.current = false; return; }
+    // The results too, not just the wall. Results are derived from the target and this site's
+    // cameras, so leaving the screen in its searched state re-answered the previous site's
+    // question with this site's cameras: the same person, suddenly "seen" twenty times at a
+    // school he has never been to. The query itself (target, attributes, dates) is the
+    // operator's own and survives, ready to be run again here — same rule as Redmap.
+    setSearched(false);
+    setSearchDetailId(null);
+    // A camera code belongs to one site, so this one cannot mean anything here.
+    setSearchCamera("");
+  }, [scopedProjectId]);
 
   const toggleTopColor    = (c: string) => setTopColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
   const toggleBottomColor = (c: string) => setBottomColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
@@ -1273,13 +1443,31 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
     backpackFilter === "Exists" ? "Backpack/Bag" : null,
   ].filter((v): v is string => !!v);
 
+  // All three ways a person becomes the subject of these results. A card's own Search button is
+  // the one the results panel could not see for itself — see SearchFilterState.activeTarget.
+  const activeTarget = activeVIP >= 0
+    ? { face: VIP_QUICK[activeVIP].face, label: VIP_QUICK[activeVIP].name }
+    : selectedTarget >= 0
+      ? { face: RECENT_TARGETS_EN[selectedTarget].face, label: RECENT_TARGETS_EN[selectedTarget].label }
+      : cardSearchTarget
+        // A crop from the wall has no name, only its object id — the same designation the rest of
+        // this screen calls it by. Nothing here invents one.
+        ? { face: cardSearchTarget.url, label: `TS${String(cardSearchTarget.id).padStart(6, "0")}` }
+        : null;
+  const clearActiveTarget = () => {
+    if (activeVIP >= 0) selectVIP(activeVIP);
+    else if (selectedTarget >= 0) selectRecentTarget(selectedTarget);
+    else setCardSearchTarget(null);
+  };
   const searchState: SearchFilterState = {
     searchType, setSearchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP,
     threshold, setThreshold, gender, setGender,
     apparel: derivedApparel, toggleApparel: () => {}, props: derivedProps, toggleProps: () => {},
     topColors, toggleTopColor, bottomColors, toggleBottomColor, shoesColors, toggleShoesColor,
     dateRange: searchDateRange, setDateRange: setSearchDateRange, licensePlate, setLicensePlate,
-    camera: searchCamera, setCamera: setSearchCamera, reset: searchReset,
+    camera: searchCamera, setCamera: setSearchCamera,
+    activeTarget, clearActiveTarget,
+    reset: searchReset,
   };
   const searchTarget = activeVIP >= 0 ? VIP_QUICK[activeVIP]
     : selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget]
@@ -1288,9 +1476,9 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
     : cardSearchTarget ? { face: cardSearchTarget.face, body: cardSearchTarget.url, gender: cardSearchTarget.gender === "M" ? "Male" : "Female" }
     : null;
   const searchResults = searchType === "PERSON" && searchTarget
-    ? buildTargetResultRows(searchTarget.face, searchTarget.body, searchTarget.gender === "Male" ? "M" : "F", 20)
+    ? buildTargetResultRows(searchTarget.face, searchTarget.body, searchTarget.gender === "Male" ? "M" : "F", 20, siteCameras)
         .filter(r => r.similarity >= threshold)
-    : filterReidData({ searchType, gender, apparel: derivedApparel, props: derivedProps, dateRange: searchDateRange, threshold, licensePlate, camera: searchCamera, topColors, bottomColors, shoesColors, emotion, ethnicGroup });
+    : filterReidData({ searchType, gender, apparel: derivedApparel, props: derivedProps, dateRange: searchDateRange, threshold, licensePlate, camera: searchCamera, topColors, bottomColors, shoesColors, emotion, ethnicGroup, siteCameras });
   const searchResultDetailItem = searchDetailId !== null ? searchResults.find(p => p.id===searchDetailId) ?? null : null;
 
 
@@ -1314,7 +1502,8 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
       // updating in lockstep rather than a live feed where different cameras detect faces at
       // different times. A ~1s tick over ~1/4 of cameras keeps each one's own average refresh
       // cadence close to the old 4s, just staggered instead of synchronized.
-      const onlineCams = useVcaStore.getState().cameras.filter(cam => cam.status === "online");
+      // Run state through the seam — see lib/realtime/cameraStatus.ts.
+      const onlineCams = getCameraStatus().running;
       if (onlineCams.length === 0) return;
       const batchSize = Math.max(1, Math.round(onlineCams.length / 4));
       const batch = [...onlineCams].sort(() => Math.random() - 0.5).slice(0, batchSize);
@@ -1333,7 +1522,7 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
 
   const allItems = Object.values(feed).flat();
   const detailItem = detailId !== null ? allItems.find(p => p.id===detailId) ?? null : null;
-  const onlineCameraCodes = useVcaStore(s => s.cameras).filter(c => c.status === "online").map(c => c.code);
+  const onlineCameraCodes = useCameraStatus().running.map(c => c.code);
   const camDetailItems = openCam === ALL_CAMERAS_ID
     ? onlineCameraCodes.flatMap(code => feed[code] ?? [])
     : feed[openCam] ?? [];
@@ -1722,7 +1911,7 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
         </div>
       </div>
       {indexed.length === 0 ? (
-        <div style={{ padding:"16px 0", textAlign:"center", color:"var(--gray-400)", fontSize:"12px" }}>No VIPs match &quot;{query}&quot;</div>
+        <div style={{ padding:"16px 0", textAlign:"center", color:"var(--gray-400)", fontSize:"12px" }}>{T[lang].noVipMatch(query)}</div>
       ) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(90px, 1fr))", gap:"8px", width:"100%" }}>
           {indexed.map(({ v, i }) => {
@@ -1931,7 +2120,7 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
     topColors: string[]; bottomColors: string[]; shoesColors: string[]; emotion: string; ethnicGroup: string }) {
   const [lang] = useLanguage();
   const t = T[lang];
-  const { searchType, selectedTarget, selectRecentTarget, activeVIP, selectVIP, threshold, gender, apparel, props, dateRange, licensePlate, camera } = state;
+  const { searchType, threshold, gender, apparel, props, dateRange, licensePlate, camera, activeTarget, clearActiveTarget } = state;
   // Captured once when results first land, not read live on every render — otherwise "as of"
   // would silently keep advancing on any unrelated re-render, making the Refresh button's job
   // (bump this to "now") indistinguishable from doing nothing.
@@ -1940,8 +2129,8 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
   // results — otherwise there's no way to tell "who am I even looking for" without going back to
   // the form. Reuse the same toggle-off logic the picker rows use, so clearing it here is
   // identical to clicking it again in the form.
-  const target = selectedTarget >= 0 ? RECENT_TARGETS_EN[selectedTarget] : activeVIP >= 0 ? VIP_QUICK[activeVIP] : null;
-  const clearTarget = () => { if (selectedTarget >= 0) selectRecentTarget(selectedTarget); else if (activeVIP >= 0) selectVIP(activeVIP); };
+  const target = activeTarget;
+  const clearTarget = clearActiveTarget;
   // What each card in the grid actually satisfied to be included — filterReidData() already hard-
   // filters on these, so every result matches all of them; surfacing that here turns the bare
   // similarity % into "matched because of X, Y, Z" instead of an unexplained number. None of this
@@ -1980,7 +2169,7 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
         <div className="vca-hide-scrollbar" style={{ display:"flex", alignItems:"center", gap:"8px", overflowX:"auto" }}>
           {target && (
             <FilterChip avatar={target.face} onRemove={clearTarget}>
-              {t.similarTo} {"label" in target ? target.label : target.name}
+              {t.similarTo} {target.label}
             </FilterChip>
           )}
           {activeChips.map((c, i) => <FilterChip key={i}>{c}</FilterChip>)}
@@ -1991,7 +2180,7 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
         </div>
         <button onClick={onRefine} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer",
           fontSize:"13px", fontWeight:700, color:"var(--gray-900)", flexShrink:0 }}>
-          <SlidersIconSm size={14} /> Refine search
+          <SlidersIconSm size={14} /> {t.refineSearch}
         </button>
       </div>
 
@@ -1999,16 +2188,14 @@ function SmartSearchResults({ state, results, onCardClick, onRefine, onReset, to
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px", flexWrap:"wrap", gap:"8px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
             <span style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>{t.searchResults}</span>
-            <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-500)" }}>{results.length} matches</span>
+            <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-500)" }}>{t.matchesFound(results.length)}</span>
             <div style={{ width:"1px", height:"12px", backgroundColor:"var(--gray-200)" }} />
-            <span style={{ fontSize:"13px", color:"var(--gray-400)" }}>
-              Showing targets above <span style={{ fontWeight:700, color:"var(--gray-600)" }}>{threshold}%</span> similarity
-            </span>
+            <span style={{ fontSize:"13px", color:"var(--gray-400)" }}>{t.aboveSimilarity(threshold)}</span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
             <span style={{ fontSize:"12px", color:"var(--gray-400)" }}>{t.resultsAsOf(refreshedAt.toLocaleTimeString(lang === "ko" ? "ko-KR" : "en-US", { hour12:false }))}</span>
             <button onClick={() => setRefreshedAt(new Date())} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:700, color:"var(--gray-600)" }}>
-              <RefreshIconSm /> Refresh
+              <RefreshIconSm /> {t.refresh}
             </button>
           </div>
         </div>
@@ -2045,6 +2232,17 @@ interface SearchFilterState {
   dateRange: DateRangeValue; setDateRange:(v:DateRangeValue)=>void;
   licensePlate: string; setLicensePlate:(v:string)=>void;
   camera: string; setCamera:(v:string)=>void;
+  /**
+   * The person the results are actually about, however they were picked.
+   *
+   * Resolved by the owner, because only the owner knows about the third way in: a camera card's
+   * own Search button (cardSearchTarget). The results panel used to re-derive this from
+   * selectedTarget/activeVIP alone, so on that third path it saw no target and drew the whole
+   * attribute filter bar — date, colours, emotion — as the reasons those results matched, while
+   * the rows came from buildTargetResultRows, which reads none of them.
+   */
+  activeTarget: { face: string; label: string } | null;
+  clearActiveTarget: () => void;
   reset: () => void;
 }
 
@@ -2062,11 +2260,20 @@ const REID_STATUS_CYCLE: ReIDStatus[] = [
 const REID_GENDER_CYCLE  = ["F","M","F","F","M","F","M","F","F","M","M","F","F","M","F","M","F","M"];
 const REID_AGE_CYCLE     = ["28yo","28yo","28yo","35yo","28yo","42yo","28yo","28yo","31yo","28yo","35yo","28yo","28yo","29yo","28yo","37yo","28yo","33yo"];
 const REID_SCORE_CYCLE   = [null,null,87.8,null,null,null,87.8,null,null,null,null,87.8,null,null,null,null,87.8,null];
-const REID_CAM_CYCLE     = ["NC-1","NC-2","NC-3","NC-1","NC-4","NC-2","NC-1","NC-3","NC-2","NC-4","NC-1","NC-3","NC-2","NC-1","NC-4","NC-3","NC-1","NC-2"];
-// The real roster, not a private "NC-1".."NC-4" set. Re-ID's rows and its camera filter now name
-// the same cameras Live Monitoring does, so a camera picked in one tab means the same camera in the
-// other, and the filter can actually match.
-const CAMERA_OPTIONS = CAMERA_CODES;
+
+
+/**
+ * The codes of the cameras registered at the site on screen — what every search on this page is
+ * allowed to return, and what its camera picker lists.
+ *
+ * Read live from the store, so a camera the Portal adds or renames shows up here. Memoized
+ * because the array is a useMemo dependency below and a fresh array on every render would re-run
+ * every search that depends on it.
+ */
+function useSiteCameraCodes(): string[] {
+  const cameras = useProjectCameras();
+  return useMemo(() => cameras.map(c => c.code), [cameras]);
+}
 const REID_FACE_POOL     = MATCH_DATA.map(m => m.face);
 // Attribute/date/similarity fields backing the Re-ID / Smart Search filter forms — added so
 // Gender/Apparel/Props/Search Period/Similarity actually narrow the result set instead of the
@@ -2099,7 +2306,12 @@ export const REID_DATA = PERSONS.map((p, i) => ({
   gender:      REID_GENDER_CYCLE[i % REID_GENDER_CYCLE.length],
   age:         REID_AGE_CYCLE[i % REID_AGE_CYCLE.length],
   score:       REID_SCORE_CYCLE[i % REID_SCORE_CYCLE.length],
-  cam:         REID_CAM_CYCLE[i % REID_CAM_CYCLE.length],
+  // Cycled over the whole register, which spans every site — each site then gets the rows its
+  // own cameras captured through the siteCameras filter below. This used to be a private
+  // REID_CAM_CYCLE of "NC-1".."NC-4", a code space that existed nowhere else in the app: the
+  // camera picker beside the grid lists the register's real codes, so picking any camera
+  // compared "NC-2" against a real code and returned nothing at all, every time.
+  cam:         CAMERA_CODES[i % CAMERA_CODES.length],
   face:        REID_FACE_POOL[i % REID_FACE_POOL.length],
   apparel:     REID_APPAREL_CYCLE[i % REID_APPAREL_CYCLE.length],
   prop:        REID_PROP_CYCLE[i % REID_PROP_CYCLE.length],
@@ -2143,7 +2355,7 @@ export const VEHICLE_DATA = VEHICLE_PLATES.map((plate, i) => {
     status: "Unknown" as ReIDStatus,
     gender: "", age: "",
     score: null as number | null,
-    cam: REID_CAM_CYCLE[i % REID_CAM_CYCLE.length],
+    cam: CAMERA_CODES[i % CAMERA_CODES.length],
     apparel: "", prop: null as string | null,
     date: REID_DATE_CYCLE[i % REID_DATE_CYCLE.length],
     similarity: REID_SIMILARITY_CYCLE[i % REID_SIMILARITY_CYCLE.length],
@@ -2160,6 +2372,15 @@ function filterReidData(f: {
   dateRange: DateRangeValue; threshold: number; licensePlate?: string; camera?: string;
   topColors?: string[]; bottomColors?: string[]; shoesColors?: string[];
   emotion?: string; ethnicGroup?: string;
+  /**
+   * The camera codes of the site on screen. Rows captured anywhere else are not results here.
+   *
+   * The header switches sites and the camera picker above the grid lists only that site's
+   * cameras — but the grid was reading the whole mock, so switching site changed the picker and
+   * nothing else. Left undefined the search is unscoped, which is what the seeded module-level
+   * datasets below want.
+   */
+  siteCameras?: string[];
 }): typeof REID_DATA {
   // An untouched date range isn't "any time ever" — it defaults to the last 7 days, same as the
   // trigger's "Last 7 days" placeholder implies.
@@ -2175,6 +2396,7 @@ function filterReidData(f: {
     const plateQuery = (f.licensePlate ?? "").trim().toLowerCase().replace(/\s+/g, "");
     return VEHICLE_DATA
       .filter(v => !plateQuery || (v.plate ?? "").toLowerCase().replace(/\s+/g, "").includes(plateQuery))
+      .filter(v => !f.siteCameras || f.siteCameras.includes(v.cam))
       .filter(v => !f.camera || v.cam === f.camera)
       .filter(v => v.similarity >= f.threshold)
       .filter(v => inDateRange(v.date))
@@ -2189,6 +2411,7 @@ function filterReidData(f: {
     .filter(p => !genderAbbrev || p.gender === genderAbbrev)
     .filter(p => f.apparel.length === 0 || f.apparel.includes(p.apparel))
     .filter(p => f.props.length === 0 || (p.prop !== null && f.props.includes(p.prop)))
+    .filter(p => !f.siteCameras || f.siteCameras.includes(p.cam))
     .filter(p => !f.camera || p.cam === f.camera)
     .filter(p => p.similarity >= f.threshold)
     .filter(p => inDateRange(p.date))
@@ -2235,8 +2458,12 @@ function withMatchVariation(url: string, i: number): string {
 // shots of a single real identity, so each synthesized appearance reuses the target's own photo
 // across different cameras/times — the same convention the derived Tracking trail already uses
 // for one person crossing multiple cameras.
-function buildSuspectMatches(person: (typeof REID_DATA)[number], count: number): MatchItem[] {
+function buildSuspectMatches(person: (typeof REID_DATA)[number], count: number, cams: string[] = CAMERA_CODES): MatchItem[] {
   const base = reidToMatchItem(person);
+  // A person cannot have been captured by a camera that isn't installed at the site being looked
+  // at, so the appearances are spread over that site's cameras — and a site with no cameras
+  // registered has no appearances to show rather than fabricated ones.
+  if (cams.length === 0) return [];
   // Spans 97% down to ~32% across the whole batch (not a fixed 0.8/step, which used to compress
   // every match into a narrow 82-97% band regardless of `count`) — a "Min Similarity: 30%" filter
   // elsewhere in the app only means something if results actually exist down near that floor.
@@ -2246,7 +2473,7 @@ function buildSuspectMatches(person: (typeof REID_DATA)[number], count: number):
     id: person.id * 1000 + i,
     face: withMatchVariation(base.face, i),
     body: withMatchVariation(base.body, i),
-    cam: CAMERA_OPTIONS[i % CAMERA_OPTIONS.length],
+    cam: cams[i % cams.length],
     time: TIMES_P[i % TIMES_P.length],
     similarity: Math.round((97 - i * step) * 10) / 10,
   }));
@@ -2261,7 +2488,10 @@ function buildSuspectMatches(person: (typeof REID_DATA)[number], count: number):
 // independent of what a named target's profile actually is, so a specific gender+apparel+props+
 // date combination can easily have no real overlap at all — the target is a person we already
 // have a photo of, not a filter that might come up empty.
-function buildTargetResultRows(face: string, body: string, genderAbbrev: "M" | "F", count: number): typeof REID_DATA {
+function buildTargetResultRows(face: string, body: string, genderAbbrev: "M" | "F", count: number, cams: string[] = CAMERA_CODES): typeof REID_DATA {
+  // Same rule as buildSuspectMatches: the site's own cameras, and nothing at all from a site with
+  // none registered.
+  if (cams.length === 0) return [];
   // Same reasoning as buildSuspectMatches: span 97% down to ~32% across the batch instead of a
   // fixed 0.8/step that compressed every result into a narrow 82-97% band no matter how low a
   // "Min Similarity" threshold was actually set to.
@@ -2273,7 +2503,7 @@ function buildTargetResultRows(face: string, body: string, genderAbbrev: "M" | "
     time: TIMES_P[i % TIMES_P.length],
     badge: null as number | null,
     status: "Unknown" as ReIDStatus,
-    cam: CAMERA_OPTIONS[i % CAMERA_OPTIONS.length],
+    cam: cams[i % cams.length],
     similarity: Math.round((97 - i * step) * 10) / 10,
     gender: genderAbbrev,
     age: "--",
@@ -2293,7 +2523,19 @@ function buildTargetResultRows(face: string, body: string, genderAbbrev: "M" | "
 const SUSPECT_1 = REID_DATA[0]; // gender F, matches REID_GENDER_CYCLE[0]
 const SUSPECT_2 = REID_DATA[1]; // gender M, matches REID_GENDER_CYCLE[1]
 
-const CLUSTERS: ReidCluster[] = [
+/**
+ * The two clusters the Re-ID landing view starts with, built for one site.
+ *
+ * A function rather than a module constant because every match in them names a camera: built once
+ * at module load they named cameras from whichever site happened to come first in the register,
+ * and switching site in the header left them on screen unchanged.
+ */
+function buildSeedClusters(cams: string[]): ReidCluster[] {
+  // A site with no cameras registered has nothing to have recognized anyone with. Returning the
+  // two shells anyway put a card on screen with another site's face as its thumbnail, hardcoded
+  // metadata and zero sightings — and its RedFace button handed that person on as a target.
+  if (cams.length === 0) return [];
+  return [
   {
     id: "c1",
     thumbnail: SUSPECT_1.url,
@@ -2306,7 +2548,7 @@ const CLUSTERS: ReidCluster[] = [
       { label:"Props", value:"None" },
     ],
     action: "RedFace",
-    matches: buildSuspectMatches(SUSPECT_1, 20),
+    matches: buildSuspectMatches(SUSPECT_1, 20, cams),
   },
   {
     id: "c2",
@@ -2320,9 +2562,10 @@ const CLUSTERS: ReidCluster[] = [
       { label:"Props", value:"Backpack/Bag" },
     ],
     action: "RedFace",
-    matches: buildSuspectMatches(SUSPECT_2, 20),
+    matches: buildSuspectMatches(SUSPECT_2, 20, cams),
   },
-];
+  ];
+}
 
 function MetaField({ label, value }: { label:string; value:string }) {
   return (
@@ -2418,11 +2661,13 @@ export const VIP_QUICK = [
 function randomTargetName(): string {
   return `Target #${Math.floor(1000 + Math.random() * 9000)}`;
 }
-function generateNewRecognition(existingClusters: ReidCluster[]): ReidCluster[] {
+function generateNewRecognition(existingClusters: ReidCluster[], cams: string[] = CAMERA_CODES): ReidCluster[] {
+  // Nothing is recognized at a site with no cameras registered.
+  if (cams.length === 0) return existingClusters;
   const now = new Date();
   const date = formatCapturedDate(now);
   const time = formatCapturedTime(now);
-  const cam = CAMERA_OPTIONS[Math.floor(Math.random() * CAMERA_OPTIONS.length)];
+  const cam = cams[Math.floor(Math.random() * cams.length)];
   const similarity = Math.round((80 + Math.random() * 18) * 10) / 10;
   const matchId = Date.now() + Math.floor(Math.random() * 1000);
 
@@ -2439,7 +2684,7 @@ function generateNewRecognition(existingClusters: ReidCluster[]): ReidCluster[] 
     // one fresh hit — a single photo doesn't read as "this identity has been re-identified
     // across cameras," which is the whole point of a Re-ID cluster (same generator Recent
     // Targets/VIP Quick Select search results already use for exactly this).
-    const historyRows = buildTargetResultRows(vip.face, vip.body, genderAbbrev, 20);
+    const historyRows = buildTargetResultRows(vip.face, vip.body, genderAbbrev, 20, cams);
     const fresh: ReidCluster = {
       id: `vip-${vip.name}`, thumbnail: vip.face, title: vip.name,
       // status forced to VIP: the generator marks its rows Unknown, but this cluster IS a
@@ -2455,7 +2700,7 @@ function generateNewRecognition(existingClusters: ReidCluster[]): ReidCluster[] 
   const age = `${20 + Math.floor(Math.random() * 4) * 10}s`;
   const photo = MATCH_DATA[Math.floor(Math.random() * MATCH_DATA.length)];
   const newMatch: MatchItem = { id:matchId, face:photo.face, body:photo.body, cam, date, time, similarity, gender:genderAbbrev, age, plate:null, status:"Unknown" };
-  const historyRows = buildTargetResultRows(photo.face, photo.body, genderAbbrev, 20);
+  const historyRows = buildTargetResultRows(photo.face, photo.body, genderAbbrev, 20, cams);
   const fresh: ReidCluster = {
     id: `unk-${matchId}`, thumbnail: photo.face, title: randomTargetName(),
     subject: historyRows[0],
@@ -2613,7 +2858,7 @@ function ImageDropzoneBox({ icon, label, previewSrc, onClick, onClear, aspect }:
       <div style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
         {icon}
         <span className="vca-dropzone-label" style={{ fontSize:"11px", color:"var(--gray-400)" }}>{label}</span>
-        {onClick && hovered && <span style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)" }}>{previewSrc ? "Click to change" : "Click to upload"}</span>}
+        {onClick && hovered && <span style={{ fontSize:"10px", fontWeight:700, color:"var(--primary-400)" }}>{previewSrc ? T[lang].clickToChange : T[lang].clickToUpload}</span>}
       </div>
       {onClear && hovered && (
         <RemoveImageButton label={T[lang].removeImage(label.toLowerCase())} onRemove={onClear} />
@@ -2642,10 +2887,16 @@ function SlidersIconSm({ size = 16 }: { size?: number }) {
 // what REID_DATA's `cam` field held, so the two tabs showed different names for the same estate
 // and neither could hand a selection to the other. REID_DATA draws from CAMERA_CODES now.
 function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const [open, setOpen] = useState(false);
-  const cameras = useVcaStore(s => s.cameras);
-  const statusOf = (code: string) => cameras.find(c => c.code === code)?.status;
-  const label = value || "All Cameras";
+  const cameraStatus = useCameraStatus();
+  const statusOf = (code: string) => cameraStatus.byCode(code);
+  // The register, scoped to the site on screen — not the module-level CAMERA_OPTIONS this used to
+  // list. That constant is every camera in the mock, so switching site in the header left the
+  // picker naming another site's cameras and the switch was decoration in this tab.
+  const options = useSiteCameraCodes();
+  const label = value || t.allCameras;
   return (
     /* 152px fitted "NC-1"; a real code plus its ON/OFF needs more, and the label was ellipsing. */
     <div style={{ position:"relative", width:"186px" }}>
@@ -2671,7 +2922,7 @@ function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: st
             display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer", flexShrink:0,
             fontSize:"13px", fontWeight: !value ? 700:500, color: !value ? "var(--primary-400)":"var(--gray-700)",
           }}>
-            All Cameras
+            {t.allCameras}
           </button>
           <div style={{ height:"1px", backgroundColor:"var(--gray-200)", flexShrink:0 }} />
           {/* Same scroll region Live Monitoring's picker has. This list was 4 fixed entries and fit
@@ -2679,7 +2930,7 @@ function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: st
               panel meant the extra entries were simply unreachable. "All Cameras" stays pinned
               above it — it is the reset, not one of the cameras. */}
           <div className="vca-thin-scrollbar" style={{ overflowY:"auto" }}>
-          {CAMERA_OPTIONS.map(code => (
+          {options.map(code => (
             <button key={code} className="vca-picker-option" data-on={code===value}
               onClick={() => { onChange(code); setOpen(false); }} style={{
               display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer",
@@ -2688,8 +2939,8 @@ function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: st
               {code}
               {/* Same ON/OFF read as Live Monitoring's picker. Whether a camera is up is part of
                   what "pick this camera" means, and only one of the two lists was saying it. */}
-              <span style={{ fontSize:"10px", fontWeight:800, color: statusOf(code)==="online" ? "var(--success-400)" : "var(--gray-400)" }}>
-                {statusOf(code)==="online" ? "ON" : "OFF"}
+              <span style={{ fontSize:"10px", fontWeight:800, color: statusOf(code)==="running" ? "var(--success-400)" : "var(--gray-400)" }}>
+                {statusOf(code)==="running" ? "ON" : "OFF"}
               </span>
             </button>
           ))}
@@ -2707,6 +2958,14 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
   const [lang] = useLanguage();
   const t = T[lang];
   const [expanded, setExpanded]         = useState(false);
+  // Re-ID is a person search: its answer is one identity's appearances across the site's cameras.
+  // Redmap and RedFace were gated and this was not, and a Live Monitoring card's "Re-ID" button
+  // walks straight in — setting hasSearched during render, so the twenty matches were on screen
+  // without the Search button ever being pressed. One door was locked and the other stood open.
+  const portalUsers = useVcaStore(state => state.portalUsers);
+  const searchAllowed = canSearchInApp(portalUsers);
+  const siteProjectId = useActiveProjectId();
+  const siteCameras = useSiteCameraCodes();
   // Same collapsible tabbed sidebar as Live Monitoring's Photo/Filter/VIP/Car search (see
   // LiveSearchSidebar) — was its own separate SearchPanel layout before, which meant the two
   // screens' search UIs could drift out of sync every time one of them changed.
@@ -2736,19 +2995,35 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
   const [prevSeedCard, setPrevSeedCard] = useState<typeof seedCard | "UNSET">("UNSET");
   // The landing view (before any search) — continuously "recognizes" someone new every so often,
   // newest at top, instead of sitting on two permanently-fixed example clusters forever.
-  const [liveClusters, setLiveClusters] = useState<ReidCluster[]>(CLUSTERS);
+  const [liveClusters, setLiveClusters] = useState<ReidCluster[]>(() => buildSeedClusters(siteCameras));
+  // Re-seed when the header switches site. Every match in a cluster names a camera, so the
+  // clusters left over from the previous site are sightings that did not happen here — the same
+  // reason Live Monitoring re-seeds its wall.
+  const firstClusterRef = useRef(true);
+  useEffect(() => {
+    if (firstClusterRef.current) { firstClusterRef.current = false; return; }
+    setLiveClusters(buildSeedClusters(siteCameras));
+  }, [siteCameras]);
+  // And the search outcome, for the reason given in Live Monitoring's effect above: a completed
+  // search left on screen through a site switch gets re-answered with the new site's cameras.
+  const firstReidSiteRef = useRef(true);
+  useEffect(() => {
+    if (firstReidSiteRef.current) { firstReidSiteRef.current = false; return; }
+    setHasSearched(false);
+    setDetailId(null);
+  }, [siteProjectId]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const scheduleNext = () => {
       const delay = 15000 + Math.random() * 15000;
       timer = setTimeout(() => {
-        setLiveClusters(prev => generateNewRecognition(prev).slice(0, LIVE_RECOGNITION_FEED_CAP));
+        setLiveClusters(prev => generateNewRecognition(prev, siteCameras).slice(0, LIVE_RECOGNITION_FEED_CAP));
         scheduleNext();
       }, delay);
     };
     scheduleNext();
     return () => clearTimeout(timer);
-  }, []);
+  }, [siteCameras]);
 
   const toggleTopColor    = (c: string) => setTopColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
   const toggleBottomColor = (c: string) => setBottomColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
@@ -2821,7 +3096,16 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
     threshold, setThreshold, gender, setGender,
     apparel: derivedApparel, toggleApparel: () => {}, props: derivedProps, toggleProps: () => {},
     topColors, toggleTopColor, bottomColors, toggleBottomColor, shoesColors, toggleShoesColor,
-    dateRange, setDateRange, licensePlate, setLicensePlate, camera, setCamera: onCameraChange, reset,
+    dateRange, setDateRange, licensePlate, setLicensePlate, camera, setCamera: onCameraChange,
+    // This tab has only the two pickers; a seeded card becomes the RedFace primary target rather
+    // than this panel's subject.
+    activeTarget: activeVIP >= 0
+      ? { face: VIP_QUICK[activeVIP].face, label: VIP_QUICK[activeVIP].name }
+      : selectedTarget >= 0
+        ? { face: RECENT_TARGETS_EN[selectedTarget].face, label: RECENT_TARGETS_EN[selectedTarget].label }
+        : null,
+    clearActiveTarget: () => { if (activeVIP >= 0) selectVIP(activeVIP); else if (selectedTarget >= 0) selectRecentTarget(selectedTarget); },
+    reset,
   };
 
   // Before a search runs, show the two illustrative example clusters (unchanged from before).
@@ -2837,46 +3121,74 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
   // a target's picked those stop being real filters — the meta line below only lists what's
   // actually driving the results, same reasoning as Smart Search's results-bar chips.
   const targetRows = searchType === "PERSON" && searchTarget
-    ? buildTargetResultRows(searchTarget.face, searchTarget.body, searchTarget.gender === "Male" ? "M" : "F", 20)
+    ? buildTargetResultRows(searchTarget.face, searchTarget.body, searchTarget.gender === "Male" ? "M" : "F", 20, siteCameras)
         .filter(r => r.similarity >= threshold)
     : null;
   const targetMatches = targetRows?.map(reidToMatchItem) ?? null;
-  const searchResultCluster: ReidCluster | null = hasSearched ? {
+  // The attribute-only search's own rows, computed here rather than inline below so the cluster's
+  // `subject` can come from them. It used to fall back to REID_DATA[0] whenever there was no row
+  // to take — which is a person from whichever site happens to come first in the mock, put on
+  // screen as the subject of a search that found nobody, and handed to RedFace as the target if
+  // that button was pressed. A search that found nobody has no subject.
+  const attributeRows = targetRows
+    ? null
+    : filterReidData({ searchType, gender, apparel: derivedApparel, props: derivedProps, dateRange, threshold, licensePlate, camera, topColors, bottomColors, shoesColors, emotion, ethnicGroup, siteCameras }).slice(0, 20);
+  const subject = targetRows?.[0] ?? attributeRows?.[0] ?? null;
+  const searchResultCluster: ReidCluster | null = hasSearched && subject ? {
     id: "search-result",
     // Top row of the same generated set, so this cluster's RedFace button hands over the person
-    // that was searched for rather than switching tabs empty-handed. Falls back to the first mock
-    // row for an attribute-only search, where there is no one specific person to carry over.
-    subject: targetRows?.[0] ?? REID_DATA[0],
+    // that was searched for rather than switching tabs empty-handed. For an attribute-only
+    // search that is the best-scoring row it actually returned.
+    subject,
     thumbnail: searchType === "VEHICLE" ? carSvgDataUri(VEHICLE_COLOR_CYCLE[0]) : (searchTarget?.face ?? MATCH_DATA[0].face),
-    title: searchType === "VEHICLE" ? "Vehicle search result" : searchTarget && "label" in searchTarget ? searchTarget.label : searchTarget ? searchTarget.name : "Search result",
+    title: searchType === "VEHICLE" ? t.vehicleSearchResult : searchTarget && "label" in searchTarget ? searchTarget.label : searchTarget ? searchTarget.name : t.searchResultTitle,
+    // Labels are wording and go through T; the values are what the model reports and what the
+    // filter state holds, so they translate only where they are drawn (attr()) — see the note at
+    // the top of this file.
     meta: targetMatches ? [
-      { label:"Type", value: searchType },
-      { label:"Similarity", value:`${threshold}%` },
+      { label:t.labelType, value: attr(searchType === "PERSON" ? "Person" : "Vehicle", lang) },
+      { label:t.similarity, value:`${threshold}%` },
     ] : searchType === "VEHICLE" ? [
-      { label:"Type", value: searchType },
-      ...(camera ? [{ label:"Camera", value:camera }] : []),
-      ...(licensePlate ? [{ label:"Plate", value:licensePlate }] : []),
-      { label:"Similarity", value:`${threshold}%` },
+      { label:t.labelType, value: attr("Vehicle", lang) },
+      ...(camera ? [{ label:t.labelCamera, value:camera }] : []),
+      ...(licensePlate ? [{ label:t.plate, value:licensePlate }] : []),
+      { label:t.similarity, value:`${threshold}%` },
     ] : [
-      { label:"Type", value: searchType },
-      ...(camera ? [{ label:"Camera", value:camera }] : []),
-      ...(gender ? [{ label:"Gender", value:gender }] : []),
-      ...(derivedApparel.length ? [{ label:"Apparel", value:derivedApparel.join(", ") }] : []),
-      ...(derivedProps.length ? [{ label:"Props", value:derivedProps.join(", ") }] : []),
-      ...(topColors.length ? [{ label:"Top color", value:topColors.join(", ") }] : []),
-      ...(bottomColors.length ? [{ label:"Bottom color", value:bottomColors.join(", ") }] : []),
-      ...(shoesColors.length ? [{ label:"Shoes color", value:shoesColors.join(", ") }] : []),
-      ...(emotion ? [{ label:"Emotion", value:emotion }] : []),
-      ...(ethnicGroup ? [{ label:"Ethnic group", value:ethnicGroup }] : []),
-      { label:"Similarity", value:`${threshold}%` },
+      { label:t.labelType, value: attr("Person", lang) },
+      ...(camera ? [{ label:t.labelCamera, value:camera }] : []),
+      ...(gender ? [{ label:t.labelGender, value:attr(gender, lang) }] : []),
+      ...(derivedApparel.length ? [{ label:t.labelApparel, value:derivedApparel.map(v => attr(v, lang)).join(", ") }] : []),
+      ...(derivedProps.length ? [{ label:t.labelProps, value:derivedProps.map(v => attr(v, lang)).join(", ") }] : []),
+      ...(topColors.length ? [{ label:t.topColor, value:topColors.map(v => attr(v, lang)).join(", ") }] : []),
+      ...(bottomColors.length ? [{ label:t.bottomColor, value:bottomColors.map(v => attr(v, lang)).join(", ") }] : []),
+      ...(shoesColors.length ? [{ label:t.shoesColor, value:shoesColors.map(v => attr(v, lang)).join(", ") }] : []),
+      ...(emotion ? [{ label:t.labelEmotion, value:attr(emotion, lang) }] : []),
+      ...(ethnicGroup ? [{ label:t.labelEthnic, value:attr(ethnicGroup, lang) }] : []),
+      { label:t.similarity, value:`${threshold}%` },
     ],
     action: "RedFace",
-    matches: targetMatches ?? filterReidData({ searchType, gender, apparel: derivedApparel, props: derivedProps, dateRange, threshold, licensePlate, camera, topColors, bottomColors, shoesColors, emotion, ethnicGroup }).slice(0, 20)
-      .map(p => ({ ...reidToMatchItem(p), similarity: p.similarity })),
+    matches: targetMatches ?? (attributeRows ?? []).map(p => ({ ...reidToMatchItem(p), similarity: p.similarity })),
   } : null;
   const clusters = hasSearched ? (searchResultCluster ? [searchResultCluster] : []) : liveClusters;
   const detailItem = detailId !== null ? clusters.flatMap(c => c.matches).find(m => m.id === detailId) ?? null : null;
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // After the hooks, so the rule stays a rule no matter which way this tab was entered — the tab
+  // bar, a deep-link, or a card's Re-ID button.
+  if (!searchAllowed) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px", backgroundColor: "var(--gray-50)" }}>
+        <div style={{ maxWidth: "420px", textAlign: "center" }}>
+          <p style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--gray-800)", letterSpacing: "-0.36px" }}>
+            {t.noReidTitle}
+          </p>
+          <p style={{ margin: "10px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", lineHeight: 1.7 }}>
+            {t.noReidBody}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"20px 24px 12px", backgroundColor:"var(--gray-100)", boxSizing:"border-box" }}>
@@ -2963,6 +3275,7 @@ function candidatesFromFilters(f: {
   dateRange: DateRangeValue; threshold: number; licensePlate?: string; camera?: string;
   topColors?: string[]; bottomColors?: string[]; shoesColors?: string[];
   emotion?: string; ethnicGroup?: string;
+  siteCameras?: string[];
 }): RedfaceCandidate[] {
   return filterReidData(f).slice(0, 12)
     .map(p => ({ id:p.id, url:p.url, cam:p.cam, time:p.time, similarity:p.similarity, plate:p.plate }));
@@ -2970,8 +3283,17 @@ function candidatesFromFilters(f: {
 
 function CandidateCard({ c, selected, onClick }:
   { c: RedfaceCandidate; selected:boolean; onClick:()=>void }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   return (
-    <div onClick={onClick} style={{
+    <div onClick={onClick}
+      // Choosing the primary target is what this modal exists to do, and the only other way in
+      // (the VIP chips) does not cover a crop picked out of the grid.
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      aria-pressed={selected}
+      style={{
       position:"relative", width:"144px", backgroundColor:"white",
       border: selected ? "1px solid var(--primary-400)" : "1px solid var(--gray-200)",
       borderRadius:"10px", padding:"8px", cursor:"pointer", display:"flex", flexDirection:"column", gap:"8px",
@@ -2987,13 +3309,13 @@ function CandidateCard({ c, selected, onClick }:
         {selected && (
           <span style={{ position:"absolute", top:6, left:6, display:"flex", alignItems:"center", gap:"3px",
             backgroundColor:"var(--primary-400)", color:"white", fontSize:"10px", fontWeight:800, padding:"2px 6px", borderRadius:"4px" }}>
-            <CheckIconSm /> Selected
+            <CheckIconSm /> {t.selectedLabel}
           </span>
         )}
       </div>
       <div>
-        <p style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", margin:0 }}>Target #TS{String(c.id).padStart(6,"0")}</p>
-        <p style={{ fontSize:"10px", color:"var(--gray-700)", margin:0 }}>today {c.time}</p>
+        <p style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-900)", margin:0 }}>{c.label ?? t.targetNo(String(c.id).padStart(6,"0"))}</p>
+        <p style={{ fontSize:"10px", color:"var(--gray-700)", margin:0 }}>{t.todayAt(c.time)}</p>
       </div>
     </div>
   );
@@ -3025,6 +3347,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   const [lang] = useLanguage();
   const t = T[lang];
   useEscapeKey(onCancel);
+  const siteCameras = useSiteCameraCodes();
   const [searchType, setSearchType]         = useState<"PERSON"|"VEHICLE">("PERSON");
   const [selectedTarget, setSelectedTarget] = useState(-1);
   const [activeVIP, setActiveVIP]           = useState(-1);
@@ -3131,13 +3454,13 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
   // fall back to uploadedFace/uploadedBody, so uploading a photo drives results the same way
   // picking a Recent target or VIP does, instead of the upload being purely cosmetic.
   const targetCandidates: RedfaceCandidate[] | null = searchType === "PERSON" && (faceSrc || bodySrc)
-    ? buildTargetResultRows(faceSrc ?? bodySrc!, bodySrc ?? faceSrc!, target?.gender === "Male" ? "M" : gender === "Male" ? "M" : "F", 20)
+    ? buildTargetResultRows(faceSrc ?? bodySrc!, bodySrc ?? faceSrc!, target?.gender === "Male" ? "M" : gender === "Male" ? "M" : "F", 20, siteCameras)
         .filter(r => r.similarity >= threshold)
         .map(p => ({ id: p.id, url: p.url, cam: p.cam, time: p.time, similarity: p.similarity, plate: p.plate }))
     : null;
   // Live — recomputes on every filter change instead of staying empty until a "Search" click, so
   // the results panel never sits disconnected from the filters actually driving it.
-  const candidates = targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, topColors, bottomColors, shoesColors });
+  const candidates = targetCandidates ?? candidatesFromFilters({ searchType, gender, apparel, props, dateRange, threshold, licensePlate, topColors, bottomColors, shoesColors, siteCameras });
   // Picking a Recent target or a VIP already names one specific person, so its top candidate row
   // starts selected. That row is not a lookalike: buildTargetResultRows builds it FROM the picked
   // face at 97%, so it is the same photo — clicking it could only ever choose the same person.
@@ -3250,7 +3573,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
               <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:"4px", color:"var(--gray-700)" }}>
                   <StarIconSm />
-                  <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>VIP quick select</span>
+                  <span style={{ fontSize:"12px", fontWeight:800, color:"var(--gray-700)", letterSpacing:"-0.2px" }}>{t.vipQuickSelect}</span>
                 </div>
                 <VipQuickSelectRow activeVIP={activeVIP} onSelect={selectVIP} compact />
               </div>
@@ -3418,7 +3741,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                 callout instead until a card's actually clicked. */}
             {candidates.length > 0 && effectiveSelected === null && (
               <span style={{ fontSize:"12px", fontWeight:700, color:"var(--primary-400)", backgroundColor:"var(--primary-100)", padding:"4px 10px", borderRadius:"999px" }}>
-                ↓ Click a candidate below to select
+                ↓ {t.clickCandidate}
               </span>
             )}
           </div>
@@ -3447,14 +3770,14 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
 
       <div style={{ padding:"16px 24px", borderTop:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
         <button onClick={reset} style={{ display:"flex", alignItems:"center", gap:"6px", background:"none", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>
-          <ResetIconSm /> Reset filters
+          <ResetIconSm /> {t.resetFilters}
         </button>
         <div style={{ display:"flex", gap:"8px" }}>
           <button onClick={onCancel} style={{ padding:"8px 12px", borderRadius:"8px", border:"1px solid var(--gray-300)", backgroundColor:"white", fontSize:"13px", fontWeight:700, color:"var(--gray-600)", cursor:"pointer" }}>{t.cancel}</button>
           <button disabled={!selectedObj} onClick={() => selectedObj && onConfirm(selectedObj)} style={{ padding:"8px 12px", borderRadius:"8px", border:"none",
             backgroundColor: selectedObj ? "var(--primary-400)" : "var(--primary-200)", color:"white", fontSize:"13px", fontWeight:700,
             cursor: selectedObj ? "pointer" : "default" }}>
-            Set as primary target
+            {t.setPrimaryTarget}
           </button>
         </div>
       </div>
@@ -3502,7 +3825,9 @@ function buildRedfaceTiers(seed: number) {
 
 type RedfaceNode = { id:number; face:string; count:number; status:"VIP"|"Suspect"|"Unknown" };
 type TierMeta = {
-  bg:string; labelBg:string; labelColor:string; label:string; sublabel:string;
+  bg:string; labelBg:string; labelColor:string;
+  // Bilingual like TIER_LINK_META below: these are the pyramid's own words, not data.
+  label:Record<AppLanguage, string>; sublabel:Record<AppLanguage, string>;
   nodeSize:number; nodeBorder:number; nodeColor:string; step:number; lineWidth:number;
   dashed?:boolean; dashFlow?:boolean; lineOpacity:number; stagger?:boolean;
 };
@@ -3517,11 +3842,11 @@ type PyramidRow = { key:string; weight:number; nodes:RedfaceNode[]; meta: TierMe
 // The label chips go white in exchange — a danger-100 chip on a danger-100 field was invisible.
 const ZONE_TINT = (token: string) => `color-mix(in srgb, var(${token}) 70%, white)`;
 const PYRAMID_TIER_META: Record<"tier1"|"tier2"|"tier3", TierMeta> = {
-  tier1: { bg:ZONE_TINT("--danger-200"), labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--danger-500)", label:"TIER 1 · RED ZONE", sublabel:">100 CO-CAPTURES",
+  tier1: { bg:ZONE_TINT("--danger-200"), labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--danger-500)", label:{ en:"TIER 1 · RED ZONE", ko:"1단계 · 적색 구간" }, sublabel:{ en:">100 CO-CAPTURES", ko:"동반검출 100건 초과" },
     nodeSize:52, nodeBorder:3, nodeColor:"var(--danger-400)", step:16, lineWidth:1.4, dashFlow:true, lineOpacity:0.85 },
-  tier2: { bg:ZONE_TINT("--warning-200"), labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--warning-500)", label:"TIER 2 · ORANGE ZONE", sublabel:"10-99 CO-CAPTURES",
+  tier2: { bg:ZONE_TINT("--warning-200"), labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--warning-500)", label:{ en:"TIER 2 · ORANGE ZONE", ko:"2단계 · 주황 구간" }, sublabel:{ en:"10-99 CO-CAPTURES", ko:"동반검출 10~99건" },
     nodeSize:52, nodeBorder:2, nodeColor:"var(--warning-400)", step:11, lineWidth:1, dashed:true, lineOpacity:0.7 },
-  tier3: { bg:ZONE_TINT("--gray-200"), labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--gray-700)", label:"TIER 3 · SLATE ZONE", sublabel:"<10 CO-CAPTURES",
+  tier3: { bg:ZONE_TINT("--gray-200"), labelBg:"rgba(255,255,255,0.85)", labelColor:"var(--gray-700)", label:{ en:"TIER 3 · SLATE ZONE", ko:"3단계 · 회색 구간" }, sublabel:{ en:"<10 CO-CAPTURES", ko:"동반검출 10건 미만" },
     // Same 52px as Tier 2. Tier 3 was drawn smaller to signal a weaker link, but the faces here
     // will be low-resolution CCTV crops in practice, and 42px left too little of them to tell
     // people apart — which is the one thing these nodes are for.
@@ -3533,8 +3858,10 @@ function xAt(i: number, count: number, step: number) {
   return 50 - ((count - 1) * step) / 2 + i * step;
 }
 
-function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { primaryTarget:{ name:string; face:string } | null; rows: PyramidRow[]; onNodeClick:(tier:string, node:RedfaceNode)=>void; selectedNodeId:number|null }) {
+function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId, dateRange }: { primaryTarget:{ name:string; face:string } | null; rows: PyramidRow[]; onNodeClick:(tier:string, node:RedfaceNode)=>void; selectedNodeId:number|null; dateRange: DateRangeValue }) {
+  const cooccurCams = useCooccurCameras();
   const [lang] = useLanguage();
+  const t = T[lang];
   const totalWeight = rows.reduce((s, r) => s + r.weight, 0) || 1;
   const positioned = rows.reduce<{ list: Array<PyramidRow & { top:number; bottom:number; center:number }>; acc:number }>((state, r) => {
     const top = (state.acc / totalWeight) * 100;
@@ -3579,7 +3906,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
                   — geometry, not information — and the words after it already said what the band
                   holds. The tier bands name a tier because there are three of them to tell apart;
                   there is one of these. */}
-              {r.meta?.label ?? "PRIMARY TARGET"}
+              {r.meta?.label[lang] ?? t.primaryTarget}
             </span>
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
               backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.85)", color: r.meta?.labelColor ?? "var(--primary-400)",
@@ -3587,7 +3914,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
               {/* Was "CENTRAL TARGET PROFILE", which restated the label opposite it. The tier
                   bands put their co-capture range here, so the parallel fact for this band is how
                   many associates the graph below it found. */}
-              {r.meta?.sublabel ?? `${assocTotal} ASSOCIATES`}
+              {r.meta?.sublabel[lang] ?? t.associatesCount(assocTotal)}
             </span>
           </div>
         ))}
@@ -3614,7 +3941,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
             boxSizing:"border-box", boxShadow:"0 8px 20px rgba(90,61,251,0.25)" }}>
             <img src={primaryTarget.face} alt="" style={{ width:"100%", height:"100%", borderRadius:"9px", objectFit:"cover", display:"block" }} />
           </div>
-          <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.4px" }}>PRIMARY</span>
+          <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.4px" }}>{t.primaryBadge}</span>
         </div>
       )}
 
@@ -3623,7 +3950,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
         const y = nodeY(r, i);
         // Same buildCooccurEvents sample the Joint Evidence panel uses for this node — reused
         // here only for a lightweight last-seen/location tooltip, not to duplicate the panel.
-        const nodeEvents = buildCooccurEvents(n);
+        const nodeEvents = cooccurEventsInRange(n, cooccurCams, dateRange);
         const nodeTopGroup = groupCooccurEvents(nodeEvents)[0];
         const nodeLastSeen = [...nodeEvents].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).pop()!;
         return (
@@ -3635,7 +3962,10 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId }: { p
               boxShadow: n.id === selectedNodeId ? "0 0 0 3px rgba(90,61,251,0.45), 0 2px 8px rgba(14, 22, 42,0.15)" : "0 2px 8px rgba(14, 22, 42,0.15)" }}>
               <img src={n.face} alt="" style={{ width:"100%", height:"100%", borderRadius:`${10 - r.meta!.nodeBorder}px`, objectFit:"cover", display:"block" }} />
             </div>
-            <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor:r.meta!.nodeColor, padding:"3px 7px", borderRadius:"999px" }}>{n.count}</span>
+            {/* The co-captures in the range on screen — the same rows the Joint Evidence panel
+                pages through when this node is opened. n.count is the pair's whole history, which
+                is what puts them in this tier but not what the date filter left. */}
+            <span style={{ fontSize:"10px", fontWeight:800, color:"white", backgroundColor:r.meta!.nodeColor, padding:"3px 7px", borderRadius:"999px" }}>{nodeEvents.length}</span>
           </div>
         );
       }))}
@@ -3687,23 +4017,50 @@ const TIER_LINK_META: Record<string, { label: Record<AppLanguage, string> }> = {
   tier3: { label:{ en:"Tier 3 link", ko:"3단계 연결" } },
 };
 
-// Four cameras that ACTUALLY EXIST in Best Frame's CAM_DATA, by both code and location. They used
-// to be invented ("CAM-BGS-007" / "Bugis St Crossing"), which quietly broke the lightbox's Analyze
-// frame button: it hands the location to Best Frame, which matches it against CAM_DATA by substring
-// — and no invented name matched anything, so every click ended in a "No matching camera" toast.
-// Anything added here has to name a real CAM_DATA entry that has at least one detection.
-//
 // One scene per camera. Until the backend serves the actual still behind each detection, every
 // row shared a single image, so paging through 15 pages of frames looked like the same moment
 // listed over and over — the scene is what tells you these are different places. Remote stills
-// come from the same source as the face crops; Bugis keeps the local CCTV asset.
+// come from the same source as the face crops; the first keeps the local CCTV asset.
 const CO_SCENE = (id: string) => `https://images.unsplash.com/${id}?w=640&h=368&fit=crop&q=70`;
-const COOCCUR_CAMERAS = [
-  { code:"CAM_WestGate_BS1B", location:"Bugis MRT",       scene:"/cctv-sample.png" },
-  { code:"CAM_OrchardC_OR2",  location:"Orchard Central", scene:CO_SCENE("photo-1449824913935-59a10b8d2000") },
-  { code:"CAM_TampinesH_TP1", location:"Tampines Hub",    scene:CO_SCENE("photo-1519501025264-65ba15a82390") },
-  { code:"CAM_ClarkeQ_CQ1",   location:"Clarke Quay",     scene:CO_SCENE("photo-1493780474015-ba834fd0ce2f") },
+const CO_SCENES = [
+  "/cctv-sample.png",
+  CO_SCENE("photo-1449824913935-59a10b8d2000"),
+  CO_SCENE("photo-1519501025264-65ba15a82390"),
+  CO_SCENE("photo-1493780474015-ba834fd0ce2f"),
 ];
+
+/** A camera a pair can be co-captured by: the register's own code and place, plus a stand-in still. */
+type CooccurCamera = { code: string; location: string; scene: string };
+
+/**
+ * The cameras this site's co-captures can have happened at.
+ *
+ * These were four hardcoded entries naming Bugis MRT, Orchard Central, Tampines Hub and Clarke
+ * Quay — and RedFace took no site argument at all, so a school campus was shown MRT stations as
+ * the evidence for who its people associate with. Their codes were in no register either, the
+ * same private-code-space problem that made Re-ID's camera filter always return nothing.
+ *
+ * Four of them, spread across the roster rather than the first four: "Peak location" only means
+ * something if the co-captures cluster, and one camera out of fifty-nine collects too few rows to
+ * cluster. Four is also what the scene pool can dress.
+ */
+function cooccurCamerasForSite(cams: Camera[]): CooccurCamera[] {
+  if (cams.length === 0) return [];
+  const stride = Math.max(1, Math.floor(cams.length / CO_SCENES.length));
+  const picked: CooccurCamera[] = [];
+  for (let i = 0; i < CO_SCENES.length; i++) {
+    const cam = cams[(i * stride) % cams.length];
+    if (picked.some(p => p.code === cam.code)) continue;
+    picked.push({ code: cam.code, location: cam.location, scene: CO_SCENES[i] });
+  }
+  return picked;
+}
+
+/** Memoised so the four RedFace views that need this list all get the same one. */
+function useCooccurCameras(): CooccurCamera[] {
+  const cams = useProjectCameras();
+  return useMemo(() => cooccurCamerasForSite(cams), [cams]);
+}
 
 function assocId(n: RedfaceNode) {
   return `AS${String((100000 + n.id * 6421) % 900000 + 100000).padStart(6,"0")}`;
@@ -3735,8 +4092,13 @@ type CooccurEvent = {
 // a server pass and the client agree except across a midnight, and only on a default the user can
 // see and change.
 const DEFAULT_REDFACE_RANGE: DateRangeValue = (() => {
-  const end = new Date(); end.setHours(0, 0, 0, 0);
-  const start = new Date(end); start.setDate(start.getDate() - 6);
+  // Anchored on the clock the co-capture dates are WRITTEN on, not the machine's. dateKeyOf reads
+  // a bound's local calendar day, so from the machine's own midnight the end bound named yesterday
+  // on any machine behind the mock clock — and the newest day of co-captures fell out of the very
+  // window the screen opens with, silently.
+  const [y, m, d] = recentSgtStamp(0).date.split("-").map(Number);
+  const end = new Date(y, m - 1, d);
+  const start = new Date(y, m - 1, d - 6);
   return { start, end };
 })();
 
@@ -3746,14 +4108,18 @@ const COOCCUR_HOURS = [7, 8, 8, 12, 14, 18, 19, 21];
 
 // Every co-capture the pair has, not a sample of it: the timeline pages through them instead of
 // truncating, so a count of 148 in the grid means 148 rows here.
-function buildCooccurEvents(node: RedfaceNode): CooccurEvent[] {
-  const primaryIdx = node.id % COOCCUR_CAMERAS.length;
+function buildCooccurEvents(node: RedfaceNode, cams: CooccurCamera[]): CooccurEvent[] {
+  // No cameras registered at this site means no frame either of them could have been captured in.
+  if (cams.length === 0) return [];
+  const primaryIdx = node.id % cams.length;
   return Array.from({ length: node.count }, (_, i) => {
     // 3 in 5 at the pair's usual camera, the rest scattered — that skew is what makes "Peak
     // location" mean anything rather than just naming whichever camera came first.
     const isPrimary = i % 5 < 3;
-    const idx = isPrimary ? primaryIdx : (primaryIdx + 1 + (i % (COOCCUR_CAMERAS.length - 1))) % COOCCUR_CAMERAS.length;
-    const cam = COOCCUR_CAMERAS[idx];
+    const idx = cams.length === 1 ? 0
+      : isPrimary ? primaryIdx
+      : (primaryIdx + 1 + (i % (cams.length - 1))) % cams.length;
+    const cam = cams[idx];
     // Dates cycle, so `seq` is the nth capture on that one date. Minutes step by 7 (coprime with
     // 60) against seq, which keeps timestamps distinct up to 60 captures a day — no two rows in
     // the timeline can collide and read as one frame counted twice.
@@ -3767,6 +4133,24 @@ function buildCooccurEvents(node: RedfaceNode): CooccurEvent[] {
     const boxLeft = 22 + ((node.id + i * 13) % 18);
     return { location: cam.location, camCode: cam.code, scene: cam.scene, date, time: `${two(hh)}:${two(mm)}:${two(ss)}`, boxLeft };
   });
+}
+
+/**
+ * A pair's co-captures inside the date range on screen.
+ *
+ * The range used to decide only whether a NODE was drawn at all. Everything inside it — the
+ * timeline, the peak location, the co-capture figure — kept reading the pair's whole history, so
+ * narrowing the range to today left a node claiming 148 co-captures and paging through eight days
+ * of frames to prove it. What a screen reports has to be what it filtered.
+ *
+ * Tier membership is deliberately NOT recomputed from this: the tiers are >100 / 10-99 / <10
+ * co-captures over the whole relationship, which is a property of the pair and not of the window
+ * being looked at.
+ */
+function cooccurEventsInRange(node: RedfaceNode, cams: CooccurCamera[], range: DateRangeValue): CooccurEvent[] {
+  const all = buildCooccurEvents(node, cams);
+  if (!range.start && !range.end) return all;
+  return all.filter(e => dateWithinRange(e.date, range));
 }
 
 function groupCooccurEvents(events: CooccurEvent[]) {
@@ -3982,7 +4366,7 @@ function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose,
             style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 14px", borderRadius:"8px",
               border:"none", backgroundColor: onAnalyze ? "var(--gray-900)" : "var(--gray-300)", color:"white",
               fontSize:"12px", fontWeight:800, cursor: onAnalyze ? "pointer" : "default", whiteSpace:"nowrap" }}>
-            Analyze frame
+            {T[lang].analyzeFrame}
           </button>
         </div>
       </div>
@@ -3990,8 +4374,9 @@ function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose,
   );
 }
 
-function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
+function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame, dateRange }: {
   primary: { name:string; face:string }; tier: "tier1"|"tier2"|"tier3"; node: RedfaceNode;
+  dateRange: DateRangeValue;
   onClose: () => void;
   onAnalyzeFrame?: (location: string, at: { date: string; time: string }) => void;
 }) {
@@ -4002,7 +4387,8 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
   // Names arrive either bare ("TS700005", "Mina") or with the id in parentheses; take the id when
   // it is there, otherwise the name itself is the identifier.
   const primaryId = primary.name.match(/\(([^)]+)\)/)?.[1] ?? primary.name;
-  const events = buildCooccurEvents(node);
+  const cooccurCams = useCooccurCameras();
+  const events = cooccurEventsInRange(node, cooccurCams, dateRange);
   const groups = groupCooccurEvents(events);
   const topGroup = groups[0];
   const { bucket, count: bucketCount, pct } = dominantTimeBucket(events);
@@ -4119,7 +4505,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
             {/* Status rides this line now that the analytics block is back to two stat cards —
                 it has nowhere else to sit, and it belongs to the associate, not to the pattern. */}
             <span style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"11px", color:"var(--gray-500)" }}>
-              {meta.label[lang]} · {t.coCaptures(node.count)}
+              {meta.label[lang]} · {t.coCaptures(events.length)}
               <span style={{ fontSize:"9px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
                 padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{lang === "ko" ? attr(node.status, lang) : node.status.toUpperCase()}</span>
             </span>
@@ -4150,7 +4536,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
           <div style={{ display:"flex", gap:"10px" }}>
             <button className="vca-peak-card" data-on={focus === "location"}
               onClick={() => toggleFocus("location")}
-              title={`${topGroup.events.length} of ${events.length} shared frames were captured here — click to show only those`}
+              title={t.peakLocationTip(topGroup.events.length, events.length)}
               style={{ flex:1, minWidth:0, borderRadius:"8px", padding:"6px 10px", textAlign:"left", cursor:"pointer" }}>
               <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>{t.colPeakLocation}</p>
               {/* The glyph belongs on the value, not the label — a pin next to the words "Peak
@@ -4164,7 +4550,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
             </button>
             <button className="vca-peak-card" data-on={focus === "time"}
               onClick={() => toggleFocus("time")}
-              title={`${bucketCount} of ${events.length} shared frames (${pct}%) were captured in the ${bucket} — click to show only those`}
+              title={t.peakTimeTip(bucketCount, events.length, pct, attr(bucket, lang))}
               style={{ flex:1, minWidth:0, borderRadius:"8px", padding:"6px 10px", textAlign:"left", cursor:"pointer" }}>
               <p className="vca-peak-label" style={{ margin:0, fontSize:"10px", color:"var(--gray-400)" }}>{t.colPeakTime}</p>
               {/* Sun or moon by the bucket itself — a sun beside "night" would be worse than no
@@ -4194,7 +4580,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
                 rewritten for the dashed rules; don't reintroduce it.) */}
             <span style={{ flexShrink:0, fontSize:"9px", fontWeight:800, color:"var(--gray-700)", backgroundColor:"white",
               padding:"2px 8px", borderRadius:"999px", letterSpacing:"0.2px", whiteSpace:"nowrap" }}>
-              {events.length} FRAMES
+              {t.framesCount(events.length)}
             </span>
             <span style={{ flex:1, minWidth:"12px", height:0, borderTop:"1px dashed var(--gray-300)" }} />
             <span style={{ color:"var(--gray-400)", whiteSpace:"nowrap" }}>{t.last} <strong style={{ color:"var(--gray-900)", fontWeight:700 }}>{lastSeen.date} {lastSeen.time.slice(0, 5)}</strong></span>
@@ -4239,7 +4625,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
                 </svg>
               </button>
             )}
-            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{pageStart + 1}–{pageStart + pageRows.length} of {shown.length}</span>
+            <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-400)", whiteSpace:"nowrap" }}>{t.pageRange(pageStart + 1, pageStart + pageRows.length, shown.length)}</span>
           </span>
         </div>
       </div>
@@ -4315,19 +4701,20 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame }: {
   );
 }
 
-const TIER_BADGE_META: Record<"tier1"|"tier2"|"tier3", { bg:string; text:string; label:string }> = {
-  tier1: { bg:"var(--danger-100)", text:"var(--danger-400)", label:"Tier 1 (red zone)" },
-  tier2: { bg:"var(--warning-200)", text:"var(--warning-500)", label:"Tier 2 (orange zone)" },
-  tier3: { bg:"var(--gray-100)", text:"var(--gray-600)", label:"Tier 3 (slate zone)" },
+const TIER_BADGE_META: Record<"tier1"|"tier2"|"tier3", { bg:string; text:string; label:Record<AppLanguage, string> }> = {
+  tier1: { bg:"var(--danger-100)", text:"var(--danger-400)", label:{ en:"Tier 1 (red zone)", ko:"1단계 (적색 구간)" } },
+  tier2: { bg:"var(--warning-200)", text:"var(--warning-500)", label:{ en:"Tier 2 (orange zone)", ko:"2단계 (주황 구간)" } },
+  tier3: { bg:"var(--gray-100)", text:"var(--gray-600)", label:{ en:"Tier 3 (slate zone)", ko:"3단계 (회색 구간)" } },
 };
 const COCAPTURE_COLOR: Record<"tier1"|"tier2"|"tier3", string> = {
   tier1:"var(--danger-400)", tier2:"var(--gray-500)", tier3:"var(--gray-500)",
 };
 
-function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }: {
+function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort, dateRange }: {
   rows: Array<{ tier:"tier1"|"tier2"|"tier3"; node:RedfaceNode }>;
   onInspect: (tier:string, node:RedfaceNode) => void;
   selectedNodeId: number|null;
+  dateRange: DateRangeValue;
   /** Sorting lives on the column it sorts. It used to be a "Sort associates by" select in the
    *  filter column, offering the two directions of this one field as if they were a list of
    *  options — which is what a column header already is. */
@@ -4336,6 +4723,7 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
 }) {
   const [lang] = useLanguage();
   const t = T[lang];
+  const cooccurCams = useCooccurCameras();
   // Read after mount, not during render: same reason the portal's license countdown does it this
   // way — the clock isn't a pure input, and rendering it during the server pass would mismatch.
   const [nowMs, setNowMs] = useState<number | null>(null);
@@ -4359,10 +4747,10 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
             180px and the words "Hierarchy tier & zone" to say it — a coloured number does, and the
             space it gives back pays for the three columns after it. */}
         <span style={{ width:"44px", flexShrink:0 }}>{t.colTier}</span>
-        <button onClick={onToggleSort} title={`Sort by co-captures, ${sortDir === "desc" ? "low to high" : "high to low"}`}
+        <button onClick={onToggleSort} title={t.sortByCoCaptures(sortDir === "desc")}
           style={{ width:"92px", flexShrink:0, display:"flex", alignItems:"center", gap:"4px", padding:0,
             background:"none", border:"none", cursor:"pointer", font:"inherit", color:"var(--primary-400)", textAlign:"left" }}>
-          Co-captures
+          {t.colCoCaptures}
           <span style={{ display:"flex", transform: sortDir === "asc" ? "rotate(180deg)" : "none", transition:"transform 0.15s" }}>
             <ChevronDownIconSm />
           </span>
@@ -4393,7 +4781,7 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
         // an unrelated 3-entry JOINT_EVENT_DATES pool (keyed only by node.id % 3) while the panel
         // computed its own independently-seeded sample, so the two views could show different
         // "Last detected" dates for the SAME associate.
-        const events = buildCooccurEvents(r.node);
+        const events = cooccurEventsInRange(r.node, cooccurCams, dateRange);
         const groups = groupCooccurEvents(events);
         const topGroup = groups[0];
         const sortedByDate = [...events].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
@@ -4407,13 +4795,14 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
             <span style={{ width:"50px", flexShrink:0, fontSize:"12px", fontWeight:700, color:"var(--gray-500)" }}>{`#${String(i+1).padStart(2,"0")}`}</span>
             <div style={{ flex:1, display:"flex", alignItems:"center", gap:"10px", minWidth:0 }}>
               <img src={r.node.face} alt="" style={{ width:"28px", height:"28px", borderRadius:"999px", objectFit:"cover", flexShrink:0 }} />
-              <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)", whiteSpace:"nowrap" }}>{`Associate #${String(i+1).padStart(2,"0")}`}</span>
+              <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)", whiteSpace:"nowrap" }}>{t.associateNo(String(i+1).padStart(2,"0"))}</span>
             </div>
             <div style={{ width:"44px", flexShrink:0 }}>
-              <span title={badge.label} style={{ fontSize:"11px", fontWeight:800, color:badge.text, backgroundColor:badge.bg,
+              <span title={badge.label[lang]} style={{ fontSize:"11px", fontWeight:800, color:badge.text, backgroundColor:badge.bg,
                 padding:"2px 8px", borderRadius:"999px", cursor:"help" }}>{r.tier.slice(-1)}</span>
             </div>
-            <span style={{ width:"92px", flexShrink:0, fontSize:"13px", fontWeight:700, color:COCAPTURE_COLOR[r.tier] }}>{r.node.count}</span>
+            {/* Same rule as the pyramid badge: what the filter left, not the whole history. */}
+            <span style={{ width:"92px", flexShrink:0, fontSize:"13px", fontWeight:700, color:COCAPTURE_COLOR[r.tier] }}>{events.length}</span>
             <div style={{ width:"76px", flexShrink:0 }}>
               <span style={{ fontSize:"10px", fontWeight:800, color:statusBadge.text, backgroundColor:statusBadge.bg,
                 padding:"2px 6px", borderRadius:"4px", letterSpacing:"0.2px" }}>{lang === "ko" ? attr(r.node.status, lang) : r.node.status.toUpperCase()}</span>
@@ -4427,7 +4816,7 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort }
                   not a pure input, and a server/client mismatch here would flip the one value on
                   the row that changes by itself. */}
               {nowMs !== null && (
-                <span style={{ color:"var(--gray-400)" }}>({formatElapsed(nowMs - parseSgtStamp(lastSeen.date, lastSeen.time).getTime())} ago)</span>
+                <span style={{ color:"var(--gray-400)" }}>({t.agoOf(formatElapsed(nowMs - parseSgtStamp(lastSeen.date, lastSeen.time).getTime(), lang))})</span>
               )}
             </span>
             {/* "Inspect" named an activity, not a destination — it opens the Co-capture evidence
@@ -4454,6 +4843,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
 }) {
   const [lang] = useLanguage();
   const t = T[lang];
+  const cooccurCams = useCooccurCameras();
   const [tier1On, setTier1On] = useState(true);
   const [tier2On, setTier2On] = useState(true);
   const [tier3On, setTier3On] = useState(true);
@@ -4495,10 +4885,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
   // Reuses buildCooccurEvents' own dates rather than a separate fabricated "last activity" field —
   // a node passes the filter if ANY of its sampled co-capture events fall inside the range.
   const [dateRange, setDateRange] = useState<DateRangeValue>(DEFAULT_REDFACE_RANGE);
-  const inDateRange = (n: RedfaceNode) => {
-    if (!dateRange.start && !dateRange.end) return true;
-    return buildCooccurEvents(n).some(e => dateWithinRange(e.date, dateRange));
-  };
+  const inDateRange = (n: RedfaceNode) => cooccurEventsInRange(n, cooccurCams, dateRange).length > 0;
   const sortNodes = (nodes: RedfaceNode[]) => [...nodes].sort((a, b) => sortDir === "desc" ? b.count - a.count : a.count - b.count);
 
   const tier1 = sortNodes(REDFACE_TIER1.filter(n => notExcluded(n) && inDateRange(n)));
@@ -4560,7 +4947,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
                 </div>
                 <button onClick={onSwitchTarget} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 12px",
                   borderRadius:"6px", backgroundColor:"var(--gray-100)", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, color:"var(--gray-600)" }}>
-                  <SwapIconSm /> Switch primary target
+                  <SwapIconSm /> {t.switchPrimary}
                 </button>
               </>
             )}
@@ -4614,19 +5001,21 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
           hasVisibleTier ? (
             <PyramidCanvas primaryTarget={primaryTarget} rows={visibleRows}
               selectedNodeId={selectedNode?.node.id ?? null}
+              dateRange={dateRange}
               onNodeClick={toggleSelectedNode} />
           ) : (
             <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)", fontSize:"13px", fontWeight:600 }}>
-              No tiers selected
+              {t.noTiersSelected}
             </div>
           )
         ) : (
           hasVisibleTier ? (
             <DataGridView rows={gridRows} selectedNodeId={selectedNode?.node.id ?? null} onInspect={toggleSelectedNode}
+              dateRange={dateRange}
               sortDir={sortDir} onToggleSort={() => setSortDir(d => d === "desc" ? "asc" : "desc")} />
           ) : (
             <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--gray-400)", fontSize:"13px", fontWeight:600 }}>
-              No tiers selected
+              {t.noTiersSelected}
             </div>
           )
         )}
@@ -4636,6 +5025,7 @@ function AssociateGraphView({ primaryTarget, onSwitchTarget, onGoAnalyzeFrame }:
           primaryTarget exists (see visibleRows above), so primaryTarget is guaranteed here too. */}
       {selectedNode && primaryTarget && (
         <JointEvidencePanel primary={primaryTarget} tier={selectedNode.tier} node={selectedNode.node}
+          dateRange={dateRange}
           onAnalyzeFrame={onGoAnalyzeFrame}
           onClose={() => setSelectedNode(null)}
         />
@@ -4648,6 +5038,17 @@ function RedFaceContent({ seedCard, seedLabel, onSeedConsumed, onGoAnalyzeFrame 
   seedCard?: (typeof REID_DATA)[number] | null; seedLabel?: string | null; onSeedConsumed?: () => void;
   onGoAnalyzeFrame?: (location: string, at?: { date: string; time: string }) => void;
 } = {}) {
+  const [lang] = useLanguage();
+  const t = T[lang];
+  // RedFace is face search, so the whole tab is gated rather than a button inside it.
+  //
+  // The search sidebar checked this and disabled its Search button; this tab never did, and its
+  // target picker opens on mount — so an account with search taken away could still pick a face
+  // here and get an association network out of it. Gating the button was gating one of two doors.
+  // Same reading as Redmap: a screen that only exists to show search results has nothing to show
+  // without the permission.
+  const portalUsers = useVcaStore(state => state.portalUsers);
+  const searchAllowed = canSearchInApp(portalUsers);
   const [primaryTarget, setPrimaryTarget] = useState<{ name:string; face:string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(true);
   // "UNSET" (not seedCard's own initial value) so the block below still fires on this
@@ -4685,6 +5086,21 @@ function RedFaceContent({ seedCard, seedLabel, onSeedConsumed, onGoAnalyzeFrame 
   useEffect(() => {
     if (seedCard) onSeedConsumed?.();
   }, [seedCard, onSeedConsumed]);
+
+  if (!searchAllowed) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px", backgroundColor: "var(--gray-50)" }}>
+        <div style={{ maxWidth: "420px", textAlign: "center" }}>
+          <p style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--gray-800)", letterSpacing: "-0.36px" }}>
+            {t.noRedFaceTitle}
+          </p>
+          <p style={{ margin: "10px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", lineHeight: 1.7 }}>
+            {t.noRedFaceBody}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", position:"relative", backgroundColor:"var(--gray-50)", overflow:"hidden" }}>
@@ -4777,12 +5193,18 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<DataTab>(
-    () => DATA_TAB_BY_SLUG[searchParams.get("sub") ?? ""] ?? "Live Monitoring",
-  );
+  const [activeTab, setActiveTab] = useState<DataTab>(() => {
+    // A slug this screen does not render is not a destination. "Smart Search" still exists as a
+    // DataTab — it is the signal that opens Live Monitoring's own search panel — but it has no
+    // tab of its own since that screen was merged, so ?sub=search used to select a tab that
+    // renders nothing: three inactive tab buttons over a blank body, and the URL was left alone
+    // because the mirror effect below saw it as already correct.
+    const fromSlug = DATA_TAB_BY_SLUG[searchParams.get("sub") ?? ""];
+    return fromSlug && DATA_TABS.includes(fromSlug) ? fromSlug : "Live Monitoring";
+  });
   // Mirrored into the URL from an effect rather than from inside the setter: one caller runs
-  // DURING render (the command palette's deep link uses a compare-during-render), and a
-  // router.replace() from there is a side effect in the wrong phase. The guard means this only
+  // DURING render (a seeded card's tab jump compares during render), and a router.replace() from
+  // there is a side effect in the wrong phase. The guard means this only
   // fires when the two actually disagree, so it can't loop on its own href change.
   useEffect(() => {
     const slug = DATA_TAB_SLUGS[activeTab];
@@ -4814,6 +5236,17 @@ export default function DataPage({ onGoRedmap, onGoAnalyzeFrame }: { onGoRedmap?
   const [reidCam, setReidCamRaw] = useState<string>("");
   const setLiveCam = (v: string) => { setLiveCamRaw(v); if (v === ALL_CAMERAS_ID) setReidCamRaw(""); };
   const setReidCam = (v: string) => { setReidCamRaw(v); if (v === "") setLiveCamRaw(ALL_CAMERAS_ID); };
+  // Back to "every camera" when the header switches site. A code names a camera at one site, so
+  // the code held here after a switch names nothing: the picker went on showing CAM-NOV-001 as
+  // the open feed while the ONLINE badge, the IP line and every card were gone, with nothing on
+  // screen to say why.
+  const siteProjectId = useActiveProjectId();
+  const firstCamSiteRef = useRef(true);
+  useEffect(() => {
+    if (firstCamSiteRef.current) { firstCamSiteRef.current = false; return; }
+    setLiveCamRaw(ALL_CAMERAS_ID);
+    setReidCamRaw("");
+  }, [siteProjectId]);
 
 
 

@@ -3,8 +3,9 @@
 import type { ComponentType } from "react";
 import { Crown } from "lucide-react";
 import { usePortalLanguage } from "@/lib/i18n";
+import { getComplianceConfig } from "@/lib/complianceConfig";
 
-export type DetailTab = "overview" | "cameras" | "vip" | "license" | "server" | "users";
+export type DetailTab = "overview" | "cameras" | "vip" | "license" | "server" | "users" | "activity" | "searchlog";
 
 interface IconProps {
   color: string;
@@ -82,6 +83,27 @@ function ServerIcon({ color }: IconProps) {
   );
 }
 
+/** A magnifier over a ruled page — a look-up that left a line behind. */
+function SearchLogIcon({ color }: IconProps) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M3 2.6C3 2.32 3.22 2.1 3.5 2.1H10L13 5.1V13.4C13 13.68 12.78 13.9 12.5 13.9H3.5C3.22 13.9 3 13.68 3 13.4V2.6Z" stroke={color} strokeWidth="1.2" strokeLinejoin="round"/>
+      <circle cx="7.4" cy="8.4" r="2.1" stroke={color} strokeWidth="1.2"/>
+      <path d="M8.95 9.95 10.6 11.6" stroke={color} strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function ActivityIcon({ color }: IconProps) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 3.6V8l2.8 1.7" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M2.4 8a5.6 5.6 0 1 0 1.7-4" stroke={color} strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M2.2 2.6v2.6h2.6" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
 function UsersIcon({ color }: IconProps) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -121,7 +143,15 @@ export const PROJECT_TABS: { id: DetailTab; group: NavGroup; label: { en: string
   { id: "cameras", group: "workspace", label: { en: "Input Sources", ko: "입력 소스" }, icon: CamerasIcon },
   { id: "server", group: "manage", label: { en: "Server & API", ko: "서버 및 API" }, icon: ServerIcon },
   { id: "users", group: "manage", label: { en: "Users & Permissions", ko: "사용자 및 권한" }, icon: UsersIcon },
-  // Licence last. The three under MANAGE are read from most-touched to least: servers get changed
+  // Between the people and the licence: the search log is read on a review cycle — weekly, or when
+  // somebody asks — which puts it below the two things an administrator opens on their own account
+  // and above the one they open when the bill arrives.
+  // Directly under the people, because "who did this" and "who may do it" are read together —
+  // an access review starts on one and finishes on the other. It was five rows on the Overview
+  // and a modal behind them, which is not a screen an auditor can be sent to.
+  { id: "activity", group: "manage", label: { en: "Activity log", ko: "변경 기록" }, icon: ActivityIcon },
+  { id: "searchlog", group: "manage", label: { en: "Search log", ko: "조회 기록" }, icon: SearchLogIcon },
+  // Licence last. The four under MANAGE are read from most-touched to least: servers get changed
   // when the site changes, people get added and removed all year, and a licence is signed once and
   // looked at when somebody asks about the bill or runs out of channels. It sat in the middle,
   // between two things somebody opens weekly.
@@ -150,14 +180,17 @@ interface ProjectSidebarProps {
   onTabChange: (tab: DetailTab) => void;
   collapsed: boolean;
   /**
-   * True while Portal's account screen (PortalMyPage) is showing, so no nav tab looks current —
+   * True while Portal's Settings screen is showing, so no nav tab looks current —
    * that screen belongs to the account, not to any tab of this project.
    */
-  myPageOpen: boolean;
+  settingsOpen: boolean;
 }
 
-export default function ProjectSidebar({ brand, team, project, onToggleCollapse, toggleLabel, tab, onTabChange, collapsed, myPageOpen, counts }: ProjectSidebarProps) {
+export default function ProjectSidebar({ brand, team, project, onToggleCollapse, toggleLabel, tab, onTabChange, collapsed, settingsOpen, counts }: ProjectSidebarProps) {
   const [lang] = usePortalLanguage();
+  /* The search log only exists where the purpose requirement does — it is the read half of the
+     same feature, and a log that can never fill is a rail entry leading to an empty room. */
+  const searchLogEnabled = getComplianceConfig().requireSearchPurpose;
   return (
     <div
       style={{
@@ -198,7 +231,7 @@ export default function ProjectSidebar({ brand, team, project, onToggleCollapse,
           nav row).
         */
         backgroundColor: "var(--gray-900)",
-        backgroundImage: "linear-gradient(180deg, rgba(140, 133, 255, 0.12) 0%, rgba(140, 133, 255, 0) 260px)",
+        backgroundImage: "linear-gradient(180deg, color-mix(in srgb, var(--primary-300) 12%, transparent) 0%, color-mix(in srgb, var(--primary-300) 0%, transparent) 260px)",
         /* 6px of top padding, not 16: the wordmark's row is 40px tall, so its centre lands at
            6 + 20 = 26px — exactly the middle of the 52px top bar beside it. The two are the same
            kind of thing (the console's name, the trail into it) and were sitting on different
@@ -302,9 +335,9 @@ export default function ProjectSidebar({ brand, team, project, onToggleCollapse,
                   color: "var(--gray-500)", padding: "0 14px", marginBottom: "2px",
                 }}>{group.label[lang]}</p>
               )}
-            {PROJECT_TABS.filter(t => t.group === group.id).map(t => {
+            {PROJECT_TABS.filter(t => t.group === group.id).filter(t => t.id !== "searchlog" || searchLogEnabled).map(t => {
               const Icon = t.icon;
-              const active = tab === t.id && !myPageOpen;
+              const active = tab === t.id && !settingsOpen;
               return (
                 <button
                   key={t.id}
@@ -351,7 +384,7 @@ export default function ProjectSidebar({ brand, team, project, onToggleCollapse,
                      * quiet. White text and a white icon still, for the same reason as before: a
                      * coloured label on a coloured fill is two things competing.
                      */
-                    backgroundColor: active ? "rgba(140, 133, 255, 0.22)" : undefined,
+                    backgroundColor: active ? "color-mix(in srgb, var(--primary-300) 22%, transparent)" : undefined,
                     color: active ? "white" : "var(--gray-300)",
                     fontSize: "13px", fontWeight: active ? 600 : 500,
                     whiteSpace: "nowrap", width: "100%",

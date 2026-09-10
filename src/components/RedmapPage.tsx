@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import RedmapMap from "./RedmapMap";
 import type { RedmapMode as Mode, SimilarityLimit, HitResult, DateRange } from "@/types/redmap";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useToast } from "./Toast";
 import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtDateKey } from "@/lib/time";
-import { canSearchInApp, useVcaStore } from "@/lib/vcaStore";
+import { camerasInProject, canSearchInApp, useActiveProjectId, useProjectCameras, useVcaStore, type Camera } from "@/lib/vcaStore";
 import RemoveImageButton from "./RemoveImageButton";
 import SidebarToggleIcon from "./SidebarToggleIcon";
 
-import { useLanguage, type AppLanguage } from "@/lib/i18n";
+import { josa, useLanguage, type AppLanguage } from "@/lib/i18n";
 
 // See the per-file pattern note in lib/i18n.ts. Site names, camera codes, plate numbers and the
 // seeded match labels are data and stay as they are.
@@ -32,6 +32,20 @@ const T = {
     face: "Face",
     body: "Body",
     searchByImage: (what: string) => `${what} — search by image`,
+    clearRange: "Clear",
+    reset: "Reset",
+    detach: "Detach",
+    loaded: "Loaded",
+    searchByImageShort: "Search by image",
+    chooseImage: "Choose image",
+    fileTypes: "JPG, PNG, GIF, TIFF, HEIC, WebP · up to 50MB",
+    tracing: (name: string) => `Tracing: ${name}`,
+    routeHistory: "Route history",
+    lastSeen: "LAST SEEN",
+    elapsedLabel: "elapsed",
+    rangeOf: (n: number) => `1–${n} of ${n}`,
+    faceScore: (v: string) => `Face ${v}`,
+    bodyScore: (v: string) => `Body ${v}`,
     removeImage: (what: string) => `Remove ${what} image`,
     similarity: "Similarity",
     bodyOnlyHint: "Body-only search: matching on build and clothing alone is looser than a face match, so a low threshold here returns many false positives.",
@@ -59,6 +73,10 @@ const T = {
     promptPerson: "Upload a face or body image",
     promptPersonAnd: "above and click",
     promptVehicle: "Enter a license plate and click",
+    // The sentence's tail. In English the verb comes before the button's name, so the assembled
+    // line finishes on its own; in Korean the verb comes last, and without this the prompt broke
+    // off at "위에서 인물 검색" with nothing telling the reader to press it.
+    promptTail: "",
     showResults: "Show search results",
     hideResults: "Hide search results",
     newestFirst: "Newest first",
@@ -86,6 +104,20 @@ const T = {
     face: "얼굴",
     body: "전신",
     searchByImage: (what: string) => `${what} — 이미지로 검색`,
+    clearRange: "지우기",
+    reset: "초기화",
+    detach: "떼어내기",
+    loaded: "첨부됨",
+    searchByImageShort: "이미지로 검색",
+    chooseImage: "이미지 선택",
+    fileTypes: "JPG, PNG, GIF, TIFF, HEIC, WebP · 최대 50MB",
+    tracing: (name: string) => `${name} 동선 추적 중`,
+    routeHistory: "이동 경로",
+    lastSeen: "마지막 검출",
+    elapsedLabel: "만큼 지남",
+    rangeOf: (n: number) => `${n}건 중 1–${n}`,
+    faceScore: (v: string) => `얼굴 ${v}`,
+    bodyScore: (v: string) => `전신 ${v}`,
     removeImage: (what: string) => `${what} 이미지 삭제`,
     similarity: "유사도",
     bodyOnlyHint: "전신만으로 검색하면 체형과 옷차림만 비교하므로 얼굴 대조보다 느슨합니다. 기준을 낮추면 다른 사람이 많이 섞입니다.",
@@ -113,13 +145,14 @@ const T = {
     promptPerson: "얼굴 또는 전신 이미지를 올린 뒤",
     promptPersonAnd: "위에서",
     promptVehicle: "차량 번호를 입력한 뒤",
+    promptTail: "을 눌러주세요",
     showResults: "검색 결과 보기",
     hideResults: "검색 결과 숨기기",
     newestFirst: "최신순",
     oldestFirst: "오래된 순",
     hideFrame: "검출 프레임 숨기기",
     showFrame: "검출 프레임 보기",
-    removedFromTrace: (place: string) => `이 경로에서 "${place}"를 제외했습니다`,
+    removedFromTrace: (place: string) => `이 경로에서 "${place}"${josa(place, "을", "를")} 제외했습니다`,
     undo: "되돌리기",
     notSamePerson: "같은 사람이 아닙니다 — 이 경로에서 제외",
   },
@@ -138,61 +171,87 @@ const DEFAULT_DATE_RANGE: DateRange = {
   end: recentSgtStamp(0).date,
 };
 
-// Unlike BestFramePage's camera list (now sourced from the shared VIP_SIMULATION_CAMERAS pool —
-// see vcaStore.ts), these hits are intentionally hand-authored narrative content (specific face/
-// body photos, elapsed-time framing, isUnregistered flag) rather than a checkable camera list, so
-// there's no real payoff in re-keying them onto shared camera ids the way BestFrame's bulk filler
-// was. `location` is the place ("Clarke Quay Riverside"), `camera` the unit that saw them
-// ("CQ1"), `mapLabel` a short form for a map pin ("Clarke Quay") — three separate jobs, not
-// three spellings of one string as they used to be. None of them corresponds to a real camera id in
-// CAMERAS/VIP_SIMULATION_CAMERAS today — that's fine as long as nothing cross-navigates from a
-// Redmap hit to another page by name (nothing currently does). If a "View Live"/"Open in Best
-// Frame" action ever gets added here, it'll hit the same silent-match-failure bug the Dashboard's
-// device popup had (see BestFramePage.tsx's focusLocation handling) unless these are re-keyed
-// onto real camera ids first.
-export const MOCK_RESULTS: HitResult[] = [
+/**
+ * A sighting minus the camera that saw it.
+ *
+ * What is hand-authored here is the narrative — the face and body crops, the scores, how long
+ * ago, whether the person was enrolled. WHERE it happened is not ours to invent: it comes from
+ * the camera register, so a hit names a camera that exists at the site on screen, sits at that
+ * camera's real coordinates, and reads the same place name every other screen uses for it.
+ *
+ * These used to carry `camera: "NC 1"`, `location: "Novena"` and hand-typed lat/lng — codes and
+ * places that existed nowhere else in the app. Two things followed from that: switching site in
+ * the header left Redmap tracing a person across a city the operator is not watching, and any
+ * future "View live"/"Open in Best Frame" action from a hit would have had nothing to match on.
+ */
+type HitShape = Omit<HitResult, "camera" | "location" | "mapLabel" | "lat" | "lng">;
+
+/**
+ * Puts each sighting on one of the site's cameras, in order, so a trail moves from camera to
+ * camera the way a person walking through the site would.
+ *
+ * A site with no cameras registered has no sightings — not a trail on cameras borrowed from
+ * somewhere else. Sites with fewer cameras than the trail has stops will revisit a camera, which
+ * is what actually happens when someone doubles back past one.
+ */
+function bindHitsToCameras(shapes: HitShape[], cams: Camera[]): HitResult[] {
+  if (cams.length === 0) return [];
+  // Spread across the roster instead of taking the first N: the register is ordered by district,
+  // so consecutive entries are neighbours and a trail built from cams[0..2] was three cameras on
+  // one street rather than a path across the site.
+  const stride = Math.max(1, Math.floor(cams.length / Math.max(shapes.length, 1)));
+  // Oldest first. The timeline numbers these by their position in the array and calls the number a
+  // chronological step, so the array has to actually be in that order — the lookalike set was
+  // written l1/l2/l3/l4 with l3 sitting between l2's and l4's timestamps, which made step 02 later
+  // than step 03. Nothing downstream sorted it.
+  return [...shapes]
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+    .map((shape, i) => {
+    const cam = cams[(i * stride) % cams.length];
+    return {
+      ...shape,
+      camera: cam.code,
+      location: cam.location,
+      // The short form for a map pin. `zone` is what the register keeps for it; the full location
+      // is too long to sit next to a circle on the map.
+      mapLabel: cam.zone || cam.name,
+      lat: cam.lat,
+      lng: cam.lng,
+    };
+  });
+}
+
+const HIT_SET_TRAIL: HitShape[] = [
   {
     id: "hit-1",
-    camera: "NC 1",
-    location: "Novena",
     ...recentSgtStamp(3004, 57),
     score: "99.7%",
     bodyScore: "85.0%",
     isUnregistered: false,
     faceUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "Novena",
-    lat: 1.3200, lng: 103.8440,
     elapsed: "20m 12s",
     personId: "p1", personLabel: "Match 1",
   },
   {
     id: "hit-2",
-    camera: "NC 3",
-    location: "Geylang",
     ...recentSgtStamp(2974, 25),
     score: "99.4%",
     bodyScore: "78.2%",
     isUnregistered: false,
     faceUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "Geylang",
-    lat: 1.3131, lng: 103.8600,
     elapsed: "30m 32s",
     personId: "p1", personLabel: "Match 1",
   },
   {
     id: "hit-3",
-    camera: "NC 2",
-    location: "Marine Parade",
     ...recentSgtStamp(1495),
     score: "82.3%",
     bodyScore: "70.1%",
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "Marine Parade",
-    lat: 1.3015, lng: 103.9070,
     personId: "p1", personLabel: "Match 1",
   },
 ];
@@ -200,54 +259,41 @@ export const MOCK_RESULTS: HitResult[] = [
 // A real search doesn't always come back with a full 3-camera trail — sometimes the person only
 // shows up once or twice, sometimes not at all. These extra sets let a search "miss" or come back
 // thin instead of always returning the same rich trace, which was the whole trace feature reading
-// as fake. `RESULT_SETS` is what searches actually pick from; `MOCK_RESULTS` stays as its own
-// export (unchanged) since `lib/api/redmap.ts` already imports it as the future-backend stub's
-// default payload.
-const RESULT_SET_MODERATE: HitResult[] = [
+// as fake. `HIT_SHAPE_SETS` is what searches actually pick from, once bound to the site's own
+// cameras.
+const HIT_SET_MODERATE: HitShape[] = [
   {
     id: "hit-m1",
-    camera: "JR1",
-    location: "Jurong Gateway Mall",
     ...recentSgtStamp(1595, 35),
     score: "81.2%",
     bodyScore: "73.5%",
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "Jurong",
-    lat: 1.3329, lng: 103.7436,
     elapsed: "1h 40m",
     personId: "p1", personLabel: "Match 1",
   },
   {
     id: "hit-m2",
-    camera: "CQ1",
-    location: "Clarke Quay Riverside",
     ...recentSgtStamp(1495),
     score: "79.8%",
     bodyScore: "71.0%",
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "Clarke Quay",
-    lat: 1.2884, lng: 103.8460,
     personId: "p1", personLabel: "Match 1",
   },
 ];
 
-const RESULT_SET_SPARSE: HitResult[] = [
+const HIT_SET_SPARSE: HitShape[] = [
   {
     id: "hit-s1",
-    camera: "TH1",
-    location: "Tampines Concourse",
     ...recentSgtStamp(1495),
     score: "76.4%",
     bodyScore: "68.0%",
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "Tampines",
-    lat: 1.3530, lng: 103.9440,
     personId: "p1", personLabel: "Match 1",
   },
 ];
@@ -255,68 +301,63 @@ const RESULT_SET_SPARSE: HitResult[] = [
 // A low-similarity search can genuinely surface more than one distinct person, not just several
 // sightings of the same one — this set demonstrates that so the person-filter chips (see
 // distinctPersons below) have something real to group/color-code. Two people, two sightings each.
-const RESULT_SET_LOOKALIKES: HitResult[] = [
+const HIT_SET_LOOKALIKES: HitShape[] = [
   {
     id: "hit-l1",
-    camera: "BM1",
-    location: "Bugis MRT Station",
     ...recentSgtStamp(1565, 7),
     score: "58.3%",
     bodyScore: "52.0%",
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "Bugis",
-    lat: 1.3006, lng: 103.8559,
     personId: "p1", personLabel: "Match 1",
   },
   {
     id: "hit-l2",
-    camera: "CH2",
-    location: "City Hall Link",
     ...recentSgtStamp(1519, 31),
     score: "55.1%",
     bodyScore: "49.8%",
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "City Hall",
-    lat: 1.2930, lng: 103.8520,
     personId: "p1", personLabel: "Match 1",
   },
   {
     id: "hit-l3",
-    camera: "SS1",
-    location: "Somerset Skywalk",
     ...recentSgtStamp(1540, 16),
     score: "56.7%",
     bodyScore: "50.2%",
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "Somerset",
-    lat: 1.3006, lng: 103.8390,
     personId: "p2", personLabel: "Match 2",
   },
   {
     id: "hit-l4",
-    camera: "DG3",
-    location: "Dhoby Ghaut Xchange",
     ...recentSgtStamp(1495),
     score: "54.4%",
     bodyScore: "48.1%",
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&h=200&q=80",
-    mapLabel: "Dhoby Ghaut",
-    lat: 1.2988, lng: 103.8455,
     personId: "p2", personLabel: "Match 2",
   },
 ];
 
-const RESULT_SET_EMPTY: HitResult[] = [];
+const HIT_SET_EMPTY: HitShape[] = [];
 
-const RESULT_SETS: HitResult[][] = [MOCK_RESULTS, RESULT_SET_MODERATE, RESULT_SET_SPARSE, RESULT_SET_EMPTY, RESULT_SET_LOOKALIKES];
+const HIT_SHAPE_SETS: HitShape[][] = [HIT_SET_TRAIL, HIT_SET_MODERATE, HIT_SET_SPARSE, HIT_SET_EMPTY, HIT_SET_LOOKALIKES];
+
+/**
+ * The result sets a search can land on, bound to one site's cameras.
+ *
+ * Also the payload for `lib/api/redmap.ts`'s stub, which is why this takes a project id rather
+ * than reading a hook: that seam is called from outside React.
+ */
+export function hitResultSetsForProject(projectId: string): HitResult[][] {
+  const cams = camerasInProject(useVcaStore.getState().cameras, projectId);
+  return HIT_SHAPE_SETS.map(shapes => bindHitsToCameras(shapes, cams));
+}
 
 // Deterministic (not random) so re-running the exact same search — same uploaded file, same
 // license plate — always lands on the same result set instead of flickering between runs.
@@ -703,7 +744,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
                   onClick={() => { onChange({ start: null, end: null }); setStep("start"); }}
                   style={{ background: "none", border: "none", cursor: "pointer", fontSize: "10px", color: "var(--gray-400)", fontWeight: 600 }}
                 >
-                  Clear
+                  {t.clearRange}
                 </button>
               </div>
             )}
@@ -734,7 +775,19 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // `handleSearch` below.
   const [faceFileKey, setFaceFileKey] = useState<string | null>(null);
   const [bodyFileKey, setBodyFileKey] = useState<string | null>(null);
-  const [results, setResults] = useState<HitResult[]>(MOCK_RESULTS);
+  // Every sighting on this screen has to have been captured by a camera registered at the site
+  // the header points at. The register is read live, so a camera the Portal adds, renames or
+  // moves shows up here.
+  const siteProjectId = useActiveProjectId();
+  const siteCameras = useProjectCameras();
+  const resultSets = useMemo(
+    () => HIT_SHAPE_SETS.map(shapes => bindHitsToCameras(shapes, siteCameras)),
+    [siteCameras],
+  );
+  // What the screen shows before anyone has searched: the full trail, as an example of what a
+  // search comes back with.
+  const defaultResults = resultSets[0];
+  const [results, setResults] = useState<HitResult[]>(defaultResults);
   const [hasSearched, setHasSearched] = useState(false);
   const [activeHit, setActiveHit] = useState<number | null>(null);
   const [activeNode, setActiveNode] = useState<number | null>(null);
@@ -807,11 +860,11 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   if (initialSearchName != null && initialSearchName !== consumedSearchName) {
     setConsumedSearchName(initialSearchName);
     setMode("person");
-    setResults(MOCK_RESULTS);
+    setResults(defaultResults);
     setHasSearched(true);
     setActiveHit(null);
     setActiveNode(null);
-    setSelectedPersonIds(new Set([MOCK_RESULTS[MOCK_RESULTS.length - 1].personId]));
+    setSelectedPersonIds(defaultResults.length ? new Set([defaultResults[defaultResults.length - 1].personId]) : new Set());
     setTraceName(initialSearchName);
   }
 
@@ -823,7 +876,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
 
   // A body-only search has only build and clothing to go on, which matches far more loosely than a
   // face does — the same 70% a face search treats as solid confidence lets in the kind of
-  // lookalike-heavy results RESULT_SET_LOOKALIKES demonstrates. That used to be enforced: the
+  // lookalike-heavy results HIT_SET_LOOKALIKES demonstrates. That used to be enforced: the
   // threshold was pushed to 75% on a body-only upload and the lower presets were disabled. It is
   // now advice, not a rule — the operator, not the UI, decides how wide to cast the net, and a
   // deliberately loose pass over body-only footage is a legitimate thing to want. The warning
@@ -882,8 +935,8 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   };
 
   const handleSearch = () => {
-    // An empty query used to still run — hashing down to whichever RESULT_SET the empty key
-    // landed on (often RESULT_SET_EMPTY) — and land on "No matching sightings found," reading as
+    // An empty query used to still run — hashing down to whichever hit set the empty key
+    // landed on (often HIT_SET_EMPTY) — and land on "No matching sightings found," reading as
     // a real search that failed rather than a search that was never actually given anything to
     // look for. Block it before it runs and say so instead.
     const hasQuery = mode === "car" ? licensePlate.trim().length > 0 : !!faceFileKey || !!bodyFileKey;
@@ -900,7 +953,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     const searchKey = mode === "car"
       ? `car:${licensePlate.trim().toUpperCase()}`
       : `person:${faceFileKey ?? ""}|${bodyFileKey ?? ""}`;
-    const picked = RESULT_SETS[hashStr(searchKey) % RESULT_SETS.length];
+    const picked = resultSets[hashStr(searchKey) % resultSets.length];
     // dateRange was collected in the toolbar but never actually consulted here — picking a range
     // that excludes every mock hit's date still returned the exact same results as picking
     // nothing at all. Both fields are already "YYYY-MM-DD" strings, so this is a plain string
@@ -963,15 +1016,27 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // Everything describing the OUTCOME of a search, as opposed to the query settings
   // (mode / similarity / date range) which are the user's own configuration and survive.
   // Shared by Reset and by detaching the last attached image.
-  const clearSearchOutcome = () => {
-    setResults(MOCK_RESULTS);
+  // useCallback so the site-change effect below can depend on it honestly instead of silencing
+  // the dependency check: rebuilt only when the site's own default results change.
+  const clearSearchOutcome = useCallback(() => {
+    setResults(defaultResults);
     setHasSearched(false);
     setActiveHit(null);
     setActiveNode(null);
     setSelectedPersonIds(new Set());
     setTraceName(null);
     setExcludedHitIds(new Set());
-  };
+    setEmptyReason(null);
+  }, [defaultResults]);
+
+  // The header switched site. A trail across the previous site's cameras is not a trail through
+  // this one, so the outcome goes — while the query itself (mode, similarity, dates, the attached
+  // photo) is the operator's own work and survives, ready to run again here.
+  const firstSiteRef = useRef(true);
+  useEffect(() => {
+    if (firstSiteRef.current) { firstSiteRef.current = false; return; }
+    clearSearchOutcome();
+  }, [siteProjectId, clearSearchOutcome]);
 
   const handleReset = () => {
     setMode("person");
@@ -1092,7 +1157,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", textAlign: "center" }}>
                 <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--primary-400)" }}>{t.dragAndDrop}</span>
                 <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)" }}>
-                  File types supported: JPG, PNG, GIF, TIFF, HEIC, WebP. Max size 50MB
+                  {t.fileTypes}
                 </span>
               </div>
               <button
@@ -1103,7 +1168,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                   boxShadow: "0 4px 4px rgba(29,41,59,0.1)",
                 }}
               >
-                Choose image
+                {t.chooseImage}
               </button>
             </div>
           </div>
@@ -1240,11 +1305,11 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                       </span>
                       {active ? (
                         <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 600, color: "var(--primary-400)", whiteSpace: "nowrap" }}>
-                          <CheckIconSm /> Loaded
+                          <CheckIconSm /> {t.loaded}
                         </span>
                       ) : (
                         <span className="vca-tb-hint" style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", whiteSpace: "nowrap" }}>
-                          Search by image
+                          {t.searchByImageShort}
                         </span>
                       )}
                     </button>
@@ -1267,7 +1332,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                         <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                           <path d="M2 2L9 9M9 2L2 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                         </svg>
-                        delete
+                        {t.detach}
                       </button>
                     )}
                   </div>
@@ -1319,7 +1384,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
               fontFamily: "'SUIT', sans-serif", flexShrink: 0,
             }}
           >
-            <ResetIconSm /> Reset
+            <ResetIconSm /> {t.reset}
           </button>
           <button
             onClick={handleSearch}
@@ -1404,7 +1469,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                               sits in the corner rather than competing for the same hit area. */}
                           {image && hoverUpload === key && (
                             <RemoveImageButton
-                              label={`Remove ${key} image`}
+                              label={t.removeImage(key === "face" ? t.face : t.body)}
                               onRemove={() => clearUpload(key)}
                             />
                           )}
@@ -1436,7 +1501,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                   fontSize: "12px", fontWeight: 700, color: "var(--primary-400)", backgroundColor: "var(--primary-100)",
                   borderRadius: "999px", padding: "3px 10px", whiteSpace: "nowrap",
                 }}>
-                  Tracing: {traceName}
+                  {t.tracing(traceName)}
                 </span>
               )}
             </div>
@@ -1474,8 +1539,8 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 </svg>
                 <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "var(--gray-400)" }}>
                   {mode === "person"
-                    ? <>{t.promptPerson}<br />{t.promptPersonAnd} <strong style={{ color: "var(--gray-700)" }}>{t.searchPersons}</strong></>
-                    : <>{t.promptVehicle}<br /><strong style={{ color: "var(--gray-700)" }}>{t.searchVehicle}</strong></>
+                    ? <>{t.promptPerson}<br />{t.promptPersonAnd} <strong style={{ color: "var(--gray-700)" }}>{t.searchPersons}</strong>{t.promptTail}</>
+                    : <>{t.promptVehicle}<br /><strong style={{ color: "var(--gray-700)" }}>{t.searchVehicle}</strong>{t.promptTail}</>
                   }
                 </p>
               </div>
@@ -1483,7 +1548,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", padding: "24px 0" }}>
                 <div className="vca-skeleton-pulse" style={{ width: "28px", height: "28px", borderRadius: "999px", backgroundColor: "var(--primary-200)" }} />
                 <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "var(--gray-500)", fontWeight: 700 }}>
-                  Searching…
+                  {t.searching}
                 </p>
               </div>
             ) : results.length === 0 ? (
@@ -1551,12 +1616,12 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                     </div>
                     <div style={{ backgroundColor: "var(--gray-100)", borderRadius: "6px", padding: "4px 6px", overflow: "hidden" }}>
                       <span style={{ display: "block", fontSize: "10px", color: "var(--gray-700)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        Face <span style={{ fontWeight: 800, color: "var(--primary-400)" }}>{hit.score}</span>
+                        {t.face} <span style={{ fontWeight: 800, color: "var(--primary-400)" }}>{hit.score}</span>
                         {/* No body image was searched → bodyScore has nothing real behind it and
                             reads as "0%", not an actual (low) match — show Face alone rather than
                             a body score that isn't measuring anything. */}
                         {parseFloat(hit.bodyScore) > 0 && (
-                          <> · Body <span style={{ fontWeight: 800, color: "var(--primary-400)" }}>{hit.bodyScore}</span></>
+                          <> · {t.body} <span style={{ fontWeight: 800, color: "var(--primary-400)" }}>{hit.bodyScore}</span></>
                         )}
                       </span>
                     </div>
@@ -1588,7 +1653,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
 
           {hasSearched && results.length > 0 && (
             <div style={{ padding: "10px 20px", borderTop: BORDER, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-              <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-800)" }}>1–{results.length} of {results.length}</span>
+              <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-800)" }}>{t.rangeOf(results.length)}</span>
             </div>
           )}
         </div>
@@ -1631,7 +1696,6 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
               hidden: excludedHitIds.has(h.id),
             })) : []}
             trackingActive={trackingActive}
-            showStatus={false}
             activeNode={activeNode}
             onMarkerClick={handleMarkerClick}
             visibleGroupIds={showPersonChips ? Array.from(selectedPersonIds) : null}
@@ -1652,7 +1716,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0,
           }}>
             <h3 style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", letterSpacing: "-0.32px" }}>
-              Route history
+              {t.routeHistory}
             </h3>
             <button onClick={() => setTimelineNewestFirst(v => !v)} style={{
               display: "flex", alignItems: "center", gap: "4px", background: "none", border: "none",
@@ -1693,7 +1757,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                     ];
                     const ordered = timelineNewestFirst ? [...nodes].reverse() : nodes;
                     return ordered.map((node, i) => {
-                      // Position in the original chronological array (origin=-1..MOCK_RESULTS.length-1),
+                      // Position in the original chronological array (origin=-1..results.length-1),
                       // independent of which direction we're currently displaying it in.
                       const index = timelineNewestFirst ? nodes.length - 1 - i : i;
                       const num = index + 1; // chronological step number — stable regardless of sort direction
@@ -1710,7 +1774,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                       // — counted against the real clock, next to LAST SEEN. Falls back to the
                       // recorded gap until the clock starts on the client.
                       const elapsedText = isLatest && nowMs !== null
-                        ? formatElapsed(nowMs - parseSgtStamp(node.date, node.time).getTime())
+                        ? formatElapsed(nowMs - parseSgtStamp(node.date, node.time).getTime(), lang)
                         : isOldest ? undefined : node.elapsed;
                       const isActive = node.hitIndex >= 0 && activeNode === node.hitIndex;
                       return (
@@ -1912,11 +1976,11 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                       {elapsedText}
                                     </span>
                                     <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-700)" }}>
-                                      elapsed
+                                      {t.elapsedLabel}
                                     </span>
                                   </span>
                                 ) : <span />}
-                                {isLatest && <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--primary-400)" }}>LAST SEEN</span>}
+                                {isLatest && <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--primary-400)" }}>{t.lastSeen}</span>}
                               </div>
                             )}
                           </div>

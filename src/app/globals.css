@@ -118,6 +118,30 @@
   --info-200: #d3e0fd;
   --info-500: #0973dc;
 
+  /* Category hues. Two families that mean nothing.
+   *
+   * Every other ramp in this palette is spoken for — danger, warning and success carry
+   * severity, primary is the accent, info is "here is a fact". A watchlist category is none of
+   * those: "Wanted", "Visiting delegation", "Ex-employee" are a taxonomy, and a taxonomy drawn
+   * in a severity ramp stops being tellable apart from severity. On the VIP screen that is not
+   * theoretical — warning-500 there means a face the model could not read.
+   *
+   * Placed in the gaps: teal at 177° sits 33° off info and 35° off success, magenta at 317°
+   * sits 68° off primary and 43° off danger. Nothing in the palette is within 30° of either,
+   * which is what makes five categories tellable apart at chip size.
+   *
+   * FIGMA: these were defined here first, which is backwards — the library is the source of
+   * truth for colour. They need to go into it as `teal` and `magenta` with these exact values
+   * before anything else uses them, or the two definitions drift.
+   */
+  --teal-100: #e6f6f5;
+  --teal-200: #b9e2e0;
+  --teal-500: #0d7f7a;
+
+  --magenta-100: #fdeef8;
+  --magenta-200: #f6cde8;
+  --magenta-500: #b4218a;
+
   /* Secondary — detection type */
   --type-tracking: #6d9300;
   --type-tracking-100: #f3f6eb;
@@ -176,6 +200,23 @@
   border-color: var(--gray-400) !important;
 }
 
+/* The borderless secondary — Input Sources' table tools, the Users page's row of five, the
+   toolbar Reset buttons. No border and no fill at rest, so the box stops competing with the one
+   filled button on the screen; the tint is the only thing that says it is a target, which makes
+   it the one part that cannot be left out. It was left out in three different ways: gray-100
+   written inline with React hover state, portal-btn-outline (gray-50, plus a border-color rule
+   that does nothing to a button with no border), and on the Users page nothing at all. */
+/* The outline button in danger colours. portal-btn-outline's hover pulls the border to gray-400,
+   which on a red-bordered button reads as the action going inert under the pointer. */
+.portal-btn-outline-danger { transition: background-color .12s ease, border-color .12s ease; }
+.portal-btn-outline-danger:hover:not(:disabled) {
+  background-color: var(--danger-100) !important;
+  border-color: var(--danger-400) !important;
+}
+
+.portal-btn-quiet { transition: background-color .12s ease; }
+.portal-btn-quiet:hover:not(:disabled) { background-color: var(--gray-100) !important; }
+
 .portal-btn-danger { transition: background-color .12s ease; }
 .portal-btn-danger:hover:not(:disabled) { background-color: var(--danger-500) !important; }
 
@@ -223,11 +264,35 @@
   color: var(--danger-400) !important;
 }
 
+/* A settings section: what it is on the left, what you can do on the right.
+
+   The rail is what stops a settings page from being read across the full width of a 1600px
+   shell. Everything that explains a section lives in it, so the controls start at the same x
+   on every section and the column they sit in never grows past a readable measure.
+
+   Container width, not viewport: Portal's sidebar collapses, so the same viewport width means
+   two different card widths and a viewport breakpoint guesses wrong at one of them. 620px is
+   where the 240px rail stops leaving the controls a usable column. */
+.portal-settings-card { container-type: inline-size; }
+.portal-settings-section {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 16px 40px;
+  align-items: start;
+}
+@container (max-width: 620px) {
+  .portal-settings-section { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+}
+
 :where(input, textarea, select, button, [contenteditable], [tabindex]):focus-visible {
   outline: 1px solid var(--gray-900);
   outline-offset: 0;
   box-shadow: 0 0 0 3px var(--gray-100);
 }
+/* NOTE for anything opting out: this sets TWO properties. A screen that draws its own focus
+   treatment has to clear `box-shadow` as well as `outline` — the auth fields killed only the
+   outline and the halo went on drawing a grey rectangle inside the field, around the input's own
+   strip, which read as a second box appearing on click. They now set both to none inline. */
 
 html,
 body {
@@ -459,6 +524,36 @@ body {
      which shows up as a visible stutter every 0.9s. */
   to { stroke-dashoffset: -9; }
 }
+/* The login panel's most recent sighting, breathing.
+   A filled disc that grows and fades, drawn behind the static ones so only the part that gets
+   past them is visible — what shows is a ring leaving the camera. Same idea as the map's live
+   ping (see live-ping in Navbar.tsx), and deliberately NOT a blink: a blinking element in a
+   control room means "act on this now", and this is a label on a record, not an alarm. Borrowing
+   that vocabulary here would cost the real blinks their meaning.
+   Slow — 2.6s. The panel already has a flowing trail, and two fast things beside a login form
+   compete with the form. */
+.vca-auth-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: vca-auth-pulse 2.6s ease-out infinite;
+}
+@keyframes vca-auth-pulse {
+  0%   { transform: scale(0.74); opacity: 0.22; }
+  70%  { transform: scale(1.34); opacity: 0; }
+  100% { transform: scale(1.34); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Left as a faint outer wash rather than removed: the emphasis it carries is the point, and the
+     motion was only how it was delivered. */
+  .vca-auth-pulse { animation: none; opacity: 0.14; }
+}
+
+/* The route still reads as a route without the motion — the dashes say "inferred" on their own.
+   Someone who has asked their system for less movement should not have to watch a line loop on
+   every screen that draws one, and the login panel now draws one too. */
+@media (prefers-reduced-motion: reduce) {
+  .vca-route-line { animation: none; }
+}
 
 /* ── Skeleton loading dashboard ──────────────────────────── */
 @keyframes vca-skeleton-pulse {
@@ -526,32 +621,86 @@ body {
 .vca-picker-option[data-on="true"] { background-color: var(--primary-100); }
 .vca-picker-option:not([data-on="true"]):hover { background-color: var(--gray-50); }
 
-/* ── Auth screens: short-window behaviour ─────────────────────────────
-   The login card needs ~840px of height. Below that the form falls past the fold, and on a laptop
-   with a bookmarks bar or a half-height window that is most of the form. The illustration is
-   decoration, so it is what gives up space first — it shrinks, then goes entirely, so email /
-   password / the button reach the fold before anything else does.
-
+/* ── Auth screens ─────────────────────────────────────────────────────
    These live here rather than inline because an inline height would outrank the media queries —
    the same trap that left the navbar tabs with a :hover rule that never fired. */
-.vca-auth-illustration {
-  /* 196, not the 236 the Figma frame renders at — at full size the camera outweighed the form it
-     sits above, which is the thing people came to the screen to use. */
-  height: 196px;
-  aspect-ratio: 614 / 639;   /* the cropped PNG's own proportion */
-  width: auto;
+/* The login artwork's own panel, from 900px up. Below that the form takes the whole width and
+   the panel is not rendered at all — a control-room monitor is wide, a laptop in a stairwell is
+   not, and the form is what the screen is for either way.
+
+   This replaced three height breakpoints. While the artwork sat above the form it competed with
+   it for vertical space, so it shrank at 900px tall and vanished at 820px; on its own column it
+   costs the form nothing and needs none of that. */
+.vca-auth-brand {
+  display: none;
+}
+.vca-auth-brand-art {
+  /* Square, and sized off the panel's width rather than the window's height. Smaller than the
+     column allows now that a caption sits under it — the two together are the object, and art
+     filling the panel edge to edge would push the words out of the same glance. */
+  width: min(100%, 360px);
+  height: auto;
+  aspect-ratio: 1;
   flex-shrink: 0;
 }
-.vca-auth-scroll { padding-top: 44px; }
-
-@media (max-height: 900px) {
-  .vca-auth-illustration { height: 160px; }
-  .vca-auth-scroll { padding-top: 24px; }
+/* The sighting list beside the drawing needs its own room, so it arrives later than the panel
+   itself. Under this the drawing carries the idea alone — a column of elapsed gaps next to
+   nothing explains nothing. */
+.vca-auth-brand-list { display: none; }
+@media (min-width: 1180px) {
+  .vca-auth-brand-list { display: flex; }
 }
-/* Below this the illustration cannot buy enough room to matter — at 176px it still leaves the
-   button past the fold — and the form is what the screen is for, so it goes rather than shrinking
-   through sizes that help nobody. */
-@media (max-height: 820px) {
-  .vca-auth-illustration { display: none; }
-  .vca-auth-scroll { padding-top: 16px; }
+
+@media (min-width: 900px) {
+  .vca-auth-brand {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    /* The change of ground is the whole separation. A hairline on top of it was drawing a border
+       between two areas that were already different colours — one seam stated twice. */
+    background-color: var(--gray-50);
+  }
+}
+/* Only rule left that reads the window's height, and it is about the artwork alone — the form no
+   longer moves when the window gets short. */
+@media (max-height: 760px) {
+  .vca-auth-brand-art { width: min(100%, 250px); }
+}
+
+/* ── Autofill: no second box inside the field ─────────────────────────
+   Chrome paints the input element itself while its suggestion list is open and after it fills a
+   value. Our fields are a bordered row with an icon, a flex:1 input and sometimes a reveal button,
+   so that paint lands only on the input's own strip — between the icon and the button — and reads
+   as a smaller box drawn inside the field. It made every field look narrower than it is, which is
+   exactly the complaint it produced.
+
+   background-color cannot override it; Chrome ignores that for autofill. A large inset box-shadow
+   in the field's own colour is the way, and text-fill-color has to be restated or the autofilled
+   value comes back in Chrome's colour rather than ours. The 9999s transition keeps the yellow
+   flash from appearing for a frame before the shadow applies.
+
+   Every field this applies to sits on white, so gray-0 is the fill. Autofilled state stays legible
+   — nothing here hides that a value was filled in, only the box drawn around it. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+input:autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--gray-0) inset !important;
+  box-shadow: 0 0 0 1000px var(--gray-0) inset !important;
+  -webkit-text-fill-color: var(--gray-900) !important;
+  caret-color: var(--gray-900);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* The card centres itself with an auto vertical margin (see the auth pages). This only supplies
+   the breathing room around it, so a card taller than the window still clears the header and the
+   bottom edge instead of butting against them. Symmetric, because an asymmetric padding would
+   pull the centred state off centre. */
+.vca-auth-scroll { padding: 40px 24px; }
+@media (max-height: 760px) {
+  .vca-auth-scroll { padding: 20px 24px; }
 }

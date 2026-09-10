@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import { Asterisk, ClipboardList, MailQuestion, Users2, UserX, ClipboardPlus, Download, KeyRound, Printer, Upload} from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useVcaStore, isNetworkIsolated, isLastActiveAdmin, canManageAccess, canEditPortal, canEnterPortal, currentPortalRole, type PortalPermission, type PortalUser, type PortalUserStatus } from "@/lib/vcaStore";
+import { useVcaStore, isNetworkIsolated, isLastActiveAdmin, canManageAccess, canEditPortal, canEnterPortal, currentPortalRole, currentPortalUser, resolveMailConfig, isMailDeliverable, type PortalPermission, type PortalUser, type PortalUserStatus } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { formatElapsed } from "@/lib/time";
 import { RESET_CODE_TTL_MIN, TEMP_PASSWORD_VALIDITY_HOURS } from "@/lib/password";
 import { SETUP_CODE_TTL_DAYS, codeDaysRemaining } from "@/lib/staffRoster";
 import { getAuthConfig, hasOutboundMail } from "@/lib/authConfig";
 import { useToast } from "../Toast";
-import { SummaryStrip, TABLE_HEADER_COLOR, TextField, FIELD_STYLE, FIELD_FOCUS, BORDER, CARD_BORDER, TABLE_COLUMN_GAP, PANEL_SHADOW, RowActionsMenu, FilterSelect, SortableHeader, sortRows, useTableSort, ConfirmModal, Tooltip } from "./PortalShared";
+import { SummaryStrip, TABLE_HEADER_COLOR, TextField, FIELD_STYLE, FIELD_FOCUS, BORDER, CARD_BORDER, CARD_RADIUS, TABLE_COLUMN_GAP, PANEL_SHADOW, RowActionsMenu, FilterSelect, SortableHeader, sortRows, useTableSort, ConfirmModal, Tooltip, usePortalEditAccess } from "./PortalShared";
 import { usePortalLanguage } from "@/lib/i18n";
 import { withEffectiveStatus, type RosterEntry, type RosterCodeStatus } from "@/lib/staffRoster";
 import RosterImportModal from "./RosterImportModal";
@@ -88,6 +88,8 @@ const T = {
     colStatus: "Status",
     emptySearch: "No users match this search.",
     emptyNoUsers: "No users have access to this project yet.",
+    emptyFiltered: "Nothing matches the current filter.",
+    emptyClear: "Clear filters",
 
     // Permission / status / MFA display labels
     permOwner: "Owner",
@@ -237,6 +239,15 @@ const T = {
     mailNoteIsolated: "This project's site is internet-isolated — invite will be sent through its internal mailbox, not external email.",
     mailNoteReachable: "Invite will be sent by external email.",
     cancel: "Cancel",
+    save: "Save",
+    errEmail: "That is not an email address.",
+    errDuplicate: "An account already uses this address.",
+    errDomain: (d: string) => `Accounts must be on @${d} — mail to anything else is not deliverable from this installation.`,
+    editProjects: "Projects…",
+    projectsModalTitle: "Projects",
+    projectsModalIntro: (name: string) => `Which of this team's projects ${name} may open. A project they are not given stops appearing in their app.`,
+    projectsModalNoneWarning: "At least one project. An account with no projects signs in to an empty app with no sign that anything was taken away — suspend the account instead.",
+    projectsUpdatedTitle: "Projects updated",
     sendInvite: "Send Invite",
     inviteSentTitle: "Invite sent",
 
@@ -316,6 +327,8 @@ const T = {
     colStatus: "상태",
     emptySearch: "검색 결과와 일치하는 사용자가 없습니다.",
     emptyNoUsers: "이 프로젝트에 접근 권한이 있는 사용자가 아직 없습니다.",
+    emptyFiltered: "지금 조건에 맞는 항목이 없습니다.",
+    emptyClear: "조건 해제",
 
     // Permission / status / MFA display labels
     permOwner: "최고관리자",
@@ -456,6 +469,15 @@ const T = {
     mailNoteIsolated: "이 프로젝트의 사이트는 인터넷이 차단되어 있습니다 — 초대장은 외부 이메일이 아닌 내부 메일함으로 발송됩니다.",
     mailNoteReachable: "초대장이 외부 이메일로 발송됩니다.",
     cancel: "취소",
+    save: "저장",
+    errEmail: "이메일 주소 형식이 아닙니다.",
+    errDuplicate: "이미 이 주소를 쓰는 계정이 있습니다.",
+    errDomain: (d: string) => `계정은 @${d} 주소여야 합니다 — 이 설치본에서 다른 주소로는 메일이 나가지 않습니다.`,
+    editProjects: "프로젝트…",
+    projectsModalTitle: "프로젝트",
+    projectsModalIntro: (name: string) => `${name} 님이 열 수 있는 이 팀의 프로젝트입니다. 주지 않은 프로젝트는 앱에서 보이지 않습니다.`,
+    projectsModalNoneWarning: "최소 한 개는 있어야 합니다. 프로젝트가 없는 계정은 아무것도 없는 앱에 로그인하게 되고, 무엇이 회수됐는지 알 방법이 없습니다. 그럴 땐 계정을 정지하세요.",
+    projectsUpdatedTitle: "프로젝트가 변경되었습니다",
     sendInvite: "초대 보내기",
     inviteSentTitle: "초대장 발송됨",
 
@@ -476,6 +498,7 @@ function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: stri
   useEscapeKey(onClose);
   const teams = useVcaStore(s => s.teams);
   const projects = useVcaStore(s => s.projects);
+  const allUsers = useVcaStore(s => s.portalUsers);
   const addPortalUser = useVcaStore(s => s.addPortalUser);
   const issueInviteToken = useVcaStore(s => s.issueInviteToken);
   const { showToast } = useToast();
@@ -523,8 +546,30 @@ function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: stri
         ? t.mailNoteIsolated
         : t.mailNoteReachable;
 
+  /*
+   * The same three checks /request-access already makes, for the reason resolveMailConfig's own
+   * note predicted: "the invite modal would refuse an address the request form accepted." It was
+   * the other way round — the request form validated and this one took anything.
+   *
+   * Duplicate matters more than it looks. currentPortalUser resolves the signed-in identity BY
+   * EMAIL, so a second account on an existing address silently shadows the first one's role.
+   */
+  const typed = email.trim();
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed);
+  const { mailDomain } = resolveMailConfig(projectIds[0] ?? "", projects, teams);
+  const undeliverable = emailValid && !isMailDeliverable(typed, mailDomain);
+  const duplicate = typed !== "" && allUsers.some(u => u.email.toLowerCase() === typed.toLowerCase());
+  const emailError = typed === "" ? ""
+    : !emailValid ? t.errEmail
+    : duplicate ? t.errDuplicate
+    : undeliverable && mailDomain ? t.errDomain(mailDomain)
+    : "";
+  const canInvite = name.trim() !== "" && emailValid && !duplicate && !undeliverable
+    && teamId !== "" && projectIds.length > 0;
   const submit = () => {
-    if (!name.trim() || !email.trim() || !teamId) return;
+    // A project is required, the same as it is when the assignment is changed later: an account
+    // invited with nothing ticked signs into an empty app and reads it as a broken product.
+    if (!name.trim() || !email.trim() || !teamId || projectIds.length === 0) return;
     const resolved = applyAccessMode(accessMode, permission);
     const id = addPortalUser({
       name: name.trim(), email: email.trim(), teamId, projectIds,
@@ -557,6 +602,12 @@ function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: stri
           <div>
             <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>{t.emailLabel}</label>
             <TextField value={email} onChange={setEmail} placeholder="name@univs.ai" type="email" />
+            {/* Under the field, not on submit. The three ways this address can be wrong are all
+                knowable while it is being typed, and finding out after pressing Send is finding
+                out after an account was nearly created. */}
+            {emailError && (
+              <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--danger-500)", lineHeight: 1.5, marginTop: "6px" }}>{emailError}</p>
+            )}
           </div>
           <div>
             <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>{t.teamLabel}</label>
@@ -619,8 +670,8 @@ function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: stri
           <button className="portal-btn-outline" onClick={onClose} style={{ padding: "10px 16px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             {t.cancel}
           </button>
-          <button className="portal-btn-primary" onClick={submit} disabled={!name.trim() || !email.trim()}
-            style={{ padding: "10px 16px", borderRadius: "8px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "13px", fontWeight: 700, cursor: (name.trim() && email.trim()) ? "pointer" : "not-allowed", opacity: (name.trim() && email.trim()) ? 1 : 0.5 }}>
+          <button className="portal-btn-primary" onClick={submit} disabled={!canInvite}
+            style={{ padding: "10px 16px", borderRadius: "8px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "13px", fontWeight: 700, cursor: canInvite ? "pointer" : "not-allowed", opacity: canInvite ? 1 : 0.5 }}>
             {t.sendInvite}
           </button>
         </div>
@@ -648,6 +699,9 @@ function TempPasswordModal({ user, mailAvailable, initialCode, onClose }: { user
   const { showToast } = useToast();
   const [lang] = usePortalLanguage();
   const t = T[lang];
+  // Post-mount, like every other clock read in Portal — see TempPasswordBadge.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => { queueMicrotask(() => setNowMs(Date.now())); }, []);
   // Non-null from the start when an existing setup code is being looked up again rather than
   // issued — the result step is the whole point of that visit, so it opens straight into it.
   const [password, setPassword] = useState<string | null>(initialCode ?? null);
@@ -709,8 +763,12 @@ function TempPasswordModal({ user, mailAvailable, initialCode, onClose }: { user
         // temporary password, a code cannot sign in, so the clock is information, not a hazard.
         // HANDOFF NOTE: the backend has to enforce the same number.
         showExpiry: false,
+        // nowMs, not codeDaysRemaining's Date.now() default — the same post-mount clock the
+        // badge below reads. Until it is known this prints the full TTL, which is what a code
+        // issued this second has left.
         expiryLabel: t.setupExpires(
-          codeDaysRemaining(user.setupCodeIssuedAt, SETUP_CODE_TTL_DAYS) ?? SETUP_CODE_TTL_DAYS,
+          (nowMs === null ? null : codeDaysRemaining(user.setupCodeIssuedAt, SETUP_CODE_TTL_DAYS, nowMs))
+            ?? SETUP_CODE_TTL_DAYS,
         ),
       };
 
@@ -1115,8 +1173,15 @@ function RecoveryModeNotice({ supportContact }: { supportContact: string | null 
  * that way in — with it off (the on-premise default, see authConfig's accessRequest) no request can
  * ever arrive, and an empty queue titled "Access Requests" implies a door that is not there.
  */
+/**
+ * Approving one of these creates an account with a working sign-in link, which is the same
+ * power as inviting somebody — and it sat directly under an Invite button disabled with "Only
+ * an owner can change access", fully live for an admin or an auditor. Dismiss destroyed a
+ * pending request with no gate and no confirmation.
+ */
 function AccessRequestsPanel({ projectId }: { projectId: string }) {
   const accessRequests = useVcaStore(s => s.accessRequests);
+  const portalUsers = useVcaStore(s => s.portalUsers);
   const approveAccessRequests = useVcaStore(s => s.approveAccessRequests);
   const issueInviteToken = useVcaStore(s => s.issueInviteToken);
   const dismissAccessRequest = useVcaStore(s => s.dismissAccessRequest);
@@ -1137,10 +1202,15 @@ function AccessRequestsPanel({ projectId }: { projectId: string }) {
   if (requests.length === 0) return null;
 
   const toggle = (id: string) => setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  // Same gate as Invite, because it is the same act: an approval mints an account and hands out
+  // a /password-setup link. Fails open with no session, like every other gate in Portal.
+  const me = currentPortalUser(portalUsers);
+  const manageAccess = me ? canManageAccess(me.permission) : true;
   const allSelected = requests.length > 0 && requests.every(r => selected.includes(r.id));
   const toggleAll = () => setSelected(allSelected ? [] : requests.map(r => r.id));
 
   const approve = (ids: string[]) => {
+    if (!manageAccess) return;
     const newUserIds = approveAccessRequests(ids);
     setSelected(prev => prev.filter(id => !ids.includes(id)));
     if (newUserIds.length === 1) {
@@ -1151,7 +1221,7 @@ function AccessRequestsPanel({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, marginBottom: "16px", overflow: "hidden" }}>
+    <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: CARD_RADIUS, boxShadow: PANEL_SHADOW, marginBottom: "16px", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: BORDER, backgroundColor: "var(--gray-50)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
@@ -1161,7 +1231,8 @@ function AccessRequestsPanel({ projectId }: { projectId: string }) {
         </div>
         {selected.length > 0 && (
           <button onClick={() => approve(selected)}
-            style={{ padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--gray-900)", backgroundColor: "white", color: "var(--gray-900)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+            disabled={!manageAccess} title={manageAccess ? undefined : t.reasonNotOwner}
+            style={{ padding: "8px 14px", borderRadius: "8px", border: manageAccess ? "1px solid var(--gray-900)" : BORDER, backgroundColor: "white", color: manageAccess ? "var(--gray-900)" : "var(--gray-300)", fontSize: "12px", fontWeight: 700, cursor: manageAccess ? "pointer" : "not-allowed" }}>
             {t.approveSelected(selected.length)}
           </button>
         )}
@@ -1182,12 +1253,14 @@ function AccessRequestsPanel({ projectId }: { projectId: string }) {
               </p>
             </div>
             <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-              <button className="portal-btn-outline" onClick={() => dismissAccessRequest(r.id)}
-                style={{ padding: "8px 12px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+              <button className="portal-btn-outline" onClick={() => manageAccess && dismissAccessRequest(r.id)}
+                disabled={!manageAccess} title={manageAccess ? undefined : t.reasonNotOwner}
+                style={{ padding: "8px 12px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: manageAccess ? "var(--gray-600)" : "var(--gray-300)", fontSize: "12px", fontWeight: 700, cursor: manageAccess ? "pointer" : "not-allowed" }}>
                 {t.dismiss}
               </button>
               <button onClick={() => approve([r.id])}
-                style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--gray-900)", backgroundColor: "white", color: "var(--gray-900)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                disabled={!manageAccess} title={manageAccess ? undefined : t.reasonNotOwner}
+                style={{ padding: "8px 12px", borderRadius: "8px", border: manageAccess ? "1px solid var(--gray-900)" : BORDER, backgroundColor: "white", color: manageAccess ? "var(--gray-900)" : "var(--gray-300)", fontSize: "12px", fontWeight: 700, cursor: manageAccess ? "pointer" : "not-allowed" }}>
                 {t.approve}
               </button>
             </div>
@@ -1219,11 +1292,99 @@ function AccessRequestsPanel({ projectId }: { projectId: string }) {
  *
  * Ordered as the funnel runs, so the value doubles as a sort key.
  */
+/**
+ * The tools that are not this page's one primary action.
+ *
+ * No border and no fill: what makes a control loud is the box, not the letters, so this row of
+ * five recedes by losing its boxes rather than by shrinking its type — which was tried first and
+ * only made them hard to read while leaving them just as visible. Same treatment as Input Sources,
+ * same reference (Zapier's borderless table tools).
+ *
+ * The roster tab drops a fill on top of this for its own primary, which is why the fill lives at
+ * the call site rather than here.
+ *
+ * The hover tint is portal-btn-quiet, added at each call site. A borderless control with no hover
+ * is the one version of this treatment that fails — nothing at rest and nothing on pointing is
+ * not a quiet button, it is text.
+ */
 const SECONDARY_BTN: React.CSSProperties = {
-  display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "8px",
-  border: BORDER, backgroundColor: "white", color: "var(--gray-600)",
-  fontSize: "10px", fontWeight: 700, cursor: "pointer", flexShrink: 0,
+  display: "flex", alignItems: "center", gap: "6px", padding: "10px", borderRadius: "8px",
+  border: "none", backgroundColor: "transparent", color: "var(--gray-600)",
+  fontSize: "12px", fontWeight: 600, cursor: "pointer", flexShrink: 0,
 };
+
+/**
+ * Which of the team's projects an existing account may open.
+ *
+ * It was set once, at invite, and never again: updatePortalUserProjects sat in the store with no
+ * caller, and the table's projects cell was plain text whose own comment described "removing them
+ * from here" as the question behind it — an action that did not exist. In a control centre staff
+ * rotate between sites, and the only fix was to delete the account and invite it again, which
+ * loses everything the account is.
+ *
+ * Team is not editable here. A project belongs to exactly one team, so moving somebody between
+ * teams is a different act with different consequences (their whole roster history, their role,
+ * the mail domain their invite came from) and it does not belong behind a checkbox list.
+ */
+function UserProjectsModal({ user, teamProjects, onClose, onSave }: {
+  user: PortalUser;
+  teamProjects: { id: string; name: string }[];
+  onClose: () => void;
+  onSave: (projectIds: string[]) => void;
+}) {
+  const [lang] = usePortalLanguage();
+  const t = T[lang];
+  const [picked, setPicked] = useState<string[]>(user.projectIds);
+  useEscapeKey(onClose);
+  const toggle = (id: string) =>
+    setPicked(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  // Zero is refused rather than warned about. An account with no projects signs into an app with
+  // nothing in it and no way to tell that something was taken away — suspending the account is
+  // how you stop somebody, and it says so.
+  const canSave = picked.length > 0;
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 320, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+        <div style={{ padding: "20px 20px 0" }}>
+          <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.projectsModalTitle}</p>
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.6, marginTop: "6px" }}>{t.projectsModalIntro(user.name)}</p>
+        </div>
+        <div style={{ padding: "16px 20px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+          {teamProjects.map(p => {
+            const active = picked.includes(p.id);
+            return (
+              <button key={p.id} onClick={() => toggle(p.id)}
+                style={{
+                  padding: "6px 10px", borderRadius: "8px", cursor: "pointer",
+                  border: active ? "1px solid var(--gray-900)" : BORDER,
+                  backgroundColor: active ? "var(--gray-100)" : "white",
+                  color: active ? "var(--gray-900)" : "var(--gray-600)",
+                  fontSize: "12px", fontWeight: 700, fontFamily: "inherit",
+                }}>
+                {p.name}
+              </button>
+            );
+          })}
+        </div>
+        {!canSave && (
+          <p style={{ padding: "0 20px", fontSize: "12px", color: "var(--warning-500)", lineHeight: 1.6 }}>{t.projectsModalNoneWarning}</p>
+        )}
+        <div style={{ padding: "16px 20px 20px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+          <button className="portal-btn-outline" onClick={onClose}
+            style={{ padding: "10px 16px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            {t.cancel}
+          </button>
+          <button className="portal-btn-primary" onClick={() => { onSave(picked); onClose(); }} disabled={!canSave}
+            style={{ padding: "10px 16px", borderRadius: "8px", border: "none", backgroundColor: canSave ? "var(--primary-400)" : "var(--gray-200)", color: canSave ? "white" : "var(--gray-400)", fontSize: "13px", fontWeight: 700, cursor: canSave ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+            {t.save}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const STAGES = ["rosterListed", "codeIssued", "codeExpired", "invited", "active", "suspended"] as const;
 type Stage = (typeof STAGES)[number];
@@ -1245,8 +1406,15 @@ function stageOfRosterEntry(status: RosterCodeStatus): Stage {
  * Every cell is derived from the same helpers the app enforces with (canManageAccess,
  * canEditPortal, canEnterPortal) rather than typed out. A hand-written permissions table is a
  * document that starts telling the truth and stops the first time one of those functions changes.
+ *
+ * Deriving it was only half the guarantee, and for a while it was the wrong half: canEditPortal
+ * had exactly one call site — the row below — so the table read from a function nothing else
+ * consulted, and every tab let an auditor change whatever it liked. It is now read through
+ * usePortalEditAccess by Input Sources, the VIP registry, servers, mail and the project card in
+ * Settings. A derived table is honest only while the thing it derives from is enforced.
  */
 function AccessGuideModal({ t, onClose }: { t: (typeof T)["en"] | (typeof T)["ko"]; onClose: () => void }) {
+  useEscapeKey(onClose);
   const roles: PortalPermission[] = ["owner", "admin", "auditor"];
   const cell = (allowed: boolean, yes: string, no: string) => ({
     label: allowed ? yes : no,
@@ -1400,11 +1568,11 @@ function UserCountStrip({
           label: item.label,
           tone: "warning" as const,
           active: statusFilter === item.key,
-          // The tooltip explains the state, which is the whole point of these three labels — an
-          // invitation nobody accepted and a suspended account are not self-explanatory words —
-          // and the dotted underline is what tells the reader the explanation is there.
-          title: item.hint,
-          explain: true,
+          // The explanation is the whole point of these three labels — an invitation nobody
+          // accepted and a suspended account are not self-explanatory words — and the dotted
+          // underline is what tells the reader it is there. No `title` beside it: two tooltips on
+          // one control, one of them the browser's, is a race the reader did not enter.
+          explanation: item.hint,
           onClick: () => onFilter(statusFilter === item.key ? null : item.key),
         }))),
       ]} />
@@ -1451,6 +1619,7 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
   const removeRosterEntry = useVcaStore(s => s.removeRosterEntry);
   const logRosterCodeViewed = useVcaStore(s => s.logRosterCodeViewed);
   const updatePortalUserStatus = useVcaStore(s => s.updatePortalUserStatus);
+  const updatePortalUserProjects = useVcaStore(s => s.updatePortalUserProjects);
   const removePortalUser = useVcaStore(s => s.removePortalUser);
   const setAppSearch = useVcaStore(s => s.setAppSearch);
   const issueInviteToken = useVcaStore(s => s.issueInviteToken);
@@ -1462,6 +1631,10 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
   // installation's settings, not who can get in. See PortalPermission in vcaStore.
   const myRole = currentPortalRole(portalUsers);
   const manageAccess = canManageAccess(myRole);
+  // The roster is in the guide's "cameras, VIP, roster, license, server" row, so it takes the
+  // wider gate — an admin maintains it, an auditor reads it. Everything about ACCOUNTS above
+  // stays owner-only under manageAccess.
+  const { mayEdit, reason: readOnlyReason } = usePortalEditAccess();
   // The user whose already-issued setup code is being looked up again, or null.
   const [viewingCodeFor, setViewingCodeFor] = useState<PortalUser | null>(null);
   // The user a temporary password is being issued for, or null. Held as the user rather than an id
@@ -1541,6 +1714,11 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
   };
 
   const projectName = (id: string) => projects.find(p => p.id === id)?.name ?? id;
+  // The team this page's project belongs to — the only projects an account here may be given.
+  // See UserProjectsModal on why the team itself is not editable from that dialog.
+  const pageTeamId = projects.find(p => p.id === projectId)?.teamId;
+  const teamProjects = projects.filter(p => p.teamId === pageTeamId);
+  const [editingProjectsFor, setEditingProjectsFor] = useState<PortalUser | null>(null);
   const currentProject = projects.find(p => p.id === projectId);
   /**
    * Which of the "on the way in, or stopped" states the table is narrowed to, if any — set by the
@@ -1552,6 +1730,12 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
    * is what the numbers were being read for.
    */
   const [statusFilter, setStatusFilter] = useState<"invited" | "suspended" | "roster" | null>(null);
+  /** True when the list is empty only because something is filtering it. The two empty states
+   *  send the reader to different places, and one message for both sends half of them wrong. */
+  const narrowed = statusFilter !== null || search.trim() !== "";
+  // The page's clock, read after mount. See projectRosterAll.
+  const [pageNowMs, setPageNowMs] = useState<number | null>(null);
+  useEffect(() => { queueMicrotask(() => setPageNowMs(Date.now())); }, []);
   const q = search.trim().toLowerCase();
   // Split in two: the strip above the table counts everyone on the project, the table shows what is
   // left after the search. Counting the searched set instead would make the summary agree with the
@@ -1570,7 +1754,22 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
   const accountEmployeeIds = new Set(
     portalUsers.map(u => u.employeeId?.toLowerCase()).filter(Boolean) as string[]
   );
-  const projectRosterAll = withEffectiveStatus(staffRoster.filter(r => r.projectId === projectId));
+  /**
+   * Roster rows with the code TTL applied.
+   *
+   * Through the page's post-mount clock, not withEffectiveStatus's Date.now() default. A row
+   * whose code was issued near the 14-day boundary is "unused" in the server's HTML and
+   * "expired" in the browser's first pass, and React would have rendered one over the other —
+   * which is exactly the hydration hazard every other clock read on this page already avoids.
+   * Before the clock is known the stored status stands, which is the value the server sent.
+   *
+   * rosterWaiting, the tab count and the summary strip all hang off this, so the correction
+   * reaches all three at once.
+   */
+  const projectRoster = staffRoster.filter(r => r.projectId === projectId);
+  const projectRosterAll = pageNowMs === null
+    ? projectRoster
+    : withEffectiveStatus(projectRoster, pageNowMs);
   const rosterWaiting = projectRosterAll
     .filter(r => r.status !== "used" && !accountEmployeeIds.has(r.employeeId.toLowerCase()))
     .filter(r => !q || r.name.toLowerCase().includes(q) || r.employeeId.toLowerCase().includes(q))
@@ -1580,7 +1779,27 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
    * summary strip read: a summary that shrinks when you filter to part of it has stopped being a
    * summary (the note above filteredUsers makes the same point about accounts).
    */
-  const visibleRoster = rosterWaiting.filter(() => statusFilter === null || statusFilter === "roster");
+  /*
+   * Sorted by whatever heading was clicked, which the headings have always drawn an arrow for
+   * and never actually done — visibleRoster came straight off rosterWaiting's fixed stage-then-
+   * name order, so the arrow moved and the rows did not.
+   *
+   * Stage order stays the tiebreaker under every key, because the funnel is what the tab is for.
+   */
+  const visibleRoster = sortRows(
+    rosterWaiting.filter(() => statusFilter === null || statusFilter === "roster"),
+    sort,
+    (r, key) => {
+      switch (key) {
+        case "name": return r.name.toLowerCase();
+        case "permission": return r.permission;
+        case "status": return STAGES.indexOf(stageOfRosterEntry(r.status));
+        // The roster has no last-login column; the shared sort state can still carry the key
+        // from the accounts tab, and falling back to the funnel is the honest answer.
+        default: return STAGES.indexOf(stageOfRosterEntry(r.status));
+      }
+    },
+  );
   const notIssuedIds = rosterWaiting.filter(r => r.status === "not-issued").map(r => r.employeeId);
   const printableEntries = rosterWaiting.filter(r => r.status === "unused" && r.code);
 
@@ -1600,8 +1819,14 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
       {/* Stays up until a second administrator exists. Not dismissible: it is not a tip, it is a
           single point of failure with no recovery path — the supplier has no account here, so
           losing the one administrator ends the customer's ability to grant anything. Counted across
-          all users, not the filtered view. */}
-      {portalUsers.filter(u => u.permission === "admin" && u.status === "active").length <= 1 && (
+          all users, not the filtered view.
+
+          Counted through canManageAccess, not `permission === "admin"`. The power the sentence
+          describes — granting permissions — is the owner's, which is what isLastActiveAdmin
+          guards against losing. Counting admins made the banner wrong in both directions: it
+          disappeared when a second ADMIN was promoted (still one owner, still no recovery) and
+          it stayed up when a second OWNER was, which is exactly the fix it was asking for. */}
+      {portalUsers.filter(u => canManageAccess(u.permission) && u.status === "active").length <= 1 && (
         <div style={{
           display: "flex", gap: "12px", alignItems: "flex-start",
           padding: "14px 16px", borderRadius: "12px", marginBottom: "16px",
@@ -1643,7 +1868,7 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
           onClick={() => manageAccess && setShowInvite(true)}
           disabled={!manageAccess}
           title={manageAccess ? undefined : t.reasonNotOwner}
-          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "8px", border: "none", backgroundColor: manageAccess ? "var(--primary-400)" : "var(--gray-100)", color: manageAccess ? "white" : "var(--gray-400)", fontSize: "10px", fontWeight: 700, cursor: manageAccess ? "pointer" : "not-allowed", flexShrink: 0 }}>
+          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "8px", border: "none", backgroundColor: manageAccess ? "var(--primary-400)" : "var(--gray-100)", color: manageAccess ? "white" : "var(--gray-400)", fontSize: "12px", fontWeight: 700, cursor: manageAccess ? "pointer" : "not-allowed", flexShrink: 0 }}>
           <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 2.9V11.1M2.9 7H11.1" stroke={manageAccess ? "white" : "var(--gray-400)"} strokeWidth="1.22" strokeLinecap="round"/></svg>
           {t.inviteUser}
         </button>
@@ -1652,34 +1877,44 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
             neighbours put a mark on every action these five read as unfinished — and a row of five
             identical grey pills is a row you have to read word by word. 14px at stroke 2.4 is the
             1.4px Portal draws (see ICON_STROKE_PX). */}
-        {/* Filled on the roster tab, outlined on the combined one. Every page in Portal has one
-            coloured action, and on this tab the invite button — the coloured one — is hidden,
-            which left five grey pills and no answer to "what is the thing to do here". Adding a
-            name to the roster is that thing. */}
-        {/* On both tabs. The note above says the two ways of adding a person stay together on the
-            combined tab, and the condition said the opposite — `!== "accounts"` hid it exactly
-            there, leaving that tab with one button and no way to put a name on the roster without
-            switching tabs first. Adding a person is the page's subject on either tab. */}
+        {/*
+          Roster tab only, and the coloured action there.
+
+          It sat on both tabs for a while, on the reasoning that adding a person is the page's
+          subject either way. In practice the Accounts tab then offered two ways to add somebody
+          side by side — invite by mail, and put a name on the roster — which are the same goal by
+          two delivery mechanisms, and the labels do not carry that difference. The reader has to
+          stop and work out which one they want before doing either.
+
+          Accounts is about accounts: the one action there is inviting somebody to make one. The
+          roster is one tab away and its own tab's primary.
+        */}
+        {peopleTab === "roster" && (
         <button
-          onClick={() => setRosterEditorFor({ entry: null })}
-          style={peopleTab === "roster"
-            ? { ...SECONDARY_BTN, backgroundColor: "var(--primary-400)", border: "none", color: "white" }
-            : SECONDARY_BTN}
+          onClick={() => mayEdit && setRosterEditorFor({ entry: null })}
+          disabled={!mayEdit}
+          title={readOnlyReason}
+          style={{ ...SECONDARY_BTN, padding: "10px 16px", backgroundColor: mayEdit ? "var(--primary-400)" : "var(--gray-100)", border: "none", color: mayEdit ? "white" : "var(--gray-400)", fontWeight: 700, cursor: mayEdit ? "pointer" : "not-allowed" }}
         >
           <ClipboardPlus size={14} strokeWidth={2.4} />
           {t.addToRoster}
         </button>
+        )}
         {peopleTab === "roster" && (<>
-        <button onClick={() => setShowRosterImport(true)} style={SECONDARY_BTN}>
+        <button className="portal-btn-quiet" onClick={() => setShowRosterImport(true)} disabled={!mayEdit} title={readOnlyReason}
+          style={{ ...SECONDARY_BTN, color: mayEdit ? "var(--gray-600)" : "var(--gray-300)", cursor: mayEdit ? "pointer" : "not-allowed" }}>
           <Upload size={14} strokeWidth={2.4} />
           {t.importRoster}
         </button>
-        <button onClick={bulkIssueCodes} disabled={notIssuedIds.length === 0}
-          style={{ ...SECONDARY_BTN, color: notIssuedIds.length === 0 ? "var(--gray-300)" : "var(--gray-600)", cursor: notIssuedIds.length === 0 ? "not-allowed" : "pointer" }}>
+        {/* Export and Print stay open below: handing the roster to somebody as a file or a sheet
+            is reading it, not changing it, and it is most of what a read-only account is for. */}
+        <button className="portal-btn-quiet" onClick={bulkIssueCodes} disabled={!mayEdit || notIssuedIds.length === 0}
+          title={readOnlyReason}
+          style={{ ...SECONDARY_BTN, color: (!mayEdit || notIssuedIds.length === 0) ? "var(--gray-300)" : "var(--gray-600)", cursor: (!mayEdit || notIssuedIds.length === 0) ? "not-allowed" : "pointer" }}>
           <KeyRound size={14} strokeWidth={2.4} />
           {t.bulkIssue(notIssuedIds.length)}
         </button>
-        <button onClick={() => {
+        <button className="portal-btn-quiet" onClick={() => {
             const n = exportRosterCsv(projectRosterAll, currentProject?.name ?? projectId, rt);
             showToast({ variant: "success", title: t.toastRosterExported(n) });
           }}
@@ -1688,7 +1923,7 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
           <Download size={14} strokeWidth={2.4} />
           {t.exportRoster}
         </button>
-        <button onClick={() => setShowPrintSheet(true)} disabled={printableEntries.length === 0}
+        <button className="portal-btn-quiet" onClick={() => setShowPrintSheet(true)} disabled={printableEntries.length === 0}
           style={{ ...SECONDARY_BTN, color: printableEntries.length === 0 ? "var(--gray-300)" : "var(--gray-600)", cursor: printableEntries.length === 0 ? "not-allowed" : "pointer" }}>
           <Printer size={14} strokeWidth={2.4} />
           {t.printHandout}
@@ -1730,7 +1965,17 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
 
       {!mailAvailable && <RecoveryModeNotice supportContact={authConfig.supportContact} />}
 
-      <UserCountStrip users={projectUsers} rosterWaiting={rosterWaiting.length} statusFilter={statusFilter} onFilter={setStatusFilter} onShowGuide={() => setShowGuide(true)} />
+      {/* The strip drives the tab as well as the filter. Picking "on the roster" from the
+          Accounts tab used to set a filter no account's status can equal: the table emptied and
+          printed "No users have access to this project yet" with six accounts one click away.
+          The mirror case did the same on the other tab. A cell now shows what it counts. */}
+      <UserCountStrip users={projectUsers} rosterWaiting={rosterWaiting.length} statusFilter={statusFilter}
+        onFilter={next => {
+          setStatusFilter(next);
+          if (next === "roster") setPeopleTab("roster");
+          else if (next !== null) setPeopleTab("accounts");
+        }}
+        onShowGuide={() => setShowGuide(true)} />
 
       <AccessRequestsPanel projectId={projectId} />
 
@@ -1801,9 +2046,17 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
         {/* Per tab: each half answers for itself, and neither can speak for the other's rows. */}
         {(peopleTab === "accounts" ? scopedUsers.length : visibleRoster.length) === 0 && (
           <div style={{ padding: "32px 16px", textAlign: "center", borderBottomLeftRadius: "12px", borderBottomRightRadius: "12px" }}>
+            {/* "Nothing matches what you asked for" and "there is nothing here" send the reader
+                to two different places, and one message for both sends half of them wrong. */}
             <p style={{ fontSize: "13px", color: "var(--gray-400)" }}>
-              {q ? t.emptySearch : peopleTab === "accounts" ? t.emptyNoUsers : t.rosterEmpty}
+              {narrowed ? t.emptyFiltered : peopleTab === "accounts" ? t.emptyNoUsers : t.rosterEmpty}
             </p>
+            {narrowed && (
+              <button className="portal-btn-quiet" onClick={() => { setStatusFilter(null); setSearch(""); }}
+                style={{ marginTop: "10px", padding: "6px 12px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: "var(--gray-600)", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                {t.emptyClear}
+              </button>
+            )}
           </div>
         )}
         {(peopleTab === "accounts" ? scopedUsers : []).map((u, i) => {
@@ -1823,7 +2076,8 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
             </div>
             {/* The project this page is scoped to is on every row by definition, so listing it is
                 a column of the same name repeated. What is not known is whether this person has
-                anywhere else — which is the question behind removing them from here. */}
+                anywhere else — which is the question behind removing them from here, and the
+                row menu's Projects… is where that is answered. */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", minWidth: 0 }}>
               {(() => {
                 const others = u.projectIds.filter(pid => pid !== projectId);
@@ -1917,6 +2171,14 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
                 owner's. A non-owner still sees the items with the reason attached — knowing the
                 action exists and who can do it beats a menu that quietly has three fewer rows. */}
             <RowActionsMenu actions={[
+              {
+                // First, because it is the only thing in this menu that changes what the account
+                // is FOR rather than how it gets in.
+                label: t.editProjects,
+                disabled: !manageAccess,
+                reason: manageAccess ? undefined : t.reasonNotOwner,
+                onClick: () => setEditingProjectsFor(u),
+              },
               ...(mailAvailable && u.status === "invited" ? [{
                 label: t.resendInvite,
                 disabled: !manageAccess,
@@ -2044,13 +2306,18 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
                               <div style={{ display: "flex", justifyContent: "flex-end" }}>
                 <StageBadge stage={stage} t={t} />
               </div>
+              {/* Gated, like the toolbar directly above this table. It was not, and issuing a
+                  code is not a small thing to leave open: the code is a live credential that
+                  /register turns into an account, so a read-only auditor could mint a way in. */}
               <RowActionsMenu actions={[
-                { label: rt.editEntry, onClick: () => setRosterEditorFor({ entry }) },
+                { label: rt.editEntry, onClick: () => setRosterEditorFor({ entry }), disabled: !mayEdit, reason: readOnlyReason },
                 {
                   label: entry.code ? rt.reissueConfirm : rt.issueConfirm,
                   onClick: () => setIssuingEntry(entry),
+                  disabled: !mayEdit,
+                  reason: readOnlyReason,
                 },
-                { label: rt.remove, onClick: () => setRemovingEntry(entry), danger: true },
+                { label: rt.remove, onClick: () => setRemovingEntry(entry), danger: true, disabled: !mayEdit, reason: readOnlyReason },
               ]} />
             </div>
           );
@@ -2101,6 +2368,17 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
         />
       )}
       {showInvite && <InviteUserModal defaultProjectId={projectId} onClose={() => setShowInvite(false)} />}
+      {editingProjectsFor && (
+        <UserProjectsModal
+          user={editingProjectsFor}
+          teamProjects={teamProjects}
+          onClose={() => setEditingProjectsFor(null)}
+          onSave={ids => {
+            updatePortalUserProjects(editingProjectsFor.id, ids);
+            showToast({ variant: "success", title: t.projectsUpdatedTitle, desc: editingProjectsFor.name });
+          }}
+        />
+      )}
       {credentialFor && (
         <TempPasswordModal user={credentialFor} mailAvailable={mailAvailable} onClose={() => setCredentialFor(null)} />
       )}

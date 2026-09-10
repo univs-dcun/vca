@@ -9,22 +9,32 @@ import ProjectSwitcher from "./ProjectSwitcher";
 import PortalNewProjectWizard from "./PortalNewProjectWizard";
 import TeamSwitcher from "./TeamSwitcher";
 import ProjectSidebar, { PROJECT_TABS, type DetailTab } from "./ProjectSidebar";
-import PortalMyPage from "./PortalMyPage";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
+import PortalSettingsPage from "./PortalSettingsPage";
 import PortalAccountMenu from "./PortalAccountMenu";
 import { ToastProvider } from "../Toast";
-import { useVcaStore, canEnterApp, canEnterPortal, currentPortalUser, SIGNED_IN_USER, type ProjectType } from "@/lib/vcaStore";
+import { getComplianceConfig } from "@/lib/complianceConfig";
+import { useVcaStore, canEnterApp, canEnterPortal, currentPortalUser, SIGNED_IN_USER, type ProjectType, type Team } from "@/lib/vcaStore";
 import { usePortalLanguage } from "@/lib/i18n";
-import { BREADCRUMB_TEAM_MAX_WIDTH } from "./PortalShared";
+import { BORDER, BREADCRUMB_TEAM_MAX_WIDTH } from "./PortalShared";
 
 const T = {
   en: {
     noTeam: "No Team", expand: "Expand sidebar", collapse: "Collapse sidebar",
-    newProject: "New project", myPageCrumb: "My page",
+    newProject: "New project", settingsCrumb: "Settings", close: "Close",
+    requestTitle: "Adding another project",
+    requestBody: "A project is a licensed site. Its channels and term come from the contract, so it is set up during installation rather than from this console.",
+    requestManager: "Account manager",
+    requestNoManager: "No account manager is recorded for this team. Contact whoever handled your installation.",
     fleetTitle: (online: number, offline: number) => `${online} cameras online, ${offline} offline — open Input Sources`,
   },
   ko: {
     noTeam: "팀 없음", expand: "사이드바 펼치기", collapse: "사이드바 접기",
-    newProject: "새 프로젝트", myPageCrumb: "마이페이지",
+    newProject: "새 프로젝트", settingsCrumb: "설정", close: "닫기",
+    requestTitle: "프로젝트를 더 추가하려면",
+    requestBody: "프로젝트는 라이선스가 걸린 현장입니다. 채널과 기간이 계약에서 나오기 때문에, 이 콘솔이 아니라 설치 과정에서 세팅됩니다.",
+    requestManager: "담당자",
+    requestNoManager: "이 팀에 등록된 담당자가 없습니다. 설치를 담당한 곳으로 문의하세요.",
     fleetTitle: (online: number, offline: number) => `카메라 ${online}대 온라인, ${offline}대 오프라인 — 입력 소스 열기`,
   },
 } as const;
@@ -41,6 +51,48 @@ function BreadcrumbChevron() {
 // Project switching/creation stays header-only (GCP's "Select a resource" pattern). Once inside
 // a project, its own tools (Overview/Cameras/VIP Registry/License/Users & Permissions) live in a
 // collapsible left sidebar — matching GCP's per-project nav rail — toggled by the header hamburger.
+/**
+ * Where another project comes from, said to the person asking for one.
+ *
+ * A named person rather than a form: Portal cannot create the thing being asked for, so a
+ * "request" that goes nowhere would be worse than the create button it replaced. The team's
+ * account manager is who signs the contract that carries the channels.
+ */
+function RequestProjectModal({ team, onClose }: { team: Team; onClose: () => void }) {
+  useEscapeKey(onClose);
+  const [lang] = usePortalLanguage();
+  const t = T[lang];
+  const m = team.accountManager;
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: "fixed", inset: 0, zIndex: 400, backgroundColor: "rgba(14,22,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "440px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+        <div style={{ padding: "20px 20px 0" }}>
+          <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.requestTitle}</p>
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.55, marginTop: "8px" }}>{t.requestBody}</p>
+        </div>
+        <div style={{ padding: "16px 20px" }}>
+          <div style={{ padding: "14px 16px", backgroundColor: "var(--gray-50)", border: BORDER, borderRadius: "10px" }}>
+            {m ? (<>
+              <p style={{ fontSize: "10px", fontWeight: 700, color: "var(--gray-400)", letterSpacing: "0.4px" }}>{t.requestManager.toUpperCase()}</p>
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", marginTop: "4px" }}>{m.name}</p>
+              <p style={{ fontSize: "12px", color: "var(--gray-500)" }}>{m.email}</p>
+            </>) : (
+              <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.7 }}>{t.requestNoManager}</p>
+            )}
+          </div>
+        </div>
+        <div style={{ padding: "0 20px 20px", display: "flex", justifyContent: "flex-end" }}>
+          <button className="portal-btn-outline" onClick={onClose}
+            style={{ padding: "10px 16px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            {t.close}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PortalShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -58,6 +110,19 @@ export default function PortalShell() {
   const tabParam = searchParams.get("tab");
 
   const [showWizard, setShowWizard] = useState(newProjectParam);
+  /**
+   * Raised when the create dialog is cancelled, to put the project picker back on screen.
+   *
+   * "New project" is reached from inside that picker, so cancelling should leave the reader
+   * where the click started — not on a bare console with the list they were choosing from
+   * closed. See ProjectSwitcher.reopenSignal.
+   *
+   * Not raised when the dialog is cancelled from the empty-team landing: there is no picker
+   * behind it to go back to, and the landing page is itself the place to be.
+   */
+  const [switcherReopen, setSwitcherReopen] = useState(0);
+  /** The "how do I get another project" notice, opened from the switcher. */
+  const [showRequest, setShowRequest] = useState(false);
   // A fresh installation can arrive with no team at all — one company may run several teams here,
   // so the supplier does not necessarily create one during handover. The landing page then asks
   // for the team instead of the project, and this holds that modal.
@@ -100,6 +165,10 @@ export default function PortalShell() {
   // on screen; now a shell that kept reading the global list would show one team's name over
   // another team's projects.
   const teamProjects = projects.filter(p => p.teamId === currentOrgId);
+  const cancelWizard = () => {
+    setShowWizard(false);
+    if (teamProjects.length > 0) setSwitcherReopen(n => n + 1);
+  };
   // The selection is *derived*, not stored: hold the id the user picked, but fall back to this
   // team's first project whenever that id is not one of them. Keeping it in plain state instead
   // meant a team switch left the previous team's project selected until an effect caught up, and
@@ -113,7 +182,16 @@ export default function PortalShell() {
   const fleetOnline = projectCameras.filter(c => c.status === "online").length;
   const fleetOffline = projectCameras.length - fleetOnline;
   const [tab, setTabState] = useState<DetailTab>(
-    () => (PROJECT_TABS.some(t => t.id === tabParam) ? (tabParam as DetailTab) : "overview"),
+    // A tab the rail does not offer is not a tab you can land on. searchlog is filtered out of
+    // the rail and gated in the body while requireSearchPurpose is off, so ?tab=searchlog used
+    // to draw a "Search log" breadcrumb over an empty column — a link somebody bookmarked
+    // before the feature was scoped out of v1, answered with a blank page.
+    () => {
+      const named = PROJECT_TABS.find(t => t.id === tabParam)?.id;
+      if (!named) return "overview";
+      if (named === "searchlog" && !getComplianceConfig().requireSearchPurpose) return "overview";
+      return named as DetailTab;
+    },
   );
   /**
    * Which screen you are on lives in the address bar as well as in state, so a refresh comes back
@@ -151,6 +229,9 @@ export default function PortalShell() {
 
   const selectFromSwitcher = (projectId: string) => {
     setPickedProjectId(projectId);
+    // Leave Settings too. setTab writes the address bar without `view=account`, so staying on
+    // Settings left the URL claiming Overview — and a refresh then silently moved you there.
+    setShowAccount(false);
     setTab("overview");
     setShowWizard(false);
   };
@@ -166,18 +247,18 @@ export default function PortalShell() {
   // The current team lives in the URL, so switching is a navigation. That also means the back
   // button returns to the team you came from, and a link to a particular team is shareable —
   // both of which a piece of component state would have thrown away.
-  // Creating the first team goes straight on to the project wizard: the team is not the goal, it is
-  // the container the project needs. Stopping at an empty team would leave the admin on the same
-  // landing page they just acted on.
+  // Creating the first team lands on that team's empty state, which now names the person who
+  // provisions its first project rather than offering a wizard. The team is still the thing the
+  // customer creates; the project is not. See PortalEmptyState.
   const createFirstTeam = (name: string) => {
     const teamId = addTeam({ name, region: "" });
     router.replace(`/portal?teamId=${teamId}`);
-    setShowWizard(true);
   };
 
-  // The rail is the project navigation, so it only exists once there is a project and we are not
-  // inside the wizard. The header reads this to decide whether it still has to carry the way out.
-  const sidebarVisible = !showWizard && teamProjects.length > 0;
+  // The rail is the project navigation, so it exists once there is a project. Creating one no
+  // longer takes it away — the wizard is a dialog over the console rather than a page that
+  // replaces it, so the console it is being added to stays visible behind it.
+  const sidebarVisible = teamProjects.length > 0;
   // Portal's account screen. A content mode rather than a route, because /portal is one route
   // whose screen is chosen by state already (the wizard works the same way) — and because it keeps
   // the rail on screen, which is how you get back out of it.
@@ -185,6 +266,9 @@ export default function PortalShell() {
 
   const switchTeam = (teamId: string) => {
     setShowWizard(false);
+    // Same reason as selectFromSwitcher: the pushed URL carries no `view`, so Settings staying
+    // open would disagree with the address it was pushed under.
+    setShowAccount(false);
     setTab("overview");
     router.push(`/portal?teamId=${teamId}`);
   };
@@ -222,19 +306,22 @@ export default function PortalShell() {
           onToggleCollapse={() => setSidebarCollapsed(v => !v)}
           toggleLabel={sidebarCollapsed ? t.expand : t.collapse}
           team={<TeamSwitcher dark compact={sidebarCollapsed} currentTeamId={currentOrgId} onSelect={switchTeam} />}
-          project={<ProjectSwitcher dark compact={sidebarCollapsed} teamId={currentOrgId} currentProjectId={currentProjectId} onSelect={selectFromSwitcher} onNewProject={() => setShowWizard(true)} />}
+          project={<ProjectSwitcher dark compact={sidebarCollapsed} teamId={currentOrgId} currentProjectId={currentProjectId} onSelect={selectFromSwitcher} onRequestProject={() => setShowRequest(true)} onSwitchTeam={switchTeam} reopenSignal={switcherReopen} />}
           /* Counts for the rail's badges — the two tabs that hold a list of things you count.
              Not accounts: the number of people who may sign in is not a size you check in passing,
              and the tab it labels is where the figure is broken down by role anyway. Not the
              licence (not a count), not the server tab (read as one setting), not Overview. */
           counts={{
             cameras: projectCameras.length,
-            vip: persons.filter(p => p.projectId === currentProjectId).length,
+            // Released people are off the list, so the badge does not count them — "123" has to
+            // mean 123 people this site is watching for, not 123 rows. The registry still shows
+            // them under its own tab; see ProjectVipTab.
+            vip: persons.filter(p => p.projectId === currentProjectId && !p.releasedAt).length,
           }}
           tab={tab}
           onTabChange={next => { setShowAccount(false); setTab(next); }}
           collapsed={sidebarCollapsed}
-          myPageOpen={showAccount}
+          settingsOpen={showAccount}
         />
       )}
 
@@ -265,19 +352,16 @@ export default function PortalShell() {
         height: "52px",
         display: "flex", alignItems: "center", padding: "0 24px", flexShrink: 0, gap: "10px",
       }}>
-        {/* The breadcrumb says where you are, and during creation you are not inside any project —
-            so the last crumb becomes the act of creating one. It used to keep naming whichever
-            project happened to be selected, which was false (nothing has been created yet) and
-            worse than false: that crumb is a live switcher, so clicking it navigated away and
-            discarded the half-filled form. Every console that has this flow ends the trail at the
-            creation step the same way — GitLab "… / Projects / New project", Canva "Projects /
-            New course", Copilot "Forms / New form".
+        {/* The trail ends at "New project" only when there is no project to name — an empty
+            team. With the wizard now a dialog over the console, the page behind it is still the
+            project you were on, and a crumb that renamed itself while that page sat visible
+            underneath described neither.
 
-            The team crumb stays, because which team the project is filed under is real information
-            and the wizard genuinely uses it — but it stops being a switcher for the same reason
-            the project crumb did. Switching teams mid-form has no defined answer for what happens
-            to what you typed, and silently dropping it is not one. */}
-        {showWizard ? (
+            The team crumb stays either way, because which team the project is filed under is
+            real information the wizard genuinely uses — but while the dialog is open it stops
+            being a switcher: switching teams mid-form has no defined answer for what happens to
+            what you typed, and silently dropping it is not one. */}
+        {showWizard && teamProjects.length === 0 ? (
           <>
             {/* display:block, not flex. text-overflow only applies to a block box, so with
                 display:flex the name was hard-clipped mid-word with no ellipsis — it read as a
@@ -321,7 +405,7 @@ export default function PortalShell() {
               three times on one screen. On Licence, Users and Server there is nothing else on
               screen about the cameras, and this is the only answer to "is the site up".
 
-              Not on My page either: that screen belongs to the account, not to a project, and a
+              Not on Settings either: that screen belongs to the account, not to a project, and a
               project's camera count there would be a fact from somewhere else.
 
               Beside the project, not after the page name: these two numbers are a fact about the
@@ -363,43 +447,36 @@ export default function PortalShell() {
                 weight — a trail whose last segment is the heading, which is how a console with a
                 named rail and a bar above it usually ends up. */}
             <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)", whiteSpace: "nowrap" }}>
-              {showAccount ? t.myPageCrumb : PROJECT_TABS.find(pt => pt.id === tab)?.label[lang]}
+              {showAccount ? t.settingsCrumb : PROJECT_TABS.find(pt => pt.id === tab)?.label[lang]}
             </span>
           </>
         ) : (
           <>
             <TeamSwitcher currentTeamId={currentOrgId} onSelect={switchTeam} />
             <BreadcrumbChevron />
-            <ProjectSwitcher teamId={currentOrgId} currentProjectId={currentProjectId} onSelect={selectFromSwitcher} onNewProject={() => setShowWizard(true)} />
+            <ProjectSwitcher teamId={currentOrgId} currentProjectId={currentProjectId} onSelect={selectFromSwitcher} onRequestProject={() => setShowRequest(true)} onSwitchTeam={switchTeam} reopenSignal={switcherReopen} />
           </>
         )}
 
         <div style={{ flex: 1 }} />
         {/*
           The right end of the bar is who you are. Everything that belongs to the account rather
-          than to the open project is in its menu — the way back to the app, My page, support —
+          than to the open project is in its menu — the way back to the app, Settings, support —
           and this bar is on every Portal screen, including the ones with no sidebar (an empty
           team, the wizard), so none of it needs a fallback control any more.
 
           What used to be here: an "Exit to App" pill, a language switcher and a "Contact support"
           pill. Three permanent controls, each for something taken once a session. Language is a
-          preference rather than an action, so it went to My page instead of into the menu.
+          preference rather than an action, so it went to Settings instead of into the menu.
         */}
         <PortalAccountMenu
           admin={me ?? { name: SIGNED_IN_USER.name, email: SIGNED_IN_USER.email }}
           appAccess={!me || canEnterApp(me)}
-          onMyPage={() => setShowAccount(true)}
+          onSettings={() => setShowAccount(true)}
         />
       </div>
 
-      {showWizard ? (
-        <PortalNewProjectWizard
-          teamId={currentOrgId}
-          onDeployed={deployedFromWizard}
-          onCancel={teamProjects.length > 0 ? () => setShowWizard(false) : undefined}
-          defaultType={defaultWizardType}
-        />
-      ) : (
+      {
         // White canvas, dark rail — the arrangement most consoles have settled on. It used to be
         // the other way round for both, which meant every card had to be white to be a card and
         // the page's own surface was doing the outlining.
@@ -422,24 +499,47 @@ export default function PortalShell() {
          */
         <div style={{ flex: 1, overflow: "auto", padding: "12px 32px 32px", width: "100%", maxWidth: "1600px", marginInline: "auto" }}>
             {showAccount
-              ? <PortalMyPage projectId={currentProjectId} />
+              ? <PortalSettingsPage projectId={currentProjectId} />
               : teamProjects.length === 0
               ? <PortalEmptyState
-                  onNewProject={() => setShowWizard(true)}
+                  accountManager={currentOrg?.accountManager}
+                  onOpenSettings={() => setShowAccount(true)}
                   noTeam={teams.length === 0}
                   onCreateTeam={createFirstTeam}
                 />
               : <PortalProjectDetailPage projectId={currentProjectId} tab={tab} onTabChange={setTab} />}
         </div>
-      )}
+      }
       </div>
+
+      {showRequest && currentOrg && (
+        <RequestProjectModal team={currentOrg} onClose={() => { setShowRequest(false); setSwitcherReopen(n => n + 1); }} />
+      )}
+
+      {/*
+        The provisioning reference, and no longer a route anybody takes by accident.
+
+        Nothing in the UI links here; it opens on ?newProject=1 and from the API documentation
+        under Server & API. A project is a licensed site and Portal does not sell licences, so
+        the customer-facing paths ask for one instead (RequestProjectModal above). The wizard
+        stays because the shape it produces — team, type, name, first channel — is exactly what
+        provisioning has to produce, and a screen is a clearer specification than a paragraph.
+      */}
+      {showWizard && (
+        <PortalNewProjectWizard
+          teamId={currentOrgId}
+          onDeployed={deployedFromWizard}
+          onCancel={cancelWizard}
+          defaultType={defaultWizardType}
+        />
+      )}
 
       {/* The switcher's "New team" still opens the modal — there the page behind it is worth
           preserving. The first-team case does not use it: that landing has the field on it. */}
       {showNewTeam && (
         <NewTeamModal
           onClose={() => setShowNewTeam(false)}
-          onCreated={teamId => { router.replace(`/portal?teamId=${teamId}`); }}
+          onCreated={teamId => { setShowNewTeam(false); router.replace(`/portal?teamId=${teamId}`); }}
         />
       )}
     </div>

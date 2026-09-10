@@ -1,18 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarClock, Check, Lock, UserRound, Video } from "lucide-react";
+import { Check, Gem, Layers, Sprout } from "lucide-react";
 import { useVcaStore, UNLIMITED_EXPIRY, PRICE_PER_CHANNEL_PER_YEAR } from "@/lib/vcaStore";
-import { BORDER, CARD_BORDER, PANEL_SHADOW, TYPE_META } from "./PortalShared";
+import { BORDER, CARD_BORDER, PANEL_SHADOW, TYPE_META, useTypeLabel } from "./PortalShared";
 import { usePortalLanguage } from "@/lib/i18n";
 
-// Cumulative — each tier includes everything the tier before it unlocks. "Attendance / Reports"
-// is additionally gated by project type below (Smart School only), independent of plan tier.
-// These English strings double as lookup keys/identifiers (object keys, .includes() comparisons,
-// SCHOOL_ONLY_FEATURE / ALWAYS_LOCKED_FEATURES membership) as well as the plan tier itself
-// (project.licensePlan is one of these same strings) — so they stay in English here. Only the
-// rendered label goes through FEATURE_LABELS/T below; the tier name itself is left untranslated
-// since it's a data value shared with other screens that don't yet localize it.
+// Cumulative — each tier includes everything the tier before it unlocks.
 /**
  * The capability catalogue, reconciled against what the product actually has (2026-09-04).
  *
@@ -23,9 +17,8 @@ import { usePortalLanguage } from "@/lib/i18n";
  * Best Frame is a screen you can open). A licence page that
  * claims what is not there and omits what is is worse than no licence page.
  *
- * Every entry below is traceable to something in the app: CameraAiFeature in vcaStore (Re-ID
- * Analysis, License Plate Recognition), NavTab in Navbar (BEST FRAME,
- * REDMAP), DataTab in DataPage (Re-ID Analysis, RedFace), or the VIP registry.
+ * Every entry below is traceable to something in the app: NavTab in Navbar (BEST FRAME, REDMAP),
+ * DataTab in DataPage (Re-ID Analysis, RedFace), or the VIP registry.
  *
  * "Smart Search" was listed here briefly and taken back out: it is implemented, but DATA_TABS is
  * ["Live Monitoring", "Re-ID Analysis", "RedFace"] — the search lives inside Live Monitoring as a
@@ -59,10 +52,13 @@ const NOT_BUILT_REASON: Record<string, "comingSoon" | "smartSchoolComingSoon" | 
   "Advanced Crowd Behavior": "comingSoon",
   "Attendance / Reports": "smartSchoolComingSoon",
   /**
-   * Half-built, and the label says which half. The engine is a real CameraAiFeature — it can be
-   * assigned to a camera today and the Input Sources tab shows it — but RedMap's vehicle mode has
-   * the inputs and not the results, so somebody who reads "included" and goes looking for plate
-   * readings finds none. Neither a tick nor a plain "coming soon" is true here.
+   * Half-built, and the label says which half. RedMap's vehicle mode has the inputs and not the
+   * results, so somebody who reads "included" and goes looking for plate readings finds none.
+   * Neither a tick nor a plain "coming soon" is true here.
+   *
+   * It used to be assignable to a camera as well, which made this line contradict the Input
+   * Sources tab — four cameras claimed to be running an engine this page filed under COMING SOON.
+   * Per-camera engines are gone (2026-09-09): analysis belongs to the server, not the camera.
    */
   "License Plate Recognition": "analysisComingSoon",
 };
@@ -85,67 +81,93 @@ const T = {
     notSet: "Not set",
     valid: "Valid",
     expired: "Expired",
-    // Not "LICENSE PERIOD": a period is a range, and Project carries licenseExpiresAt and no
-    // start date, so this column has one date to show. It is the day the licence stops.
-    licenseExpiry: "EXPIRES",
     unlimited: "Unlimited",
     yrRemaining: (n: number) => `${n}yr remaining`,
-    includedFeatures: "Included Features",
-    pendingHeading: "Coming soon",
+    monthsRemaining: (n: number) => `${n} month${n === 1 ? "" : "s"} remaining`,
+    daysRemaining: (n: number) => `${n} day${n === 1 ? "" : "s"} remaining`,
+    expiringSoon: "Expiring soon",
+    perpetual: "Perpetual",
+    notRecorded: "No expiry on record",
+    expiryNotice: (n: number) => `This licence expires in ${n} day${n === 1 ? "" : "s"}. Renewing is a contract change, so start it with whoever signs — cameras stop being processed on the expiry date.`,
     smartSchoolOnly: "Smart School only",
-    analysisComingSoon: "assignable to cameras",
+    analysisComingSoon: "readings not available yet",
     perChannelPerYear: (price: number) => `$${price}/channel/yr`,
     noLimitSet: "No limit set",
     overLimit: (used: number, limit: number) => `Over licensed limit (${used} / ${limit})`,
-    aiCameras: "AI Cameras",
-    normalCameras: "Normal Cameras (CCTV)",
-    // "Available" said what the number was, not what it lets you do. This column exists to answer
-    // "can I install another camera", so it answers it.
-    channelsAvailable: "Can add",
-    channelsInUse: "licensed channels in use",
-    perChannelLabel: "Per channel",
-    yearlyTotalLabel: "Per year",
+    expiredOn: "expired",
     atLimit: "Every licensed channel is in use — no further camera can be connected until the limit is raised.",
     nearLimit: (n: number) => `${n} channel(s) left before this project reaches its licensed limit.`,
     contractNote: "Channels and term are changed by contract, not here.",
-    bannerContract: "Contract",
-    canAddN: (n: number) => `${n} can be added`,
-    channelsUnlimited: "No limit set — channels are not capped for this project",
+    clauseChannels: "Licensed channels",
+    // Not "Term": a term is a range, and Project carries licenseExpiresAt and no start date, so
+    // this clause has one date to show — the day the licence stops.
+    clauseTerm: "Expires",
+    clauseScope: "Scope",
+    clauseFees: "Fees",
+    clauseParty: "Account manager",
+    channelsUnitN: (n: number) => `${n} channel${n === 1 ? "" : "s"}`,
+    inUseNow: (used: number, avail: number) => `${used} in use · ${avail} free`,
+    scopeExcluded: "Not covered",
     channelsCostPerYear: (cost: string) => `$${cost}/yr`,
   },
   ko: {
     notSet: "미설정",
     valid: "유효",
     expired: "만료됨",
-    licenseExpiry: "만료일",
     unlimited: "무제한",
     yrRemaining: (n: number) => `잔여 ${n}년`,
-    includedFeatures: "포함된 기능",
-    pendingHeading: "출시 예정",
+    monthsRemaining: (n: number) => `${n}개월 남음`,
+    daysRemaining: (n: number) => `${n}일 남음`,
+    expiringSoon: "만료 임박",
+    perpetual: "무기한",
+    notRecorded: "만료일 미기록",
+    expiryNotice: (n: number) => `라이선스가 ${n}일 뒤 만료됩니다. 갱신은 계약 변경이라 결재선을 타야 하니 미리 시작하세요 — 만료일부터 카메라 분석이 멈춥니다.`,
     smartSchoolOnly: "Smart School 전용",
-    analysisComingSoon: "카메라 지정 가능",
+    analysisComingSoon: "판독 결과는 아직 없음",
     perChannelPerYear: (price: number) => `채널당 연 $${price}`,
     noLimitSet: "한도 미설정",
     overLimit: (used: number, limit: number) => `라이선스 한도 초과 (${used} / ${limit})`,
-    aiCameras: "AI 카메라",
-    normalCameras: "일반 카메라 (CCTV)",
-    channelsAvailable: "추가 가능",
-    channelsInUse: "라이선스 채널 사용 중",
-    perChannelLabel: "채널당",
-    yearlyTotalLabel: "연간",
+    expiredOn: "만료됨",
     atLimit: "라이선스 채널을 모두 쓰고 있습니다 — 한도를 올리기 전까지 카메라를 더 연결할 수 없습니다.",
     nearLimit: (n: number) => `라이선스 한도까지 ${n}채널 남았습니다.`,
     contractNote: "채널과 기간은 계약으로 변경되며 이 화면에서는 바꿀 수 없습니다.",
-    bannerContract: "계약 문의",
-    canAddN: (n: number) => `${n}채널 추가 가능`,
-    channelsUnlimited: "한도 미설정 — 이 프로젝트는 채널 수 제한이 없습니다",
+    clauseChannels: "계약 채널",
+    clauseTerm: "만료일",
+    clauseScope: "포함 범위",
+    clauseFees: "대금",
+    clauseParty: "담당자",
+    channelsUnitN: (n: number) => `${n}채널`,
+    inUseNow: (used: number, avail: number) => `현재 ${used} 사용 · ${avail} 여유`,
+    scopeExcluded: "미포함",
     channelsCostPerYear: (cost: string) => `연 $${cost}`,
   },
 } as const;
 
-// Lucide, at the sizes and weights these were drawn at — see PortalProjectDetailPage's note.
+/**
+ * How each plan is marked: an icon in the tier's own colour before its name.
+ *
+ * Chatbase's plan list is the reference — every tier carries a small coloured glyph, so the tiers
+ * are told apart by shape and hue before the word is read. Adapted to the palette this product
+ * actually has, with one rule the reference did not need: a tier's colour may not be success,
+ * warning or danger, because the validity stamp two inches to the right is drawn in exactly those
+ * and two green things on one line meaning different kinds of thing is worse than no colour.
+ *
+ * So the ladder runs in the accent and the neutrals, and weight descends with the tier: Enterprise
+ * takes the product's own purple, Professional a solid neutral, Starter an outline. An unknown
+ * plan string falls back to the Starter treatment rather than throwing — licensePlan is a free
+ * string in the model and a plan nobody has named yet should still render.
+ */
+const PLAN_META: Record<string, { color: string; bg: string; border?: string; Icon: typeof Gem }> = {
+  Enterprise:   { color: "var(--primary-400)", bg: "var(--primary-100)", Icon: Gem },
+  Professional: { color: "var(--gray-900)",    bg: "var(--gray-100)",    Icon: Layers },
+  Starter:      { color: "var(--gray-500)",    bg: "transparent", border: "1px solid var(--gray-300)", Icon: Sprout },
+};
+const planMetaFor = (plan?: string) => (plan && PLAN_META[plan]) || PLAN_META.Starter;
+
+// Lucide, at the size and weight this was drawn at — see PortalProjectDetailPage's note. The
+// padlock that used to sit beside it went with the list of locked features: what a licence does
+// not cover is now a named line, not a row of shut doors.
 function CheckIcon() { return <Check size={12} strokeWidth={2.8} />; }
-function LockIcon() { return <Lock size={11} strokeWidth={3.05} />; }
 
 /**
  * What the licensed channels are being spent on, in Vimeo's Billing-seats shape: the total, then a
@@ -159,6 +181,7 @@ function LockIcon() { return <Lock size={11} strokeWidth={3.05} />; }
  */
 export default function ProjectLicenseTab({ projectId }: { projectId: string }) {
   const [lang] = usePortalLanguage();
+  const typeLabel = useTypeLabel();
   const t = T[lang];
   const project = useVcaStore(s => s.projects.find(p => p.id === projectId));
   const teams = useVcaStore(s => s.teams);
@@ -172,19 +195,58 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
 
   if (!project) return null;
 
-  const meta = TYPE_META[project.type];
-  const accountManager = teams.find(o => o.id === project.teamId)?.accountManager;
+  const planMeta = planMetaFor(project.licensePlan);
+  const projectTeam = teams.find(o => o.id === project.teamId);
+  const projectTeamName = projectTeam?.name;
+  const accountManager = projectTeam?.accountManager;
   const projectCameras = cameras.filter(c => c.projectId === projectId);
-  const aiCameraCount = projectCameras.filter(c => (c.aiFeatures ?? []).length > 0).length;
-  const normalCameraCount = projectCameras.length - aiCameraCount;
   const limit = project.licenseChannelLimit;
   const overLimit = !!limit && projectCameras.length > limit;
 
   const isUnlimitedExpiry = project.licenseExpiresAt === UNLIMITED_EXPIRY;
+  const hasExpiry = !!project.licenseExpiresAt;
   const isExpired = !isUnlimitedExpiry && !!project.licenseExpiresAt && nowMs !== null && new Date(project.licenseExpiresAt).getTime() < nowMs;
-  const yearsRemaining = !isUnlimitedExpiry && !isExpired && project.licenseExpiresAt && nowMs !== null
-    ? Math.max(1, Math.round((new Date(project.licenseExpiresAt).getTime() - nowMs) / (365 * 24 * 60 * 60 * 1000)))
+  /**
+   * How long is left, in days, and the two thresholds read off it.
+   *
+   * It was years only, as `Math.max(1, Math.round(...))` — which printed "1yr remaining" over a
+   * licence expiring next Tuesday, because anything under six months rounds to zero and the max
+   * put it back to one. A contract running out is the one thing on this page somebody has to act
+   * on before it happens, and the page was rounding the warning away.
+   *
+   * Ninety days because renewing a licence is a purchase order, not a click: it goes through
+   * whoever signs, and a fortnight's notice is not notice. Thirty is when it stops being a note
+   * and starts being a problem, which is the amber-to-red line below.
+   *
+   * The counter switches to days at sixty, one step earlier: "2 months" and "2 months" are the
+   * same words for eight weeks and nine, and inside a quarter the number of days is the thing
+   * being planned against.
+   */
+  const daysRemaining = !isUnlimitedExpiry && !isExpired && project.licenseExpiresAt && nowMs !== null
+    ? Math.ceil((new Date(project.licenseExpiresAt).getTime() - nowMs) / 86_400_000)
     : null;
+  const expiringSoon = daysRemaining !== null && daysRemaining <= 90;
+  const expiringUrgently = daysRemaining !== null && daysRemaining <= 30;
+  const remainingText = daysRemaining === null ? null
+    : daysRemaining <= 60 ? t.daysRemaining(daysRemaining)
+    : daysRemaining < 365 ? t.monthsRemaining(Math.round(daysRemaining / 30))
+    : t.yrRemaining(Math.round(daysRemaining / 365));
+
+  /**
+   * The one place the licence's state is decided.
+   *
+   * Ordered worst-first so the answer is the first true thing: expired outranks expiring, and both
+   * outrank a date that is simply far away. Null only before the clock is known — for one frame,
+   * where a guessed stamp would be corrected in front of the reader.
+   */
+  const stamp: { label: string; color: string } | null =
+    nowMs === null ? null
+    : !hasExpiry ? { label: t.notRecorded, color: "var(--gray-400)" }
+    : isExpired ? { label: t.expired, color: "var(--danger-400)" }
+    : expiringUrgently ? { label: t.expiringSoon, color: "var(--danger-400)" }
+    : expiringSoon ? { label: t.expiringSoon, color: "var(--warning-500)" }
+    : isUnlimitedExpiry ? { label: t.perpetual, color: "var(--success-400)" }
+    : { label: t.valid, color: "var(--success-400)" };
 
   const subscriptionYearlyCost = (limit ?? 0) * PRICE_PER_CHANNEL_PER_YEAR;
 
@@ -224,43 +286,8 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
   const includedRows = featureRows.filter(r => r.included);
   const pendingRows = featureRows.filter(r => !r.included);
 
-  const groupHeading = (text: string, first: boolean) => (
-    <p style={{
-      fontSize: "10px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "0.4px",
-      textTransform: "uppercase", marginTop: first ? 0 : "24px", marginBottom: "10px",
-    }}>{text}</p>
-  );
 
-  const featureGrid = (rows: { key: string; label: string }[], included: boolean) => (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "10px 20px" }}>
-      {rows.map(({ key, label }) => (
-        <div key={key} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-          {/* A fixed 12px slot so a tick and a padlock leave their labels on the same left edge.
-              The padlock reads as "not yours yet" rather than strictly "pay to unlock", which is
-              what this group is: some of it is a higher plan, some is not built. The heading above
-              it says which, and a padlock is the one glyph nobody has to be taught. */}
-          <span style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: "12px", marginTop: "3px", flexShrink: 0, lineHeight: 1,
-            color: included ? "var(--gray-900)" : "var(--gray-300)",
-          }}>
-            {included ? <CheckIcon /> : <LockIcon />}
-          </span>
-          <span style={{ fontSize: "12px", lineHeight: 1.5, fontWeight: included ? 700 : 400, color: included ? "var(--gray-900)" : "var(--gray-500)" }}>{label}</span>
-        </div>
-      ))}
-    </div>
-  );
 
-  /** Icon + label on the left, value on the right — the shape the reference's rows use. */
-  const detailRow = (icon: React.ReactNode, label: string, value: React.ReactNode) => (
-    <div style={{ display: "flex", alignItems: "center", gap: "12px", minHeight: "40px", padding: "0 20px", borderTop: BORDER }}>
-      <span style={{ display: "flex", color: "var(--gray-400)", flexShrink: 0 }}>{icon}</span>
-      <span style={{ fontSize: "13px", color: "var(--gray-600)" }}>{label}</span>
-      <span style={{ flex: 1 }} />
-      <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", textAlign: "right" }}>{value}</span>
-    </div>
-  );
 
   return (
     /**
@@ -279,139 +306,252 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
           word again 20px lower was the page introducing itself twice. What stays is the row of
           things you can do on it. */}
       {/*
-        One card for one contract.
-        This was a dark banner, a channel card and a feature list — three blocks for a single thing,
-        each with its own heading. Remote's subscription page is the arrangement borrowed here: a
-        tinted hero carrying the figure the page is opened for, icon-and-value rows under it, and a
-        ruled footer for the two numbers nobody reads first.
+        One card for one contract, on the same white ground as every other page.
 
-        Two things from that reference are deliberately left out. Its hero number is money, which
-        works for a bill that arrives monthly and not for a licence fixed for three years — the
-        figure an administrator comes here for is how much of what they bought is in use, so that
-        is the hero and the money is in the footer. And its generative artwork stays out: this app
-        took shadows and card borders off its cards on purpose, and decoration would walk that back.
+        The head of this card was gray-900 — the only dark surface in Portal, borrowed from the
+        pricing-page idiom (a tinted hero carrying the plan name at 26px). Two things were wrong
+        with it here. It made the licence tab look like a different product from the tab beside
+        it, which is the complaint the settings page had just been fixed for. And it put the
+        largest type on the page on the least useful fact: the plan name is what was signed once,
+        while the figure somebody opens this page for is how much of it is in use.
+
+        So the figure is the hero now and the plan is a chip beside the status, and the sections
+        below use the same small-caps headings and the same label-above-value pairs the settings
+        card uses — one kit, two pages.
       */}
-      <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "16px", boxShadow: PANEL_SHADOW, overflow: "hidden", marginBottom: "20px" }}>
-        <div style={{
-          // gray-900, not the primary step. Purple at full strength across the widest block on the
-          // page spent the accent on a background; the palette guidance keeps it to a tenth of a
-          // screen, and here the only purple left is the Smart City chip's own text. Over the limit
-          // still swaps the whole ground, because that state should be legible from across a room.
-          backgroundColor: overLimit ? "var(--danger-400)" : "var(--gray-900)",
-          // More air above and below than at the sides: this block is the hero, and on a dark
-          // ground a tight top and bottom edge reads as a band rather than as a card's head.
-          padding: "28px 20px",
+      {/* Alerts sit OUTSIDE the document, above it.
+          A contract does not warn you that you are near its limit — the console does. Putting
+          these inside the record would have the paper commenting on itself. */}
+      {(overLimit || atLimit || nearLimit) && (
+        <p style={{
+          display: "block", padding: "10px 14px", borderRadius: "10px", marginBottom: "12px",
+          maxWidth: "820px", marginInline: "auto",
+          backgroundColor: overLimit ? "var(--danger-100)" : "var(--warning-100)", lineHeight: 1.6,
+          fontSize: "12px", fontWeight: 700,
+          color: overLimit ? "var(--danger-500)" : "var(--warning-500)",
         }}>
-          {/* The plan is the title. It was set as a 10px eyebrow over a 32px channel count, which
-              made the figure the name of the card — but the figure changes as cameras are added and
-              the plan is what the customer signed. The count is still the thing the page is opened
-              for, so it keeps the emphasis on the line below rather than the size above it. */}
-          <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
-            <p style={{ fontSize: "26px", fontWeight: 800, color: "white", lineHeight: 1.15 }}>
-              {project.licensePlan ?? t.notSet}
-            </p>
-            <span style={{ fontSize: "10px", fontWeight: 700, color: meta.color, backgroundColor: "white", padding: "2px 8px", borderRadius: "999px" }}>
-              {meta.label}
-            </span>
-            {project.licenseExpiresAt && nowMs !== null && (
+          {overLimit ? t.overLimit(used, limit ?? 0) : atLimit ? t.atLimit : t.nearLimit(available!)}
+        </p>
+      )}
+      {expiringSoon && daysRemaining !== null && (
+        <p style={{
+          display: "block", padding: "10px 14px", borderRadius: "10px", marginBottom: "12px",
+          maxWidth: "820px", marginInline: "auto",
+          backgroundColor: expiringUrgently ? "var(--danger-100)" : "var(--warning-100)", lineHeight: 1.6,
+          fontSize: "12px", fontWeight: 700,
+          color: expiringUrgently ? "var(--danger-500)" : "var(--warning-500)",
+        }}>
+          {t.expiryNotice(daysRemaining)}
+        </p>
+      )}
+
+      {/*
+        The licence as a document, because that is what it is.
+
+        Everything here was agreed on paper somewhere else and this screen only shows it — which is
+        why the page has no actions and ends with "changed by contract, not here". Drawn as a
+        dashboard it kept promising a control it does not have; somebody reading a usage meter and
+        a plan chip looks for the Upgrade button next to them. A record does not owe anybody a
+        button, so the form settles the question the disclaimer was left to answer.
+
+        Borrowed from the conventions of a contract, not from paper: a titled head with the status
+        stamped beside it, numbered clauses, term-and-value in two columns with a rule between each,
+        a party block at the foot. No cream ground, no serif, no seal — the design system's own
+        type and palette, arranged the way an agreement is arranged.
+
+        Capped at 820px and centred. Every other tab runs the full width because it holds a table,
+        and a document is not a table — a clause read across 1,400px of monitor is the one measure
+        this page must not have.
+
+        Centred rather than left-aligned, which is what it was first: flush left at 820px it read
+        as a full-width card that had failed to stretch, because its left edge lined up with every
+        other tab and its right edge did not. Centred, the same width reads as a page on a desk —
+        every document reader puts one there — and the margins are the point rather than a gap.
+      */}
+      <div style={{
+        backgroundColor: "white", border: CARD_BORDER, borderRadius: "16px", boxShadow: PANEL_SHADOW,
+        overflow: "hidden", marginBottom: "20px", maxWidth: "820px", marginInline: "auto",
+      }}>
+        {/* The head names the document and stamps its state, the way the first page of an
+            agreement does. */}
+        <div style={{ padding: "28px 32px", borderBottom: "2px solid var(--gray-900)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+            {/*
+              The head names the SUBJECT, not the page.
+
+              It said "Licence", which is the word the breadcrumb 20px above already says — so the
+              line carried no information and read as filler, which is exactly the "page introducing
+              itself twice" this file warns against elsewhere. A contract's first line is not
+              "Contract"; it is what the contract is for. So: the plan, and under it the project it
+              covers.
+
+              Those two were clauses 01 and 02 a moment ago and are gone from the list with this —
+              the head states the subject and the clauses state the terms, and neither repeats the
+              other.
+            */}
+            <div style={{ minWidth: 0 }}>
+              <p style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                {/* The tier's own mark, in a tinted square rather than loose beside the word: a
+                    bare glyph at this size reads as punctuation, and the square gives the colour
+                    enough area to register as a grade. */}
+                <span style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  width: "30px", height: "30px", borderRadius: "8px",
+                  backgroundColor: planMeta.bg, border: planMeta.border ?? "none", color: planMeta.color,
+                }}>
+                  <planMeta.Icon size={16} strokeWidth={2.1} />
+                </span>
+                <span style={{ fontSize: "24px", fontWeight: 800, color: "var(--gray-900)", lineHeight: "28px" }}>
+                  {project.licensePlan ?? t.notSet}
+                </span>
+                <span style={{ fontSize: "10px", fontWeight: 700, color: TYPE_META[project.type].color, backgroundColor: TYPE_META[project.type].bg, padding: "3px 8px", borderRadius: "999px" }}>
+                  {typeLabel(project.type)}
+                </span>
+              </p>
+              <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "6px" }}>
+                {project.name}{projectTeamName ? ` · ${projectTeamName}` : ""}
+              </p>
+            </div>
+            {/* The stamp. Squared off, not a pill: a pill is a chip in a product and this is the
+                mark on a document — and it is the one place the status is stated, so it sits beside
+                the title rather than in a row of chips further down.
+
+                All five states are decided here rather than as they arise, so none of them is a
+                blank space later. "No expiry recorded" used to render nothing at all, which reads
+                as a valid licence to anybody who does not know the stamp exists; and a perpetual
+                licence read VALID, which is true and says less than it could. */}
+            {stamp && (
               <span style={{
-                fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", textTransform: "uppercase",
-                backgroundColor: isExpired ? "var(--danger-100)" : "var(--success-100)",
-                color: isExpired ? "var(--danger-500)" : "var(--success-400)",
+                /* Sentence case. Caps are the convention on a rubber stamp and they read as
+                   shouting on a screen — and the longest state here is "No expiry on record",
+                   which in caps is a shout nobody needs. The box already says "stamp"; the letters
+                   only have to say the word. */
+                flexShrink: 0, fontSize: "11px", fontWeight: 700,
+                padding: "5px 10px", borderRadius: "4px",
+                border: `1.5px solid ${stamp.color}`, color: stamp.color,
               }}>
-                {isExpired ? t.expired : t.valid}
+                {stamp.label}
               </span>
             )}
           </div>
-          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.65)", marginTop: "10px" }}>
-            {limit ? (
-              <>
-                <span style={{ fontSize: "17px", fontWeight: 800, color: "white" }}>{used} / {limit}</span>
-                {"  "}{t.channelsInUse} · {t.canAddN(available ?? 0)}
-              </>
-            ) : (
-              <>
-                <span style={{ fontSize: "17px", fontWeight: 800, color: "white" }}>{used}</span>
-                {"  "}{t.channelsUnlimited}
-              </>
-            )}
+        </div>
+
+        {/* The clauses. Numbered because they are a fixed, ordered set — the same four terms in
+            the same order for every project, which is what makes a number worth printing.
+
+            Padding on the group, not on the first and last clause: the ends of a schedule stand
+            further off its rules than the clauses stand off each other, and putting it here keeps
+            every clause's own padding identical so the rules between them stay evenly spaced.
+
+            The whole schedule is set loose on purpose. A contract is read once, slowly, one clause
+            at a time — the density that suits a table of sixty cameras is the wrong density for
+            five clauses somebody is checking against a signed page. */}
+        <div style={{ padding: "20px 0" }}>
+        <Clause n={1} label={t.clauseChannels}>
+          <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)" }}>
+            {limit ? t.channelsUnitN(limit) : t.noLimitSet}
           </p>
-          {/* The breakdown stays a single segmented bar: AI cameras and plain CCTV share one
-              denominator, so three bars would hide the relationship the number is about. On a
-              coloured ground the two segments are the same white at two strengths — a second hue
-              here would be a third colour competing inside one figure. */}
+          {/* What was bought is the clause; what is in use today is not. It is printed under the
+              clause in the console's own voice — smaller, grey, with the meter — so the reader can
+              see the difference between the agreement and the fleet. */}
           {limit ? (
-            <div style={{ display: "flex", height: "6px", backgroundColor: "rgba(255,255,255,0.25)", borderRadius: "3px", overflow: "hidden", marginTop: "14px" }}>
-              <div style={{ width: `${pct(aiCameraCount)}%`, backgroundColor: "white" }} />
-              <div style={{ width: `${pct(normalCameraCount)}%`, backgroundColor: "rgba(255,255,255,0.55)" }} />
-            </div>
+            <>
+              <p style={{ fontSize: "12px", color: overLimit ? "var(--danger-500)" : "var(--gray-500)", marginTop: "3px" }}>
+                {t.inUseNow(used, available ?? 0)}
+              </p>
+              <div style={{ display: "flex", height: "5px", backgroundColor: "var(--gray-200)", borderRadius: "3px", overflow: "hidden", marginTop: "8px", maxWidth: "260px" }}>
+                <div style={{ width: `${pct(used)}%`, backgroundColor: overLimit ? "var(--danger-400)" : "var(--primary-400)" }} />
+              </div>
+            </>
           ) : null}
-          {/* Warnings become a light pill rather than coloured text: warning-500 on this purple is
-              unreadable, and dropping it to white would throw away the one thing the colour was
-              carrying. The pill keeps the token and puts a legible ground under it. */}
-          {(overLimit || atLimit || nearLimit) && (
-            <p style={{
-              display: "inline-block", marginTop: "12px", padding: "4px 10px", borderRadius: "999px",
-              backgroundColor: "white", lineHeight: 1.6,
-              fontSize: "11px", fontWeight: 700,
-              color: overLimit ? "var(--danger-500)" : "var(--warning-500)",
-            }}>
-              {overLimit ? t.overLimit(used, limit ?? 0) : atLimit ? t.atLimit : t.nearLimit(available!)}
+        </Clause>
+
+        <Clause n={2} label={t.clauseTerm}>
+          <p style={{ fontSize: "14px", fontWeight: 700, color: isExpired ? "var(--danger-500)" : "var(--gray-900)", fontFamily: "monospace", letterSpacing: "-0.01em" }}>
+            {isUnlimitedExpiry ? t.unlimited : (project.licenseExpiresAt ?? "—")}
+          </p>
+          {project.licenseExpiresAt && nowMs !== null && !isUnlimitedExpiry && (
+            <p style={{ fontSize: "12px", marginTop: "3px", color: expiringUrgently ? "var(--danger-500)" : expiringSoon ? "var(--warning-500)" : "var(--gray-500)" }}>
+              {isExpired ? t.expiredOn : remainingText}
             </p>
           )}
-        </div>
+        </Clause>
 
-        {detailRow(<Video size={14} strokeWidth={2.4} />, `${t.aiCameras} · ${t.normalCameras}`, `${aiCameraCount} · ${normalCameraCount}`)}
-        {detailRow(
-          <CalendarClock size={14} strokeWidth={2.4} />,
-          t.licenseExpiry,
-          <span style={{ display: "inline-flex", alignItems: "baseline", gap: "8px" }}>
-            <span style={{ fontFamily: "monospace" }}>{isUnlimitedExpiry ? t.unlimited : (project.licenseExpiresAt ?? "—")}</span>
-            {yearsRemaining ? <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-500)" }}>{t.yrRemaining(yearsRemaining)}</span> : null}
-          </span>,
-        )}
-        {detailRow(
-          <UserRound size={14} strokeWidth={2.4} />,
-          t.bannerContract,
-          accountManager
-            ? <a href={`mailto:${accountManager.email}`} style={{ color: "var(--gray-900)", textDecoration: "underline", textUnderlineOffset: "3px" }}>{accountManager.name}</a>
-            : <span style={{ color: "var(--gray-300)" }}>—</span>,
-        )}
-
-        {/* Features as a section of the same card, not a card of their own.
-            One contract is one card, and a second card holding ten short lines beside it was the
-            odd object on the page. No plan page worth copying wraps a single plan's feature list
-            in its own box either — Framer just lists them inside the plan card, and the comparison
-            tables (Slite, Lyssna, Front, Homerun) are borderless rows under small-caps section
-            headings, which is the shape used here. */}
-        <div style={{ padding: "18px 20px", borderTop: BORDER }}>
-          {groupHeading(t.includedFeatures, true)}
-          {featureGrid(includedRows, true)}
-          {pendingRows.length > 0 && (
-            <>
-              {groupHeading(t.pendingHeading, false)}
-              {featureGrid(pendingRows, false)}
-            </>
-          )}
-        </div>
-
-        {/* The money, below the rule — it is fixed for the length of the contract, so it is the
-            thing on this card nobody opens the page to check. */}
-        <div style={{ display: "flex", gap: "20px", padding: "14px 20px", borderTop: BORDER, backgroundColor: "var(--gray-50)", flexWrap: "wrap" }}>
-          <div>
-            <p style={{ fontSize: "11px", color: "var(--gray-500)" }}>{t.perChannelLabel}</p>
-            <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", marginTop: "2px" }}>{t.perChannelPerYear(PRICE_PER_CHANNEL_PER_YEAR)}</p>
+        <Clause n={3} label={t.clauseScope}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "6px 20px" }}>
+            {includedRows.map(r => (
+              <p key={r.key} style={{ display: "flex", alignItems: "baseline", gap: "7px", fontSize: "13px", fontWeight: 600, color: "var(--gray-900)" }}>
+                <span style={{ display: "flex", color: "var(--gray-900)", flexShrink: 0, transform: "translateY(1px)" }}><CheckIcon /></span>{r.label}
+              </p>
+            ))}
           </div>
-          {limit ? (
-            <div>
-              <p style={{ fontSize: "11px", color: "var(--gray-500)" }}>{t.yearlyTotalLabel}</p>
-              <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", marginTop: "2px" }}>{t.channelsCostPerYear(subscriptionYearlyCost.toLocaleString())}</p>
-            </div>
-          ) : null}
-          <span style={{ flex: 1 }} />
-          <p style={{ fontSize: "11px", color: "var(--gray-500)", maxWidth: "280px", lineHeight: 1.6, alignSelf: "center" }}>{t.contractNote}</p>
+          {/* What the agreement does NOT cover, named rather than listed with padlocks. A reader
+              asking "does this cover plates" needs the answer, and the answer is one line. */}
+          {pendingRows.length > 0 && (
+            <p style={{ fontSize: "12px", lineHeight: 1.7, color: "var(--gray-400)", marginTop: "10px" }}>
+              <span style={{ fontWeight: 700, color: "var(--gray-500)" }}>{t.scopeExcluded}</span>
+              {"  "}{pendingRows.map(r => r.label).join(" · ")}
+            </p>
+          )}
+        </Clause>
+
+        <Clause n={4} label={t.clauseFees} last>
+          <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)" }}>
+            {limit ? t.channelsCostPerYear(subscriptionYearlyCost.toLocaleString()) : "—"}
+          </p>
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "3px" }}>{t.perChannelPerYear(PRICE_PER_CHANNEL_PER_YEAR)}</p>
+        </Clause>
+        </div>
+
+        {/* The party block, where an agreement puts its signatures. Not a fake signature — the
+            person and the way to reach them, which is what this record can honestly carry. */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "20px", padding: "28px 32px", borderTop: "1px solid var(--gray-900)", flexWrap: "wrap" }}>
+          <div>
+            <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "0.4px", textTransform: "uppercase" }}>{t.clauseParty}</p>
+            {/* Name and address, both as text. It was a mailto link on the name, which underlines
+                a person and hides the address behind them — the reader who wants to write has to
+                trust a link to know where it goes, and the reader who wants to phone or forward the
+                address gets nothing. A record shows what it holds. */}
+            {accountManager ? (
+              <p style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginTop: "5px" }}>
+                <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)" }}>{accountManager.name}</span>
+                <span style={{ fontSize: "12px", color: "var(--gray-500)" }}>{accountManager.email}</span>
+              </p>
+            ) : (
+              <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-400)", marginTop: "5px" }}>—</p>
+            )}
+          </div>
+          <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, maxWidth: "300px", textAlign: "right" }}>{t.contractNote}</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * One numbered clause: its number and name on the left, its content on the right.
+ *
+ * The two-column term-and-value shape an agreement's schedule uses, with a rule under each clause
+ * so the eye can find where one ends. The label column is fixed rather than a fraction — clauses
+ * line up down the page only if the gutter is the same on every row, and a fraction moves it every
+ * time the window does.
+ */
+function Clause({ n, label, last, children }: { n: number; label: string; last?: boolean; children: React.ReactNode }) {
+  return (
+    /* The last clause drops its rule: the party block below already opens with a heavier one, and
+       two lines with 16px of nothing between them is a mistake, not a division.
+
+       32px at the sides, matching the shell's own gutter — a document has margins, and at 20px the
+       clauses sat as close to the paper's edge as a table's cells do. */
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 168px) minmax(0, 1fr)", gap: "0 24px", padding: "24px 32px", borderBottom: last ? "none" : BORDER }}>
+      <p style={{ display: "flex", alignItems: "baseline", gap: "8px", minWidth: 0 }}>
+        {/* Tabular figures and a fixed slot, so 1 and 5 leave their labels on the same left edge. */}
+        <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--gray-300)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+          {String(n).padStart(2, "0")}
+        </span>
+        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-500)" }}>{label}</span>
+      </p>
+      <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );
 }

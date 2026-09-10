@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { Search } from "lucide-react";
-import { useVcaStore, type UploadedMedia } from "@/lib/vcaStore";
+import { useVcaStore, useActiveProjectId, useProjectCameras, type Camera as StoreCamera, type UploadedMedia } from "@/lib/vcaStore";
+import { runStateOf } from "@/lib/realtime/cameraStatus";
 import BestFrameDetailPage from "./BestFrameDetailPage";
 import { useToast } from "./Toast";
 import type { DetType, MonitorState, Camera, Detection, CamData, HUDState } from "@/types/detection";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
-import { VIP_SIMULATION_CAMERAS } from "@/lib/vcaStore";
-import { recentSgtClockTime, sgtHour, sgtMinute } from "@/lib/time";
+import { MOCK_STAMP_GRANULARITY_MIN, parseSgtStamp, recentSgtStamp } from "@/lib/time";
 import SidebarToggleIcon from "./SidebarToggleIcon";
 
 import { useLanguage } from "@/lib/i18n";
@@ -18,6 +18,12 @@ import { useLanguage } from "@/lib/i18n";
 const T = {
   en: {
     filterAll: "All",
+    noCamMatch: (q: string) => `No cameras match “${q}”`,
+    selectedOf: (n: number, max: number) => `${n} / ${max} selected`,
+    resetSelection: "Reset",
+    vipNow: "VIP detected now",
+    pinPanel: "Pin panel",
+    unpinPanel: "Unpin panel",
     close: "Close",
     liveSnapshot: "LIVE SNAPSHOT",
     liveSnapshotHint: "Frame the camera just captured",
@@ -58,6 +64,12 @@ const T = {
   },
   ko: {
     filterAll: "전체",
+    noCamMatch: (q: string) => `“${q}”에 해당하는 카메라가 없습니다`,
+    selectedOf: (n: number, max: number) => `${max}대 중 ${n}대 선택`,
+    resetSelection: "선택 해제",
+    vipNow: "지금 VIP 검출",
+    pinPanel: "패널 고정",
+    unpinPanel: "고정 해제",
     close: "닫기",
     liveSnapshot: "실시간 검출",
     liveSnapshotHint: "카메라가 방금 잡은 프레임입니다",
@@ -168,10 +180,18 @@ const DET_COLOR: Record<DetType, string> = { VIP: "var(--primary-400)", Vehicle:
 // ackedVipCamIds below — so it never lingers past the point someone's actually looked.)
 const VIP_DOT_TIMEOUT_MIN = 2;
 
-function toMinutesSinceMidnight(hhmmss: string): number {
-  const [h, m] = hhmmss.split(":").map(Number);
-  return h * 60 + m;
-}
+/**
+ * The window actually tested, widened by how coarse a mock stamp is.
+ *
+ * Mock stamps are rounded down to ten minutes (hydration safety — see time.ts), so a detection
+ * written as "one minute ago" is really anywhere from one to eleven minutes old. Testing the bare
+ * two minutes against that made the lamp a function of WHICH MINUTE THE PAGE WAS LOADED: light at
+ * 10:21, dark at 10:25, same data either way. Widening it to what the data can support makes the
+ * lamp say the same thing on every load.
+ *
+ * When real detections arrive they carry real instants and this goes back to VIP_DOT_TIMEOUT_MIN.
+ */
+const VIP_DOT_WINDOW_MIN = VIP_DOT_TIMEOUT_MIN + MOCK_STAMP_GRANULARITY_MIN;
 
 const PURPLE_FILTER = "invert(28%) sepia(64%) saturate(3086%) hue-rotate(237deg) brightness(0.92)";
 
@@ -195,123 +215,165 @@ const AVATAR = [
 ];
 const CAR_IMG = "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?auto=format&fit=crop&w=80&q=80";
 
-// Detection `time` values are computed relative to the actual current time (recentSgtClockTime),
-// not literal hardcoded clock strings — a fixed string like "16:31:50" inevitably drifts into
-// looking like a FUTURE detection as real time passes the current SGT clock (Navbar's header
-// keeps advancing live). Offsets below are chosen so each camera's own cluster keeps roughly the
+// Each detection's date and time come from recentSgtStamp — the DAY as well as the clock, and
+// both relative to the actual current time rather than literal hardcoded strings (a fixed
+// "16:31:50" inevitably drifts into looking like a FUTURE detection as the real clock passes it).
+// The date has to be carried: a detection 94 minutes before a site clock of 00:30 happened
+// yesterday, and the screens showing it cannot recover that from the clock string alone. Offsets below are chosen so each camera's own cluster keeps roughly the
 // same relative spacing/story it always had, just re-anchored to "now" — and each entry is
 // listed newest-first within its camera, matching how CameraCard renders the list (also enforced
 // defensively by a sort in CameraCard itself, in case this ordering ever drifts).
-export const CAM_DATA: Record<string, CamData> = {
-  bs1a: { camLabel: "CAM_WestGate_BS1", location: "Main Intake Road", bgUrl: BG[0], detections: [
-    { id:"d3", type:"VIP",          name:"Dr. Alex Wong",          group:"VIP group",       confidence:98.4, time:recentSgtClockTime(86), top:"18%", left:"68%", width:"12%", height:"36%" },
-    { id:"d1", type:"VIP",          name:"Sarah Lin",              group:"Staff (Finance)", confidence:98.4, time:recentSgtClockTime(87), top:"15%", left:"10%", width:"12%", height:"38%" },
-    { id:"d4", type:"Unknown", name:"Blue shirts • Man • Bag",group:"Unknown",    confidence:0,    time:recentSgtClockTime(88), top:"25%", left:"32%", width:"11%", height:"35%" },
-    { id:"d2", type:"Vehicle",      name:"Vehicle SGX411",         group:"Navy",            confidence:92.8, time:recentSgtClockTime(89), top:"20%", left:"48%", width:"18%", height:"28%" },
-    { id:"d21", type:"VIP",     name:"Michelle Tan",       group:"VIP group",     confidence:95.7, time:recentSgtClockTime(90), top:"17%", left:"22%", width:"12%", height:"37%" },
-    { id:"d22", type:"Unknown", name:"Red cap • Male",     group:"Unknown",       confidence:0,    time:recentSgtClockTime(91), top:"24%", left:"58%", width:"11%", height:"34%" },
-    { id:"d23", type:"Vehicle", name:"Vehicle YW2281",     group:"Logistics",     confidence:87.4, time:recentSgtClockTime(92), top:"19%", left:"5%",  width:"17%", height:"27%" },
-    { id:"d24", type:"VIP",     name:"James Kwek",         group:"Staff (Security)", confidence:90.1, time:recentSgtClockTime(93), top:"16%", left:"78%", width:"12%", height:"37%" },
-    { id:"d25", type:"Unknown", name:"Grey hoodie • Female", group:"Unknown",     confidence:0,    time:recentSgtClockTime(94), top:"23%", left:"42%", width:"11%", height:"34%" },
+/**
+ * The curated feeds, as an ordered list rather than a map keyed by camera id.
+ *
+ * What is hand-authored here is the footage and what was found in it — the frame, the boxes, the
+ * names, the confidences. WHICH camera saw it is not ours to invent: these are bound to the
+ * register of the site on screen (see camDataForCameras), so a feed names a camera that exists
+ * there and reads the place name every other screen uses for it.
+ *
+ * Before this they were keyed by ids of their own ("bs1a", "hb4") with hand-typed locations
+ * ("Bugis MRT"), and the sidebar listed those sixteen plus the whole thousand-camera simulation
+ * pool — every one of them another site's. Switching site in the header changed nothing on this
+ * page: the school's six cameras were not in the list at all, and the grid went on showing named
+ * VIP detections from a city the operator is not watching.
+ */
+const CAMERA_FEEDS: CamData[] = [
+  { camLabel: "CAM_WestGate_BS1", location: "Main Intake Road", bgUrl: BG[0], detections: [
+    { id:"d3", type:"VIP",          name:"Dr. Alex Wong",          group:"VIP group",       confidence:98.4, ...recentSgtStamp(86), top:"18%", left:"68%", width:"12%", height:"36%" },
+    { id:"d1", type:"VIP",          name:"Sarah Lin",              group:"Staff (Finance)", confidence:98.4, ...recentSgtStamp(87), top:"15%", left:"10%", width:"12%", height:"38%" },
+    { id:"d4", type:"Unknown", name:"Blue shirts • Man • Bag",group:"Unknown",    confidence:0,    ...recentSgtStamp(88), top:"25%", left:"32%", width:"11%", height:"35%" },
+    { id:"d2", type:"Vehicle",      name:"Vehicle SGX411",         group:"Navy",            confidence:92.8, ...recentSgtStamp(89), top:"20%", left:"48%", width:"18%", height:"28%" },
+    { id:"d21", type:"VIP",     name:"Michelle Tan",       group:"VIP group",     confidence:95.7, ...recentSgtStamp(90), top:"17%", left:"22%", width:"12%", height:"37%" },
+    { id:"d22", type:"Unknown", name:"Red cap • Male",     group:"Unknown",       confidence:0,    ...recentSgtStamp(91), top:"24%", left:"58%", width:"11%", height:"34%" },
+    { id:"d23", type:"Vehicle", name:"Vehicle YW2281",     group:"Logistics",     confidence:87.4, ...recentSgtStamp(92), top:"19%", left:"5%",  width:"17%", height:"27%" },
+    { id:"d24", type:"VIP",     name:"James Kwek",         group:"Staff (Security)", confidence:90.1, ...recentSgtStamp(93), top:"16%", left:"78%", width:"12%", height:"37%" },
+    { id:"d25", type:"Unknown", name:"Grey hoodie • Female", group:"Unknown",     confidence:0,    ...recentSgtStamp(94), top:"23%", left:"42%", width:"11%", height:"34%" },
   ]},
-  bs3: { camLabel: "CAM_EastGate_BS3", location: "Annex 2F Hall", bgUrl: BG[1], detections: [
-    { id:"d6", type:"Unknown", name:"Unknown Person",group:"Unknown", confidence:0,    time:recentSgtClockTime(0), top:"24%", left:"55%", width:"11%", height:"34%" },
-    { id:"d5", type:"VIP",          name:"hong gildong", group:"VIP group",    confidence:72.6, time:recentSgtClockTime(1), top:"22%", left:"25%", width:"13%", height:"37%" },
+  { camLabel: "CAM_EastGate_BS3", location: "Annex 2F Hall", bgUrl: BG[1], detections: [
+    { id:"d6", type:"Unknown", name:"Unknown Person",group:"Unknown", confidence:0,    ...recentSgtStamp(0), top:"24%", left:"55%", width:"11%", height:"34%" },
+    { id:"d5", type:"VIP",          name:"hong gildong", group:"VIP group",    confidence:72.6, ...recentSgtStamp(1), top:"22%", left:"25%", width:"13%", height:"37%" },
   ]},
-  bs2: { camLabel: "CAM_NorthGate_BS2", location: "Orchard MRT Gate", bgUrl: BG[0], detections: [
-    { id:"d7", type:"Vehicle", name:"Vehicle XB3291", group:"Logistics", confidence:81.3, time:recentSgtClockTime(1), top:"20%", left:"40%", width:"18%", height:"28%" },
+  { camLabel: "CAM_NorthGate_BS2", location: "Orchard MRT Gate", bgUrl: BG[0], detections: [
+    { id:"d7", type:"Vehicle", name:"Vehicle XB3291", group:"Logistics", confidence:81.3, ...recentSgtStamp(1), top:"20%", left:"40%", width:"18%", height:"28%" },
   ]},
-  ca2: { camLabel: "CAM_CentralA_CA2", location: "CA2 Sub Station", bgUrl: BG[1], detections: [
-    { id:"d8", type:"Unknown", name:"Red jacket • Female", group:"Unknown", confidence:0, time:recentSgtClockTime(2), top:"26%", left:"52%", width:"12%", height:"34%" },
+  { camLabel: "CAM_CentralA_CA2", location: "CA2 Sub Station", bgUrl: BG[1], detections: [
+    { id:"d8", type:"Unknown", name:"Red jacket • Female", group:"Unknown", confidence:0, ...recentSgtStamp(2), top:"26%", left:"52%", width:"12%", height:"34%" },
   ]},
-  bs1b: { camLabel: "CAM_WestGate_BS1B", location: "Bugis MRT", bgUrl: BG[0], detections: [
-    { id:"d9",  type:"VIP",     name:"hong gildong", group:"VIP group",  confidence:76.9, time:recentSgtClockTime(1), top:"20%", left:"18%", width:"13%", height:"36%" },
-    { id:"d10", type:"Vehicle", name:"Vehicle XC112", group:"Security",  confidence:64.2, time:recentSgtClockTime(4), top:"22%", left:"60%", width:"16%", height:"26%" },
+  { camLabel: "CAM_WestGate_BS1B", location: "Bugis MRT", bgUrl: BG[0], detections: [
+    { id:"d9",  type:"VIP",     name:"hong gildong", group:"VIP group",  confidence:76.9, ...recentSgtStamp(1), top:"20%", left:"18%", width:"13%", height:"36%" },
+    { id:"d10", type:"Vehicle", name:"Vehicle XC112", group:"Security",  confidence:64.2, ...recentSgtStamp(4), top:"22%", left:"60%", width:"16%", height:"26%" },
   ]},
-  hb4:  { camLabel: "CAM_HarbourB_HB4", location: "HB4 Terminal",  bgUrl: BG[1], detections: [
-    { id:"d11", type:"Unknown", name:"Blue cap • Male", group:"Unknown", confidence:0, time:recentSgtClockTime(5), top:"22%", left:"36%", width:"12%", height:"36%" },
+  { camLabel: "CAM_HarbourB_HB4", location: "HB4 Terminal",  bgUrl: BG[1], detections: [
+    { id:"d11", type:"Unknown", name:"Blue cap • Male", group:"Unknown", confidence:0, ...recentSgtStamp(5), top:"22%", left:"36%", width:"12%", height:"36%" },
   ]},
-  nc1:  { camLabel: "CAM_NorthC_NC1",   location: "NC 1 West",      bgUrl: BG[0], detections: [
-    { id:"d12", type:"VIP", name:"hong gildong", group:"Staff (HR)", confidence:77.8, time:recentSgtClockTime(6), top:"19%", left:"48%", width:"13%", height:"38%" },
+  { camLabel: "CAM_NorthC_NC1",   location: "NC 1 West",      bgUrl: BG[0], detections: [
+    { id:"d12", type:"VIP", name:"hong gildong", group:"Staff (HR)", confidence:77.8, ...recentSgtStamp(6), top:"19%", left:"48%", width:"13%", height:"38%" },
   ]},
-  or2:  { camLabel: "CAM_OrchardC_OR2",    location: "Orchard Central",       bgUrl: BG[0], detections: [
-    { id:"d13", type:"VIP", name:"hong gildong", group:"VIP group", confidence:74.2, time:recentSgtClockTime(12), top:"20%", left:"30%", width:"12%", height:"36%" },
+  { camLabel: "CAM_OrchardC_OR2",    location: "Orchard Central",       bgUrl: BG[0], detections: [
+    { id:"d13", type:"VIP", name:"hong gildong", group:"VIP group", confidence:74.2, ...recentSgtStamp(12), top:"20%", left:"30%", width:"12%", height:"36%" },
   ]},
-  tp1:  { camLabel: "CAM_TampinesH_TP1",   location: "Tampines Hub",          bgUrl: BG[1], detections: [
-    { id:"d14", type:"Vehicle", name:"Vehicle TJ8821", group:"Logistics", confidence:88.1, time:recentSgtClockTime(13), top:"22%", left:"45%", width:"16%", height:"26%" },
+  { camLabel: "CAM_TampinesH_TP1",   location: "Tampines Hub",          bgUrl: BG[1], detections: [
+    { id:"d14", type:"Vehicle", name:"Vehicle TJ8821", group:"Logistics", confidence:88.1, ...recentSgtStamp(13), top:"22%", left:"45%", width:"16%", height:"26%" },
   ]},
-  jr1:  { camLabel: "CAM_JurongG_JR1",     location: "Jurong Gateway",        bgUrl: BG[0], detections: [
-    { id:"d15", type:"Unknown", name:"Grey hoodie • Male", group:"Unknown", confidence:0, time:recentSgtClockTime(14), top:"24%", left:"38%", width:"11%", height:"34%" },
+  { camLabel: "CAM_JurongG_JR1",     location: "Jurong Gateway",        bgUrl: BG[0], detections: [
+    { id:"d15", type:"Unknown", name:"Grey hoodie • Male", group:"Unknown", confidence:0, ...recentSgtStamp(14), top:"24%", left:"38%", width:"11%", height:"34%" },
   ]},
-  sg1:  { camLabel: "CAM_SengkangR_SG1",   location: "Sengkang Riverside",    bgUrl: BG[1], detections: [
-    { id:"d16", type:"VIP", name:"Dr. Alex Wong", group:"VIP group", confidence:91.5, time:recentSgtClockTime(15), top:"18%", left:"55%", width:"12%", height:"37%" },
+  { camLabel: "CAM_SengkangR_SG1",   location: "Sengkang Riverside",    bgUrl: BG[1], detections: [
+    { id:"d16", type:"VIP", name:"Dr. Alex Wong", group:"VIP group", confidence:91.5, ...recentSgtStamp(15), top:"18%", left:"55%", width:"12%", height:"37%" },
   ]},
-  cq1:  { camLabel: "CAM_ClarkeQ_CQ1",     location: "Clarke Quay",           bgUrl: BG[0], detections: [
-    { id:"d17", type:"Vehicle", name:"Vehicle CQ4471", group:"Navy", confidence:79.6, time:recentSgtClockTime(16), top:"20%", left:"40%", width:"17%", height:"27%" },
+  { camLabel: "CAM_ClarkeQ_CQ1",     location: "Clarke Quay",           bgUrl: BG[0], detections: [
+    { id:"d17", type:"Vehicle", name:"Vehicle CQ4471", group:"Navy", confidence:79.6, ...recentSgtStamp(16), top:"20%", left:"40%", width:"17%", height:"27%" },
   ]},
-  wd1:  { camLabel: "CAM_WoodlandsCP_WD1", location: "Woodlands Checkpoint",  bgUrl: BG[1], detections: [
-    { id:"d18", type:"Unknown", name:"Unknown", group:"Unknown", confidence:0, time:recentSgtClockTime(17), top:"23%", left:"50%", width:"12%", height:"35%" },
+  { camLabel: "CAM_WoodlandsCP_WD1", location: "Woodlands Checkpoint",  bgUrl: BG[1], detections: [
+    { id:"d18", type:"Unknown", name:"Unknown", group:"Unknown", confidence:0, ...recentSgtStamp(17), top:"23%", left:"50%", width:"12%", height:"35%" },
   ]},
-  ak1:  { camLabel: "CAM_AngMoKioH_AK1",   location: "Ang Mo Kio Hub",        bgUrl: BG[0], detections: [
-    { id:"d19", type:"VIP", name:"hong gildong", group:"Staff (HR)", confidence:68.9, time:recentSgtClockTime(18), top:"19%", left:"33%", width:"13%", height:"38%" },
+  { camLabel: "CAM_AngMoKioH_AK1",   location: "Ang Mo Kio Hub",        bgUrl: BG[0], detections: [
+    { id:"d19", type:"VIP", name:"hong gildong", group:"Staff (HR)", confidence:68.9, ...recentSgtStamp(18), top:"19%", left:"33%", width:"13%", height:"38%" },
   ]},
-  kl1:  { camLabel: "CAM_KallangW_KL1",    location: "Kallang Wave",          bgUrl: BG[1], detections: [] },
-  py1:  { camLabel: "CAM_PayaLebarS_PY1",  location: "Paya Lebar Square",     bgUrl: BG[0], detections: [
-    { id:"d20", type:"Vehicle", name:"Vehicle PL9012", group:"Logistics", confidence:83.0, time:recentSgtClockTime(20), top:"21%", left:"48%", width:"18%", height:"28%" },
+  { camLabel: "CAM_KallangW_KL1",    location: "Kallang Wave",          bgUrl: BG[1], detections: [] },
+  { camLabel: "CAM_PayaLebarS_PY1",  location: "Paya Lebar Square",     bgUrl: BG[0], detections: [
+    { id:"d20", type:"Vehicle", name:"Vehicle PL9012", group:"Logistics", confidence:83.0, ...recentSgtStamp(20), top:"21%", left:"48%", width:"18%", height:"28%" },
   ]},
-  // Saved recordings/snapshots (Video list / Image list in the sidebar) — clicking one of these
-  // opens its analysis directly (see openFileDetail) rather than toggling it into the live grid,
-  // so each needs its own real detection to land on instead of DEFAULT_DATA's empty feed.
+];
+
+/**
+ * Saved recordings and snapshots (the sidebar's Video list / Image list), keyed by UPLOAD id.
+ *
+ * These stay a map: an upload already carries the site it was added to (the store scopes them),
+ * and clicking one opens its analysis directly rather than toggling it into the live grid, so each
+ * needs its own real detection to land on instead of DEFAULT_DATA's empty feed.
+ */
+const UPLOAD_DATA: Record<string, CamData> = {
   v1: { camLabel: "CAM_WestGate_BS1_REC1", location: "Main Intake Road", bgUrl: BG[0], detections: [
-    { id:"dv1", type:"VIP", name:"Dr. Alex Wong", group:"VIP group", confidence:95.1, time:recentSgtClockTime(40), top:"18%", left:"40%", width:"12%", height:"36%" },
+    { id:"dv1", type:"VIP", name:"Dr. Alex Wong", group:"VIP group", confidence:95.1, ...recentSgtStamp(40), top:"18%", left:"40%", width:"12%", height:"36%" },
   ]},
   v2: { camLabel: "CAM_WestGate_BS1_REC2", location: "Main Intake Road", bgUrl: BG[0], detections: [
-    { id:"dv2", type:"Vehicle", name:"Vehicle SGX411", group:"Navy", confidence:88.2, time:recentSgtClockTime(50), top:"20%", left:"45%", width:"18%", height:"28%" },
+    { id:"dv2", type:"Vehicle", name:"Vehicle SGX411", group:"Navy", confidence:88.2, ...recentSgtStamp(50), top:"20%", left:"45%", width:"18%", height:"28%" },
   ]},
   v3: { camLabel: "CAM_WestGate_BS1_REC3", location: "Main Intake Road", bgUrl: BG[0], detections: [
-    { id:"dv3", type:"Unknown", name:"Grey hoodie • Male", group:"Unknown", confidence:0, time:recentSgtClockTime(60), top:"24%", left:"38%", width:"11%", height:"34%" },
+    { id:"dv3", type:"Unknown", name:"Grey hoodie • Male", group:"Unknown", confidence:0, ...recentSgtStamp(60), top:"24%", left:"38%", width:"11%", height:"34%" },
   ]},
   i1: { camLabel: "CAM_WestGate_BS1_SNAP1", location: "Main Intake Road", bgUrl: BG[0], sourceType:"image", detections: [
-    { id:"di1", type:"VIP", name:"Sarah Lin", group:"Staff (Finance)", confidence:93.5, time:recentSgtClockTime(70), top:"15%", left:"20%", width:"12%", height:"38%" },
+    { id:"di1", type:"VIP", name:"Sarah Lin", group:"Staff (Finance)", confidence:93.5, ...recentSgtStamp(70), top:"15%", left:"20%", width:"12%", height:"38%" },
   ]},
 };
 export const DEFAULT_DATA: CamData = { camLabel:"CAM_Unknown", location:"Unknown", bgUrl:BG[0], detections:[] };
 
-/* ── Sidebar initial data ─────────────────────────────────────── */
-export const NORMAL_CAMS_INIT: Camera[] = [
-  { id:"bs1a", name:"BS1",          checked:true,  monitor:"active" },
-  { id:"bs3",  name:"BS3",          checked:false, monitor:"alert"  },
-  { id:"bs2",  name:"BS2",          checked:true,  monitor:"normal" },
-  // 4 cameras checked by default so the landing grid opens onto a clean 2x2 view.
-  { id:"ca2",  name:"CA2 Sub",      checked:true,  monitor:"normal" },
-  { id:"bs1b", name:"BS1",          checked:true,  monitor:"normal" },
-  { id:"hb4",  name:"HB4 Terminal", checked:false, monitor:"alert"  },
-  { id:"nc1",  name:"NC 1 West",    checked:false, monitor:"normal" },
-  { id:"or2",  name:"OR2",          checked:false, monitor:"normal" },
-  { id:"tp1",  name:"TP1",          checked:false, monitor:"normal" },
-  { id:"jr1",  name:"JR1",          checked:false, monitor:"normal" },
-  { id:"sg1",  name:"SG1",          checked:false, monitor:"normal" },
-  { id:"cq1",  name:"CQ1",          checked:false, monitor:"normal" },
-  { id:"wd1",  name:"WD1",          checked:false, monitor:"normal" },
-  { id:"ak1",  name:"AK1",          checked:false, monitor:"normal" },
-  { id:"kl1",  name:"KL1",          checked:false, monitor:"normal" },
-  { id:"py1",  name:"PY1",          checked:false, monitor:"normal" },
-  // Drawn from the SAME shared camera pool the Dashboard's live VIP simulation uses
-  // (VIP_SIMULATION_CAMERAS in vcaStore.ts), not a separately-generated, unrelated ~1,000-camera
-  // list with its own "CAM-0017"-style ids. Before this, BestFrame's camera list and the rest of
-  // the app's simulated cameras were two disjoint id-spaces — nothing here could ever correspond
-  // to a real detection event elsewhere in the app. A real camera-registry fetch has exactly one
-  // place to plug in (VIP_SIMULATION_CAMERAS' source) and both this list and the live simulation
-  // pick it up. Ids not present in CAM_DATA fall back to DEFAULT_DATA (generic feed), by design —
-  // there's no curated detection footage behind these, so a generic placeholder is honest rather
-  // than fabricated.
-  ...VIP_SIMULATION_CAMERAS.map(cam => ({
-    id: cam.id,
-    name: cam.name,
-    checked: false,
-    monitor: (cam.status === "online" ? "normal" : "alert") as MonitorState,
-  })),
-];
+/* ── Sidebar data, built from the site's camera register ──────── */
+
+/** How many cameras the grid opens with — a clean 2x2. */
+const DEFAULT_GRID_CAMS = 4;
+
+/**
+ * The feeds for one site: its registered cameras carrying the curated footage, plus the uploads.
+ *
+ * Keyed by camera id, which is what every lookup on this page already uses. A camera the feeds
+ * did not reach falls back to DEFAULT_DATA (a generic feed with no detections) — honest for a
+ * camera there is no footage for, rather than fabricated.
+ */
+export function camDataForCameras(cams: StoreCamera[]): Record<string, CamData> {
+  const out: Record<string, CamData> = { ...UPLOAD_DATA };
+  if (cams.length === 0) return out;
+  // Spread across the roster rather than taking the first N: the register is ordered by district,
+  // so the curated feeds would otherwise all land on one street.
+  const stride = Math.max(1, Math.floor(cams.length / CAMERA_FEEDS.length));
+  CAMERA_FEEDS.forEach((feed, i) => {
+    const cam = cams[(i * stride) % cams.length];
+    // The camera and the place come from the register; the footage and its detections are the
+    // feed's. A site with fewer cameras than there are feeds keeps one feed per camera.
+    out[cam.id] = { ...feed, camLabel: cam.code, location: cam.location };
+  });
+  return out;
+}
+
+/**
+ * The sidebar's Network list: the cameras registered at the site on screen, in roster order.
+ *
+ * `monitor` comes from the register's status through runStateOf, so a camera the Portal stops
+ * greys out here — the sixteen hand-written entries this replaced had "active"/"alert" typed into
+ * them, which no operator could ever change and which said nothing about the camera.
+ *
+ * `checked` is carried over per camera so re-seeding does not clear a selection the operator
+ * built up; cameras new to the list open ticked only if they have footage behind them, up to a
+ * 2x2 grid — a grid of four generic placeholder feeds shows nothing about what this page does.
+ */
+function registerToCams(cams: StoreCamera[], camData: Record<string, CamData>, prev: Camera[]): Camera[] {
+  const wasChecked = new Map(prev.map(c => [c.id, c.checked]));
+  let opened = 0;
+  return cams.map(cam => {
+    const running = runStateOf(cam.status) === "running";
+    const remembered = wasChecked.get(cam.id);
+    const hasFootage = (camData[cam.id]?.detections.length ?? 0) > 0;
+    const openIt = remembered ?? (running && hasFootage && opened < DEFAULT_GRID_CAMS);
+    if (openIt) opened += 1;
+    return {
+      id: cam.id,
+      name: cam.name,
+      checked: openIt,
+      monitor: (running ? "normal" : "alert") as MonitorState,
+    };
+  });
+}
 /**
  * The sidebar's Video list / Image list, built from the project's uploads.
  *
@@ -467,7 +529,7 @@ function CameraCard({
               <path d="M15.75 12H12.75" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M8.25 2.25H6.75" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            Analyze Frame
+            {t.analyzeFrame}
           </button>
         )}
         <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(14, 22, 42,0) 50%,rgba(14, 22, 42,0.04) 50%)", backgroundSize:"100% 4px" }} />
@@ -499,7 +561,7 @@ function CameraCard({
             {sidePanelOnHover && (
               <button
                 onClick={e => { e.stopPropagation(); setPinned(p => !p); }}
-                aria-label={pinned ? "Unpin panel" : "Pin panel"}
+                aria-label={pinned ? t.unpinPanel : t.pinPanel}
                 style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex" }}
               >
                 <PinIcon active={pinned} />
@@ -721,6 +783,8 @@ function BulletCameraIcon() {
 }
 
 function CameraItem({ cam, onToggle, type = "camera", disabled = false, activityRank }: { cam: Camera; onToggle: () => void; type?: "camera" | "video" | "image"; disabled?: boolean; activityRank?: number }) {
+  const [lang] = useLanguage();
+  const t = T[lang];
   const isAlert = cam.monitor === "alert";
   const isChecked = !isAlert && cam.checked;
   // Both alert cameras and (unchecked items at) the 16-camera grid cap are dimmed and stay
@@ -751,7 +815,7 @@ function CameraItem({ cam, onToggle, type = "camera", disabled = false, activity
           ? <VideoFileIcon color={iconColor} />
           : <ImageFileIcon />}
         {isVipActive && (
-          <div title="VIP detected now" className="vca-vip-dot-pulse" style={{ position:"absolute", top:-2, right:-2, width:"7px", height:"7px", borderRadius:"50%", backgroundColor:"var(--primary-400)", border:"1.5px solid white" }} />
+          <div title={t.vipNow} className="vca-vip-dot-pulse" style={{ position:"absolute", top:-2, right:-2, width:"7px", height:"7px", borderRadius:"50%", backgroundColor:"var(--primary-400)", border:"1.5px solid white" }} />
         )}
       </div>
       <span style={{ flex:1, textAlign:"left", fontSize:"13px", fontWeight: isChecked ? 700 : 400, color: isChecked ? "var(--primary-400)" : "var(--gray-500)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
@@ -841,7 +905,12 @@ function getGridLayout(n: number): { cols: number; rows: number; sidePanelOnHove
 export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedmapTrace, analyzeFrameLocation, analyzeFrameAt, onAnalyzeFrameConsumed }: { focusLocation?: string | null; onFocusConsumed?: () => void; onGoRedmapTrace?: (name: string) => void; analyzeFrameLocation?: string | null; analyzeFrameAt?: { date: string; time: string } | null; onAnalyzeFrameConsumed?: () => void } = {}) {
   const [lang] = useLanguage();
   const t = T[lang];
-  const [normalCams, setNormalCams] = useState<Camera[]>(NORMAL_CAMS_INIT);
+  // The site's camera register, read live so a camera the Portal adds, renames or stops shows up
+  // here. Memoised in the store hook, which is what lets the render-phase reconciliation below
+  // compare it by reference.
+  const siteCameras = useProjectCameras();
+  const siteCamData = useMemo(() => camDataForCameras(siteCameras), [siteCameras]);
+  const [normalCams, setNormalCams] = useState<Camera[]>(() => registerToCams(siteCameras, siteCamData, []));
   // The File lists are the project's uploads, from the store — Portal's Input Sources tab is what
   // adds to them. They were two hardcoded arrays here, so anything uploaded in Portal could never
   // appear on this page: two id spaces that never met, the same failure Live Monitoring and Re-ID
@@ -849,7 +918,16 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   //
   // Still local state, because `checked` is this page's business and not the store's. The effect
   // below reconciles the list when an upload is added or removed and keeps whatever was ticked.
-  const storeUploads = useVcaStore(s => s.uploads);
+  // Uploads carry the site they were added to, so this list shows the site on screen. A file
+  // someone uploaded to another project is not footage from here.
+  const activeProjectId = useActiveProjectId();
+  // Memoised because the reconciliation below compares by reference: a fresh array every render
+  // makes `prevUploads !== storeUploads` always true, which sets state during render forever.
+  const uploads = useVcaStore(s => s.uploads);
+  const storeUploads = useMemo(
+    () => uploads.filter(u => u.projectId === activeProjectId),
+    [uploads, activeProjectId],
+  );
   const [videoCams,  setVideoCams]  = useState<Camera[]>(() => uploadsToCams(storeUploads, "video", []));
   const [imageCams,  setImageCams]  = useState<Camera[]>(() => uploadsToCams(storeUploads, "image", []));
 
@@ -861,6 +939,14 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     setPrevUploads(storeUploads);
     setVideoCams(prev => uploadsToCams(storeUploads, "video", prev));
     setImageCams(prev => uploadsToCams(storeUploads, "image", prev));
+  }
+  // Same reconciliation for the Network list, so switching site in the header actually changes
+  // which cameras this page offers. Reconciled here rather than in an effect for the reason given
+  // above: an effect paints the previous site's camera list once before correcting it.
+  const [prevSiteCameras, setPrevSiteCameras] = useState(siteCameras);
+  if (prevSiteCameras !== siteCameras) {
+    setPrevSiteCameras(siteCameras);
+    setNormalCams(prev => registerToCams(siteCameras, siteCamData, prev));
   }
   const [camSearch, setCamSearch] = useState("");
   const [camTypeFilter, setCamTypeFilter] = useState<CamTypeFilter>("All");
@@ -886,20 +972,29 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   // for the timeout half to actually take effect instead of only updating on the next unrelated
   // render.
   const [ackedVipCamIds, setAckedVipCamIds] = useState<Set<string>>(new Set());
-  const [, setVipDotTick] = useState(0);
+  // The clock the lamp is measured against. State, read after mount and re-read every 15s: the
+  // server-rendered pass has no time in it (so nothing time-dependent can mismatch on hydration),
+  // and the timeout half of the rule needs a tick to take effect rather than waiting for some
+  // unrelated re-render.
+  const [nowMs, setNowMs] = useState<number | null>(null);
   useEffect(() => {
-    const interval = setInterval(() => setVipDotTick(t => t + 1), 15000);
-    return () => clearInterval(interval);
+    const first = setTimeout(() => setNowMs(Date.now()), 0);
+    const interval = setInterval(() => setNowMs(Date.now()), 15000);
+    return () => { clearTimeout(first); clearInterval(interval); };
   }, []);
   const hasRecentUnackedVip = (camId: string): boolean => {
+    // No clock yet (the first frame) means nothing can be called recent.
+    if (nowMs === null) return false;
     if (ackedVipCamIds.has(camId)) return false;
-    const vipDets = (CAM_DATA[camId] ?? DEFAULT_DATA).detections.filter(d => d.type === "VIP");
+    const vipDets = (siteCamData[camId] ?? DEFAULT_DATA).detections.filter(d => d.type === "VIP");
     if (vipDets.length === 0) return false;
-    const latestMin = Math.max(...vipDets.map(d => toMinutesSinceMidnight(d.time)));
-    const now = new Date();
-    const nowMin = sgtHour(now) * 60 + sgtMinute(now);
-    const diff = nowMin - latestMin;
-    return diff >= 0 && diff <= VIP_DOT_TIMEOUT_MIN;
+    // Real instants on both sides, parsed the way the stamp was written. This compared
+    // minutes-since-midnight from two different clocks: the detection's, pinned to the mock's
+    // fallback zone, against sgtHour/sgtMinute, which follow the SITE's zone — so at a site set
+    // to Seoul every gap was an hour bigger and the lamp never lit at all.
+    const latest = Math.max(...vipDets.map(d => parseSgtStamp(d.date, d.time).getTime()));
+    const minutesAgo = (nowMs - latest) / 60000;
+    return minutesAgo >= 0 && minutesAgo <= VIP_DOT_WINDOW_MIN;
   };
   // FLIP animation for grid reordering — CSS Grid can't transition a child moving from one
   // cell to another (row/column assignment isn't an animatable property), so instead: measure
@@ -931,7 +1026,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         // Cameras with no real CAM_DATA entry (the bulk-generated ~1000) fall back to "" here —
         // "" is a substring of every string, so without this guard the very first such camera
         // would silently "match" any unmatched hint instead of correctly falling through to no-match.
-        const loc = CAM_DATA[c.id]?.location.toLowerCase();
+        const loc = siteCamData[c.id]?.location.toLowerCase();
         return !!loc && (loc.includes(hint) || hint.includes(loc));
       });
       if (match) {
@@ -978,7 +1073,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         // Cameras with no real CAM_DATA entry (the bulk-generated ~1000) fall back to "" here —
         // "" is a substring of every string, so without this guard the very first such camera
         // would silently "match" any unmatched hint instead of correctly falling through to no-match.
-        const loc = CAM_DATA[c.id]?.location.toLowerCase();
+        const loc = siteCamData[c.id]?.location.toLowerCase();
         return !!loc && (loc.includes(hint) || hint.includes(loc));
       });
       if (match) {
@@ -986,7 +1081,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         setVideoCams(prev => prev.map(c => ({ ...c, checked: false })));
         setImageCams(prev => prev.map(c => ({ ...c, checked: false })));
         setHighlightCamId(match.id);
-        const data = CAM_DATA[match.id] ?? DEFAULT_DATA;
+        const data = siteCamData[match.id] ?? DEFAULT_DATA;
         if (data.detections[0]) setDetailView({
           camId: match.id, data, det: data.detections[0],
           // A request that names a moment lands on that moment's frame; the inspection panel is
@@ -1078,8 +1173,8 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   // so within "has VIP" / "doesn't" it keeps gridOrder's own sequence (insertion order + whatever
   // the ticker below has already promoted).
   const orderedGridCams = [...rawOrderedGridCams].sort((a, b) => {
-    const aVip = (CAM_DATA[a.id] ?? DEFAULT_DATA).detections.some(d => d.type === "VIP") ? 1 : 0;
-    const bVip = (CAM_DATA[b.id] ?? DEFAULT_DATA).detections.some(d => d.type === "VIP") ? 1 : 0;
+    const aVip = (siteCamData[a.id] ?? DEFAULT_DATA).detections.some(d => d.type === "VIP") ? 1 : 0;
+    const bVip = (siteCamData[b.id] ?? DEFAULT_DATA).detections.some(d => d.type === "VIP") ? 1 : 0;
     return bVip - aVip;
   });
   const orderedGridIdsKey = orderedGridCams.map(c => c.id).join(",");
@@ -1117,19 +1212,17 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   // it jumps to the front of gridOrder (top-left, since CSS grid lays children out row-major),
   // then right, then the row below, exactly matching where the rest of the tiles get pushed to.
   // (No highlight ring on the surfaced tile — that looked off, so this only reorders for now.)
-  // This reads CAM_DATA (this page's own static, hand-authored detection set) rather than the
-  // shared vcaStore — this page's camera ids (NORMAL_CAMS_INIT, "CAM-0017" etc.) are a completely
-  // separate id-space from the store's `cameras`/VIP_SIMULATION_CAMERAS, so there's no real
-  // camera to join a shared VIP event against yet. VipAlertTicker in ClientLayout.tsx is the one
-  // real event producer in the app; once this page's camera ids are unified with the store's (see
-  // the camera-data-pool consolidation), this should pick its "has a fresh VIP hit" candidates
-  // from real vcaStore events instead of the static CAM_DATA lookup below.
+  // Candidates come from the curated footage (siteCamData) rather than from real store events.
+  // The ids ARE the register's ids now, so joining against the store's own detections is finally
+  // possible — VipAlertTicker in ClientLayout.tsx is the one real event producer in the app, and
+  // this should read from it. Left as the curated lookup for now because those events carry no
+  // frame to draw, which is what this page is for.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const scheduleNext = () => {
       const delay = 20000 + Math.random() * 20000;
       timer = setTimeout(() => {
-        const vipCandidates = gridCamsRef.current.filter(c => (CAM_DATA[c.id] ?? DEFAULT_DATA).detections.some(d => d.type === "VIP"));
+        const vipCandidates = gridCamsRef.current.filter(c => (siteCamData[c.id] ?? DEFAULT_DATA).detections.some(d => d.type === "VIP"));
         if (vipCandidates.length > 0) {
           const chosen = vipCandidates[Math.floor(Math.random() * vipCandidates.length)];
           setGridOrder(prev => [chosen.id, ...prev.filter(id => id !== chosen.id)]);
@@ -1139,7 +1232,8 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
     };
     scheduleNext();
     return () => clearTimeout(timer);
-  }, []);
+    // Re-armed when the register changes, which is when the footage behind these ids changes too.
+  }, [siteCamData]);
   const atGridCap = gridCams.length >= MAX_GRID_CAMS;
   // Sidebar "Enter source" search — filters each list's visible rows only; the counts/badges
   // above (activeCams.length etc.) stay based on the full unfiltered lists.
@@ -1155,7 +1249,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   const activityRank = (c: Camera) => {
     if (c.monitor === "alert") return 3;
     if (hasRecentUnackedVip(c.id)) return 0;
-    const dets = (CAM_DATA[c.id] ?? DEFAULT_DATA).detections;
+    const dets = (siteCamData[c.id] ?? DEFAULT_DATA).detections;
     if (dets.length > 0) return 1;
     return 2;
   };
@@ -1177,7 +1271,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
   // the live grid — a saved recording/snapshot isn't something you "add to the live feed," it's
   // something you go inspect. The live grid's own selection is left untouched by this.
   function openFileDetail(c: Camera) {
-    const data = CAM_DATA[c.id] ?? DEFAULT_DATA;
+    const data = siteCamData[c.id] ?? DEFAULT_DATA;
     if (!data.detections[0]) return;
     setDetailView({ camId: c.id, data, det: data.detections[0] });
   }
@@ -1195,7 +1289,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
 
   function handleAnalyze() {
     if (!hud) return;
-    setDetailView({ camId: hud.camId, data: CAM_DATA[hud.camId] ?? DEFAULT_DATA, det: hud.det });
+    setDetailView({ camId: hud.camId, data: siteCamData[hud.camId] ?? DEFAULT_DATA, det: hud.det });
     setHud(null);
   }
 
@@ -1323,7 +1417,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
               && (!showVideoSection || visibleVideoCams.length === 0)
               && (!showImageSection || visibleImageCams.length === 0) && (
               <div style={{ padding:"24px 16px", textAlign:"center", fontSize:"12px", fontWeight:600, color:"var(--gray-400)" }}>
-                No cameras match &quot;{camSearch}&quot;.
+                {t.noCamMatch(camSearch)}
               </div>
             )}
           </div>
@@ -1354,7 +1448,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px 12px", flexShrink:0, borderBottom:BORDER }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
             <span style={{ fontSize:"13px", fontWeight:700, color:"var(--gray-900)", letterSpacing:"-0.24px" }}>
-              {gridCams.length} / {MAX_GRID_CAMS} selected
+              {t.selectedOf(gridCams.length, MAX_GRID_CAMS)}
             </span>
             {gridCams.length > 0 && (
               <button
@@ -1365,7 +1459,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                   <path d="M3 12a9 9 0 1 0 2.64-6.36L3 8" stroke="var(--primary-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   <path d="M3 3v5h5" stroke="var(--primary-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Reset
+                {t.resetSelection}
               </button>
             )}
           </div>
@@ -1380,7 +1474,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                     backgroundColor: active ? "var(--gray-900)" : "white",
                     color: active ? "white" : "var(--gray-700)",
                     fontSize:"13px", fontWeight: active ? 700 : 600,
-                  }}>All</button>
+                  }}>{t.filterAll}</button>
                 );
               }
               const c = f.color!;
@@ -1421,7 +1515,7 @@ export default function BestFramePage({ focusLocation, onFocusConsumed, onGoRedm
                 // Synthesized deep-link tiles (see focusLocation handling above) have no CAM_DATA
                 // entry — label them with the actual device name instead of the generic
                 // "CAM_Unknown • Unknown" DEFAULT_DATA fallback.
-                const camData = CAM_DATA[cam.id] ?? (cam.id.startsWith("focus-")
+                const camData = siteCamData[cam.id] ?? (cam.id.startsWith("focus-")
                   ? { ...DEFAULT_DATA, camLabel: t.liveFeed, location: cam.name }
                   : DEFAULT_DATA);
                 // A VIP hit on a gridded tile used to also flash the whole tile's edge in purple

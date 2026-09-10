@@ -1,4 +1,4 @@
-import { sgtClockTime } from "@/lib/time";
+import { dateKeyIn, FALLBACK_TIME_ZONE, isTodaySgt, sgtClockTime, sgtDateKey, wallClockToDate, zoneHour } from "@/lib/time";
 
 export const FACE_PHOTOS = [
   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80",
@@ -110,19 +110,29 @@ export interface LiveEvent {
   lng: number;
 }
 
+const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
 /** Renders an ISO timestamp as a relative "Xm ago" string for anything under an hour old,
  * computed at render time. Past an hour, a coarse "1h ago"/"2h ago" label stops being useful for
- * "when exactly did this happen" — so it switches to the actual captured clock time instead.
+ * "when exactly did this happen" — so it switches to the actual captured clock time instead, with
+ * the day whenever that is not today.
+ *
+ * The day is not optional. A bare clock on a record from another day reads as today: at a site
+ * clock of 01:00, a sighting from 23:10 the previous night showed "23:10:00" in a list where the
+ * row above it said "5m ago" — twenty-two hours into the future, as far as anyone reading it
+ * could tell.
  *
  * Takes the language rather than reading it: this is called from map popups built as HTML strings
- * and from render paths that are not components, so there is no hook to read it with. The clock
- * time it falls back to needs no translating — digits are digits. */
+ * and from render paths that are not components, so there is no hook to read it with. */
 export function formatTimeAgo(timestamp: string, lang: "en" | "ko" = "en"): string {
-  const diffMs = Date.now() - new Date(timestamp).getTime();
-  const mins = Math.max(0, Math.round(diffMs / 60000));
+  const at = new Date(timestamp);
+  const mins = Math.max(0, Math.round((Date.now() - at.getTime()) / 60000));
   if (mins < 1) return lang === "ko" ? "방금" : "just now";
   if (mins < 60) return lang === "ko" ? `${mins}분 전` : `${mins}m ago`;
-  return sgtClockTime(new Date(timestamp));
+  const clock = sgtClockTime(at);
+  if (isTodaySgt(at)) return clock;
+  const [, m, d] = sgtDateKey(at).split("-").map(Number);
+  return lang === "ko" ? `${m}월 ${d}일 ${clock}` : `${SHORT_MONTHS[m - 1]} ${d} ${clock}`;
 }
 
 function minutesAgo(mins: number): string {
@@ -161,10 +171,25 @@ interface RawVipHit {
   lng: number;
 }
 
+/**
+ * Today at a wall-clock hour and minute, on the clock the rest of the mock seeds are written on.
+ *
+ * `setHours()` wrote these on the MACHINE's clock while every reader measures them against a site
+ * clock (isTodaySgt, sgtHour). On a machine in another zone the day's hits therefore landed in the
+ * wrong hours and some fell out of "today" entirely: on a UTC machine at 14:00 site time the
+ * sidebar counted 25 detections instead of 72, and the activity chart drew the day's peak
+ * wherever the offset put it — once in the small hours. Two ends of one measurement, read on two
+ * different clocks.
+ *
+ * Pinned to FALLBACK_TIME_ZONE, which is where the rest of the mock stamp loop lives (see the note
+ * in lib/time.ts): these are module-load seeds, written before any site is resolved, so they
+ * cannot be written on the site's clock. What this fixes is that they no longer depend on where
+ * the person looking at the screen happens to be sitting.
+ */
 function todayAt(hour: number, minute: number): string {
-  const d = new Date();
-  d.setHours(hour, minute, 0, 0);
-  return d.toISOString();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const day = dateKeyIn(new Date(), FALLBACK_TIME_ZONE);
+  return wallClockToDate(day, `${pad(hour)}:${pad(minute)}:00`, FALLBACK_TIME_ZONE).toISOString();
 }
 
 // A brand-new, non-overlapping identity pool (not one of the names above) — each tied to exactly
@@ -207,7 +232,9 @@ const HOURLY_VIP_HIT_TARGETS = [
 // them at zero is correct (not a gap to fill); a real deployment fills them in as the day
 // actually progresses, exactly like this will on its own tomorrow.
 function generateDayVipHits(): RawVipHit[] {
-  const nowHour = new Date().getHours();
+  // The same clock todayAt writes on, so "up to the current hour" means the current hour of the
+  // day these hits are stamped in — not of the machine reading them.
+  const nowHour = zoneHour(new Date(), FALLBACK_TIME_ZONE);
   const hits: RawVipHit[] = [];
   for (let hour = 0; hour <= nowHour; hour++) {
     const target = HOURLY_VIP_HIT_TARGETS[hour];
@@ -297,73 +324,50 @@ function deriveLiveEvents(hits: RawVipHit[]): LiveEvent[] {
 
 export const liveEvents: LiveEvent[] = deriveLiveEvents(RAW_VIP_HITS);
 
-export const devices: Device[] = [
-  { id:"1",  status:"Live", name:"MB1", type:"Normal", ip:"192.168.0.101", lat:1.3517, lng:103.8490, lastSeen:"2m ago"  },
-  { id:"2",  status:"Off",  name:"OR2", type:"Normal", ip:"192.168.0.102", lat:1.3026, lng:103.8650, lastSeen:"20m ago" },
-  { id:"3",  status:"Live", name:"BJ3", type:"Normal", ip:"192.168.0.103", lat:1.3006, lng:103.8561, lastSeen:"1m ago"  },
-  { id:"4",  status:"Live", name:"TP1", type:"Normal", ip:"192.168.0.104", lat:1.3528, lng:103.9440, lastSeen:"5m ago"  },
-  { id:"5",  status:"Off",  name:"JE2", type:"Normal", ip:"192.168.0.105", lat:1.3329, lng:103.7436, lastSeen:"1h ago"  },
-  { id:"6",  status:"Live", name:"CA3", type:"Normal", ip:"192.168.0.106", lat:1.2895, lng:103.8500, lastSeen:"3m ago"  },
-  { id:"7",  status:"Live", name:"SG1", type:"Normal", ip:"192.168.0.107", lat:1.3050, lng:103.8320, lastSeen:"7m ago"  },
-  { id:"8",  status:"Off",  name:"CQ2", type:"Normal", ip:"192.168.0.108", lat:1.3554, lng:103.8679, lastSeen:"45m ago" },
-  { id:"9",  status:"Live", name:"BS1", type:"Normal", ip:"192.168.0.109", lat:1.3195, lng:103.8410, lastSeen:"2m ago"  },
-  { id:"10", status:"Off",  name:"WD3", type:"Normal", ip:"192.168.0.110", lat:1.3717, lng:103.8927, lastSeen:"2h ago"  },
-  { id:"11", status:"Off",  name:"AK1", type:"Normal", ip:"192.168.0.111", lat:1.3691, lng:103.8454, lastSeen:"30m ago" },
-  { id:"12", status:"Off",  name:"BD2", type:"Normal", ip:"192.168.0.112", lat:1.3250, lng:103.9291, lastSeen:"3h ago"  },
-  { id:"13", status:"Live", name:"HB4", type:"Normal", ip:"192.168.0.113", lat:1.3108, lng:103.8715, lastSeen:"1m ago"  },
-  { id:"14", status:"Live", name:"KL1", type:"Normal", ip:"192.168.0.114", lat:1.3088, lng:103.8648, lastSeen:"4m ago"  },
-  { id:"15", status:"Live", name:"PY2", type:"Normal", ip:"192.168.0.115", lat:1.3343, lng:103.8565, lastSeen:"6m ago"  },
-  { id:"16", status:"Live", name:"SE3", type:"Normal", ip:"192.168.0.116", lat:1.3202, lng:103.8649, lastSeen:"9m ago"  },
-  { id:"17", status:"Live", name:"YC1", type:"Normal", ip:"192.168.0.117", lat:1.3380, lng:103.8840, lastSeen:"2m ago"  },
-  { id:"18", status:"Live", name:"CB2", type:"Normal", ip:"192.168.0.118", lat:1.3158, lng:103.8920, lastSeen:"3m ago"  },
-  { id:"19", status:"Live", name:"TQ1", type:"Normal", ip:"192.168.0.119", lat:1.3020, lng:103.9090, lastSeen:"11m ago" },
-  // Bulk-generated to simulate a full ~1,000-camera deployment (System tab stats/table, dot
-  // pagination, Live Monitoring "All Cameras" view, etc. at real-world scale) — deterministic,
-  // not Math.random, so server/client renders match. Kept separate from the 19 curated devices
-  // above (some of which — e.g. "KL1" — are referenced by id/name elsewhere in the app).
-  ...Array.from({ length: 981 }, (_, i) => {
-    const n = i + 20;
-    const live = seededRandom(n * 7.31) > 0.08; // ~92% uptime, typical for a mature deployment
-    const lat = 1.20 + seededRandom(n * 3.17) * 0.27;   // Singapore's rough lat span
-    const lng = 103.62 + seededRandom(n * 5.89) * 0.47; // Singapore's rough lng span
-    const minutesAgoVal = live
-      ? Math.floor(seededRandom(n * 2.11) * 15) + 1
-      : Math.floor(seededRandom(n * 9.73) * 180) + 15;
-    return {
-      id: String(n),
-      status: (live ? "Live" : "Off") as DeviceStatus,
-      name: `CAM-${String(n).padStart(4, "0")}`,
-      type: "Normal",
-      ip: `192.168.${1 + (n >> 8)}.${n % 256}`,
-      lat: Math.round(lat * 10000) / 10000,
-      lng: Math.round(lng * 10000) / 10000,
-      lastSeen: live ? `${minutesAgoVal}m ago` : minutesAgoVal >= 60 ? `${Math.floor(minutesAgoVal / 60)}h ago` : `${minutesAgoVal}m ago`,
-    };
-  }),
-];
+/**
+ * The device list used to live here: 19 curated rows plus 981 bulk-generated ones, standing in for
+ * a ~1,000-camera deployment.
+ *
+ * Deleted 2026-09-10. The camera register in the store is the only population now — Portal writes
+ * it, the app's System tab, map and availability all read it, and lib/api/dashboard.ts projects it
+ * into this Device shape. Three different camera counts used to be on screen at once (59 register,
+ * 1,040 register-plus-filler, 1,029 simulation pool), each labelled as the site's; and the padded
+ * rows existed in no register, so the offline ones among them named nothing anybody could fix.
+ */
 
-// Counts below are DERIVED from liveEvents/devices (the one raw source each), not separately
-// hardcoded — this is what keeps "Events today" here, the Data tab's list length, and RedFace
-// associate counts all reporting the same number for the same underlying data. `availability` used
-// to be a hardcoded 19 sitting right next to linkedCams/offlineCams counts that implied ~92% —
-// three contradictory numbers in one glance. Deriving it from the same `devices` array those counts
-// come from keeps all three consistent.
+// Counts below are DERIVED from liveEvents (the one raw source), not separately hardcoded — this
+// is what keeps "Events today" here, the Data tab's list length and RedFace associate counts all
+// reporting the same number for the same underlying data.
 const eventsTodayCount = liveEvents.length;
 const watchlistMatchCount = liveEvents.filter((e) => e.type === "VIP").length;
 const trackingCount = liveEvents.filter((e) => e.type === "Tracking").length;
-const liveDeviceCount = devices.filter((d) => d.status === "Live").length;
 
 // delta/deltaPct/down are all compared against the same time yesterday.
 export const dashboardStats = {
   vipTargets: 12,
-  aiRunning: 42,
-  aiStopped: 34,
+  // `aiRunning: 42` / `aiStopped: 34` used to sit here, read only by the app header. They named
+  // something that does not exist — no camera in this product carries per-camera AI state — and
+  // the two figures summed to 76, which matched neither the camera list nor the device list. They
+  // were the camera run state all along, which `linkedCams`/`offlineCams` below already hold, so
+  // the header reads those instead of a second pair that could disagree with them.
   watchlistMatch:  { count: watchlistMatchCount, delta: 4,  deltaPct: 1.5, down: true },
   tracking:        { count: trackingCount,       delta: 4,  deltaPct: 1.5, down: true },
   eventsToday:     { count: eventsTodayCount,    delta: 3,  deltaPct: 2.1, down: false },
-  linkedCams:      { count: 48,  delta: 2,  deltaPct: 0.8, down: false },
-  offlineCams:     { count: 48,  delta: 4,  deltaPct: 1.5, down: true },
-  availability: Math.round((liveDeviceCount / devices.length) * 1000) / 10,
+  // count is overwritten by getDashboardStats() from the actual device list — the 48/48 that used
+  // to be typed here disagreed with the list it sat beside. Only the deltas are still seeded:
+  // they compare against the same time yesterday, and nothing in the mock holds yesterday.
+  //
+  // Kept rather than removed, decided 2026-09-09. Portal's Overview trend cards were deleted for
+  // exactly this reason, so this looks like the opposite call and is not: those cards were ONLY a
+  // trend, so a seeded one left the panel saying nothing true. Here the trend hangs under a count
+  // that is now real, and it holds the place the backend's daily series will fill. Do not delete
+  // these to match Portal — the difference is deliberate.
+  linkedCams:      { count: 0,  delta: 2,  deltaPct: 0.8, down: false },
+  offlineCams:     { count: 0,  delta: 4,  deltaPct: 1.5, down: true },
+  // Overwritten by getDashboardStats() from the camera register, the same list the counts above
+  // come from. Zero here rather than a seeded percentage: a figure typed in beside counts it
+  // cannot be derived from is how this file ended up with three contradictory numbers before.
+  availability: 0,
   currentDate: "2026-07-02",
   currentTime: "16:32:15",
   location: "Singapore",

@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Headset, LogOut, User } from "lucide-react";
-import { useLanguage } from "@/lib/i18n";
+import { usePortalLanguage } from "@/lib/i18n";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { BORDER, SupportContactModal } from "./PortalShared";
+import { SUPPORT_CONTACT } from "@/lib/vcaStore";
 
 const T = {
-  en: { toApp: "Go to app", myPage: "My page", support: "Contact support" },
-  ko: { toApp: "앱으로 이동", myPage: "마이페이지", support: "고객 지원" },
+  en: { toApp: "Go to app", settings: "Settings", support: "Contact support" },
+  ko: { toApp: "앱으로 이동", settings: "설정", support: "고객 지원" },
 } as const;
 
 const MENU_ITEM: React.CSSProperties = {
@@ -27,13 +28,13 @@ const MENU_ITEM: React.CSSProperties = {
  * It collects three things that were each their own permanent control up there: "Exit to App", the
  * language switcher and "Contact support". None of them is a per-screen action, and the app puts
  * the matching door (Navbar's avatar → Portal) in its own account menu, so the two directions were
- * built differently for no reason. Language went further, into Portal's My page, because it is a
+ * built differently for no reason. Language went further, into Portal's Settings, because it is a
  * preference rather than an action.
  *
  * The top bar is on every Portal screen, including the ones with no sidebar (an empty team, the
  * project wizard) — which is why this can be the only home for the way out.
  */
-export default function PortalAccountMenu({ admin, appAccess, onMyPage }: {
+export default function PortalAccountMenu({ admin, appAccess, onSettings }: {
   admin: { name: string; email: string };
   /**
    * Whether this account has the monitoring app. False hides the way out — a Portal-only account
@@ -41,13 +42,15 @@ export default function PortalAccountMenu({ admin, appAccess, onMyPage }: {
    * use, and the item would be the console advertising a locked door.
    */
   appAccess: boolean;
-  onMyPage: () => void;
+  onSettings: () => void;
 }) {
-  const [lang] = useLanguage();
+  const [lang] = usePortalLanguage();
   const t = T[lang];
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
+  // An address is the minimum a desk needs to exist; the phone and the hours are optional on it.
+  const hasSupportDesk = !!SUPPORT_CONTACT.email;
   const ref = useRef<HTMLDivElement>(null);
   useEscapeKey(() => setOpen(false), open);
   // mousedown, not click, so a press that lands on another control both closes this and reaches it.
@@ -96,12 +99,19 @@ export default function PortalAccountMenu({ admin, appAccess, onMyPage }: {
               <p style={{ fontSize: "11px", color: "var(--gray-500)", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{admin.email}</p>
             </div>
             <div style={{ height: "1px", backgroundColor: "var(--line)", margin: "0 4px 6px" }} />
-            <button className="portal-navmenu-item" onClick={() => { setOpen(false); onMyPage(); }} style={MENU_ITEM}>
-              <User size={14} strokeWidth={2.4} color="var(--gray-500)" /> {t.myPage}
+            <button className="portal-navmenu-item" onClick={() => { setOpen(false); onSettings(); }} style={MENU_ITEM}>
+              <User size={14} strokeWidth={2.4} color="var(--gray-500)" /> {t.settings}
             </button>
-            <button className="portal-navmenu-item" onClick={() => { setOpen(false); setSupportOpen(true); }} style={MENU_ITEM}>
-              <Headset size={14} strokeWidth={2.4} color="var(--gray-500)" /> {t.support}
-            </button>
+            {/* Only when there is a desk to reach. An installation whose supplier handles support
+                through the account manager has no help line, and an item that opens a sheet with
+                one address and two blanks is the console offering a door it cannot open. The
+                licence page names the account manager either way, which is the path that always
+                exists. */}
+            {hasSupportDesk && (
+              <button className="portal-navmenu-item" onClick={() => { setOpen(false); setSupportOpen(true); }} style={MENU_ITEM}>
+                <Headset size={14} strokeWidth={2.4} color="var(--gray-500)" /> {t.support}
+              </button>
+            )}
             {appAccess && (
               <button className="portal-navmenu-item" onClick={() => { setOpen(false); router.push("/"); }} style={MENU_ITEM}>
                 <LogOut size={14} strokeWidth={2.4} color="var(--gray-500)" /> {t.toApp}

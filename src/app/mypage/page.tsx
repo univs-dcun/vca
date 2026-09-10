@@ -7,8 +7,8 @@ import {
   DISTRICT_ALERT_THRESHOLD_KEY, DISTRICT_MODERATE_THRESHOLD_KEY,
   DEFAULT_DISTRICT_ALERT_THRESHOLD, DEFAULT_DISTRICT_MODERATE_THRESHOLD,
 } from "@/lib/mockData";
-import { SIGNED_IN_USER } from "@/lib/vcaStore";
-import { LockFieldIcon, EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
+import { canEnterPortal, canUseAppNow, currentPortalUser, SIGNED_IN_USER, useVcaStore } from "@/lib/vcaStore";
+import { EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { isPasswordFormatValid, PASSWORD_RULE_TEXT } from "@/lib/password";
 import { useLanguage } from "@/lib/i18n";
@@ -55,7 +55,8 @@ const T = {
     onlyThisDevice: "Only this device",
     activeNow: "Active now",
     systemPreferences: "System preferences",
-    interfaceLanguage: "Interface language",
+    interfaceLanguage: "App interface language",
+    interfaceLanguageNote: "The monitoring app only. Portal keeps its own, set from Settings there.",
     thresholdLevels: "Alert levels",
     thresholdSummary: (alert: number, moderate: number) => `Alert ${alert} · Moderate ${moderate}`,
   },
@@ -97,7 +98,8 @@ const T = {
     onlyThisDevice: "이 기기뿐입니다",
     activeNow: "지금 접속 중",
     systemPreferences: "시스템 환경설정",
-    interfaceLanguage: "화면 언어",
+    interfaceLanguage: "앱 화면 언어",
+    interfaceLanguageNote: "모니터링 앱에만 적용됩니다. 포털은 별도이고, 포털의 설정에서 정합니다.",
     thresholdLevels: "경보 단계",
     thresholdSummary: (alert: number, moderate: number) => `경보 ${alert} · 주의 ${moderate}`,
   },
@@ -378,8 +380,7 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   <label style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.26px" }}>{t.currentPassword}</label>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "44px", padding: "8px", border: fieldBorder(focusedField === "current"), borderRadius: "8px" }}>
-                    <LockFieldIcon />
+                  <div style={{ display: "flex", alignItems: "center", height: "48px", padding: "0 18px", border: fieldBorder(focusedField === "current"), borderRadius: "8px" }}>
                     <input
                       type={showCurrent ? "text" : "password"}
                       value={currentPassword}
@@ -389,7 +390,7 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
                       onKeyDown={e => { if (e.key === "Enter") handleVerifyCurrent(); }}
                       placeholder="••••••••"
                       autoFocus
-                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
+                      style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
                     />
                     <button onClick={() => setShowCurrent(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                       {showCurrent ? <EyeIcon /> : <EyeOffIcon />}
@@ -401,7 +402,7 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
                   onClick={handleVerifyCurrent}
                   disabled={!canVerifyCurrent}
                   style={{
-                    height: "44px", width: "100%", border: "none", borderRadius: "8px",
+                    height: "48px", width: "100%", border: "none", borderRadius: "8px",
                     backgroundColor: canVerifyCurrent ? "var(--primary-400)" : "var(--gray-100)",
                     color: canVerifyCurrent ? "white" : "var(--gray-400)",
                     fontSize: "14px", fontWeight: 800, letterSpacing: "-0.28px",
@@ -416,8 +417,7 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   <label style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.26px" }}>{t.newPassword}</label>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "44px", padding: "8px", border: fieldBorder(focusedField === "new"), borderRadius: "8px" }}>
-                    <LockFieldIcon />
+                  <div style={{ display: "flex", alignItems: "center", height: "48px", padding: "0 18px", border: fieldBorder(focusedField === "new"), borderRadius: "8px" }}>
                     <input
                       type={showNew ? "text" : "password"}
                       value={newPassword}
@@ -426,7 +426,7 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
                       onBlur={() => setFocusedField(null)}
                       placeholder="••••••••"
                       autoFocus
-                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
+                      style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
                     />
                     <button onClick={() => setShowNew(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                       {showNew ? <EyeIcon /> : <EyeOffIcon />}
@@ -436,8 +436,7 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   <label style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-600)", letterSpacing: "-0.26px" }}>{t.confirmPassword}</label>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "44px", padding: "8px", border: fieldBorder(focusedField === "confirm"), borderRadius: "8px" }}>
-                    <LockFieldIcon />
+                  <div style={{ display: "flex", alignItems: "center", height: "48px", padding: "0 18px", border: fieldBorder(focusedField === "confirm"), borderRadius: "8px" }}>
                     <input
                       type={showConfirm ? "text" : "password"}
                       value={confirmPassword}
@@ -445,7 +444,7 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
                       onFocus={() => setFocusedField("confirm")}
                       onBlur={() => setFocusedField(null)}
                       placeholder="••••••••"
-                      style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
+                      style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-700)", letterSpacing: "-0.35px" }}
                     />
                     <button onClick={() => setShowConfirm(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                       {showConfirm ? <EyeIcon /> : <EyeOffIcon />}
@@ -472,7 +471,7 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
                   onClick={handleSubmit}
                   disabled={!canSubmit}
                   style={{
-                    height: "44px", width: "100%", border: "none", borderRadius: "8px",
+                    height: "48px", width: "100%", border: "none", borderRadius: "8px",
                     backgroundColor: canSubmit ? "var(--primary-400)" : "var(--gray-100)",
                     color: canSubmit ? "white" : "var(--gray-400)",
                     fontSize: "14px", fontWeight: 800, letterSpacing: "-0.28px",
@@ -563,6 +562,16 @@ function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { in
 
 export default function MyPage() {
   const router = useRouter();
+  // This page draws the app's own header, four tabs included, so it is behind the app's door like
+  // the app is. It had no guard: an account with no app access saw the header, pressed a tab and
+  // was bounced back from "/" — the door was one screen further in than it looked.
+  const me = useVcaStore(s => currentPortalUser(s.portalUsers));
+  const locked = !!me && !canUseAppNow(me);
+  const canGoToPortal = !!me && canEnterPortal(me.permission);
+  useEffect(() => {
+    if (!locked) return;
+    router.replace(canGoToPortal ? "/portal" : "/login");
+  }, [locked, canGoToPortal, router]);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordJustChanged, setPasswordJustChanged] = useState(false);
   const [showThresholdModal, setShowThresholdModal] = useState(false);
@@ -600,6 +609,9 @@ export default function MyPage() {
     localStorage.setItem(DISTRICT_ALERT_THRESHOLD_KEY, String(alert));
     localStorage.setItem(DISTRICT_MODERATE_THRESHOLD_KEY, String(moderate));
   };
+
+  // Draw nothing while the redirect above is on its way — see ClientLayout for the same rule.
+  if (locked) return null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
@@ -720,6 +732,12 @@ export default function MyPage() {
                         interface still recognises. */}
                     <DropdownBtn value={lang} options={LANGUAGE_OPTIONS} onSelect={setLang} />
                   </div>
+                  {/* The two halves keep separate choices, so each says which one it is setting —
+                      a bare "Interface language" in two places reads as one setting that does not
+                      stick. Mirrors Portal's own note. */}
+                  <p style={{ margin: 0, fontSize: "11px", fontWeight: 600, color: "var(--gray-400)", lineHeight: 1.6 }}>
+                    {t.interfaceLanguageNote}
+                  </p>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "var(--gray-200)", width: "100%" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>

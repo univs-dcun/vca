@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Search, Crown } from "lucide-react";
-import { Device, DeviceStatus, FilterType, SidebarTab, LiveEvent, TrackingHop, FACE_PHOTOS, getFacePhoto, formatTimeAgo, nearestDistrict } from "@/lib/mockData";
-import { useVcaStore, vcaEventsToLiveEvents, todaysDetectionHits } from "@/lib/vcaStore";
+import { Device, DeviceStatus, FilterType, SidebarTab, LiveEvent, TrackingHop, getFacePhoto, formatTimeAgo, nearestDistrict } from "@/lib/mockData";
+import {
+  useVcaStore, vcaEventsToLiveEvents, todaysDetectionHits,
+  useActiveProjectId, useProjectEvents, useProjectPersons, useProjectCameras,
+} from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useApiData } from "@/hooks/useApiData";
 import { getDashboardStats, getDevices, getDistricts } from "@/lib/api/dashboard";
@@ -211,10 +214,18 @@ function LocationPinIcon({ color = "var(--gray-700)" }: { color?: string }) {
   );
 }
 
-function AvatarStack() {
+/**
+ * The faces of up to three people actually on this site's watchlist.
+ *
+ * It used to draw three photos from a stock pool with no connection to the registry at all, so a
+ * site with nobody enrolled showed three faces beside the number 0. A face is not decoration:
+ * anyone reading it takes it for somebody who is being watched here.
+ */
+function AvatarStack({ faces }: { faces: string[] }) {
+  if (faces.length === 0) return null;
   return (
     <div style={{ display:"flex", alignItems:"center" }}>
-      {FACE_PHOTOS.slice(0,3).map((url, i) => (
+      {faces.slice(0, 3).map((url, i) => (
         <div key={i} style={{ marginLeft: i === 0 ? 0 : -10, zIndex: 3 - i, width:24, height:24, borderRadius:"50%", border:"1px solid white", overflow:"hidden", flexShrink:0 }}>
           <img src={url} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} alt="" />
         </div>
@@ -286,12 +297,13 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
 // half-circle). The previous version drew 3 fixed decorative paths that never changed shape
 // regardless of `pct` — the gauge looked identical whether availability was 19% or 90%, which is
 // why it always read as "not filling in."
-function AvailabilityDonut({ pct, size = 92 }: { pct: number; size?: number }) {
+function AvailabilityDonut({ pct, size = 92, hasCameras }: { pct: number; size?: number; hasCameras: boolean }) {
   const height = size * (40 / 92);
   // Neutral gray by default; only shift to a semantic signal color when availability is
   // genuinely low (matches the red/green convention already used elsewhere in this file for
-  // LIVE/OUT status).
-  const ringColor = pct < 50 ? "var(--danger-400)" : "var(--gray-400)";
+  // LIVE/OUT status). A site with no cameras registered is not a site at 0% — nothing is down
+  // there, there is nothing there — so it reads as a dash in gray rather than an alarm.
+  const ringColor = hasCameras && pct < 50 ? "var(--danger-400)" : "var(--gray-400)";
   const cx = 46, cy = 40, r = 34, strokeWidth = 10;
   const sweep = 180 * (Math.max(0, Math.min(100, pct)) / 100);
   const trackPath = describeArc(cx, cy, r, 270, 450);
@@ -301,7 +313,7 @@ function AvailabilityDonut({ pct, size = 92 }: { pct: number; size?: number }) {
       <svg width={size} height={height} viewBox="0 0 92 40" fill="none">
         <path d={trackPath} stroke={ringColor} strokeOpacity={0.15} strokeWidth={strokeWidth} strokeLinecap="round" fill="none"/>
         {fillPath && <path d={fillPath} stroke={ringColor} strokeWidth={strokeWidth} strokeLinecap="round" fill="none"/>}
-        <text x="46" y="33" textAnchor="middle" fontSize="13" fontWeight="800" fill={ringColor} fontFamily="SUIT, sans-serif">{pct}%</text>
+        <text x="46" y="33" textAnchor="middle" fontSize="13" fontWeight="800" fill={ringColor} fontFamily="SUIT, sans-serif">{hasCameras ? `${pct}%` : "—"}</text>
       </svg>
     </div>
   );
@@ -384,13 +396,20 @@ function StatusBadge({ status }: { status: string }) {
 // Same counts EventsSummary/CollapsedSidebar both show — derived from vcaStore so a live
 // detection added anywhere (e.g. the Data tab's monitoring feed) updates them everywhere.
 function useEventCounts() {
-  const storeEvents = useVcaStore(s => s.events);
+  // Scoped to the site the header is pointed at — see useProjectEvents. These counts sit above a
+  // list of that site's detections, so counting every site's would make the number disagree with
+  // the rows under it.
+  const storeEvents = useProjectEvents();
   const detections = vcaEventsToLiveEvents(storeEvents);
-  const persons = useVcaStore(s => s.persons);
+  const persons = useProjectPersons();
   // delta/deltaPct/down (yesterday-comparison fields) come from the future-backend stub rather
   // than importing the mock object directly — see lib/api/dashboard.ts. Falls back to a flat
   // (no change) delta for the brief window before the fetch resolves.
-  const { data: dashboardStats } = useApiData(() => getDashboardStats(), []);
+  // Scoped like everything else here. Only the delta fields are read from it, but an unscoped
+  // request is an unscoped request — the one call in this file that was still asking about every
+  // site at once.
+  const countsProjectId = useActiveProjectId();
+  const { data: dashboardStats } = useApiData(() => getDashboardStats(countsProjectId), [countsProjectId]);
   const flatDelta = { delta: 0, deltaPct: 0, down: false };
   // "Today's detections" opens the Dashboard's detection-activity chart (see EventsSummary's
   // onToggleDetectionChart below), so it needs to count the same way that chart does — every
@@ -410,7 +429,7 @@ function useEventCounts() {
 function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPersonSelect: (name: string) => void }) {
   const [lang] = useLanguage();
   const t = T[lang];
-  const persons = useVcaStore(s => s.persons).filter(p => p.type === "VIP");
+  const persons = useProjectPersons().filter(p => p.type === "VIP");
   useEscapeKey(onClose);
 
   return createPortal(
@@ -467,13 +486,19 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
   const [lang] = useLanguage();
   const t = T[lang];
   const { vipTargets, watchlistMatch, eventsToday } = useEventCounts();
+  // Real enrolled faces from this site's registry — see AvatarStack. A person imported from a CSV
+  // has no photo, so they contribute no avatar rather than a placeholder one.
+  const vipFaces = useProjectPersons()
+    .filter(p => p.type === "VIP" && !!p.photoUrl)
+    .slice(0, 3)
+    .map(p => p.photoUrl!);
   const [showVipList, setShowVipList] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isDetectionsHovered, setIsDetectionsHovered] = useState(false);
   return (
     <div style={{ padding:"16px 20px 0", flexShrink:0 }}>
       <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"16px" }}>
-        <AvatarStack />
+        <AvatarStack faces={vipFaces} />
         <button
           onClick={() => setShowVipList(true)}
           onMouseEnter={() => setIsHovered(true)}
@@ -523,7 +548,7 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
 function LocationPickerModal({ current, onSelect, onClose }: { current: string | null; onSelect: (location: string | null) => void; onClose: () => void }) {
   const [lang] = useLanguage();
   const t = T[lang];
-  const cameras = useVcaStore(s => s.cameras);
+  const cameras = useProjectCameras();
   const locations = Array.from(new Set(cameras.map(c => c.name)));
   useEscapeKey(onClose);
   return createPortal(
@@ -780,6 +805,12 @@ function VipEventRow({ event, isSelected, photoUrl, onClick, locationFilter }: {
   return (
     <div
       onClick={onClick}
+      // Selecting a detection moves the map to it — the main thing this panel is for, and it was
+      // a div with an onClick, so a keyboard could not reach it at all.
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      aria-pressed={isSelected}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{
@@ -838,7 +869,7 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
   const [page, setPage] = useState(1);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const FILTERS: FilterType[] = ["All", "VIP Detection", "Tracking"];
-  const liveEvents = vcaEventsToLiveEvents(useVcaStore(s => s.events));
+  const liveEvents = vcaEventsToLiveEvents(useProjectEvents());
   // Routed through the future-backend stub instead of importing the mock array directly — see
   // lib/api/dashboard.ts. Falls back to the raw district id (still a valid, if less pretty,
   // label) for the brief pre-fetch window.
@@ -1008,12 +1039,20 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
   const [page,   setPage]   = useState(1);
   const [localPinnedId, setLocalPinnedId] = useState<string | null>(null);
   const pinnedDeviceId = externalPinnedId ?? localPinnedId;
-  const cameras = useVcaStore(s => s.cameras);
+  // This site's cameras only — both for the zone names below and as the fetch dependency, so
+  // switching sites in the header re-reads the list instead of leaving the previous site's rows.
+  const activeProjectId = useActiveProjectId();
+  const cameras = useProjectCameras();
   // Routed through the future-backend stubs instead of importing the mock array/object directly
   // — see lib/api/dashboard.ts. `devices` defaults to [] for the brief pre-fetch window, which
   // the existing "No devices found." empty state already covers.
-  const { data: dashboardStats } = useApiData(() => getDashboardStats(), []);
-  const { data: devicesData, error: devicesError, refetch: refetchDevices } = useApiData(() => getDevices(), []);
+  //
+  // `cameras` is a dependency because the device list is now projected from it: register or
+  // remove a camera in Portal, or take one offline, and this list re-reads instead of showing
+  // what was true when the tab first mounted. A real backend needs the same trigger — a poll or
+  // a socket signal — so the dependency is not mock scaffolding.
+  const { data: dashboardStats } = useApiData(() => getDashboardStats(activeProjectId), [cameras, activeProjectId]);
+  const { data: devicesData, error: devicesError, refetch: refetchDevices } = useApiData(() => getDevices(activeProjectId), [cameras, activeProjectId]);
   const devices = devicesData ?? [];
   const linkedCams = dashboardStats?.linkedCams ?? { count: 0, delta: 0, deltaPct: 0, down: false };
   const offlineCams = dashboardStats?.offlineCams ?? { count: 0, delta: 0, deltaPct: 0, down: false };
@@ -1081,7 +1120,7 @@ function SystemTab({ onPinDevice, pinnedDeviceId: externalPinnedId }: SystemTabP
               <AvailabilityIcon />
               <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-600)" }}>{t.availability}</span>
             </div>
-            <AvailabilityDonut pct={availability} />
+            <AvailabilityDonut pct={availability} hasCameras={devices.length > 0} />
           </div>
         </div>
       </div>
@@ -1236,13 +1275,18 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
   const t = T[lang];
   const [tab, setTab] = usePersistedSidebarTab();
   const [hovered, setHovered] = useState<{ id: string; top: number; item: LiveEvent | Device } | null>(null);
-  const { vipTargets, watchlistMatch, tracking } = useEventCounts();
-  const { data: dashboardStats } = useApiData(() => getDashboardStats(), []);
+  const { vipTargets, eventsToday } = useEventCounts();
+  const activeProjectId = useActiveProjectId();
+  const { data: dashboardStats } = useApiData(() => getDashboardStats(activeProjectId), [activeProjectId]);
   const availability = dashboardStats?.availability ?? 0;
-  const todayTotal = watchlistMatch.count + tracking.count;
-  const liveEvents = vcaEventsToLiveEvents(useVcaStore(s => s.events));
-  const cameras = useVcaStore(s => s.cameras);
-  const { data: devicesData } = useApiData(() => getDevices(), []);
+  // The same figure the expanded sidebar shows under "today's detections", not a sum of the two
+  // row counts. Those count ROWS, with no date filter at all — a Tracking row is one row and
+  // several hits, and yesterday's rows are still in the list — so the collapsed badge and the
+  // expanded one disagreed under the same word.
+  const todayTotal = eventsToday.count;
+  const liveEvents = vcaEventsToLiveEvents(useProjectEvents());
+  const cameras = useProjectCameras();
+  const { data: devicesData } = useApiData(() => getDevices(activeProjectId), [cameras, activeProjectId]);
   const devices = devicesData ?? [];
 
   const handleMouseEnter = (e: React.MouseEvent, id: string, item: LiveEvent | Device) => {
@@ -1291,14 +1335,20 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
           </>
         ) : (
           // Same neutral-by-default rule as AvailabilityDonut: gray unless availability is
-          // genuinely low (<50%), not a fixed purple regardless of value.
-          <div style={{
-            width:"38px", height:"38px", borderRadius:"10px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-            backgroundColor: availability < 50 ? "var(--danger-100)" : "var(--gray-100)", border: availability < 50 ? "1px solid var(--danger-200)" : "1px solid var(--gray-200)",
-          }}>
-            <span style={{ fontSize:"10px", fontWeight:600, color: availability < 50 ? "var(--danger-400)" : "var(--gray-400)", letterSpacing:"0.3px" }}>{t.avail}</span>
-            <span style={{ fontSize:"13px", fontWeight:700, color: availability < 50 ? "var(--danger-400)" : "var(--gray-400)", lineHeight:1 }}>{availability}%</span>
-          </div>
+          // genuinely low (<50%), not a fixed purple regardless of value — and no alarm at a site
+          // with no cameras registered, where nothing is down because nothing is there.
+          (() => {
+            const low = cameras.length > 0 && availability < 50;
+            return (
+              <div style={{
+                width:"38px", height:"38px", borderRadius:"10px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                backgroundColor: low ? "var(--danger-100)" : "var(--gray-100)", border: low ? "1px solid var(--danger-200)" : "1px solid var(--gray-200)",
+              }}>
+                <span style={{ fontSize:"10px", fontWeight:600, color: low ? "var(--danger-400)" : "var(--gray-400)", letterSpacing:"0.3px" }}>{t.avail}</span>
+                <span style={{ fontSize:"13px", fontWeight:700, color: low ? "var(--danger-400)" : "var(--gray-400)", lineHeight:1 }}>{cameras.length > 0 ? `${availability}%` : "—"}</span>
+              </div>
+            );
+          })()
         )}
       </div>
 
@@ -1411,6 +1461,15 @@ export default function Sidebar({ onEventSelect, selectedEventId, locationFilter
   const t = T[lang];
   const [activeTab, setActiveTab] = usePersistedSidebarTab();
   const [personFilter, setPersonFilter] = useState<string | null>(null);
+  // A person filter names one person at one site. Left standing through a site switch it filtered
+  // this site's list by a name that is not in it, so the list read as empty with a purple chip on
+  // top explaining why in terms of somebody who was never here.
+  const sidebarProjectId = useActiveProjectId();
+  const firstSidebarSiteRef = useRef(true);
+  useEffect(() => {
+    if (firstSidebarSiteRef.current) { firstSidebarSiteRef.current = false; return; }
+    setPersonFilter(null);
+  }, [sidebarProjectId]);
 
   if (isCollapsed) return (
     <CollapsedSidebar

@@ -3,12 +3,11 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpRight, ChevronRight, FileText, LogOut, Plus, Settings, Shield, UserPlus, Users, Video, X, Zap } from "lucide-react";
-import { canEnterApp, canEnterPortal, currentPortalUser, SIGNED_IN_USER, useVcaStore, projectChannelLimit, UNLIMITED_EXPIRY, dailyDetections, unstableCameras } from "@/lib/vcaStore";
-import { PROJECT_TIME_ZONE, formatElapsed, sgtClockMinutes, sgtDateKey, zoneHour } from "@/lib/time";
-import { BORDER, CARD_BORDER, PANEL_SHADOW, CARD_GAP, OVERVIEW_PANEL_MAX_HEIGHT, TABLE_HEADER_COLOR, MetricCard } from "./PortalShared";
+import { canEnterApp, canEnterPortal, canManageAccess, currentPortalUser, resolveMailConfig, SIGNED_IN_USER, useVcaStore, projectChannelLimit, UNLIMITED_EXPIRY, dailyDetections, unstableCameras } from "@/lib/vcaStore";
+import { PROJECT_TIME_ZONE, clockMinutesIn, dateKeyIn, formatElapsed, zoneHour } from "@/lib/time";
+import { BORDER, CARD_BORDER, PANEL_SHADOW, CARD_GAP, OVERVIEW_PANEL_MAX_HEIGHT, TABLE_HEADER_COLOR, MetricCard, usePortalEditAccess } from "./PortalShared";
 import { useToast } from "../Toast";
 import { usePortalLanguage } from "@/lib/i18n";
-import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { getAuthConfig } from "@/lib/authConfig";
 import type { DetailTab } from "./ProjectSidebar";
 import ProjectCamerasTab from "./ProjectCamerasTab";
@@ -16,6 +15,9 @@ import ProjectVipTab from "./ProjectVipTab";
 import ProjectLicenseTab from "./ProjectLicenseTab";
 import ProjectServerTab from "./ProjectServerTab";
 import PortalUsersPage from "./PortalUsersPage";
+import ProjectActivityTab from "./ProjectActivityTab";
+import ProjectSearchLogTab from "./ProjectSearchLogTab";
+import { getComplianceConfig } from "@/lib/complianceConfig";
 
 const T = {
   en: {
@@ -33,6 +35,7 @@ const T = {
     statAvailable: (n: number) => `${n} available`,
     statOnlineShare: (pct: number) => `${pct}% online`,
     approveAccessRequests: "Approve Access Requests",
+    reasonNotOwner: "Only an owner can change access.",
     cameraConnectivity: "Camera connectivity",
     connectedSuffix: (n: number) => `/ ${n} connected`,
     online: "Online",
@@ -42,6 +45,7 @@ const T = {
     channelsUsedSuffix: (limit: number | string) => `/ ${limit} channels used`,
     vipTargetDb: "VIP / target database",
     todayBadge: (n: number) => `${n} today`,
+    yesterdayCompare: (n: number) => `${n} yesterday`,
     portalAccounts: "Portal accounts",
     accountsSuffix: "active admins",
     recordsSuffix: "records",
@@ -57,13 +61,18 @@ const T = {
     attnInvites: (n: number) => `${n} invitation${n === 1 ? "" : "s"} not yet accepted`,
     attnRequests: (n: number) => `${n} access request${n === 1 ? "" : "s"} waiting`,
     attnOverLimit: (used: number, limit: number) => `Over the licensed channels — ${used} of ${limit}`,
+    attnListingsExpired: (n: number) => `${n} watchlist listing(s) have expired`,
+    attnListingsExpiring: (n: number) => `${n} watchlist listing(s) expire within 30 days`,
     attnExpiringSoon: (d: number) => `License expires in ${d} day${d === 1 ? "" : "s"}`,
     attnExpired: "License has expired",
+    attnNoMail: "No mail server configured — nobody can be invited",
+    attnSoleOwner: "Only one owner account — no way back if it is lost",
+    attnNoTimeZone: "Time zone never set — every date on this project is a guess",
     attnNoCameras: "No source connected yet",
     attnNoVips: "No one registered in the watchlist yet",
     accessSplitLabel: (portal: number, app: number) => `Portal: ${portal} | App: ${app}`,
     cameraStatusTitle: "Camera status",
-    seeAllActivity: (n: number) => `All ${n} entries`,
+    seeAllActivity: (n: number) => `All ${n} ${n === 1 ? "entry" : "entries"}`,
     activityLogTitle: "Admin activity",
     activityLogEmpty: "Nothing has been changed in this project yet.",
     close: "Close",
@@ -79,9 +88,10 @@ const T = {
     cameraStatusSubtitle: "Streaming status for cameras connected to this project",
     colCamera: "Camera",
     colZone: "Zone",
-    colStreamUrl: "Stream URL",
+    colStreamUrl: "Address",
     colStatus: "Status",
     noCamerasYet: "No cameras connected to this project yet.",
+    noCamerasYetHint: "A row appears here for each source registered on Input Sources, with the last time it answered.",
     openCamera: "Open this camera",
     trendTitle: "Detections",
     trendPeriod: "last 7 days",
@@ -93,10 +103,12 @@ const T = {
       `VIP ${vip} · Vehicle ${vehicle} · Unknown ${unknown.toLocaleString("en-US")}`,
     dropNth: (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"} time this week`,
     dropNoteFull: (n: number) => `Dropped its stream ${n} times in the last 7 days`,
-    viewAllCameras: (n: number) => `View all ${n} cameras`,
+    viewAllCameras: (n: number) => `View all ${n} camera${n === 1 ? "" : "s"}`,
+    viewAllVips: "Open the registry",
     recentVipsTitle: "Recently Registered VIPs",
     registerVipLink: "Register VIP",
     noVipsYet: "No VIPs registered yet.",
+    noVipsYetHint: "The three most recent registrations appear here as they are added to the watchlist.",
     accessRequestsTitle: "Access Requests",
     approve: "Approve",
     dismiss: "Dismiss",
@@ -122,6 +134,7 @@ const T = {
     statAvailable: (n: number) => `${n} 여유`,
     statOnlineShare: (pct: number) => `온라인 ${pct}%`,
     approveAccessRequests: "접근 요청 승인",
+    reasonNotOwner: "접근 권한 변경은 최고관리자만 할 수 있습니다.",
     cameraConnectivity: "카메라 연결 상태",
     connectedSuffix: (n: number) => `/ ${n}대 연결됨`,
     online: "온라인",
@@ -131,6 +144,7 @@ const T = {
     channelsUsedSuffix: (limit: number | string) => `/ ${limit}채널 사용`,
     vipTargetDb: "VIP / 관심대상 DB",
     todayBadge: (n: number) => `오늘 ${n}건`,
+    yesterdayCompare: (n: number) => `어제 ${n}건`,
     portalAccounts: "포털 계정",
     accountsSuffix: "명",
     recordsSuffix: "건",
@@ -146,8 +160,13 @@ const T = {
     attnInvites: (n: number) => `수락하지 않은 초대 ${n}건`,
     attnRequests: (n: number) => `대기 중인 접근 요청 ${n}건`,
     attnOverLimit: (used: number, limit: number) => `라이선스 채널 초과 — ${limit}개 중 ${used}개`,
+    attnListingsExpired: (n: number) => `등록 만료된 관심인물 ${n}명`,
+    attnListingsExpiring: (n: number) => `30일 내 등록 만료 ${n}명`,
     attnExpiringSoon: (d: number) => `라이선스 ${d}일 후 만료`,
     attnExpired: "라이선스가 만료되었습니다",
+    attnNoMail: "메일 서버가 설정되지 않았습니다 — 아무도 초대할 수 없습니다",
+    attnSoleOwner: "최고관리자가 한 명뿐입니다 — 잃으면 돌아올 길이 없습니다",
+    attnNoTimeZone: "시간대를 정한 적이 없습니다 — 이 프로젝트의 모든 날짜가 추측입니다",
     attnNoCameras: "연결된 소스가 없습니다",
     attnNoVips: "등록된 관심대상이 없습니다",
     accessSplitLabel: (portal: number, app: number) => `포털: ${portal} | 앱: ${app}`,
@@ -163,9 +182,10 @@ const T = {
     cameraStatusSubtitle: "이 프로젝트에 연결된 카메라의 스트리밍 상태",
     colCamera: "카메라",
     colZone: "구역",
-    colStreamUrl: "스트림 URL",
+    colStreamUrl: "주소",
     colStatus: "상태",
     noCamerasYet: "이 프로젝트에 연결된 카메라가 아직 없습니다.",
+    noCamerasYetHint: "입력 소스에서 등록한 소스가 한 줄씩 올라오고, 마지막으로 응답한 시각이 함께 표시됩니다.",
     openCamera: "이 카메라 열기",
     trendTitle: "탐지",
     trendPeriod: "지난 7일",
@@ -178,9 +198,11 @@ const T = {
     dropNth: (n: number) => `이번 주 ${n}번째`,
     dropNoteFull: (n: number) => `지난 7일 동안 ${n}회 끊겼습니다`,
     viewAllCameras: (n: number) => `카메라 ${n}대 전체 보기`,
+    viewAllVips: "명단 열기",
     recentVipsTitle: "최근 등록된 VIP",
     registerVipLink: "VIP 등록",
     noVipsYet: "등록된 VIP가 아직 없습니다.",
+    noVipsYetHint: "명단에 사람이 추가되면 최근 세 건이 여기에 올라옵니다.",
     accessRequestsTitle: "접근 요청",
     approve: "승인",
     dismiss: "거절",
@@ -239,12 +261,16 @@ function ArrowUpIcon() { return <ArrowUp size={10} strokeWidth={3.36} />; }
  * registeredAt is two shapes: a bare day on the seeded rows and a full instant on anything
  * registered through the app. Rather than guess a time for the first kind, this prints what is
  * actually stored.
+ *
+ * The zone comes in from the caller rather than off siteTimeZone(): that resolver answers for
+ * whichever project the monitoring app has selected, which is a different selection from the one
+ * this console is showing.
  */
-function registeredStamp(value: string): string {
+function registeredStamp(value: string, zone: string): string {
   const day = value.slice(0, 10);
   if (!value.includes("T")) return day;
   const at = new Date(value);
-  return Number.isNaN(at.getTime()) ? day : `${day} ${sgtClockMinutes(at)}`;
+  return Number.isNaN(at.getTime()) ? day : `${day} ${clockMinutesIn(at, zone)}`;
 }
 
 /**
@@ -255,58 +281,6 @@ function registeredStamp(value: string): string {
  * the card edge four shouted words lined up in a column and were the loudest thing in the row.
  * Caps also did nothing to the Korean strings, so the two languages were drawing different chips.
  */
-/**
- * Every admin action on this project, newest first.
- *
- * Same rows as the Overview's panel, in a box that scrolls — deliberately not a richer screen with
- * filters and a date range, because the data behind it is a list held in memory. Building a search
- * over something that does not survive a reload would be building the wrong thing convincingly.
- */
-function ActivityLogModal({ entries, nowMs, t, onClose }: {
-  entries: { id: string; message: string; actor: string; at: string }[];
-  nowMs: number | null;
-  t: { activityLogTitle: string; activityLogEmpty: string; close: string; agoSuffix: string };
-  onClose: () => void;
-}) {
-  useEscapeKey(onClose, true);
-  return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
-    >
-      <div style={{
-        backgroundColor: "white", border: BORDER, borderRadius: "16px", width: "560px", maxWidth: "100%",
-        maxHeight: "78vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(14,22,42,0.18)", overflow: "hidden",
-      }}>
-        <div style={{ padding: "16px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexShrink: 0 }}>
-          <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.activityLogTitle}</p>
-          <button className="portal-icon-btn" onClick={onClose} title={t.close}
-            style={{ display: "flex", border: "none", background: "none", padding: "4px", cursor: "pointer", color: "var(--gray-400)" }}>
-            <X size={16} strokeWidth={2.2} />
-          </button>
-        </div>
-        {entries.length === 0 ? (
-          <p style={{ fontSize: "13px", color: "var(--gray-400)", padding: "28px 20px", textAlign: "center" }}>{t.activityLogEmpty}</p>
-        ) : (
-          <div style={{ overflowY: "auto", padding: "8px 20px 16px" }}>
-            {entries.map((a, i) => (
-              <div key={a.id} style={{ display: "flex", gap: "10px", paddingTop: i === 0 ? "12px" : "10px" }}>
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--gray-300)", marginTop: "6px", flexShrink: 0 }} />
-                <div style={{ minWidth: 0, paddingBottom: "10px", borderBottom: i === entries.length - 1 ? "none" : BORDER, flex: 1 }}>
-                  <p style={{ fontSize: "12px", lineHeight: "18px", fontWeight: 600, color: "var(--gray-900)" }}>{a.message}</p>
-                  <p style={{ fontSize: "12px", color: "var(--gray-400)", marginTop: "2px" }}>
-                    {a.actor}{nowMs !== null ? ` · ${formatElapsed(nowMs - new Date(a.at).getTime())}${t.agoSuffix}` : ""}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function StateChip({ text, color }: { text: string; color: string }) {
   return (
     <span style={{ fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", color }}>
@@ -437,6 +411,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
   const projects = useVcaStore(s => s.projects);
   const cameras = useVcaStore(s => s.cameras);
   const portalUsers = useVcaStore(s => s.portalUsers);
+  const teams = useVcaStore(s => s.teams);
   const persons = useVcaStore(s => s.persons);
   const personGroups = useVcaStore(s => s.personGroups);
   const auditLog = useVcaStore(s => s.auditLog);
@@ -452,6 +427,9 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
   // that greets you by name cannot greet you by nobody.
   const admin = meUser ?? SIGNED_IN_USER;
   const appAccess = !meUser || canEnterApp(meUser);
+  // The Overview writes nothing; what it has are shortcuts into screens that do. Above the
+  // "project not found" guard with every other hook — see the note below it.
+  const { mayEdit } = usePortalEditAccess();
   const [lang] = usePortalLanguage();
   const t = T[lang];
 
@@ -486,7 +464,6 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
   const [hoverDay, setHoverDay] = useState<number | null>(null);
   /** The full admin-activity log, in a modal — Portal has no page for it (see the note on the
    *  panel's footer). */
-  const [showActivityLog, setShowActivityLog] = useState(false);
   // Session-only, deliberately: see the banner's note. Nothing here is resolved by closing it.
   const [attentionDismissed, setAttentionDismissed] = useState(false);
   // Read after mount, not during render: the clock is not a pure input, and license expiry is
@@ -557,13 +534,24 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
    * and who among the accounts is not yet in.
    */
 
+  // This project's entries, plus the institution's own policy changes — a watchlist category or a
+  // search purpose governs every site the team runs, so filing it under one of them would misplace
+  // it and filtering it out would hide it everywhere. See AuditEvent.teamId.
   const projectActivity = auditLog
-    .filter(a => a.projectId === projectId)
+    .filter(a => a.projectId === projectId || (a.teamId !== undefined && a.teamId === project?.teamId))
     .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   // Five on the card, all of them in the modal behind it.
   const recentActivity = projectActivity.slice(0, 5);
 
-  const projectPersons = persons.filter(p => p.projectId === projectId);
+  /*
+   * The people this site is watching for.
+   *
+   * Released rows are excluded here rather than filtered at each figure below, because every
+   * number on this screen means the same thing — "the VIP metric", "+4 this month", "3 high
+   * priority" — and one of them counting differently is worse than all of them being wrong.
+   * The registry keeps the released rows; see ProjectVipTab's Released tab.
+   */
+  const projectPersons = persons.filter(p => p.projectId === projectId && !p.releasedAt);
   const projectGroupCount = personGroups.filter(g => g.projectId === projectId).length;
   // The project's own zone, falling back to the deployment's while projects predate the field.
   const projectZone = project.timeZone ?? PROJECT_TIME_ZONE;
@@ -578,13 +566,32 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
   const recentVips = [...projectPersons].sort((a, b) => b.registeredAt.localeCompare(a.registeredAt)).slice(0, 3);
   // nowMs-derived, not new Date() directly, so this stays in sync with the same not-yet-mounted ->
   // mounted correction every other clock-reading value on this page already follows.
-  const todayStr = nowMs !== null ? new Date(nowMs).toISOString().slice(0, 10) : null;
+  // The project's calendar day, not UTC's. toISOString() cuts the day at 00:00 UTC, and the
+  // heading eight hundred lines below prints longDate(nowMs, lang, projectZone) — so on a Seoul
+  // site, between midnight and 09:00, this card read "0 today / 1 yesterday" under a heading
+  // naming the day the registration actually happened on. Settings promises the opposite in so
+  // many words: "Days, hours and 'today' on every screen are counted in this zone."
+  const todayStr = nowMs !== null ? dateKeyIn(new Date(nowMs), projectZone) : null;
   // startsWith, not equality: registeredAt is a date on the seeded rows and a full ISO instant on
   // anything registered through Portal now, and "===" quietly counted none of the new ones.
   const todayVipCount = todayStr ? projectPersons.filter(p => p.registeredAt.startsWith(todayStr)).length : 0;
+  /**
+   * Yesterday's registrations, so today's figure has something to be read against.
+   *
+   * "2 today" on its own says the list was touched and nothing else — a normal Tuesday and the day
+   * a delegation of forty arrives look the same until there is a second number beside it.
+   *
+   * HANDOFF NOTE: counted here from Person.registeredAt, which works only while the client holds
+   * the whole registry. The moment that list is paged the two counts have to come from the server
+   * — one endpoint, two numbers, the same shape registry-health's two detection windows take:
+   *   GET /projects/:id/vip-intake?days=2 → [{ daysAgo, registered }]
+   * Days are the project's calendar days, like every other bucket.
+   */
+  const yesterdayStr = nowMs !== null ? dateKeyIn(new Date(nowMs - 86_400_000), projectZone) : null;
+  const yesterdayVipCount = yesterdayStr ? projectPersons.filter(p => p.registeredAt.startsWith(yesterdayStr)).length : 0;
   // Registered since the first of this month — the chip's "+12 this month". Same startsWith rule
   // the today figure uses: registeredAt is a date on seeded rows and an instant on new ones.
-  const monthStr = nowMs !== null ? new Date(nowMs).toISOString().slice(0, 7) : null;
+  const monthStr = nowMs !== null ? dateKeyIn(new Date(nowMs), projectZone).slice(0, 7) : null;
   const newVipsThisMonth = monthStr ? projectPersons.filter(p => p.registeredAt.startsWith(monthStr)).length : 0;
   const onlineShare = projectCameras.length ? Math.round((onlineCount / projectCameras.length) * 100) : 0;
 
@@ -633,23 +640,94 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
    * interrupt you says nothing when it has nothing, and "all clear" in a permanent box is the kind
    * of line this screen has been shedding.
    */
+  /**
+   * Watchlist listings that have run out, and ones about to.
+   *
+   * Released rows are excluded from both — somebody has already dealt with those, and the point of
+   * these two figures is the ones nobody has.
+   *
+   * Thirty days for "soon", matching the licence page's own urgent threshold: a listing is cleared
+   * by a person who has to check something (has the child been found, was the suspect arrested),
+   * and that is a conversation, not a click.
+   */
+  const activeListings = projectPersons.filter(p => !p.releasedAt && p.expiresAt);
+  const expiredListings = nowMs === null ? 0
+    : activeListings.filter(p => Date.parse(p.expiresAt!) < nowMs).length;
+  const expiringListings = nowMs === null ? 0
+    : activeListings.filter(p => {
+      const left = Date.parse(p.expiresAt!) - nowMs;
+      return left >= 0 && left <= 30 * 86_400_000;
+    }).length;
+
+  /*
+   * The four ways a handover can be left unfinished.
+   *
+   * A different kind of thing from the rest of this strip. "8 cameras offline" is operations —
+   * it happens, somebody calls an electrician, and next week it happens again. These four mean
+   * the deployment was never completed, each is silent, and each is fixed once and then never
+   * appears again.
+   *
+   * Not a separate card: three of the four are the same shape the strip already carries ("no
+   * source connected yet", "nobody registered yet"), and a second box saying the same kind of
+   * thing somewhere else is a second place to look.
+   */
+  /*
+   * No "N cameras not assigned to a server" here, and it was tried.
+   *
+   * Input Sources carried exactly that until 2026-09-09 and it was removed with a reason on
+   * the record: 56 of 60 is not a fault report, it is a description of the deployment.
+   * Camera.serverId is optional and mostly unset, so a count of the unset ones measures how
+   * the seed was written rather than whether anything is being processed — and phrasing it as
+   * "nothing is processing them" would be asserting something no code here establishes.
+   *
+   * It comes back when a camera genuinely cannot be processed without an assignment, and the
+   * thing to surface then is that fact, not the empty field.
+   */
+  const mailMissing = resolveMailConfig(projectId, projects, teams).mailDomain === null;
+  // Scoped to the team, which is the boundary an owner grants across. Counted through
+  // canManageAccess for the same reason the Users page's banner is — the power at stake is
+  // granting, and that is the owner's.
+  const teamOwners = portalUsers.filter(u =>
+    u.teamId === project.teamId && u.status === "active" && canManageAccess(u.permission)).length;
+  // Never set, not "set to the value that happens to be the default" — Singapore is a correct
+  // answer for a Singapore site, and flagging that would be a false alarm on a finished install.
+  const timeZoneUnset = project.timeZone === undefined;
+
   const attentionItems: { key: string; text: string; color: string; tab: DetailTab }[] = [
     ...(offlineCount > 0 ? [{ key: "offline", text: t.attnOffline(offlineCount), color: "var(--danger-400)", tab: "cameras" as DetailTab }] : []),
     ...(errorCount > 0 ? [{ key: "cameraError", text: t.attnCameraError(errorCount), color: "var(--danger-400)", tab: "cameras" as DetailTab }] : []),
     ...(licenseExpired ? [{ key: "expired", text: t.attnExpired, color: "var(--danger-400)", tab: "license" as DetailTab }] : []),
     ...(overChannelLimit && channelLimit ? [{ key: "overlimit", text: t.attnOverLimit(projectCameras.length, channelLimit), color: "var(--danger-400)", tab: "license" as DetailTab }] : []),
+    // A listing that has run out is a person the console believes it released. It sits with the
+    // broken things, not with the reminders: the difference between an expired listing and a
+    // released one is that nobody has looked at the expired one.
+    ...(expiredListings > 0 ? [{ key: "listingsExpired", text: t.attnListingsExpired(expiredListings), color: "var(--danger-400)", tab: "vip" as DetailTab }] : []),
     ...(licenseExpiringSoon && daysUntilExpiry !== null ? [{ key: "expiring", text: t.attnExpiringSoon(daysUntilExpiry), color: "var(--warning-500)", tab: "license" as DetailTab }] : []),
     ...(showAccessRequests && projectAccessRequests.length > 0 ? [{ key: "requests", text: t.attnRequests(projectAccessRequests.length), color: "var(--warning-500)", tab: "users" as DetailTab }] : []),
+    // Expiring, in the reminders. The whole point of putting it here is that nobody remembers a
+    // date — a watchlist cleared by human memory is a watchlist that never gets cleared.
+    ...(expiringListings > 0 ? [{ key: "listingsExpiring", text: t.attnListingsExpiring(expiringListings), color: "var(--warning-500)", tab: "vip" as DetailTab }] : []),
     ...(pendingInviteCount > 0 ? [{ key: "invites", text: t.attnInvites(pendingInviteCount), color: "var(--warning-500)", tab: "users" as DetailTab }] : []),
+    // Setup, between the reminders and the "nothing here yet" notes. Amber rather than grey:
+    // each of these means a capability is dead, not that a list is empty.
+    ...(mailMissing ? [{ key: "nomail", text: t.attnNoMail, color: "var(--warning-500)", tab: "server" as DetailTab }] : []),
+    ...(teamOwners <= 1 ? [{ key: "soleowner", text: t.attnSoleOwner, color: "var(--warning-500)", tab: "users" as DetailTab }] : []),
+    ...(timeZoneUnset ? [{ key: "notz", text: t.attnNoTimeZone, color: "var(--warning-500)", tab: "overview" as DetailTab }] : []),
     ...(projectCameras.length === 0 ? [{ key: "nocams", text: t.attnNoCameras, color: "var(--gray-400)", tab: "cameras" as DetailTab }] : []),
     ...(projectPersons.length === 0 ? [{ key: "novips", text: t.attnNoVips, color: "var(--gray-400)", tab: "vip" as DetailTab }] : []),
   ];
 
+  // Owner only, the same as the copy of this panel on Users & Permissions. An approval mints an
+  // account with a working sign-in link; the Overview being a summary screen does not make the
+  // button on it a lighter action.
+  const manageAccess = meUser ? canManageAccess(meUser.permission) : true;
   const approveRequest = (id: string, name: string) => {
+    if (!manageAccess) return;
     approveAccessRequests([id]);
     showToast({ variant: "success", title: t.toastApprovedTitle, desc: name });
   };
   const dismissRequest = (id: string, name: string) => {
+    if (!manageAccess) return;
     dismissAccessRequest(id);
     showToast({ variant: "warning", title: t.toastDismissedTitle, desc: name });
   };
@@ -695,18 +773,26 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                   is in the rail, in the crumb and in the sentence's own place — three times before
                   this line said it a fourth. */}
             </div>
-            {/* 12px, not 13. They sit beside a 26px greeting, and at 13 they were the loudest
-                thing in a header whose point is the sentence. 12 is what every other toolbar
-                button in Portal is already set at, so it is not a new size either. */}
+            {/* 12px, and borderless for the secondaries — the same treatment as every other
+                toolbar in Portal. This row was written before that pass and the comment describing
+                it was written before the code: they sat at 10px inside boxes, so the count badge
+                on the last one was larger than the words beside it. What makes these recede is
+                losing the box, not shrinking the type. */}
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <button onClick={() => onTabChange("cameras")}
-                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-900)", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}>
-                <PlusIcon /> {t.addCamera}
-              </button>
-              <button onClick={() => onTabChange("vip")}
-                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-900)", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}>
-                <UserPlusIcon /> {t.registerVip}
-              </button>
+              {/* Both only navigate — but they name an action, and sending a read-only account
+                  to a tab where that action is greyed out is a longer way of saying no. Hidden
+                  rather than disabled: this is a shortcut row, and a shortcut you cannot take is
+                  not worth the space. */}
+              {mayEdit && (<>
+                <button className="portal-btn-quiet" onClick={() => onTabChange("cameras")}
+                  style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 12px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: "var(--gray-600)", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  <PlusIcon /> {t.addCamera}
+                </button>
+                <button className="portal-btn-quiet" onClick={() => onTabChange("vip")}
+                  style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 12px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: "var(--gray-600)", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  <UserPlusIcon /> {t.registerVip}
+                </button>
+              </>)}
               {/*
                 The visible way out, next to the other things you might do from this screen.
                 The header pill is gone (the door lives in the sidebar's account menu now, matching
@@ -726,16 +812,16 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                 <button
                   className="portal-btn-primary"
                   onClick={() => router.push("/")}
-                  style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "8px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}>
+                  style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "8px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                   <ExitIcon /> {t.goToApp}
                 </button>
               )}
               {showAccessRequests && (
-                <button onClick={() => onTabChange("users")}
-                  style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-900)", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}>
+                <button className="portal-btn-quiet" onClick={() => onTabChange("users")}
+                  style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 12px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: "var(--gray-600)", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                   <ShieldIcon /> {t.approveAccessRequests}
                   {projectAccessRequests.length > 0 && (
-                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--warning-500)", backgroundColor: "var(--warning-200)", padding: "2px 8px", borderRadius: "999px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--warning-500)", backgroundColor: "var(--warning-200)", padding: "2px 7px", borderRadius: "999px" }}>
                       {projectAccessRequests.length}
                     </span>
                   )}
@@ -953,10 +1039,16 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                   {/* A suffix, not a second figure — the card states the size of the registry and
                       the tab behind it breaks priorities down. */}
                   <span style={{ fontSize: "12px", color: "var(--gray-400)" }}>{t.recordsSuffix}</span>
-                  {todayVipCount > 0 && (
-                    <span style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "12px", fontWeight: 600, color: "var(--success-400)" }}>
-                      <ArrowUpIcon /> {t.todayBadge(todayVipCount)}
-                    </span>
+                  {(todayVipCount > 0 || yesterdayVipCount > 0) && (
+                    <>
+                      <span style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "12px", fontWeight: 600, color: todayVipCount > 0 ? "var(--success-400)" : "var(--gray-400)" }}>
+                        {todayVipCount > 0 && <ArrowUpIcon />} {t.todayBadge(todayVipCount)}
+                      </span>
+                      {/* Grey, and no arrow: yesterday is the ruler, not a second event. */}
+                      <span style={{ fontSize: "11px", color: "var(--gray-400)", whiteSpace: "nowrap" }}>
+                        {t.yesterdayCompare(yesterdayVipCount)}
+                      </span>
+                    </>
                   )}
                 </span>
               </div>
@@ -1192,7 +1284,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                     >
                       <span style={{ display: "block", fontWeight: 700 }}>
                         {d.total.toLocaleString("en-US")}
-                        {at !== null && <span style={{ fontWeight: 400, color: "var(--gray-400)" }}>{`  ${sgtDateKey(at)}`}</span>}
+                        {at !== null && <span style={{ fontWeight: 400, color: "var(--gray-400)" }}>{`  ${dateKeyIn(at, projectZone)}`}</span>}
                       </span>
                       <span style={{ display: "block", color: "var(--gray-300)" }}>
                         {t.detectionSplit(d.vip, d.vehicle, d.unknown)}
@@ -1215,7 +1307,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                 row keeps its height either way so nothing jumps. A weekday on its own is only
                 readable while you still know what today is, so the date leads and the weekday
                 follows it — the date identifies the column, the weekday only colours it in. The
-                date comes off the Singapore calendar key rather than a locale format, so both
+                date comes off the project's own calendar key rather than a locale format, so both
                 languages read the same digits.
               */}
               <div style={{ position: "relative", height: "14px", marginTop: "8px" }}>
@@ -1231,9 +1323,9 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                         fontSize: "10px", color: "var(--gray-400)", whiteSpace: "nowrap",
                       }}
                     >
-                      {at === null ? "" : `${sgtDateKey(at).slice(5).replace("-", ".")} ${d.daysAgo === 0
+                      {at === null ? "" : `${dateKeyIn(at, projectZone).slice(5).replace("-", ".")} ${d.daysAgo === 0
                         ? t.todaySoFar
-                        : new Intl.DateTimeFormat(lang === "ko" ? "ko-KR" : "en-GB", { timeZone: "Asia/Singapore", weekday: "short" }).format(at)}`}
+                        : new Intl.DateTimeFormat(lang === "ko" ? "ko-KR" : "en-GB", { timeZone: projectZone, weekday: "short" }).format(at)}`}
                     </span>
                   );
                 })}
@@ -1288,9 +1380,10 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                   />
                 </div>
                 {visibleCameraRows.length === 0 ? (
-                  <p style={{ fontSize: "13px", color: "var(--gray-400)", padding: "24px", textAlign: "center" }}>
-                    {t.noCamerasYet}
-                  </p>
+                  <div style={{ padding: "24px", textAlign: "center" }}>
+                    <p style={{ fontSize: "13px", color: "var(--gray-400)" }}>{t.noCamerasYet}</p>
+                    <p style={{ fontSize: "12px", color: "var(--gray-300)", lineHeight: 1.55, marginTop: "4px" }}>{t.noCamerasYetHint}</p>
+                  </div>
                 ) : (
                   <>
                     <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr 1.2fr 0.8fr 1.2fr 44px", padding: "8px 20px", backgroundColor: "var(--gray-50)", borderBottom: BORDER, gap: "8px", flexShrink: 0 }}>
@@ -1332,7 +1425,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                               is a fact about that camera, so it belongs on that camera's line. */}
                           <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{c.name}</p>
                           <span style={{ fontSize: "12px", color: "var(--gray-500)" }}>{c.zone}</span>
-                          <span style={{ fontSize: "12px", color: "var(--gray-400)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.rtspUrl}</span>
+                          <span style={{ fontSize: "12px", color: "var(--gray-400)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.ip}</span>
                           {/* Only once the clock is known — before mount there is no "ago" to
                               compute, and a guessed one would be corrected a frame later. */}
                           <span style={{ fontSize: "12px", color: "var(--gray-500)", whiteSpace: "nowrap" }}>
@@ -1411,11 +1504,19 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                   <SectionHead
                     title={t.recentVipsTitle}
                     subtitle={t.vipsSubtitle}
-                    action={{ icon: <Plus size={15} strokeWidth={2.4} />, label: t.registerVipLink, onClick: () => onTabChange("vip") }}
+                    // "Register a VIP" for whoever can; "Open the registry" for whoever cannot.
+                    action={mayEdit
+                      ? { icon: <Plus size={15} strokeWidth={2.4} />, label: t.registerVipLink, onClick: () => onTabChange("vip") }
+                      : { icon: <ArrowUpRight size={15} strokeWidth={2.4} />, label: t.viewAllVips, onClick: () => onTabChange("vip") }}
                   />
                 </div>
                 {recentVips.length === 0 ? (
-                  <p style={{ fontSize: "12px", color: "var(--gray-400)" }}>{t.noVipsYet}</p>
+                  <div>
+                    {/* An empty box says nothing about whether it is broken or just early.
+                        The second line says what will fill it, so the reader knows which. */}
+                    <p style={{ fontSize: "12px", color: "var(--gray-400)" }}>{t.noVipsYet}</p>
+                    <p style={{ fontSize: "12px", color: "var(--gray-300)", lineHeight: 1.55, marginTop: "4px" }}>{t.noVipsYetHint}</p>
+                  </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minHeight: 0, overflowY: "auto" }}>
                     {/* The whole row opens the registry, and the chevron says so. It was a card
@@ -1433,7 +1534,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                               printing a time nobody recorded. Formatted through Asia/Singapore
                               rather than the machine's own zone, so the server's first paint and
                               the browser's agree. */}
-                          <p style={{ fontSize: "12px", color: "var(--gray-400)" }}>{t.registeredOn(registeredStamp(p.registeredAt))}</p>
+                          <p style={{ fontSize: "12px", color: "var(--gray-400)" }}>{t.registeredOn(registeredStamp(p.registeredAt, projectZone))}</p>
                         </div>
                         <ChevronRight size={14} strokeWidth={2.4} color="var(--gray-400)" />
                       </button>
@@ -1466,12 +1567,13 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                         <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)" }}>{r.name}</p>
                         {r.reason && <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5 }}>&quot;{r.reason}&quot;</p>}
                         <div style={{ display: "flex", gap: "8px" }}>
-                          <button onClick={() => approveRequest(r.id, r.name)}
-                            style={{ flex: 1, padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--gray-900)", backgroundColor: "white", color: "var(--gray-900)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                          <button onClick={() => approveRequest(r.id, r.name)} disabled={!manageAccess} title={manageAccess ? undefined : t.reasonNotOwner}
+                            style={{ flex: 1, padding: "6px 10px", borderRadius: "8px", border: manageAccess ? "1px solid var(--gray-900)" : BORDER, backgroundColor: "white", color: manageAccess ? "var(--gray-900)" : "var(--gray-300)", fontSize: "12px", fontWeight: 700, cursor: manageAccess ? "pointer" : "not-allowed" }}>
                             {t.approve}
                           </button>
                           <button className="portal-btn-outline" onClick={() => dismissRequest(r.id, r.name)}
-                            style={{ flex: 1, padding: "6px 10px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                            disabled={!manageAccess} title={manageAccess ? undefined : t.reasonNotOwner}
+                            style={{ flex: 1, padding: "6px 10px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: manageAccess ? "var(--gray-600)" : "var(--gray-300)", fontSize: "12px", fontWeight: 700, cursor: manageAccess ? "pointer" : "not-allowed" }}>
                             {t.dismiss}
                           </button>
                         </div>
@@ -1492,7 +1594,10 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                   <SectionHead
                     title={t.recentAdminActivity}
                     subtitle={t.activitySubtitle}
-                    action={{ icon: <ArrowUpRight size={15} strokeWidth={2.4} />, label: t.seeAllActivity(projectActivity.length), onClick: () => setShowActivityLog(true) }}
+                    /* Opens the Activity log screen, not a modal. The modal listed everything
+                       with no date range, no actor filter, no search and no export — which is
+                       the whole of what the auditor role opens Portal for. */
+                    action={{ icon: <ArrowUpRight size={15} strokeWidth={2.4} />, label: t.seeAllActivity(projectActivity.length), onClick: () => onTabChange("activity") }}
                   />
                 </div>
                 {recentActivity.length === 0 ? (
@@ -1542,7 +1647,6 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
             smallest honest answer: the card shows five, this shows every one the session knows
             about, and when the server owns the log this becomes a page and the modal goes.
           */}
-          {showActivityLog && <ActivityLogModal entries={projectActivity} nowMs={nowMs} t={t} onClose={() => setShowActivityLog(false)} />}
 
         </>
       )}
@@ -1551,6 +1655,11 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
       {tab === "license" && <ProjectLicenseTab projectId={projectId} />}
       {tab === "server" && <ProjectServerTab projectId={projectId} />}
       {tab === "users" && <PortalUsersPage projectId={projectId} />}
+      {tab === "activity" && <ProjectActivityTab projectId={projectId} />}
+      {/* Gated as well as hidden from the rail: the tab lives in the URL, and a link to
+          ?tab=searchlog saved before the requirement was switched off should land somewhere
+          honest rather than on a screen the release does not have. */}
+      {tab === "searchlog" && getComplianceConfig().requireSearchPurpose && <ProjectSearchLogTab projectId={projectId} />}
     </div>
   );
 }

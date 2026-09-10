@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatTimeAgo, LiveEvent } from "@/lib/mockData";
-import { SIGNED_IN_USER, projectsVisibleInApp, useVcaStore, vcaEventsToLiveEvents } from "@/lib/vcaStore";
+import {
+  SIGNED_IN_USER, projectsVisibleInApp, resolveActiveProject, useVcaStore,
+  vcaEventsToLiveEvents, useActiveProjectId, useProjectEvents,
+} from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useApiData } from "@/hooks/useApiData";
 import { getDashboardStats } from "@/lib/api/dashboard";
+import { sgtClockTime, sgtDateKey } from "@/lib/time";
 import { useLanguage } from "@/lib/i18n";
 
 const BORDER = "1px solid var(--gray-200)";
@@ -32,8 +36,8 @@ export const TABS: { id: NavTab; label: { en: string; ko: string }; icon: string
 const T = {
   en: {
     goToDashboard: "Go to Dashboard",
-    running: (n: number | string) => `${n} running`,
-    stopped: (n: number | string) => `${n} stopped`,
+    running: (n: number | string) => `${n} ${n === 1 ? "camera" : "cameras"} running`,
+    stopped: (n: number | string) => `${n} ${n === 1 ? "camera" : "cameras"} stopped`,
     vipDetections: "VIP detections",
     noneInWindow: "No VIP detections in the last hour",
     notifWindow: "last hour",
@@ -49,7 +53,7 @@ const T = {
   },
   ko: {
     goToDashboard: "대시보드로 이동",
-    running: (n: number | string) => `분석 중 ${n}대`,
+    running: (n: number | string) => `구동 중 ${n}대`,
     stopped: (n: number | string) => `중지 ${n}대`,
     vipDetections: "VIP 검출",
     noneInWindow: "최근 1시간 동안 VIP 검출이 없습니다",
@@ -73,7 +77,6 @@ interface NavbarProps {
   onNotificationSelect?: (event: LiveEvent) => void;
   sidebarPosition?: "left" | "right";
   onSidebarPositionChange?: (position: "left" | "right") => void;
-  /** Opens the global command palette (also reachable via Cmd/Ctrl+K from anywhere). */
 }
 
 export default function Navbar({ activeTab: externalTab, onTabChange, onNotificationSelect, sidebarPosition, onSidebarPositionChange }: NavbarProps) {
@@ -93,7 +96,8 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
   // it, a real failed request would render "0 Running" / "0 Stopped" indistinguishable from a
   // genuinely-empty fleet — showing "—" instead makes a load failure visibly different from a
   // real zero.
-  const { data: dashboardStats, error: dashboardStatsError } = useApiData(() => getDashboardStats(), []);
+  const scopedProjectId = useActiveProjectId();
+  const { data: dashboardStats, error: dashboardStatsError } = useApiData(() => getDashboardStats(scopedProjectId), [scopedProjectId]);
   // Which site this wall is showing. Only the account's own projects are offered — a team's
   // cameras have no business on another team's screen — so a one-project account sees a plain
   // label with nothing to open.
@@ -102,13 +106,20 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
   const activeProjectId = useVcaStore(s => s.activeProjectId);
   const setActiveProjectId = useVcaStore(s => s.setActiveProjectId);
   const myProjects = projectsVisibleInApp(portalUsers, projects);
-  const activeProject = myProjects.find(p => p.id === activeProjectId) ?? myProjects[0] ?? null;
+  // Same resolution every scoped screen uses, so the name in the header and the data underneath
+  // can never point at different sites.
+  const activeProject = resolveActiveProject(activeProjectId, portalUsers, projects);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const canSwitchProject = myProjects.length > 1;
   useEscapeKey(() => setProjectMenuOpen(false), projectMenuOpen);
 
-  const aiRunning = dashboardStatsError ? "—" : dashboardStats?.aiRunning ?? 0;
-  const aiStopped = dashboardStatsError ? "—" : dashboardStats?.aiStopped ?? 0;
+  // The camera run state, and the same figures the Dashboard sidebar's SYSTEM panel shows under
+  // "연결된 카메라 / 중단된 카메라". This used to read `aiRunning`/`aiStopped` — a fixed 42 and 34
+  // that named per-camera AI state this product does not have, summed to 76, and matched neither
+  // the camera list nor the device list. One source now, so the header and the panel cannot
+  // disagree about how many cameras are up.
+  const camsRunning = dashboardStatsError ? "—" : dashboardStats?.linkedCams.count ?? 0;
+  const camsStopped = dashboardStatsError ? "—" : dashboardStats?.offlineCams.count ?? 0;
   const location = dashboardStats?.location ?? "Singapore";
 
   const [sgNow, setSgNow] = useState<Date | null>(null);
@@ -118,17 +129,22 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, []);
-  const sgDateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore", year: "numeric", month: "2-digit", day: "2-digit" });
-  const sgTimeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-  const currentDate = sgNow ? sgDateFmt.format(sgNow) : dashboardStats?.currentDate ?? "";
-  const currentTime = sgNow ? sgTimeFmt.format(sgNow) : dashboardStats?.currentTime ?? "";
+  // The site's own time zone, not a hardcoded Asia/Singapore. Everything else on the screen —
+  // "detections today", the hour buckets in the activity chart, every card timestamp — already
+  // reads the clock through the project's zone (see lib/time.ts), so a header pinned to Singapore
+  // put the wall clock twelve hours away from the numbers underneath it on a site set to another
+  // zone, with nothing on screen saying which one was the site's.
+  const currentDate = sgNow ? sgtDateKey(sgNow) : dashboardStats?.currentDate ?? "";
+  const currentTime = sgNow ? sgtClockTime(sgNow) : dashboardStats?.currentTime ?? "";
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
 
-  const events = useVcaStore(s => s.events);
+  // Scoped: a notification for a site the operator is not looking at is a notification they
+  // cannot act on, and clicking it would jump the map to another city.
+  const events = useProjectEvents();
   const lastReadNotifAt = useVcaStore(s => s.lastReadNotifAt);
   const markNotificationsRead = useVcaStore(s => s.markNotificationsRead);
   // Scoped to the last hour, and the footer says so. The store keeps events by COUNT (500), not by
@@ -200,7 +216,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
       .navbar-dropdown-item--danger:hover{background-color:var(--danger-100)}
       .navbar-dropdown-item--danger:hover::before{background-color:var(--danger-400)}
       .navbar-logo-btn{transition:opacity .15s}
-      @media (max-width: 1400px){ .navbar-ai-status{display:none} }
+      @media (max-width: 1400px){ .navbar-cam-status{display:none} }
       .navbar-logo-btn:hover{opacity:.8}
     `}</style>
     <nav style={{
@@ -290,10 +306,12 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
           </div>
         )}
 
-        {/* AI status — folded away under 1400px so the site name keeps its room. The same two
-            numbers are on the Dashboard, which is where someone goes when they want to act on
-            them; up here they are a glance, and a glance is what gets sacrificed first. */}
-        <div className="navbar-ai-status" style={{ display: "flex", alignItems: "center", gap: "20px", flexShrink: 0 }}>
+        {/* Camera run state — folded away under 1400px so the site name keeps its room. The same
+            two numbers are on the Dashboard sidebar's SYSTEM panel, which is where someone goes
+            when they want to act on them; up here they are a glance, and a glance is what gets
+            sacrificed first. Each number carries its meaning in its icon: the first one runs, the
+            second flickers out. */}
+        <div className="navbar-cam-status" style={{ display: "flex", alignItems: "center", gap: "20px", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           {/* Running icon */}
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{ flexShrink:0, animation:"run-icon 1.8s ease-in-out infinite" }}>
@@ -305,8 +323,8 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
           </svg>
           {/* Number only: the icon beside it already says which, and the words were costing the
               header the width the project name now needs. The word survives as a tooltip. */}
-          <span title={t.running(aiRunning)} style={{ fontWeight: 800, fontSize: "13px", color: "var(--gray-800)", letterSpacing: "-0.26px", lineHeight: "16px" }}>
-            {aiRunning}
+          <span title={t.running(camsRunning)} style={{ fontWeight: 800, fontSize: "13px", color: "var(--gray-800)", letterSpacing: "-0.26px", lineHeight: "16px" }}>
+            {camsRunning}
           </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -328,8 +346,8 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
               </clipPath>
             </defs>
           </svg>
-          <span title={t.stopped(aiStopped)} style={{ fontWeight: 800, fontSize: "13px", color: "var(--danger-400)", letterSpacing: "-0.26px", lineHeight: "16px" }}>
-            {aiStopped}
+          <span title={t.stopped(camsStopped)} style={{ fontWeight: 800, fontSize: "13px", color: "var(--danger-400)", letterSpacing: "-0.26px", lineHeight: "16px" }}>
+            {camsStopped}
           </span>
           </div>
         </div>

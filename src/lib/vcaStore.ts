@@ -1,6 +1,10 @@
+import { useEffect, useMemo, useState } from "react";
 import { create } from "zustand";
 import { liveEvents, getFacePhoto, DISTRICTS, type EventType, type LiveEvent, type TrackingHop } from "@/lib/mockData";
-import { isTodaySgt, recentSgtStamp, parseSgtStamp } from "@/lib/time";
+import {
+  isTodaySgt, recentSgtStamp, parseSgtStamp,
+  setSiteTimeZoneResolver, FALLBACK_TIME_ZONE,
+} from "@/lib/time";
 import { effectiveCodeStatus, generateRegistrationCode, type RosterEntry } from "@/lib/staffRoster";
 import { generateTemporaryPassword } from "@/lib/password";
 
@@ -91,7 +95,7 @@ export interface Project {
    * The zone this project's days and hours are counted in, e.g. "Asia/Singapore".
    *
    * A timezone belongs to a project, not to an account: a site sits in one country and its "today"
-   * is that country's, whoever is looking. Set from Portal (My page's project card for now — see
+   * is that country's, whoever is looking. Set from Portal (Settings' project card for now — see
    * the note there about where it should eventually live).
    *
    * Optional, and lib/time.ts still falls back to Singapore when it is absent — every seeded
@@ -142,19 +146,19 @@ export interface Project {
   regionSubcenterCount?: number;
 }
 
-// Matches existing app-wide terminology ("Re-ID Analysis" tab in DataPage, "License plate" search
-// in RedmapPage/DataPage) rather than abbreviations like "LPR" that don't appear anywhere else in
-// this codebase's UI copy.
-/**
- * The AI engines a camera can be assigned.
+/*
+ * There is no camera "source type" here, and there is no per-camera engine list either.
  *
- * Intrusion Detection was a third member until 2026-09-04 and is gone. It was a label with
- * nothing behind it: the form offered it, CameraStreamModal gave it a colour, and that was the
- * whole feature — EventType is "VIP" | "Tracking", so no intrusion event exists in the system, no
- * screen shows one, and no code read the tag. A checkbox that changes nothing is worse than a
- * missing one, because somebody ticks it and believes the site is watched for intruders.
+ * Both were carried over from the old console and both are gone (2026-09-09, backend reply C2/C4).
+ * The v1 contract covers plain CCTV only — AI cameras, meaning devices that run inference
+ * themselves, were dropped from the design on 2026-08-27 and come back as an additive field if
+ * they ever ship. So there is no inference-location split, no separate billing, and one channel
+ * pool: cameras used = channels used.
+ *
+ * What actually analyses a stream is a single site-wide analysis module that processes every
+ * provisioned camera. A camera is not routed to a server, which is why Camera.serverId below is
+ * infrastructure metadata and not a wiring decision.
  */
-export type CameraAiFeature = "Re-ID Analysis" | "License Plate Recognition";
 
 export interface Camera {
   id: string;
@@ -177,10 +181,6 @@ export interface Camera {
   thumbnail: string;
   lat: number;
   lng: number;
-  // Which AI analysis engines are mapped to this camera's stream — set from Portal's Camera
-  // Management screen. Optional so existing/seeded cameras (none of which have this configured)
-  // still type-check; an empty/missing list just means no engine is mapped yet.
-  aiFeatures?: CameraAiFeature[];
   // RTSP transport protocol, set from Portal's Add/Edit Camera form. Optional/cosmetic — nothing
   // downstream branches on this yet since there's no real stream to actually transport.
   protocol?: "TCP" | "UDP";
@@ -208,6 +208,9 @@ export interface Server {
   projectId: string;
   name: string;
   ip: string;
+  /** The real Update Server dialog asks for this next to the IP; nothing reaches a server without
+   *  it, so an address on its own was never enough to describe one. */
+  port?: number;
   type: ServerType;
   specification?: string;
   status: ServerStatus;
@@ -239,6 +242,169 @@ export interface VcaEvent {
 
 // Person = the VIP/watchlist registry. Portal owns registration/CRUD for this (see
 // PortalVipRegistryTab) — VCA's own screens only ever read it, never write to it.
+/**
+ * A watchlist category, defined by the institution rather than by us.
+ *
+ * WHY THIS IS NOT AN ENUM. Who buys this is not settled, and the words differ by customer: a police
+ * force keeps wanted persons, missing persons and persons of interest; a company keeps barred
+ * visitors and restricted counterparties. Fix the names in code and every new customer is a code
+ * change — and a translation-dictionary change on top, so the same list splits in two places.
+ *
+ * WHY THERE ARE NO DEFAULTS. Seeding "Wanted" would make it the standard: the first thing a
+ * customer who is not a police force does is delete it, and the second is wonder what else in here
+ * was written for somebody else. An empty list with a Create button is the honest starting state.
+ *
+ * NOT A PRIORITY. Person.priorityLabel stays exactly as it is — a category says what kind of case
+ * this is and a priority says how urgent, and among missing persons some are more urgent than
+ * others. Folding one into the other loses a distinction the operator has to make.
+ *
+ * OWNED BY THE TEAM, not the project. One institution's classification scheme is the institution's;
+ * scoping it per project would make the same person a different kind of case at each site.
+ *
+ * HANDOFF NOTE: the API request is a CRUD list under the team —
+ *   GET/POST /teams/:id/watchlist-categories, PATCH /watchlist-categories/:id
+ * Archive rather than delete, because registered people reference these by id.
+ */
+export interface WatchlistCategory {
+  id: string;
+  teamId: string;
+  /** What the institution calls it. Shown verbatim — never translated, because it is their word. */
+  label: string;
+  /**
+   * How long a registration under this category lasts by default, in days. Null means the category
+   * has no natural end (a permanently barred visitor), and the form then asks why rather than
+   * leaving the expiry silently empty.
+   */
+  defaultValidDays: number | null;
+  /** Whether a registration under this category must carry a written basis — a case number, an
+   *  official document reference. Some categories are self-evident; most are not. */
+  requiresBasis: boolean;
+  /** A design-token family name, not a hex value: the institution picks from the palette this
+   *  product already has, so a category cannot introduce a colour the rest of the console does not
+   *  use — or one that collides with the status colours. */
+  color: WatchlistCategoryColor;
+  /** Retired rather than deleted. People registered under it still point at this id, and a
+   *  category that vanishes would leave their rows naming nothing. */
+  archived: boolean;
+}
+
+/**
+ * Why someone is running a person search.
+ *
+ * Reading footage of identified people is the most invasive thing this product does, and the one
+ * an institution has to be able to answer for afterwards: who looked, when, and what for. The
+ * server records the call on its own — confirmed by the backend — but it cannot invent the
+ * purpose. Only the person at the screen knows that, so the screen has to ask.
+ *
+ * Institution-defined for the same reason watchlist categories are: a police control room and a
+ * corporate security desk do not share a vocabulary, and a list fixed in code becomes a list
+ * somebody works around.
+ */
+export interface SearchPurpose {
+  id: string;
+  teamId: string;
+  /** The institution's own word for it. Shown verbatim, never translated. */
+  label: string;
+  /** Whether choosing this purpose requires a written reference — a case number, a document id.
+   *  A routine check may need none; a search on someone's behalf usually does. */
+  requiresReference: boolean;
+  /** Retired rather than deleted, so records that name this purpose still resolve. */
+  archived: boolean;
+}
+
+/**
+ * The purpose in force for this sitting.
+ *
+ * Asked once on entering a search screen rather than per search. A dialog on every search gets
+ * whatever the operator can type fastest — the record then exists and means nothing. Asked once
+ * and left visible on screen, it reads as a standing declaration, and that visibility is most of
+ * what makes it work.
+ *
+ * HANDOFF NOTE: this belongs on the wire, not only here. Every person-search request must carry
+ * the purpose id, the reference and the note so the server writes them beside the call it is
+ * already logging. Kept in the store because there is no request to attach it to yet.
+ */
+/**
+ * One recorded look-up: who searched for whom, under what declared purpose.
+ *
+ * WHY IT IS NOT THE AUDIT LOG. auditLog answers "who changed the configuration"; this answers "who
+ * looked at a person". They have different readers, different retention and different volume — a
+ * control room produces these by the hundred and settings changes by the handful, and mixing them
+ * buries the ones somebody is meant to sample.
+ *
+ * THE LABEL IS A SNAPSHOT, not a lookup. A record has to stay readable after the purpose it names
+ * is renamed or retired, and an audit entry that resolves to nothing is worse than no entry — so
+ * the wording used at the time is copied onto the record and never updated. purposeId is kept
+ * beside it for filtering, not for display.
+ *
+ * HANDOFF NOTE: the server already logs that a search call happened; this is the half only the
+ * screen can supply. Two fields it cannot: `ip` — which desk the search came from, the one thing
+ * that separates two operators sharing a control-room account — and the authoritative timestamp.
+ * Both should come from the server on write rather than be trusted from the client.
+ */
+export interface SearchAccessRecord {
+  id: string;
+  projectId: string;
+  /** The institution, so an auditor can read across the sites it runs. */
+  teamId: string;
+  at: string;
+  /** The account that ran it. */
+  actor: string;
+  purposeId: string;
+  /** The purpose's wording at the time — see the note above. */
+  purposeLabel: string;
+  /** Case or document reference, when the purpose required one. */
+  reference?: string;
+  note?: string;
+  /** What was searched for, as the operator entered it. */
+  target: string;
+  /** Where it was run from — Re-ID, RedFace, RedMap. */
+  surface: string;
+  /** How many candidates came back. Zero is a result, not a missing value. */
+  resultCount?: number;
+  /** HANDOFF: set by the server, not the browser. */
+  ip?: string;
+}
+
+export interface SearchPurposeSelection {
+  purposeId: string;
+  /** Case or document reference, when the purpose requires one. */
+  reference?: string;
+  note?: string;
+  /** When it was declared — a sitting that started six hours ago is worth re-asking. */
+  at: string;
+}
+
+/** The palette a category may take. Names, not values — see WatchlistCategory.color. */
+/**
+ * The colours a watchlist category may be given.
+ *
+ * Three, not six, and the three missing ones are missing on purpose: danger, warning and
+ * success already mean something on the screen these chips appear on. warning-500 is what the
+ * registry-health strip uses for a real defect — "photo unreadable", a face no camera can
+ * match — so an amber chip beside it teaches the reader that a category IS a defect. danger is
+ * the destructive colour every confirmation in Portal uses, and success reads as resolved.
+ * A taxonomy is not a severity scale, and borrowing a severity ramp to draw one is how the two
+ * stop being tellable apart.
+ *
+ * Five, because two families were added for exactly this: teal and magenta carry no meaning
+ * anywhere else in the product and sit in the palette's empty arcs (see globals.css). That
+ * gets a taxonomy back to the five distinguishable labels it had before, without any of them
+ * being read as a severity.
+ *
+ * FIGMA: teal and magenta were defined in globals.css first, which is backwards — the library
+ * is the source of truth for colour. They have to be added there with the same values before
+ * anything else picks them up.
+ */
+export const WATCHLIST_CATEGORY_COLORS = ["primary", "info", "teal", "magenta", "gray"] as const;
+
+/**
+ * Wider than the list above on purpose. Categories created before the palette was narrowed can
+ * still carry a retired name, and a stored value that no longer type-checks is a crash rather
+ * than a chip in the wrong colour — categoryTint still resolves all six.
+ */
+export type WatchlistCategoryColor = "primary" | "info" | "teal" | "magenta" | "gray" | "danger" | "warning" | "success";
+
 export interface Person {
   id: string;
   name: string;
@@ -279,6 +445,79 @@ export interface Person {
    * registry's People tab is exactly the rows with none of these.
    */
   groupId?: string;
+  /**
+   * When any camera last matched this person, or absent if none ever has.
+   *
+   * THIS IS A REQUEST TO THE BACKEND. It is `max(timestamp)` over the detection events already
+   * stored against this person — not a new aggregation, and cheap enough to return on the row
+   * rather than behind its own endpoint.
+   *
+   * It is here because the registry could say everything about itself and nothing about whether it
+   * works. A watchlist rots quietly: contracts end, delegations fly home, and the row stays. The
+   * column this feeds is sortable, so "who has not been seen since June" is one click rather than
+   * a report — and it is a column and not a warning on purpose, because never being detected is
+   * not a fault. Some of these people are watched *for*, and a name that never comes up is that
+   * list working.
+   *
+   * Absent, not a sentinel date: "never" and "long ago" are different answers and the table prints
+   * them differently.
+   */
+  lastDetectedAt?: string;
+  /**
+   * Which category this registration falls under, or absent for an unclassified one.
+   *
+   * Optional on purpose: an installation with no categories defined yet must still be able to
+   * register somebody. A registry that refuses the first entry until an administrator has built a
+   * taxonomy is a registry nobody starts using.
+   */
+  categoryId?: string;
+  /**
+   * Why this person is on the list — a case number, an official document reference, a sentence.
+   * Free text, because what counts as a basis differs by institution and by category.
+   *
+   * Required when the chosen category says so. Without it, a row that turns out to be wrong has
+   * nobody to ask: the registry knows when somebody was added and, now, by whom, but not on what
+   * authority.
+   */
+  basis?: string;
+  /** The account that registered this person. The registry recorded the moment and not the hand. */
+  registeredBy?: string;
+  /**
+   * When a new photo was last submitted for this person, if one has been.
+   *
+   * The way out of "photo unreadable", and the reason that state needed one. The console reported
+   * a defect — a face the model could not turn into features — and offered no remedy: an admin
+   * could upload a clean photo, save, and the flag, the count and the unmatchable row were all
+   * exactly as before, because the flag was a hash of the person's id and nothing could move it.
+   *
+   * Set by updatePerson whenever photoUrl actually changes. It does NOT mean the new photo is
+   * readable — only the model can answer that, and Portal has not asked it yet. It means the
+   * question has been re-asked, which is a different and honestly reportable state: the registry
+   * health strip counts these separately from the ones nobody has touched.
+   *
+   * HANDOFF NOTE: the backend replaces this with a real answer. Re-enrolment is
+   * POST /v1/vips/{id}/enroll, and its result — readable, or not, and why — belongs on the row.
+   * Until then a re-submitted photo stays "awaiting re-enrolment" and is never claimed to work.
+   */
+  reenrolledAt?: string;
+  /**
+   * When this registration stops. Absent means it does not — a real answer for some categories and
+   * a mistake for most, so the form asks rather than assuming.
+   *
+   * A watchlist with no expiry keeps processing people after the purpose has ended, which is the
+   * first thing an audit asks about. A found child comes off; an arrested suspect comes off.
+   *
+   * HANDOFF NOTE — THE PART THAT MATTERS. An expiry that only greys a row out is worse than no
+   * expiry at all: the operator believes the person was released while the cameras keep matching
+   * them. Expiry has to reach the analysis module. The provisioning call that carries the watchlist
+   * (PUT /v1/provision/vips in the module contract draft) is where expired people must drop out,
+   * and that belongs in the contract rather than in the screen.
+   */
+  expiresAt?: string;
+  /** When somebody took this person off the list, and why. A release, not a delete: the row stays
+   *  so the history survives, and so "released" and "expired" stay tellable apart. */
+  releasedAt?: string;
+  releaseReason?: string;
 }
 
 /**
@@ -306,6 +545,14 @@ interface VcaStoreState {
   cameras: Camera[];
   persons: Person[];
   personGroups: PersonGroup[];
+  /** Empty on a fresh installation, and deliberately so — see WatchlistCategory. */
+  watchlistCategories: WatchlistCategory[];
+  /** Empty on a fresh installation, same reason — see SearchPurpose. */
+  searchPurposes: SearchPurpose[];
+  /** Null until the operator declares one this sitting. See SearchPurposeSelection. */
+  searchPurpose: SearchPurposeSelection | null;
+  /** Every look-up, newest first. Empty until the app records one — see SearchAccessRecord. */
+  searchAccessLog: SearchAccessRecord[];
   events: VcaEvent[];
   uploads: UploadedMedia[];
   portalUsers: PortalUser[];
@@ -332,6 +579,17 @@ interface VcaStoreState {
   /** Move several cameras into one zone. Same one-entry-per-action reasoning as removeCameras. */
   setCamerasZone: (cameraIds: string[], zone: string) => void;
   addProject: (project: Omit<Project, "id">) => void;
+  renameProject: (projectId: string, name: string) => void;
+  /**
+   * Deletes a project and everything filed under it.
+   *
+   * Cascading, not orphaning: cameras, uploads, servers, the watchlist and its groups, roster
+   * rows and search-log entries all carry a projectId and mean nothing without it. The audit
+   * entries stay — the record of what was done to a site outlives the site, which is the whole
+   * point of keeping one — and so do accounts, which belong to the team; the project is removed
+   * from each account's list instead.
+   */
+  removeProject: (projectId: string) => void;
   updateProjectLicense: (projectId: string, updates: Pick<Project, "licenseChannelLimit" | "licensePlan" | "licenseExpiresAt">) => void;
   updateProjectMail: (projectId: string, updates: Pick<Project, "mailDomain" | "smtp">) => void;
   setProjectTimeZone: (projectId: string, timeZone: string) => void;
@@ -340,6 +598,16 @@ interface VcaStoreState {
   updateTeamMail: (teamId: string, updates: Pick<Team, "mailDomain" | "smtp">) => void;
   addPerson: (person: Omit<Person, "id">) => void;
   removePerson: (personId: string) => void;
+  /**
+   * A CSV import, as one act.
+   *
+   * Not addPerson in a loop. Every mutation trims the audit log to AUDIT_LOG_LIMIT, so importing
+   * two hundred names evicted every entry before it — camera removals, permission changes,
+   * project renames — and the Activity log's note about older history being "on the server" was
+   * not true of any of it, because nothing had been sent anywhere. One entry naming the file,
+   * the way removeCameras and setCamerasZone already collapse a bulk action.
+   */
+  addPersons: (persons: Omit<Person, "id">[], source: string) => number;
   /**
    * Edit a registered face — name, tag, priority, note, photo.
    *
@@ -358,6 +626,46 @@ interface VcaStoreState {
    */
   removePersonGroup: (groupId: string, options?: { deleteMembers?: boolean }) => void;
   setPersonGroup: (personId: string, groupId: string | undefined) => void;
+  addSearchPurpose: (purpose: Omit<SearchPurpose, "id" | "archived">) => string;
+  updateSearchPurpose: (purposeId: string, updates: Partial<Omit<SearchPurpose, "id" | "teamId">>) => void;
+  archiveSearchPurpose: (purposeId: string) => void;
+  /** Declare the purpose for this sitting, or clear it to be asked again. */
+  setSearchPurpose: (selection: SearchPurposeSelection | null) => void;
+  /**
+   * Write one look-up to the access log. Called by the app when a search runs.
+   *
+   * Takes the purpose's label rather than resolving it, so the record keeps the wording that was
+   * on screen at the time — see SearchAccessRecord.
+   */
+  recordSearchAccess: (record: Omit<SearchAccessRecord, "id">) => void;
+  addWatchlistCategory: (category: Omit<WatchlistCategory, "id" | "archived">) => string;
+  updateWatchlistCategory: (categoryId: string, updates: Partial<Omit<WatchlistCategory, "id" | "teamId">>) => void;
+  /**
+   * Retire a category. Not a delete — people registered under it keep the id, and their rows would
+   * otherwise name a category that no longer exists.
+   */
+  archiveWatchlistCategory: (categoryId: string) => void;
+  /**
+   * Take somebody off the watchlist without erasing that they were on it.
+   *
+   * Separate from removePerson because the two answer different questions later: a released row
+   * says the purpose ended and when, a deleted row says nothing at all. Audited, because "who took
+   * this person off and why" is exactly what gets asked afterwards.
+   */
+  releasePerson: (personId: string, reason: string) => void;
+  /**
+   * Put a released person back on the watchlist.
+   *
+   * Release was one-way: the row menu dropped the action once releasedAt was set, saveEdit never
+   * cleared it, and no reinstate existed anywhere — so the only undo was delete-and-re-register,
+   * which destroys the registration history the release was kept to preserve. The product
+   * anticipated a wrongly LISTED person (the release-reason placeholder literally offers "Listed
+   * in error") and not a wrongly RELEASED one, which is the same mistake in the other direction.
+   *
+   * Both dates survive in the audit log, which is where "was this person off the list on the 3rd"
+   * is answered. The row itself carries only the current state.
+   */
+  reinstatePerson: (personId: string, reason: string) => void;
   addEvent: (event: Omit<VcaEvent, "id">) => void;
   markNotificationsRead: () => void;
   addPortalUser: (user: Omit<PortalUser, "id">) => string;
@@ -405,6 +713,9 @@ interface VcaStoreState {
   approveAccessRequests: (requestIds: string[]) => string[];
   dismissAccessRequest: (requestId: string) => void;
   addTeam: (team: Omit<Team, "id">) => string;
+  renameTeam: (teamId: string, name: string) => void;
+  /** Refuses while the team still has projects — see the implementation. */
+  removeTeam: (teamId: string) => void;
   addServer: (server: Omit<Server, "id">) => void;
   updateServer: (serverId: string, updates: Partial<Omit<Server, "id" | "projectId">>) => void;
   removeServer: (serverId: string) => void;
@@ -418,6 +729,9 @@ interface VcaStoreState {
    * the roster's matching key, so a duplicate would make a code resolve to two people.
    */
   addRosterEntry: (entry: Omit<RosterEntry, "status" | "code" | "issuedAt">) => boolean;
+  /** A roster import, as one act and one audit entry. See addPersons. Returns the employeeIds
+   *  it refused as duplicates, in the order given. */
+  addRosterEntries: (entries: Omit<RosterEntry, "status" | "code" | "issuedAt">[], source: string) => string[];
   /** Edit a roster row in place. The employee number is the key, so it is passed separately from
    *  the fields being changed and cannot itself be edited (remove and re-add instead). */
   updateRosterEntry: (employeeId: string, updates: Partial<Omit<RosterEntry, "employeeId" | "status" | "code" | "issuedAt">>) => void;
@@ -435,9 +749,29 @@ interface VcaStoreState {
 // admin most needs a record of (camera status/roster changes, license updates, VIP registrations,
 // user permission changes) call `logAudit`, matching what the Figma "최근 관리자 작업 이력" reference
 // tracks. `projectId` is optional because a user-permission change isn't tied to one project.
+/**
+ * How many audit entries the console keeps in memory.
+ *
+ * Named rather than repeated as a literal at every mutation, because the Activity screen prints
+ * this number to the reader — a capped list that does not say it is capped reads as a complete
+ * history, and its oldest row reads as the beginning.
+ *
+ * HANDOFF NOTE: this is a client-side ceiling on a list held in memory, not a retention policy.
+ * The server keeps the real history; see ProjectActivityTab for the query the screen's filters
+ * are shaped to become.
+ */
+export const AUDIT_LOG_LIMIT = 200;
+
 export interface AuditEvent {
   id: string;
   projectId?: string;
+  /**
+   * Set instead of projectId when the change belongs to the institution rather than to one site —
+   * a watchlist category, a search purpose. The Overview shows a project's own entries plus its
+   * team's, because a policy change is news at every site it governs and filing it under one of
+   * them would be a lie about where it applies.
+   */
+  teamId?: string;
   message: string;
   actor: string;
   at: string;
@@ -473,7 +807,10 @@ const PROJECTS: Project[] = [
   },
   {
     id: "proj-riverside", teamId: "team-univs", name: "Riverside International School", type: "smart_school",
-    licensePlan: "Professional", licenseChannelLimit: 40, licenseExpiresAt: "2027-09-01",
+    // Expiring inside the ninety-day window on purpose, so the licence page's "expiring soon"
+    // state is on screen somewhere rather than only in the code. Marina Bay stays years out, so
+    // the two states can be compared by switching projects.
+    licensePlan: "Professional", licenseChannelLimit: 40, licenseExpiresAt: "2026-11-20",
     computeInstance: "vca.medium", gpuCount: 2, modelVersion: "model_v2_prod", lastMigration: "v2_alert_schema",
     lastBackupAt: auditAt(7 * 60),
     regionName: "Singapore", networkIsolatedDetected: true, regionFlag: "🇸🇬", regionCenterCount: 1, regionSubcenterCount: 0,
@@ -514,7 +851,31 @@ const PROJECTS: Project[] = [
  * Monitoring's camera codes and Re-ID's mock ids turned out never to overlap. One list, in the
  * store, read by both sides.
  */
-export type UploadKind = "video" | "image";
+/**
+ * What a file was uploaded to have done to it.
+ *
+ * A kind, not a file format, which is why a deepfake check sits beside video and image rather than
+ * inside them: the same .mp4 can arrive for either, and what separates them is the question being
+ * asked. Video and image are uploaded to be searched for faces; a deepfake submission is uploaded
+ * to be judged authentic or not. Different pipeline, different result, different list — the
+ * console this replaces made the same split, with a DEEPFAKE tab beside IMAGE and VIDEOS.
+ *
+ * Kept in the model even though the feature is "probably not needed, for now" (2026-09-09): the
+ * screen is drawn so the shape of the answer is decided before anyone builds it.
+ */
+export type UploadKind = "video" | "image" | "deepfake";
+
+/**
+ * What the deepfake check concluded.
+ *
+ * Three values, not a boolean. A detector that cannot decide is the ordinary case for short,
+ * compressed or heavily re-encoded footage, and collapsing that into "authentic" would turn "we do
+ * not know" into a clearance — which is the one mistake this feature exists to avoid.
+ *
+ * HANDOFF NOTE: seeded. The real verdict comes with a score from the model, and the score is what
+ * the screen shows beside the word — a verdict without one is an opinion nobody can weigh.
+ */
+export type DeepfakeVerdict = "authentic" | "manipulated" | "inconclusive";
 /**
  * Where the analysis got to. Nothing moves a new upload past "pending" today, because extracting
  * frames and matching faces is the core's work and there is no endpoint for it yet — see
@@ -540,6 +901,11 @@ export interface UploadedMedia {
   /** Faces the analysis found. Undefined until it has run — 0 means it ran and found none, which
    *  is a different answer and has to look different on screen. */
   detectionCount?: number;
+  /** Deepfake submissions only, and only once the check has finished. */
+  deepfakeVerdict?: DeepfakeVerdict;
+  /** 0-1, the model's confidence in that verdict. Shown beside it: "manipulated" at 0.55 and at
+   *  0.98 are the same word and very different news. */
+  deepfakeScore?: number;
 }
 
 /**
@@ -552,6 +918,12 @@ const UPLOADS: UploadedMedia[] = [
   { id: "v1", projectId: "proj-sg", fileName: "marina_bay_0831_1420.mp4", kind: "video", durationSec: 902, sizeBytes: 418_000_000, resolution: "3840×2160", uploadedAt: auditAt(51 * 60), uploadedBy: "Grace Tan", status: "done", detectionCount: 14 },
   { id: "v2", projectId: "proj-sg", fileName: "cbd_northgate_0829.mp4", kind: "video", durationSec: 187, sizeBytes: 96_000_000, resolution: "2560×1440", uploadedAt: auditAt(74 * 60), uploadedBy: "Grace Tan", status: "done", detectionCount: 6 },
   { id: "v3", projectId: "proj-riverside", fileName: "campus_gate_0828.mp4", kind: "video", durationSec: 341, sizeBytes: 152_000_000, resolution: "1920×1080", uploadedAt: auditAt(96 * 60), uploadedBy: "Marcus Lee", status: "done", detectionCount: 9 },
+  // Three deepfake submissions, one per verdict, so every state the screen can draw is on screen.
+  // The fourth state — still running — is the queued row below them.
+  { id: "d1", projectId: "proj-sg", fileName: "press_briefing_clip.mp4", kind: "deepfake", durationSec: 46, sizeBytes: 18_000_000, resolution: "1920×1080", uploadedAt: auditAt(9 * 60), uploadedBy: "Grace Tan", status: "done", deepfakeVerdict: "manipulated", deepfakeScore: 0.94 },
+  { id: "d2", projectId: "proj-sg", fileName: "gate_handover_0905.mp4", kind: "deepfake", durationSec: 128, sizeBytes: 61_000_000, resolution: "1920×1080", uploadedAt: auditAt(33 * 60), uploadedBy: "Marcus Lee", status: "done", deepfakeVerdict: "authentic", deepfakeScore: 0.88 },
+  { id: "d3", projectId: "proj-sg", fileName: "lobby_reupload.mp4", kind: "deepfake", durationSec: 12, sizeBytes: 3_100_000, resolution: "854×480", uploadedAt: auditAt(58 * 60), uploadedBy: "Wei Chen", status: "done", deepfakeVerdict: "inconclusive", deepfakeScore: 0.41 },
+  { id: "d4", projectId: "proj-sg", fileName: "unverified_tipoff.mp4", kind: "deepfake", durationSec: 74, sizeBytes: 29_000_000, resolution: "1280×720", uploadedAt: auditAt(2 * 60), uploadedBy: "Grace Tan", status: "pending" },
   { id: "i1", projectId: "proj-sg", fileName: "west_gate_snapshot.jpg", kind: "image", sizeBytes: 2_400_000, resolution: "1920×1080", uploadedAt: auditAt(28 * 60), uploadedBy: "Grace Tan", status: "done", detectionCount: 2 },
 ];
 
@@ -592,7 +964,7 @@ const UPLOADS: UploadedMedia[] = [
 export type PortalPermission = "owner" | "admin" | "auditor" | "none";
 
 /** Roles that may open Portal at all. `none` is routed to the app by login. */
-export const PORTAL_CONSOLE_ROLES: PortalPermission[] = ["owner", "admin", "auditor"];
+const PORTAL_CONSOLE_ROLES: PortalPermission[] = ["owner", "admin", "auditor"];
 
 /** May change settings (cameras, VIP, roster, license, server). Auditor may not. */
 export function canEditPortal(permission: PortalPermission): boolean {
@@ -608,19 +980,52 @@ export function canManageAccess(permission: PortalPermission): boolean {
   return permission === "owner";
 }
 
+/**
+ * May change the lists that decide what the audit will find: watchlist categories and search
+ * purposes.
+ *
+ * Owner only, and narrower than canEditPortal on purpose. These two are not settings, they are the
+ * constraints the console places on its own operators — what counts as a reason to look somebody
+ * up, and whether listing a person needs a written basis. An admin who finds the purpose gate
+ * tiresome could add "routine check" and the requirement is gone; that is the same shape as role
+ * granting, a power whose use removes the limit on the person using it.
+ *
+ * Both lists take the same gate. Splitting them would leave an administrator able to loosen one
+ * kind of policy and not the other for no reason anybody could state.
+ */
+export function canSetPolicy(permission: PortalPermission): boolean {
+  return permission === "owner";
+}
+
 /** May open Portal (any console role). */
 export function canEnterPortal(permission: PortalPermission): boolean {
   return PORTAL_CONSOLE_ROLES.includes(permission);
 }
 
 /**
- * May sign into the monitoring app.
+ * Whether the account is GRANTED the monitoring app — the permission, not today's answer.
  *
  * Takes the user rather than a permission because it is no longer derivable from the role — that
- * is the entire point of the split.
+ * is the entire point of the split. Portal shows this: it is what an administrator granted, and it
+ * stays true of a suspended account, whose access was not revoked but paused.
  */
 export function canEnterApp(user: Pick<PortalUser, "appAccess">): boolean {
   return user.appAccess;
+}
+
+/**
+ * Whether the account may open the app RIGHT NOW: granted, and in a state that can sign in.
+ *
+ * The app's door used to read canEnterApp alone, so `status: "suspended", appAccess: true` — the
+ * exact combination one seeded account carries — was turned away by login and let straight in
+ * here. An administrator suspending an account mid-shift expects the screen to go, not to keep
+ * serving whoever is already in front of it. Separate from canEnterApp because Portal is
+ * reporting a grant while the door is deciding an entry, and the two are not the same question.
+ *
+ * HANDOFF NOTE: the door that matters is the session on the server. This is the screen's copy.
+ */
+export function canUseAppNow(user: Pick<PortalUser, "appAccess" | "status">): boolean {
+  return canEnterApp(user) && user.status === "active";
 }
 
 /**
@@ -646,6 +1051,154 @@ export function projectsVisibleInApp(users: PortalUser[], projects: Project[]): 
   const me = users.find(u => u.email.toLowerCase() === SIGNED_IN_USER.email.toLowerCase());
   if (!me) return projects;
   return projects.filter(p => me.projectIds.includes(p.id));
+}
+
+/**
+ * The one site the app is currently showing.
+ *
+ * The app is a single-site screen: an operator watches their own site, and a screen that mixes two
+ * sites' detections into one map is one where "respond to this" points at the wrong city. Access
+ * can span several sites — a school group's security lead watching two campuses — so the header
+ * offers a switch; what it never offers is both at once.
+ *
+ * Falls back to the first site the account can see, so the app always has a site even before
+ * anyone has chosen one. Returns null only when the account can see no site at all.
+ */
+export function resolveActiveProject(
+  activeProjectId: string,
+  users: PortalUser[],
+  projects: Project[],
+): Project | null {
+  const visible = projectsVisibleInApp(users, projects);
+  return visible.find(p => p.id === activeProjectId) ?? visible[0] ?? null;
+}
+
+/**
+ * Which site a detection belongs to.
+ *
+ * Detections carry a cameraId and nothing else about where they belong, so the camera register is
+ * what attributes them — the same rule the backend confirmed for the real thing (cameraId → the
+ * register's projectId). Two pools have to be searched: the register itself, and the much larger
+ * simulation pool the VIP ticker draws from, whose cameras are not register rows.
+ *
+ * HANDOFF NOTE: module-api v1.10 has no project on detections at all, which is why an operator
+ * could see another site's people. Once the proxy filters by the session's projects this becomes a
+ * second line of defence rather than the only one — keep it either way: it is also what makes the
+ * header's site switch mean something within one session.
+ */
+export function projectIdForCameraId(cameraId: string, cameras: Camera[]): string | undefined {
+  return cameras.find(c => c.id === cameraId)?.projectId
+    ?? VIP_SIMULATION_CAMERAS.find(c => c.id === cameraId)?.projectId;
+}
+
+/** Detections at this site's cameras. */
+export function eventsInProject(events: VcaEvent[], projectId: string, cameras: Camera[]): VcaEvent[] {
+  return events.filter(e => projectIdForCameraId(e.cameraId, cameras) === projectId);
+}
+
+/** People registered at this site. */
+export function personsInProject(persons: Person[], projectId: string): Person[] {
+  return persons.filter(p => p.projectId === projectId);
+}
+
+/**
+ * The people this site is actually watching for right now.
+ *
+ * personsInProject above answers "whose records belong to this site" — which is what Portal's
+ * registry wants, because a released row and an expired one are exactly what the registry has to
+ * keep showing. Every screen in the monitoring app wants the other question, and asking the
+ * first one there is a fault with consequences: an administrator formally releases somebody in
+ * the morning and the operator is still being alerted on them that afternoon, because the row
+ * only got a `releasedAt` stamp and nothing read it.
+ *
+ * The store's own note on Person.expiresAt calls this out — "an expiry that only greys a row out
+ * is worse than no expiry at all: the operator believes the person was released while the
+ * cameras keep matching them" — and until now that was the actual behaviour on this side of the
+ * product too, not just in the module.
+ *
+ * `releasedAt` needs no clock. `expiresAt` does, so it is passed in rather than read here: a date
+ * comparison made during render disagrees between the server's frame and the browser's first
+ * one. Callers that have no clock yet pass null, and then only the release filter applies —
+ * the narrower answer of the two, never the wider one.
+ *
+ * HANDOFF NOTE: the same rule has to hold on the wire. Released and expired people must drop out
+ * of PUT /v1/provision/vips, or the analysis module keeps matching a face the console says it
+ * has stopped watching. The screen filtering them is not the control; the provisioning call is.
+ */
+export function watchedPersonsInProject(persons: Person[], projectId: string, nowMs: number | null): Person[] {
+  const today = nowMs === null ? null : new Date(nowMs).toISOString().slice(0, 10);
+  return persons.filter(p => {
+    if (p.projectId !== projectId) return false;
+    if (p.releasedAt) return false;
+    if (today !== null && p.expiresAt && p.expiresAt.slice(0, 10) < today) return false;
+    return true;
+  });
+}
+
+/** This site's cameras. */
+export function camerasInProject(cameras: Camera[], projectId: string): Camera[] {
+  return cameras.filter(c => c.projectId === projectId);
+}
+
+/**
+ * Hooks, so a screen scopes itself in one line and cannot forget a piece of it.
+ *
+ * The pure functions above take their inputs, which is what makes them testable and usable from
+ * the api layer; these wrap them for the screens, which all want the same thing: whatever the
+ * header is currently pointed at. Every app screen that shows detections, people or cameras reads
+ * through one of these — the filter living in one place is what keeps the map, the list and the
+ * counts from disagreeing about which site is on screen.
+ *
+ * Memoised, and that is not an optimisation. A filter returns a new array on every render, and
+ * this codebase leans on array identity in two places that then break: BestFramePage reconciles
+ * uploads during render by comparing `prev !== next`, and several screens pass a list as a
+ * useApiData dependency. Both turn a fresh-every-render array into an endless loop — which is
+ * exactly what happened the first time these shipped without useMemo.
+ */
+export function useActiveProjectId(): string {
+  const activeProjectId = useVcaStore(s => s.activeProjectId);
+  const portalUsers = useVcaStore(s => s.portalUsers);
+  const projects = useVcaStore(s => s.projects);
+  return resolveActiveProject(activeProjectId, portalUsers, projects)?.id ?? "";
+}
+
+export function useProjectEvents(): VcaEvent[] {
+  const events = useVcaStore(s => s.events);
+  const cameras = useVcaStore(s => s.cameras);
+  const projectId = useActiveProjectId();
+  return useMemo(() => eventsInProject(events, projectId, cameras), [events, projectId, cameras]);
+}
+
+/**
+ * The app's view of the watchlist: this site's people, minus the ones taken off it.
+ *
+ * Deliberately NOT personsInProject — see watchedPersonsInProject. Portal keeps reading the
+ * unfiltered list, because the record of a release is the point of a release.
+ */
+export function useProjectPersons(): Person[] {
+  const persons = useVcaStore(s => s.persons);
+  const projectId = useActiveProjectId();
+  // Post-mount, like every other clock read: an expiry compared during render cuts at a
+  // different instant on the server than in the browser, and the two frames then disagree about
+  // who is on the list.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => { queueMicrotask(() => setNowMs(Date.now())); }, []);
+  return useMemo(() => watchedPersonsInProject(persons, projectId, nowMs), [persons, projectId, nowMs]);
+}
+
+/**
+ * Non-hook form, for imperative code that cannot call a hook — a timer, a seeder, an event
+ * handler. Same resolution as useActiveProjectId.
+ */
+export function getActiveProjectId(): string {
+  const s = useVcaStore.getState();
+  return resolveActiveProject(s.activeProjectId, s.portalUsers, s.projects)?.id ?? "";
+}
+
+export function useProjectCameras(): Camera[] {
+  const cameras = useVcaStore(s => s.cameras);
+  const projectId = useActiveProjectId();
+  return useMemo(() => camerasInProject(cameras, projectId), [cameras, projectId]);
 }
 
 /**
@@ -713,16 +1266,51 @@ export interface SignedInUser {
  *
  * HANDOFF NOTE: seeded. Real values come from whatever the support organisation publishes.
  */
-export const SUPPORT_CONTACT = {
+/**
+ * Who to call when the console cannot help.
+ *
+ * Every field is optional except the address, because a support desk is not obliged to have a
+ * phone. A supplier who handles everything by mail has no number to give, and printing a made-up
+ * one is worse than printing none — somebody will dial it. Absent fields are dropped from the
+ * sheet rather than shown empty or as "—", which would read as a number that exists and is missing.
+ *
+ * HANDOFF NOTE: seeded. The real values are deployment configuration, alongside authConfig's
+ * supportContact — one installation, one desk, fixed at deploy time.
+ */
+export interface SupportContact {
+  email: string;
+  phone?: string;
+  hours?: { en: string; ko: string };
+}
+
+export const SUPPORT_CONTACT: SupportContact = {
   email: "support@univs.ai",
   phone: "+65 6812 4400",
   /** Local time at the site, which is the only clock the person reading this has. */
   hours: { en: "Mon–Fri, 09:00–18:00 (SGT)", ko: "월–금 09:00–18:00 (SGT)" },
-} as const;
+};
 
+/**
+ * Who the product thinks is looking at it, until a session exists.
+ *
+ * Now one of the seeded accounts rather than a name that matches none of them. That sounds like a
+ * cosmetic change and is not: every permission helper resolves the signed-in address against the
+ * account list, and an address matching nobody falls through to the permissive branch — so the
+ * console let you switch a person's app-search off and the app carried on searching, because the
+ * viewer was not that person or any person. The rules were writable and unobservable.
+ *
+ * Grace Tan because she is the seeded owner: Portal keeps working exactly as before (an account
+ * with a lesser role would bounce the viewer out of the console entirely), while the app-side
+ * flags now belong to somebody real and toggling them in Users & Permissions changes what the
+ * monitoring app does.
+ *
+ * HANDOFF NOTE: this whole constant disappears with the login response. It is the stand-in, not a
+ * default — a real build reads the identity off the session and denies by default when it has none
+ * (see canSearchInApp, currentPortalUser).
+ */
 export const SIGNED_IN_USER: SignedInUser = {
-  name: "John Doe",
-  email: "johndoe@email.com",
+  name: "Grace Tan",
+  email: "grace.tan@univs.ai",
   accountId: "VCA-ADMIN-8821",
   role: "Smart City Operations Manager",
   team: "Operational Control Team Alpha",
@@ -833,7 +1421,7 @@ export interface AccessRequest {
 }
 
 const PORTAL_USERS: PortalUser[] = [
-  { id: "user-1", name: "Grace Tan", email: "grace.tan@univs.ai", employeeId: "EMP-2041", teamId: "team-univs", projectIds: ["proj-sg", "proj-riverside"], permission: "owner", appAccess: true, status: "active", lastLoginAt: "2026-08-25 09:14" },
+  { id: "user-1", name: "Grace Tan", email: "grace.tan@univs.ai", employeeId: "EMP-2041", teamId: "team-univs", projectIds: ["proj-sg", "proj-riverside"], permission: "owner", appAccess: true, appSearch: true, status: "active", lastLoginAt: "2026-08-25 09:14" },
   { id: "user-2", name: "Marcus Lee", email: "marcus.lee@univs.ai", employeeId: "EMP-2042", teamId: "team-univs", projectIds: ["proj-sg"], permission: "none", appAccess: true, appSearch: true, status: "active", lastLoginAt: "2026-08-24 18:02" },
   // Admin who also works the app — the combination the single-field model could not hold.
   { id: "user-3", name: "Nadia Rahman", email: "nadia.rahman@univs.ai", employeeId: "EMP-2043", teamId: "team-univs", projectIds: ["proj-riverside"], permission: "admin", appAccess: true, status: "active", lastLoginAt: "2026-08-20 11:47" },
@@ -878,14 +1466,14 @@ const STAFF_ROSTER: RosterEntry[] = [
 ];
 
 const SERVERS: Server[] = [
-  { id: "srv-1", projectId: "proj-sg", name: "FR 2", ip: "192.168.0.36", type: "Face Recognition", status: "success" },
-  { id: "srv-2", projectId: "proj-sg", name: "AI camera 1", ip: "192.168.0.36", type: "AI Camera", status: "success" },
-  { id: "srv-3", projectId: "proj-sg", name: "image store 1", ip: "192.168.0.36", type: "Image Store", status: "success" },
-  { id: "srv-4", projectId: "proj-sg", name: "database 1", ip: "192.168.0.36", type: "Database", status: "success" },
-  { id: "srv-5", projectId: "proj-sg", name: "normal camera 1", ip: "192.168.0.36", type: "Normal Camera", status: "success" },
-  { id: "srv-6", projectId: "proj-sg", name: "testServer", ip: "192.168.0.103", type: "Face Recognition", status: "error" },
-  { id: "srv-7", projectId: "proj-riverside", name: "campus-fr-1", ip: "192.168.1.20", type: "Face Recognition", status: "success" },
-  { id: "srv-8", projectId: "proj-riverside", name: "campus-db-1", ip: "192.168.1.21", type: "Database", status: "success" },
+  { id: "srv-1", projectId: "proj-sg", name: "FR 2", ip: "192.168.0.36", port: 8021, type: "Face Recognition", status: "success" },
+  { id: "srv-2", projectId: "proj-sg", name: "AI camera 1", ip: "192.168.0.36", port: 8012, type: "AI Camera", status: "success" },
+  { id: "srv-3", projectId: "proj-sg", name: "image store 1", ip: "192.168.0.36", port: 8031, type: "Image Store", status: "success" },
+  { id: "srv-4", projectId: "proj-sg", name: "database 1", ip: "192.168.0.36", port: 5432, type: "Database", status: "success" },
+  { id: "srv-5", projectId: "proj-sg", name: "normal camera 1", ip: "192.168.0.36", port: 8011, type: "Normal Camera", status: "success" },
+  { id: "srv-6", projectId: "proj-sg", name: "testServer", ip: "192.168.0.103", port: 8021, type: "Face Recognition", status: "error" },
+  { id: "srv-7", projectId: "proj-riverside", name: "campus-fr-1", ip: "192.168.1.20", port: 8021, type: "Face Recognition", status: "success" },
+  { id: "srv-8", projectId: "proj-riverside", name: "campus-db-1", ip: "192.168.1.21", port: 5432, type: "Database", status: "success" },
 ];
 
 const CAMERA_SEEDS: Camera[] = [
@@ -893,15 +1481,14 @@ const CAMERA_SEEDS: Camera[] = [
     id: "cam-novena", projectId: "proj-sg", code: "CAM-NOV-001", name: "Novena",
     ip: "10.20.4.11", mac: "00:1B:44:11:3A:B7", rtspUrl: "rtsp://10.20.4.11:554/stream1",
     status: "online", location: "Novena, Singapore", zone: "Novena",
-    // Engines and a server on a handful of the named cameras, not on all sixty.
+    // A server on a handful of the named cameras, not on all sixty — which is the gap the Input
+    // Sources summary is there to report.
     //
-    // aiFeatures existed only as a type: nothing seeded it, so every camera read "—", the AI
-    // Engines column was an empty column, the preview's overlay boxes never drew and the Input
-    // Sources summary counted the entire fleet as "no AI engine" — a figure that is technically
-    // true and tells you nothing. A real deployment has engines on the cameras that matter and
-    // nothing on the rest, so that is what this seeds: four of the eight named cameras run Re-ID,
-    // one of them also reads plates, and each carries the server that does the work.
-    aiFeatures: ["Re-ID Analysis"], serverId: "srv-1",
+    // Two of the named cameras are declared AI sources and attach to the AI-camera server; the
+    // rest are ordinary CCTV on the normal-camera server. That is the shape of a real deployment,
+    // and it is the whole of what the camera itself says about analysis: which engine runs is the
+    // server's business, not the camera's.
+serverId: "srv-1",
     thumbnail: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80",
     lat: 1.3202, lng: 103.8440, maker: "Hanwha", resolution: "4K (3840×2160)",
   },
@@ -909,7 +1496,7 @@ const CAMERA_SEEDS: Camera[] = [
     id: "cam-geylang", projectId: "proj-sg", code: "CAM-GEY-001", name: "Geylang NC1",
     ip: "10.20.4.12", mac: "00:1B:44:11:3A:B8", rtspUrl: "rtsp://10.20.4.12:554/stream1",
     status: "online", location: "Geylang NC1, Singapore", zone: "Geylang",
-    aiFeatures: ["Re-ID Analysis", "License Plate Recognition"], serverId: "srv-1",
+    serverId: "srv-1",
     thumbnail: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
     lat: 1.3148, lng: 103.8778, maker: "Hikvision", resolution: "FHD (1920×1080)",
   },
@@ -917,7 +1504,7 @@ const CAMERA_SEEDS: Camera[] = [
     id: "cam-orchard", projectId: "proj-sg", code: "CAM-ORC-001", name: "Orchard MRT",
     ip: "10.20.4.13", mac: "00:1B:44:11:3A:B9", rtspUrl: "rtsp://10.20.4.13:554/stream1",
     status: "online", location: "Orchard MRT, Singapore", zone: "Orchard",
-    aiFeatures: ["Re-ID Analysis"], serverId: "srv-2",
+    serverId: "srv-2",
     thumbnail: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
     lat: 1.3044, lng: 103.8321, maker: "Dahua", resolution: "4K (3840×2160)",
   },
@@ -925,7 +1512,7 @@ const CAMERA_SEEDS: Camera[] = [
     id: "cam-bugis", projectId: "proj-sg", code: "CAM-BGS-001", name: "Bugis MRT",
     ip: "10.20.4.14", mac: "00:1B:44:11:3A:BA", rtspUrl: "rtsp://10.20.4.14:554/stream1",
     status: "online", location: "Bugis MRT, Singapore", zone: "Bugis",
-    aiFeatures: ["License Plate Recognition"], serverId: "srv-2",
+    serverId: "srv-2",
     thumbnail: "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80",
     lat: 1.3006, lng: 103.8561, maker: "Hanwha", resolution: "FHD (1920×1080)",
   },
@@ -1007,6 +1594,36 @@ const CAMERA_SEEDS: Camera[] = [
       };
     });
   }),
+  /**
+   * A second project with cameras of its own. Everything above belongs to the smart-city
+   * deployment, which meant switching sites in the app's header landed on an empty screen — the
+   * project filter had nothing to prove itself against.
+   *
+   * Six, not sixty: a school campus is not a city. The gate, the two corridors, the hall and the
+   * car park are where a school actually puts cameras, and the count is what makes a smaller site
+   * read as a smaller site rather than as a filtered version of the big one.
+   */
+  ...["Main Gate", "East Corridor", "West Corridor", "Assembly Hall", "Car Park", "Rear Gate"]
+    .map((spot, i) => ({
+      id: `cam-riverside-${i + 1}`,
+      projectId: "proj-riverside",
+      code: `CAM-RVS-${String(i + 1).padStart(3, "0")}`,
+      name: spot,
+      ip: `10.40.1.${11 + i}`,
+      mac: `00:1B:44:44:0${i}:C${i}`,
+      rtspUrl: `rtsp://10.40.1.${11 + i}:554/stream1`,
+      // One of the six is down — a site where everything is always green teaches nobody how the
+      // offline row looks, and the Rear Gate is exactly the camera a campus forgets about.
+      status: (spot === "Rear Gate" ? "offline" : "online") as CameraStatus,
+      location: `${spot}, Riverside International School`,
+      zone: spot === "Car Park" || spot === "Rear Gate" ? "Perimeter" : "Campus",
+      serverId: "srv-7",
+      thumbnail: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
+      lat: Math.round((1.3410 + i * 0.0008) * 10000) / 10000,
+      lng: Math.round((103.8080 + i * 0.0011) * 10000) / 10000,
+      maker: "Hanwha",
+      resolution: "FHD (1920×1080)",
+    })),
 ];
 
 /**
@@ -1099,6 +1716,73 @@ const SEED_EVENTS: VcaEvent[] = liveEvents.map((e) => ({
 
 // Registration metadata for the VIP registry — not present on the raw mockData events (those are
 // detections, not registrations), so it's seeded here per known name until Portal's real API lands.
+/**
+ * The day the seed calls today.
+ *
+ * Fixed rather than `Date.now()`, for the reason every other seed in this file is fixed: the
+ * server and the browser must draw the same table on first paint. Everything dated relative to a
+ * clock would differ between the two renders and hydration would tear.
+ *
+ * It is also what "the last seven days" is measured back from, so the reach figures on the VIP page
+ * and the dates in its table are answers about the same week. The real API measures from the actual
+ * instant, in the project's timezone.
+ */
+const SEED_TODAY = Date.UTC(2026, 8, 9);
+
+/**
+ * A plausible "last seen" for a seeded person: mostly never, otherwise spread back over the months.
+ *
+ * The distribution is deliberate rather than uniform. This project has sixty cameras and four of
+ * them carry an AI engine (see the camera seed and the Input Sources summary), so a hundred-name
+ * watchlist that only four cameras can match is *supposed* to leave most rows untouched in a given
+ * week. A registry where everybody is seen every week would be the misleading mockup, not this one.
+ *
+ * Never returns a day before the person was registered — a face cannot be matched by a system it
+ * was not yet enrolled in, and a table that printed one would be teaching the reader a wrong rule.
+ */
+/**
+ * A person's own seed, from the whole id.
+ *
+ * Not the id's length and last character, which was the first attempt: across "person-seed-1" ..
+ * "person-seed-100" those vary by three lengths and ten digits, so a hundred people drew about a
+ * dozen distinct rolls and every distribution built on it came out in lumps.
+ *
+ * Shared, because two facts about the same person have to agree. A face the model could not read
+ * cannot also have been matched by a camera last Tuesday, and it will be if the two are rolled
+ * from different seeds.
+ */
+function personSeed(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i += 1) h = (h * 31 + id.charCodeAt(i)) % 100_000;
+  return h;
+}
+
+/** Has a photo the model could not turn into features — enrolled, and unmatchable. */
+function seededPhotoUnreadable(id: string): boolean {
+  return seededRandom(personSeed(id) * 0.023 + 1.9) > 0.87;
+}
+
+function seededLastDetectedAt(id: string, registeredAt: string): string | undefined {
+  // Unmatchable faces are never matched. Reading this from the same predicate registryHealth uses
+  // is the only thing keeping the summary and the table from contradicting each other on the same
+  // row — "photo unreadable" over a row that says it was seen on Friday.
+  if (seededPhotoUnreadable(id)) return undefined;
+  const h = personSeed(id);
+  const roll = seededRandom(h * 0.017);
+  // 42% have never been matched at all. On a four-camera fleet that is the ordinary case, and it is
+  // what makes the sortable column worth having.
+  if (roll < 0.42) return undefined;
+  const spread = seededRandom(h * 0.041 + 7.3);
+  const daysAgo = roll < 0.52 ? Math.floor(spread * 7)          // this week
+    : roll < 0.64 ? 7 + Math.floor(spread * 7)                  // the week before
+    : roll < 0.80 ? 14 + Math.floor(spread * 16)                // the rest of the month
+    : 30 + Math.floor(spread * 150);                            // one to six months ago
+  const day = SEED_TODAY - daysAgo * 86_400_000;
+  const enrolled = Date.parse(registeredAt);
+  if (Number.isFinite(enrolled) && day < enrolled) return undefined;
+  return new Date(day).toISOString().slice(0, 10);
+}
+
 const PERSON_REGISTRY_INFO: Record<string, { registeredAt: string; description: string }> = {
   "Alexander Wright": { registeredAt: "2026-03-14", description: "Corporate Security — Executive Protection" },
   "Priya Nair":        { registeredAt: "2026-05-02", description: "VIP Watchlist — Frequent Visitor" },
@@ -1120,6 +1804,10 @@ export const PERSONS: Person[] = (() => {
       photoUrl: getFacePhoto(e.id),
       registeredAt: info?.registeredAt ?? "2026-01-01",
       description: info?.description,
+      // Attributed through the camera that detected them, which is the same rule detections use.
+      // Without this these rows carried no site at all, so the app — once it started scoping to
+      // one site — would have shown an empty VIP list while the detections were still arriving.
+      projectId: projectIdForCameraId(cameraIdForLocation(e.location), CAMERAS),
     });
   });
   // Portal-scoped sample data for the Overview tab's "Recently Registered VIPs" panel — the
@@ -1133,9 +1821,16 @@ export const PERSONS: Person[] = (() => {
     // person was registered, and a date-only string has no hour to show. The offset is written out
     // so the value means one moment regardless of where it is read — the app is Singapore-only
     // (see lib/time.ts) and every reader formats it back through that zone.
-    { id: "person-portal-1", name: "Michael Tan", type: "VIP", photoUrl: getFacePhoto("person-portal-1"), registeredAt: "2026-09-01T14:32:00+08:00", projectId: "proj-sg", priorityLabel: "high", groupId: "pgroup-1" },
-    { id: "person-portal-2", name: "Sarah Lim", type: "VIP", photoUrl: getFacePhoto("person-portal-2"), registeredAt: "2026-08-30T09:05:00+08:00", projectId: "proj-sg", priorityLabel: "normal", groupId: "pgroup-1" },
-    { id: "person-portal-3", name: "David Ho", type: "VIP", photoUrl: getFacePhoto("person-portal-3"), registeredAt: "2026-08-28T17:48:00+08:00", projectId: "proj-sg", priorityLabel: "very_high", groupId: "pgroup-2" },
+    // Two today and one yesterday, so the Overview's "2 today · 1 yesterday" pair has something to
+    // report. Fixed dates against SEED_TODAY, like every other seeded date in this file — they read
+    // as today only while the mock is looked at on that day, which is the same bargain the
+    // registration dates below already make.
+    { id: "person-portal-0a", name: "Nadia Rahman", type: "VIP", photoUrl: getFacePhoto("person-portal-0a"), registeredAt: "2026-09-09T09:12:00+08:00", projectId: "proj-sg", priorityLabel: "normal" },
+    { id: "person-portal-0b", name: "Terence Goh", type: "VIP", photoUrl: getFacePhoto("person-portal-0b"), registeredAt: "2026-09-09T08:40:00+08:00", projectId: "proj-sg", priorityLabel: "high", groupId: "pgroup-1" },
+    { id: "person-portal-0c", name: "Farah Idris", type: "VIP", photoUrl: getFacePhoto("person-portal-0c"), registeredAt: "2026-09-08T16:05:00+08:00", projectId: "proj-sg", priorityLabel: "normal" },
+    { id: "person-portal-1", name: "Michael Tan", type: "VIP", photoUrl: getFacePhoto("person-portal-1"), registeredAt: "2026-09-01T14:32:00+08:00", lastDetectedAt: "2026-09-08", projectId: "proj-sg", priorityLabel: "high", groupId: "pgroup-1" },
+    { id: "person-portal-2", name: "Sarah Lim", type: "VIP", photoUrl: getFacePhoto("person-portal-2"), registeredAt: "2026-08-30T09:05:00+08:00", lastDetectedAt: "2026-09-03", projectId: "proj-sg", priorityLabel: "normal", groupId: "pgroup-1" },
+    { id: "person-portal-3", name: "David Ho", type: "VIP", photoUrl: getFacePhoto("person-portal-3"), registeredAt: "2026-08-28T17:48:00+08:00", lastDetectedAt: "2026-08-29", projectId: "proj-sg", priorityLabel: "very_high", groupId: "pgroup-2" },
     { id: "person-portal-4", name: "Rachel Wong", type: "VIP", photoUrl: getFacePhoto("person-portal-4"), registeredAt: "2026-08-25T11:20:00+08:00", projectId: "proj-sg", priorityLabel: "normal" },
   );
   persons.push(...bulkSampleVips());
@@ -1239,6 +1934,7 @@ function bulkSampleVips(): Person[] {
       type: "VIP",
       photoUrl: portrait,
       registeredAt: day.toISOString().slice(0, 10),
+      lastDetectedAt: seededLastDetectedAt(id, day.toISOString().slice(0, 10)),
       projectId: "proj-sg",
       priorityLabel: priorities[i % priorities.length],
       groupId: groups[i % groups.length],
@@ -1265,6 +1961,20 @@ const PERSON_GROUPS: PersonGroup[] = [
 
 let personSeq = PERSONS.length;
 let personGroupSeq = PERSON_GROUPS.length;
+let watchlistCategorySeq = 0;
+let searchPurposeSeq = 0;
+let searchAccessSeq = 0;
+
+/**
+ * An audit entry for a change to the institution's own policy lists.
+ *
+ * Filed against the team, not a project — see AuditEvent.teamId. "Who changed the list of
+ * acceptable reasons to look somebody up" is the question these entries exist to answer, and it is
+ * asked of the institution rather than of one site.
+ */
+function policyAudit(teamId: string | undefined, message: string): AuditEvent {
+  return { id: `audit-${++auditSeq}`, teamId, message, actor: SIGNED_IN_USER.name, at: new Date().toISOString() };
+}
 let eventSeq = SEED_EVENTS.length;
 let portalUserSeq = PORTAL_USERS.length;
 let orgSeq = TEAMS.length;
@@ -1334,44 +2044,79 @@ export function dailyDetections(projectId: string, days = 7): DailyDetections[] 
  *     embeddingFailed: id[],   // has an image the model could not turn into features
  *     duplicates: [id, id][],  // the same face registered twice; alerts fire twice
  *     detectedLast7d: id[],    // seen by any camera in the window
+ *     detectedPrev7d: id[],    // the same, for the seven days before that
  *   }
  *
  * The first three are defects with different causes and different fixes (upload a photo, replace a
- * bad photo, merge two rows), which is why they are three lists and not one number. The fourth is
- * not a defect: it is the reach of the list, and it is here because a watchlist nobody ever
- * matches is the quietest way this product fails.
+ * bad photo, merge two rows), which is why they are three lists and not one number. The last two
+ * are not defects: they are the reach of the list, and they are here because a watchlist nobody
+ * ever matches is the quietest way this product fails.
+ *
+ * WHY TWO WINDOWS. One number cannot answer the question the figure is for. "9 of 104 seen this
+ * week" is a normal week if the VIPs simply did not come, and a dead camera fleet if it was 40
+ * last week — the reader cannot tell those apart, and they are the same screen with opposite
+ * meanings. The previous window is the cheapest thing that separates them, and it is a second
+ * range over the same query rather than a time series: two counts, not a chart.
+ *
+ * Both windows are seven calendar days in the project's timezone, back to back, so the two are
+ * comparable without the client doing arithmetic on timestamps. Ids rather than counts, because
+ * the page filters its table to the rows behind the figure.
  *
  * Seeded deterministically, like everything else in this file.
  */
 export interface RegistryHealth {
   missingPhoto: string[];
   embeddingFailed: string[];
+  /** Photo replaced, waiting on the model's answer. See Person.reenrolledAt. */
+  reenrolling: string[];
   duplicates: [string, string][];
   detectedLast7d: string[];
+  detectedPrev7d: string[];
 }
 
 export function registryHealth(projectId: string, persons: Person[]): RegistryHealth {
   const rows = persons.filter(p => p.projectId === projectId);
   const missingPhoto: string[] = [];
   const embeddingFailed: string[] = [];
+  // Re-submitted and waiting on the model. Separated from embeddingFailed rather than dropped
+  // from it: the count going down on a save would claim the new photo works, which nothing here
+  // knows. See Person.reenrolledAt.
+  const reenrolling: string[] = [];
+  // Derived from Person.lastDetectedAt rather than rolled here, so the figure in the summary and
+  // the date in the table row can never tell different stories about the same person.
   const detectedLast7d: string[] = [];
+  const detectedPrev7d: string[] = [];
   rows.forEach((p, i) => {
     // Not seeded: a person with no photoUrl has no enrolled face, full stop. The CSV import is
     // where they come from, and this reads the same field the table draws from — so the figure and
     // the rows behind it can never disagree.
     if (!p.photoUrl) { missingPhoto.push(p.id); return; }
-    const roll = seededRandom(i * 4.77 + p.id.length);
-    if (roll > 0.88) embeddingFailed.push(p.id);
+    if (seededPhotoUnreadable(p.id)) {
+      if (p.reenrolledAt) reenrolling.push(p.id);
+      else embeddingFailed.push(p.id);
+    }
     // Only rows with a usable face can have been seen. Letting an unmatchable person appear in
     // the detected list would make the two figures on the page contradict each other.
-    else if (seededRandom(i * 6.31 + 1.5) > 0.9) detectedLast7d.push(p.id);
+    else {
+      const seenDaysAgo = p.lastDetectedAt
+        ? Math.floor((SEED_TODAY - Date.parse(p.lastDetectedAt)) / 86_400_000)
+        : Infinity;
+      if (seenDaysAgo < 7) detectedLast7d.push(p.id);
+      // Whoever was last seen 7-13 days ago was certainly in the previous window, plus a share of
+      // the people seen this week who also came the week before. That second group is the part
+      // lastDetectedAt cannot answer — it only remembers the most recent match — which is why the
+      // API asks the backend for the previous window rather than deriving it here.
+      if ((seenDaysAgo >= 7 && seenDaysAgo < 14) || (seenDaysAgo < 7 && seededRandom(i * 7.93 + 2.7) > 0.45)) {
+        detectedPrev7d.push(p.id);
+      }
+    }
   });
   // Pairs, not a count: a duplicate is two rows, and the fix is choosing which one to keep.
   const duplicates: [string, string][] = [];
   for (let i = 0; i + 1 < rows.length && duplicates.length < 2; i += 1) {
     if (seededRandom(i * 8.19 + 3.3) > 0.96) duplicates.push([rows[i].id, rows[i + 1].id]);
   }
-  return { missingPhoto, embeddingFailed, duplicates, detectedLast7d };
+  return { missingPhoto, embeddingFailed, reenrolling, duplicates, detectedLast7d, detectedPrev7d };
 }
 
 /**
@@ -1413,20 +2158,29 @@ const AUDIT_LOG: AuditEvent[] = [
   // console's log is weeks deep, and the point of the modal is that the card is a window onto
   // something bigger. Times fan out from an hour ago to nine days, in the order things actually
   // happen in a project: cameras get added and re-pointed, people get invited and promoted,
-  // watchlists get edited, servers get restarted.
+  // watchlists get edited, servers get reconfigured.
+  //
+  // Every line here names an action Portal can actually perform, and is worded the way that
+  // action words itself when it writes its own entry. Four of them did not: "Face recognition
+  // enabled on 4 cameras" (per-camera engines were removed on 2026-09-09), "Server FR 2
+  // restarted" (no restart control exists), "Retention period changed from 30 to 60 days" (no
+  // retention control exists) and "Mail server verified" (saving mail settings verifies
+  // nothing). This is the same trap ACCESS_REQUESTS was emptied to avoid — a seeded row that
+  // cannot occur teaches whoever reads the screen that the product does something it does not,
+  // and the audit log is the one screen a customer reads to find out what happened.
   { id: "audit-5", projectId: "proj-sg", message: "Camera CAM-BLK-019 added to zone August", actor: "Marcus Lee", at: auditAt(320) },
   { id: "audit-6", projectId: "proj-sg", message: "VIP group \"Executive Protection\" created", actor: "Grace Tan", at: auditAt(400) },
   { id: "audit-7", projectId: "proj-sg", message: "Aaron Sim invited as auditor", actor: "Grace Tan", at: auditAt(690) },
-  { id: "audit-8", projectId: "proj-sg", message: "Face recognition enabled on 4 cameras in Bugis", actor: "Marcus Lee", at: auditAt(1080) },
-  { id: "audit-9", projectId: "proj-sg", message: "Server FR 2 restarted after firmware update", actor: "Wei Chen", at: auditAt(1500) },
+  { id: "audit-8", projectId: "proj-sg", message: "4 cameras in Bugis assigned to server FR 2", actor: "Marcus Lee", at: auditAt(1080) },
+  { id: "audit-9", projectId: "proj-sg", message: "Server FR 2 updated", actor: "Wei Chen", at: auditAt(1500) },
   { id: "audit-10", projectId: "proj-sg", message: "VIP Sarah Lim's priority raised to High", actor: "Grace Tan", at: auditAt(2160) },
   { id: "audit-11", projectId: "proj-sg", message: "Camera CAM-BDK-001 stream credentials rotated", actor: "Marcus Lee", at: auditAt(2880) },
   { id: "audit-12", projectId: "proj-sg", message: "Registration codes issued to 6 staff", actor: "Grace Tan", at: auditAt(3600) },
-  { id: "audit-13", projectId: "proj-sg", message: "Retention period changed from 30 to 60 days", actor: "Grace Tan", at: auditAt(4320) },
+  { id: "audit-13", projectId: "proj-sg", message: "Project timezone set to Asia/Singapore", actor: "Grace Tan", at: auditAt(4320) },
   { id: "audit-14", projectId: "proj-sg", message: "Camera CAM-QTN-001 renamed to Queenstown", actor: "Wei Chen", at: auditAt(5760) },
   { id: "audit-15", projectId: "proj-sg", message: "Marcus Lee granted app access", actor: "Grace Tan", at: auditAt(7200) },
   { id: "audit-16", projectId: "proj-sg", message: "VIP watchlist exported to CSV", actor: "Aaron Sim", at: auditAt(8640) },
-  { id: "audit-17", projectId: "proj-sg", message: "Mail server smtp.univs.ai verified", actor: "Wei Chen", at: auditAt(10080) },
+  { id: "audit-17", projectId: "proj-sg", message: "Project mail settings updated", actor: "Wei Chen", at: auditAt(10080) },
   { id: "audit-18", projectId: "proj-sg", message: "Zone Angmokio created with 3 cameras", actor: "Marcus Lee", at: auditAt(11520) },
   { id: "audit-19", projectId: "proj-sg", message: "License renewed until 2029-03-31", actor: "Grace Tan", at: auditAt(12960) },
 ];
@@ -1513,6 +2267,12 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
   uploads: UPLOADS,
   persons: PERSONS,
   personGroups: PERSON_GROUPS,
+  // No seed. An institution defines its own; a shipped default would become the standard.
+  watchlistCategories: [],
+  searchPurposes: [],
+  searchPurpose: null,
+  // No seed. These are events, and an installation that has run no searches has none.
+  searchAccessLog: [],
   events: SEED_EVENTS,
   portalUsers: PORTAL_USERS,
   servers: SERVERS,
@@ -1530,23 +2290,41 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       const auditEntry: AuditEvent = { id: `audit-${++auditSeq}`, projectId: cam?.projectId, message: `Camera ${cam?.code ?? cameraId} marked ${status}`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() };
       return {
         cameras: state.cameras.map(c => (c.id === cameraId ? { ...c, status } : c)),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   addCamera: (camera) =>
     set(state => ({
       cameras: [...state.cameras, { ...camera, id: `cam-${++cameraSeq}` }],
-      auditLog: [{ id: `audit-${++auditSeq}`, projectId: camera.projectId, message: `Camera ${camera.name} added`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, 200),
+      auditLog: [{ id: `audit-${++auditSeq}`, projectId: camera.projectId, message: `Camera ${camera.name} added`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     })),
   updateCamera: (cameraId, updates) =>
-    set(state => ({ cameras: state.cameras.map(c => (c.id === cameraId ? { ...c, ...updates } : c)) })),
+    set(state => {
+      const cam = state.cameras.find(c => c.id === cameraId);
+      if (!cam) return state;
+      // Adding and removing a camera both logged; editing one did not — and re-pointing a
+      // camera at a different stream is exactly the change an investigation asks about. The
+      // seeded log even carries "Camera CAM-NOV-001 RTSP URL updated", so the customer learns
+      // to expect a line that was never written.
+      const streamChanged = updates.rtspUrl !== undefined && updates.rtspUrl !== cam.rtspUrl;
+      return {
+        cameras: state.cameras.map(c => (c.id === cameraId ? { ...c, ...updates } : c)),
+        auditLog: [{
+          id: `audit-${++auditSeq}`, projectId: cam.projectId,
+          message: streamChanged
+            ? `Camera ${updates.name ?? cam.name} stream address changed`
+            : `Camera ${updates.name ?? cam.name} updated`,
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
   removeCamera: (cameraId) =>
     set(state => {
       const cam = state.cameras.find(c => c.id === cameraId);
       const auditEntry: AuditEvent = { id: `audit-${++auditSeq}`, projectId: cam?.projectId, message: `Camera ${cam?.name ?? cameraId} removed`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() };
       return {
         cameras: state.cameras.filter(c => c.id !== cameraId),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   removeCameras: (cameraIds) =>
@@ -1563,7 +2341,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       };
       return {
         cameras: state.cameras.filter(c => !ids.has(c.id)),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   setCamerasZone: (cameraIds, zone) =>
@@ -1578,7 +2356,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       };
       return {
         cameras: state.cameras.map(c => (ids.has(c.id) ? { ...c, zone } : c)),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   addUpload: (upload) => {
@@ -1596,7 +2374,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
     };
     set(state => ({
       uploads: [entry, ...state.uploads],
-      auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+      auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     }));
     return id;
   },
@@ -1610,15 +2388,70 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       };
       return {
         uploads: state.uploads.filter(u => u.id !== uploadId),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   addProject: (project) =>
-    set(state => ({ projects: [...state.projects, { ...project, id: `proj-${++projectSeq}` }] })),
+    set(state => ({
+      projects: [...state.projects, { ...project, id: `proj-${++projectSeq}` }],
+      auditLog: [{ id: `audit-${++auditSeq}`, teamId: project.teamId, message: `Project created: ${project.name}`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+    })),
+  renameProject: (projectId, name) =>
+    set(state => {
+      const project = state.projects.find(p => p.id === projectId);
+      if (!project || project.name === name) return state;
+      return {
+        projects: state.projects.map(p => (p.id === projectId ? { ...p, name } : p)),
+        // Both names in the message. A rename read a year later is unreadable without the old
+        // one — "Project renamed to Bugis North" does not say which project that was.
+        auditLog: [{
+          id: `audit-${++auditSeq}`, projectId,
+          message: `Project renamed: ${project.name} → ${name}`,
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
+  removeProject: (projectId) =>
+    set(state => {
+      const project = state.projects.find(p => p.id === projectId);
+      if (!project) return state;
+      const personIds = new Set(state.persons.filter(p => p.projectId === projectId).map(p => p.id));
+      return {
+        projects: state.projects.filter(p => p.id !== projectId),
+        cameras: state.cameras.filter(c => c.projectId !== projectId),
+        uploads: state.uploads.filter(u => u.projectId !== projectId),
+        servers: state.servers.filter(sv => sv.projectId !== projectId),
+        persons: state.persons.filter(p => p.projectId !== projectId),
+        personGroups: state.personGroups.filter(g => g.projectId !== projectId),
+        staffRoster: state.staffRoster.filter(r => r.projectId !== projectId),
+        searchAccessLog: state.searchAccessLog.filter(r => r.projectId !== projectId),
+        accessRequests: state.accessRequests.filter(r => r.projectId !== projectId),
+        // Detections of the people who were on this site's watchlist. personId is optional —
+        // an unidentified detection belongs to no person and is left alone.
+        events: state.events.filter(e => e.personId === undefined || !personIds.has(e.personId)),
+        // Accounts belong to the team, not the project. Somebody who worked at one site and two
+        // others keeps the other two; somebody who worked only here keeps an account with an
+        // empty list, which the Users page shows and an administrator can act on. Deleting
+        // people because a site closed is not the same decision as closing the site.
+        portalUsers: state.portalUsers.map(u => (
+          u.projectIds.includes(projectId) ? { ...u, projectIds: u.projectIds.filter(id => id !== projectId) } : u
+        )),
+        // The audit entries stay, re-filed under the team so they remain readable somewhere.
+        // A deletion that erases the record of everything that led up to it is not a deletion,
+        // it is a cover-up, and the audit log is the one screen that has to survive this.
+        auditLog: [{
+          id: `audit-${++auditSeq}`, teamId: project.teamId,
+          message: `Project deleted: ${project.name}`,
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...state.auditLog.map(a => (
+          a.projectId === projectId ? { ...a, projectId: undefined, teamId: project.teamId } : a
+        ))].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
   updateProjectLicense: (projectId, updates) =>
     set(state => ({
       projects: state.projects.map(p => (p.id === projectId ? { ...p, ...updates } : p)),
-      auditLog: [{ id: `audit-${++auditSeq}`, projectId, message: `License updated to ${updates.licensePlan} (${updates.licenseChannelLimit} channels)`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, 200),
+      auditLog: [{ id: `audit-${++auditSeq}`, projectId, message: `License updated to ${updates.licensePlan} (${updates.licenseChannelLimit} channels)`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     })),
   // Mail settings write to the audit log the way license changes do — an admin changing where
   // invites are sent is exactly the kind of thing someone has to be able to trace later.
@@ -1628,15 +2461,18 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       // Audited: which day a detection is filed under, when a report covers, and what "today"
       // means on every screen all move when this changes.
       auditLog: [
-        { id: `audit-${Date.now()}`, projectId, message: `Project timezone set to ${timeZone}`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() },
+        // ++auditSeq, not Date.now(): two changes inside one millisecond produced duplicate
+        // React keys. And sliced like every other writer — this was the one that could grow the
+        // log past the ceiling the Activity screen prints.
+        { id: `audit-${++auditSeq}`, projectId, message: `Project timezone set to ${timeZone}`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() },
         ...state.auditLog,
-      ],
+      ].slice(0, AUDIT_LOG_LIMIT),
     })),
 
   updateProjectMail: (projectId, updates) =>
     set(state => ({
       projects: state.projects.map(p => (p.id === projectId ? { ...p, ...updates } : p)),
-      auditLog: [{ id: `audit-${++auditSeq}`, projectId, message: `Project mail settings updated`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, 200),
+      auditLog: [{ id: `audit-${++auditSeq}`, projectId, message: `Project mail settings updated`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     })),
   // This flips which mailbox invites/resets go through, same audit-worthy weight as updateProjectMail.
   setNetworkIsolationOverride: (projectId, override) =>
@@ -1646,39 +2482,174 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
         id: `audit-${++auditSeq}`, projectId,
         message: override === null ? "Network reachability reset to auto-detection" : `Network reachability manually set to ${override ? "internet-isolated" : "internet-connected"}`,
         actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
-      }, ...state.auditLog].slice(0, 200),
+      }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     })),
   updateTeamMail: (teamId, updates) =>
     set(state => ({
       teams: state.teams.map(o => (o.id === teamId ? { ...o, ...updates } : o)),
-      auditLog: [{ id: `audit-${++auditSeq}`, message: `Team mail settings updated`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, 200),
+      auditLog: [{ id: `audit-${++auditSeq}`, message: `Team mail settings updated`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     })),
   addPerson: (person) =>
     set(state => ({
-      persons: [...state.persons, { ...person, id: `person-${++personSeq}` }],
-      auditLog: [{ id: `audit-${++auditSeq}`, projectId: person.projectId, message: `VIP ${person.name} registered`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, 200),
+      persons: [...state.persons, { registeredBy: SIGNED_IN_USER.name, ...person, id: `person-${++personSeq}` }],
+      auditLog: [{ id: `audit-${++auditSeq}`, projectId: person.projectId, message: `VIP ${person.name} registered`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     })),
+  addPersons: (persons, source) => {
+    if (persons.length === 0) return 0;
+    set(state => ({
+      persons: [...state.persons, ...persons.map(pp => ({ registeredBy: SIGNED_IN_USER.name, ...pp, id: `person-${++personSeq}` }))],
+      auditLog: [{
+        id: `audit-${++auditSeq}`, projectId: persons[0].projectId,
+        message: `${persons.length} ${persons.length === 1 ? "person" : "people"} imported from ${source}`,
+        actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+      }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+    }));
+    return persons.length;
+  },
   removePerson: (personId) =>
-    set(state => ({ persons: state.persons.filter(p => p.id !== personId) })),
+    set(state => {
+      const person = state.persons.find(p => p.id === personId);
+      // The one mutation in this store that wrote no audit entry. Registering, editing, releasing
+      // and grouping all logged; erasing an enrolled face record — the single most consequential
+      // thing that can be done to this registry, and the one an audit is most likely to ask
+      // about — left nothing behind at all.
+      const auditEntry: AuditEvent = {
+        id: `audit-${++auditSeq}`, projectId: person?.projectId,
+        // The name is snapshotted into the message because the row it names is about to stop
+        // existing — the same reason the group and camera removals word themselves this way.
+        message: `VIP ${person?.name ?? personId} deleted from the watchlist`,
+        actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+      };
+      return {
+        persons: state.persons.filter(p => p.id !== personId),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
+  releasePerson: (personId, reason) =>
+    set(state => {
+      const person = state.persons.find(p => p.id === personId);
+      if (!person) return {};
+      const at = new Date().toISOString();
+      return {
+        persons: state.persons.map(p => (p.id === personId ? { ...p, releasedAt: at, releaseReason: reason } : p)),
+        auditLog: [{
+          id: `audit-${++auditSeq}`, projectId: person.projectId,
+          message: `VIP ${person.name} released — ${reason}`,
+          actor: SIGNED_IN_USER.name, at,
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
+  reinstatePerson: (personId, reason) =>
+    set(state => {
+      const person = state.persons.find(p => p.id === personId);
+      if (!person || !person.releasedAt) return {};
+      const at = new Date().toISOString();
+      // The old release date goes into the message before it is cleared off the row. The row
+      // holds the current state; the log holds the history, and "when did this person go back
+      // on the list, and how long had they been off it" is only answerable if both are written.
+      const wasReleasedOn = person.releasedAt.slice(0, 10);
+      return {
+        persons: state.persons.map(p => (
+          p.id === personId ? { ...p, releasedAt: undefined, releaseReason: undefined } : p
+        )),
+        auditLog: [{
+          id: `audit-${++auditSeq}`, projectId: person.projectId,
+          message: `VIP ${person.name} reinstated (released ${wasReleasedOn}) — ${reason}`,
+          actor: SIGNED_IN_USER.name, at,
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
+  addSearchPurpose: (purpose) => {
+    const id = `spurpose-${++searchPurposeSeq}`;
+    set(state => ({
+      searchPurposes: [...state.searchPurposes, { ...purpose, id, archived: false }],
+      auditLog: [policyAudit(purpose.teamId, `Search purpose "${purpose.label}" created`), ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+    }));
+    return id;
+  },
+  updateSearchPurpose: (purposeId, updates) =>
+    set(state => ({
+      searchPurposes: state.searchPurposes.map(p => (p.id === purposeId ? { ...p, ...updates } : p)),
+      auditLog: [policyAudit(
+        state.searchPurposes.find(p => p.id === purposeId)?.teamId,
+        `Search purpose "${updates.label ?? state.searchPurposes.find(p => p.id === purposeId)?.label ?? purposeId}" changed`,
+      ), ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+    })),
+  archiveSearchPurpose: (purposeId) =>
+    set(state => ({
+      searchPurposes: state.searchPurposes.map(p => (p.id === purposeId ? { ...p, archived: true } : p)),
+      auditLog: [policyAudit(
+        state.searchPurposes.find(p => p.id === purposeId)?.teamId,
+        `Search purpose "${state.searchPurposes.find(p => p.id === purposeId)?.label ?? purposeId}" retired`,
+      ), ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+    })),
+  // Not called from anywhere in src/ yet — the app's purpose gate is deferred to v2, the same
+  // as recordSearchAccess (see the note in ProjectSearchLogTab). Kept, not deleted: the store
+  // side of that feature is finished and re-deriving it later is the waste.
+  setSearchPurpose: (selection) => set({ searchPurpose: selection }),
+  recordSearchAccess: (record) =>
+    set(state => ({
+      // Newest first, and no cap here. The audit log is trimmed to 200 because it is a convenience
+      // feed; this one is the record somebody is answerable for, and silently dropping the oldest
+      // entries is how a log stops being evidence. Retention belongs to the server.
+      searchAccessLog: [{ ...record, id: `saccess-${++searchAccessSeq}` }, ...state.searchAccessLog],
+    })),
+  addWatchlistCategory: (category) => {
+    const id = `wcat-${++watchlistCategorySeq}`;
+    set(state => ({
+      watchlistCategories: [...state.watchlistCategories, { ...category, id, archived: false }],
+      auditLog: [policyAudit(category.teamId, `Watchlist category "${category.label}" created`), ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+    }));
+    return id;
+  },
+  updateWatchlistCategory: (categoryId, updates) =>
+    set(state => {
+      const before = state.watchlistCategories.find(c => c.id === categoryId);
+      if (!before) return {};
+      return {
+        watchlistCategories: state.watchlistCategories.map(c => (c.id === categoryId ? { ...c, ...updates } : c)),
+        auditLog: [policyAudit(before.teamId, `Watchlist category "${updates.label ?? before.label}" changed`), ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
+  archiveWatchlistCategory: (categoryId) =>
+    set(state => {
+      const before = state.watchlistCategories.find(c => c.id === categoryId);
+      if (!before) return {};
+      return {
+        watchlistCategories: state.watchlistCategories.map(c => (c.id === categoryId ? { ...c, archived: true } : c)),
+        auditLog: [policyAudit(before.teamId, `Watchlist category "${before.label}" retired`), ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
   updatePerson: (personId, updates) =>
     set(state => {
       const person = state.persons.find(p => p.id === personId);
       if (!person) return {};
+      const at = new Date().toISOString();
+      // Replacing the face is a different act from correcting a name, and until now the registry
+      // could not tell them apart: an admin opened a person flagged "photo unreadable", uploaded
+      // a clean picture, saved — and the flag, the count and the unmatchable row were unchanged.
+      // See Person.reenrolledAt. It records that the question was re-asked, not that the answer
+      // came back good.
+      const photoReplaced = updates.photoUrl !== undefined && updates.photoUrl !== person.photoUrl;
       const auditEntry: AuditEvent = {
         id: `audit-${++auditSeq}`, projectId: person.projectId,
-        message: `VIP updated: ${updates.name ?? person.name}`,
-        actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        message: photoReplaced
+          ? `VIP photo replaced for re-enrolment: ${updates.name ?? person.name}`
+          : `VIP updated: ${updates.name ?? person.name}`,
+        actor: SIGNED_IN_USER.name, at,
       };
       return {
-        persons: state.persons.map(p => (p.id === personId ? { ...p, ...updates } : p)),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        persons: state.persons.map(p => (
+          p.id === personId ? { ...p, ...updates, ...(photoReplaced ? { reenrolledAt: at } : null) } : p
+        )),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   addPersonGroup: (group) => {
     const id = `pgroup-${++personGroupSeq}`;
     set(state => ({
       personGroups: [...state.personGroups, { ...group, id }],
-      auditLog: [{ id: `audit-${++auditSeq}`, projectId: group.projectId, message: `VIP group created: ${group.name}`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, 200),
+      auditLog: [{ id: `audit-${++auditSeq}`, projectId: group.projectId, message: `VIP group created: ${group.name}`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     }));
     return id;
   },
@@ -1688,7 +2659,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       if (!group) return {};
       return {
         personGroups: state.personGroups.map(g => (g.id === groupId ? { ...g, ...updates } : g)),
-        auditLog: [{ id: `audit-${++auditSeq}`, projectId: group.projectId, message: `VIP group updated: ${updates.name ?? group.name}`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, 200),
+        auditLog: [{ id: `audit-${++auditSeq}`, projectId: group.projectId, message: `VIP group updated: ${updates.name ?? group.name}`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   removePersonGroup: (groupId, options) =>
@@ -1710,7 +2681,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
           message: `VIP group removed: ${group?.name ?? groupId}`
             + (affected === 0 ? "" : deleteMembers ? ` — ${affected} member(s) deleted with it` : ` — ${affected} member(s) kept as individuals`),
           actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
-        }, ...state.auditLog].slice(0, 200),
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   setPersonGroup: (personId, groupId) =>
@@ -1727,7 +2698,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       };
       return {
         persons: state.persons.map(p => (p.id === personId ? { ...p, groupId } : p)),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   addEvent: (event) =>
@@ -1801,7 +2772,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       const auditEntry: AuditEvent = { id: `audit-${++auditSeq}`, projectId: user?.projectIds[0], message: `${user?.name ?? userId}'s permission changed to ${permission}`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() };
       return {
         portalUsers: state.portalUsers.map(u => (u.id === userId ? { ...u, permission } : u)),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   updatePortalUserAccess: (userId, permission, appAccess) =>
@@ -1814,14 +2785,29 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       const where = canEnterPortal(permission)
         ? (appAccess ? "Portal and the app" : "Portal only")
         : "the app only";
-      const auditEntry: AuditEvent = {
+      // Losing the app takes person search with it. appSearch is a grant on a surface the
+      // account can no longer reach, and the row went on showing its "Search on" badge — the
+      // most sensitive grant in the product reading as live on somebody who cannot use it.
+      // Logged separately, because granting and revoking it is its own audited act.
+      const at = new Date().toISOString();
+      const searchDropped = !appAccess && user?.appSearch === true;
+      const entries: AuditEvent[] = [{
         id: `audit-${++auditSeq}`, projectId: user?.projectIds[0],
         message: `${user?.name ?? userId} may now use ${where} (role: ${permission})`,
-        actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
-      };
+        actor: SIGNED_IN_USER.name, at,
+      }];
+      if (searchDropped) {
+        entries.unshift({
+          id: `audit-${++auditSeq}`, projectId: user?.projectIds[0],
+          message: `Person search revoked with app access: ${user?.name ?? userId}`,
+          actor: SIGNED_IN_USER.name, at,
+        });
+      }
       return {
-        portalUsers: state.portalUsers.map(u => (u.id === userId ? { ...u, permission, appAccess } : u)),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        portalUsers: state.portalUsers.map(u => (
+          u.id === userId ? { ...u, permission, appAccess, ...(appAccess ? null : { appSearch: false }) } : u
+        )),
+        auditLog: [...entries, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   setActiveProjectId: (projectId) => set({ activeProjectId: projectId }),
@@ -1835,11 +2821,33 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       };
       return {
         portalUsers: state.portalUsers.map(u => (u.id === userId ? { ...u, appSearch: allowed } : u)),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   updatePortalUserProjects: (userId, projectIds) =>
-    set(state => ({ portalUsers: state.portalUsers.map(u => (u.id === userId ? { ...u, projectIds } : u)) })),
+    set(state => {
+      const user = state.portalUsers.find(u => u.id === userId);
+      if (!user) return state;
+      // Named, not counted. "3 projects" a year later says nothing; which site somebody was let
+      // into or out of is the whole question an access review asks.
+      const nameOf = (id: string) => state.projects.find(p => p.id === id)?.name ?? id;
+      const added = projectIds.filter(id => !user.projectIds.includes(id)).map(nameOf);
+      const removed = user.projectIds.filter(id => !projectIds.includes(id)).map(nameOf);
+      if (added.length === 0 && removed.length === 0) return state;
+      const parts = [
+        added.length ? `+${added.join(", ")}` : "",
+        removed.length ? `−${removed.join(", ")}` : "",
+      ].filter(Boolean).join(" ");
+      const auditEntry: AuditEvent = {
+        id: `audit-${++auditSeq}`, projectId: user.projectIds[0],
+        message: `${user.name}'s projects changed: ${parts}`,
+        actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+      };
+      return {
+        portalUsers: state.portalUsers.map(u => (u.id === userId ? { ...u, projectIds } : u)),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
   updatePortalUserStatus: (userId, status) =>
     set(state => {
       // Safety net behind the UI, which already refuses to offer these. Both layers are wanted: the
@@ -1869,7 +2877,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
           ? { ...u, tempPasswordIssuedAt: new Date().toISOString(), mustChangePassword: true }
           : u
       ),
-      auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+      auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     }));
     return password;
   },
@@ -1922,7 +2930,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
           ? { ...u, setupCode: code, setupCodeIssuedAt: new Date().toISOString() }
           : u
       ),
-      auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+      auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     }));
     return code;
   },
@@ -1943,7 +2951,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       const auditEntry: AuditEvent = { id: `audit-${++auditSeq}`, projectId: user?.projectIds[0], message: `User ${user?.name ?? userId} removed`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() };
       return {
         portalUsers: state.portalUsers.filter(u => u.id !== userId),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   requestAccess: (request) =>
@@ -1974,7 +2982,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
     set(s => ({
       portalUsers: [...s.portalUsers, ...newUsers],
       accessRequests: s.accessRequests.filter(r => !requestIds.includes(r.id)),
-      auditLog: [...auditEntries, ...s.auditLog].slice(0, 200),
+      auditLog: [...auditEntries, ...s.auditLog].slice(0, AUDIT_LOG_LIMIT),
     }));
     return newUsers.map(u => u.id);
   },
@@ -1982,15 +2990,97 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
     set(state => ({ accessRequests: state.accessRequests.filter(r => r.id !== requestId) })),
   addTeam: (team) => {
     const id = `team-${++orgSeq}`;
-    set(state => ({ teams: [...state.teams, { ...team, id }] }));
+    set(state => ({
+      teams: [...state.teams, { ...team, id }],
+      auditLog: [{ id: `audit-${++auditSeq}`, teamId: id, message: `Team created: ${team.name}`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+    }));
     return id;
   },
+  renameTeam: (teamId, name) =>
+    set(state => {
+      const team = state.teams.find(o => o.id === teamId);
+      if (!team || team.name === name) return state;
+      return {
+        teams: state.teams.map(o => (o.id === teamId ? { ...o, name } : o)),
+        auditLog: [{
+          id: `audit-${++auditSeq}`, teamId,
+          message: `Team renamed: ${team.name} → ${name}`,
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
+  removeTeam: (teamId) =>
+    set(state => {
+      const team = state.teams.find(o => o.id === teamId);
+      if (!team) return state;
+      // Refused while it still holds projects, and the UI refuses first with a reason on it.
+      // Cascading a team would delete several sites at once from a dropdown, which is not a
+      // decision anybody should be able to take in one gesture — each project is deleted from
+      // its own Settings screen, where what is about to go is listed.
+      if (state.projects.some(p => p.teamId === teamId)) return state;
+      // And never at the cost of the last owner. updatePortalUserStatus, updatePortalUserPermission,
+      // updatePortalUserAccess and removePortalUser all refuse exactly this outcome because there
+      // is no recovery path from an installation nobody can grant permissions in — and this
+      // action reached it by the side door, by deleting the container the account sits in.
+      const survivors = state.portalUsers.filter(u => u.teamId !== teamId);
+      const ownersLeft = survivors.filter(u => u.permission === "owner" && u.status === "active").length;
+      if (ownersLeft === 0 && state.portalUsers.some(u => u.teamId === teamId && u.permission === "owner" && u.status === "active")) {
+        return state;
+      }
+      return {
+        teams: state.teams.filter(o => o.id !== teamId),
+        // Accounts filed under a team with no projects have nothing left to open. Removed with
+        // it rather than left pointing at a team that is gone.
+        portalUsers: state.portalUsers.filter(u => u.teamId !== teamId),
+        watchlistCategories: state.watchlistCategories.filter(c => c.teamId !== teamId),
+        searchPurposes: state.searchPurposes.filter(sp => sp.teamId !== teamId),
+        auditLog: [{
+          id: `audit-${++auditSeq}`,
+          message: `Team deleted: ${team.name}`,
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
+  /*
+   * Infrastructure changes are audited, like everything else that changes a deployment.
+   * These three were the only mutations in the store that wrote nothing at all, so the Activity
+   * log — the screen an auditor opens to find out what changed — never showed a server being
+   * added, re-pointed or removed.
+   */
   addServer: (server) =>
-    set(state => ({ servers: [...state.servers, { ...server, id: `srv-${++serverSeq}` }] })),
+    set(state => ({
+      servers: [...state.servers, { ...server, id: `srv-${++serverSeq}` }],
+      auditLog: [{ id: `audit-${++auditSeq}`, projectId: server.projectId, message: `Server ${server.name} added`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+    })),
   updateServer: (serverId, updates) =>
-    set(state => ({ servers: state.servers.map(s => (s.id === serverId ? { ...s, ...updates } : s)) })),
+    set(state => {
+      const server = state.servers.find(s => s.id === serverId);
+      if (!server) return state;
+      return {
+        servers: state.servers.map(s => (s.id === serverId ? { ...s, ...updates } : s)),
+        auditLog: [{ id: `audit-${++auditSeq}`, projectId: server.projectId, message: `Server ${updates.name ?? server.name} updated`, actor: SIGNED_IN_USER.name, at: new Date().toISOString() }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
   removeServer: (serverId) =>
-    set(state => ({ servers: state.servers.filter(s => s.id !== serverId) })),
+    set(state => {
+      const server = state.servers.find(s => s.id === serverId);
+      if (!server) return state;
+      // Cameras that pointed at it are unassigned, not left holding a dead id. They were: the
+      // table then printed an em dash in the "assigned" colour, and re-opening the camera's
+      // edit form and saving wrote the dangling id straight back.
+      const orphaned = state.cameras.filter(c => c.serverId === serverId).length;
+      return {
+        servers: state.servers.filter(s => s.id !== serverId),
+        cameras: state.cameras.map(c => (c.serverId === serverId ? { ...c, serverId: undefined } : c)),
+        auditLog: [{
+          id: `audit-${++auditSeq}`, projectId: server.projectId,
+          message: orphaned > 0
+            ? `Server ${server.name} removed — ${orphaned} camera${orphaned === 1 ? "" : "s"} left unassigned`
+            : `Server ${server.name} removed`,
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
   // Only ever touches rows that (a) were asked for and (b) don't already have a code — reissuing
   // one is a separate, explicit action, not something a repeated bulk-issue click should do.
   issueRegistrationCodes: (employeeIds) =>
@@ -2007,7 +3097,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
         });
         return { ...r, code, issuedAt: new Date().toISOString(), status: "unused" as const };
       });
-      return { staffRoster, auditLog: [...auditEntries, ...state.auditLog].slice(0, 200) };
+      return { staffRoster, auditLog: [...auditEntries, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT) };
     }),
   // For a lost sheet of paper — the old code must stop working immediately, which a fresh
   // generateRegistrationCode() call already guarantees just by overwriting `code`.
@@ -2025,7 +3115,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
         // A fresh issuedAt restarts the clock: the point of a reissue is that the person still has
         // not registered, so handing them a code that expires on the old one's schedule is no use.
         staffRoster: state.staffRoster.map(r => (r.employeeId === employeeId ? { ...r, code, issuedAt: new Date().toISOString(), status: "unused" as const } : r)),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   /**
@@ -2073,7 +3163,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
     set(s2 => ({
       portalUsers: [...s2.portalUsers, user],
       staffRoster: s2.staffRoster.map(r => (r.employeeId === employeeId ? { ...r, status: "used" as const } : r)),
-      auditLog: [auditEntry, ...s2.auditLog].slice(0, 200),
+      auditLog: [auditEntry, ...s2.auditLog].slice(0, AUDIT_LOG_LIMIT),
     }));
     return id;
   },
@@ -2092,9 +3182,33 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
     // adding someone to the list is not the same as handing them a way in.
     set(state => ({
       staffRoster: [...state.staffRoster, { ...entry, status: "not-issued" as const }],
-      auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+      auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
     }));
     return true;
+  },
+  addRosterEntries: (entries, source) => {
+    const rejected: string[] = [];
+    const taken = new Set(get().staffRoster.map(r => r.employeeId.toLowerCase()));
+    const accepted: RosterEntry[] = [];
+    entries.forEach(e => {
+      const key = e.employeeId.toLowerCase();
+      // The same duplicate rule addRosterEntry applies, and it has to see rows accepted moments
+      // ago in this very call — which is why `taken` grows as we go.
+      if (taken.has(key)) { rejected.push(e.employeeId); return; }
+      taken.add(key);
+      accepted.push({ ...e, status: "not-issued" as const });
+    });
+    if (accepted.length > 0) {
+      set(state => ({
+        staffRoster: [...state.staffRoster, ...accepted],
+        auditLog: [{
+          id: `audit-${++auditSeq}`, projectId: accepted[0].projectId,
+          message: `${accepted.length} roster ${accepted.length === 1 ? "entry" : "entries"} imported from ${source}`,
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      }));
+    }
+    return rejected;
   },
   updateRosterEntry: (employeeId, updates) =>
     set(state => {
@@ -2107,7 +3221,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       };
       return {
         staffRoster: state.staffRoster.map(r => (r.employeeId === employeeId ? { ...r, ...updates } : r)),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   removeRosterEntry: (employeeId) =>
@@ -2120,7 +3234,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       };
       return {
         staffRoster: state.staffRoster.filter(r => r.employeeId !== employeeId),
-        auditLog: [auditEntry, ...state.auditLog].slice(0, 200),
+        auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
   // No roster mutation here — this is purely a "who looked at this code" trail, called when an
@@ -2133,7 +3247,7 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
         id: `audit-${++auditSeq}`, projectId: entry.projectId,
         message: `Registration code viewed for ${entry.name} (${entry.employeeId})`, actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
       };
-      return { auditLog: [auditEntry, ...state.auditLog].slice(0, 200) };
+      return { auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT) };
     }),
 }));
 
@@ -2254,3 +3368,21 @@ export function isMailDeliverable(email: string, mailDomain: string | null): boo
   if (!mailDomain) return true;
   return email.trim().toLowerCase().endsWith(`@${mailDomain.toLowerCase()}`);
 }
+
+/**
+ * Tells lib/time.ts which site's clock to use.
+ *
+ * Registered here rather than in a screen because everything imports this store, so it runs
+ * before anything renders — and it has to be here rather than inside time.ts, which cannot import
+ * this file (this file imports it). Every date bucket, hour bucket and clock string in the app
+ * resolves through this one function.
+ *
+ * The seed constants above are computed while this module is still evaluating, so they are already
+ * fixed by the time this line runs. That is why time.ts pins its mock stamp loop to the fallback
+ * zone instead — see the note there.
+ */
+setSiteTimeZoneResolver(() => {
+  const state = useVcaStore.getState();
+  return resolveActiveProject(state.activeProjectId, state.portalUsers, state.projects)?.timeZone
+    ?? FALLBACK_TIME_ZONE;
+});
