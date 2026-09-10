@@ -33,6 +33,8 @@ docker compose ps   # admin·proxy·frontend가 healthy/running이면 끝
 - 웹: `http://<VCA_HOST>/` — 로그인 `admin@univs.ai` / `.env`의 `VCA_ADMIN_SEED_PASSWORD`(첫 로그인 후 변경)
 - 첫 기동에 Flyway가 스키마를 만들고(V1 베이스라인 + V2…), 시드가 팀·프로젝트·초기 owner·카메라 8대(test-stream)를 넣는다
 - 갱신: `git pull && docker compose up -d --build` — 바뀐 서비스만 다시 빌드·재시작. DB(`pg-data` 볼륨)는 유지되고 새 마이그레이션은 기동 시 적용
+  - 이미지는 새로 빌드됐는데 컨테이너가 이전 이미지로 남아 있으면(`docker compose ps`의 Up 시간이 그대로) 한 번 더
+    `docker compose up -d --no-build --force-recreate <service>` — 2026-09-10 frontend 갱신에서 실제로 발생(빌드 완료가 up 판단보다 늦게 끝난 경우)
 - 로그: `docker compose logs -f admin proxy` / 재설정 코드(SMTP 없음)는 `admin` 로그에 찍힌다(`VCA_ADMIN_MAIL_DEV_LOG=true`)
 
 ## .env 항목
