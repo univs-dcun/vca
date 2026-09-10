@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, Clock, Globe, KeyRound, Languages, LayoutGrid, LogIn, Mail, MapPin, Pencil, Shield, Trash2, User } from "lucide-react";
+import { ClipboardList, Mail, MapPin, Monitor, Pencil, Tag, Trash2, User } from "lucide-react";
 import { usePortalLanguage, type AppLanguage } from "@/lib/i18n";
 import { useVcaStore, currentPortalUser, canEnterApp, canManageAccess, canSetPolicy, SIGNED_IN_USER, type SearchPurpose } from "@/lib/vcaStore";
 import { getComplianceConfig } from "@/lib/complianceConfig";
@@ -23,7 +23,7 @@ const T = {
     appNo: "Portal only",
     team: "Team",
     teamMailTitle: "Team mail",
-    teamMailIntro: "A project can override this from its Server tab, and most do not — so this is the address staff actually receive mail from.",
+    teamMailIntro: "A project can override this in its Server tab. Most do not.",
     teamMailDomain: "Mail domain",
     teamMailDomainHint: "Accounts must have an address on this domain. Requests and invites to anything else are refused.",
     teamMailHost: "SMTP host",
@@ -79,6 +79,10 @@ const T = {
     passwordSetAgo: "Set 3 months ago",
     changePassword: "Change password",
     currentPassword: "Current password",
+    verifyStep: "Confirm it is you",
+    verify: "Continue",
+    verified: "Current password confirmed",
+    changeStep: "Choose a new password",
     newPassword: "New password",
     confirmPassword: "Confirm password",
     mismatch: "Passwords do not match. Please try again.",
@@ -98,7 +102,7 @@ const T = {
     appNo: "포털만",
     team: "팀",
     teamMailTitle: "팀 메일",
-    teamMailIntro: "프로젝트의 서버 탭에서 덮어쓸 수 있지만 대개 그러지 않으므로, 직원이 실제로 받는 주소가 여기입니다.",
+    teamMailIntro: "프로젝트의 서버 탭에서 덮어쓸 수 있습니다. 대개 그러지 않습니다.",
     teamMailDomain: "메일 도메인",
     teamMailDomainHint: "계정은 반드시 이 도메인의 주소여야 합니다. 그 외 주소로의 요청과 초대는 거부됩니다.",
     teamMailHost: "SMTP 호스트",
@@ -154,6 +158,10 @@ const T = {
     passwordSetAgo: "3개월 전 설정",
     changePassword: "비밀번호 변경",
     currentPassword: "현재 비밀번호",
+    verifyStep: "본인 확인",
+    verify: "확인",
+    verified: "현재 비밀번호가 확인되었습니다",
+    changeStep: "새 비밀번호 정하기",
     newPassword: "새 비밀번호",
     confirmPassword: "비밀번호 확인",
     mismatch: "비밀번호가 일치하지 않습니다. 다시 입력해주세요.",
@@ -305,13 +313,13 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
   // the owner it stands in for, the same assumption the rest of Portal makes about it.
   const maySetPolicy = me ? canSetPolicy(me.permission) : true;
 
-  const accountPairs: { label: string; value: string; icon: React.ReactNode }[] = [
-    { label: t.name, value: me?.name ?? SIGNED_IN_USER.name, icon: <User size={12} strokeWidth={2.2} /> },
-    { label: t.email, value: me?.email ?? SIGNED_IN_USER.email, icon: <Mail size={12} strokeWidth={2.2} /> },
+  const accountPairs: { label: string; value: string }[] = [
+    { label: t.name, value: me?.name ?? SIGNED_IN_USER.name },
+    { label: t.email, value: me?.email ?? SIGNED_IN_USER.email },
     ...(me ? [
-      { label: t.portalRole, value: t.roles[me.permission] ?? me.permission, icon: <Shield size={12} strokeWidth={2.2} /> },
-      { label: t.appAccess, value: canEnterApp(me) ? t.appYes : t.appNo, icon: <LogIn size={12} strokeWidth={2.2} /> },
-      ...(myTeam ? [{ label: t.team, value: myTeam.name, icon: <Building2 size={12} strokeWidth={2.2} /> }] : []),
+      { label: t.portalRole, value: t.roles[me.permission] ?? me.permission },
+      { label: t.appAccess, value: canEnterApp(me) ? t.appYes : t.appNo },
+      ...(myTeam ? [{ label: t.team, value: myTeam.name }] : []),
     ] : []),
   ];
 
@@ -351,13 +359,13 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
       {/* Which pairs exist depends on whether the signed-in address matches an account: with no
           match there is nothing to say about a role or a door, so those are absent rather than
           filled with a disclaimer. */}
-      <CardSection heading={t.accountTitle} first>
+      <CardSection heading={t.accountTitle} icon={<User size={15} strokeWidth={2.2} />} first>
         <PairGrid>
-          {accountPairs.map(r => <PairItem key={r.label} label={r.label} icon={r.icon}>{r.value}</PairItem>)}
+          {accountPairs.map(r => <PairItem key={r.label} label={r.label}>{r.value}</PairItem>)}
           {/* A pair like the others, whose value is a button rather than a fact: the sentence
               under "Password" is the only thing this page can honestly say about one — never the
               password itself, and not a row of dots pretending to be its length. */}
-          <PairItem label={t.password} icon={<KeyRound size={12} strokeWidth={2.2} />}>
+          <PairItem label={t.password}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
               <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)" }}>{t.passwordSetAgo}</span>
               <button className="portal-btn-outline" onClick={() => setChangingPassword(true)}
@@ -386,12 +394,12 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
         the licence), this card moves there whole and Settings goes back to being the account only.
       */}
       {project && (
-        <CardSection heading={t.projectTitle}>
+        <CardSection heading={t.projectTitle} icon={<MapPin size={15} strokeWidth={2.2} />}>
           <PairGrid>
             {/* Editable, at last. Every handover starts with a test project and a typo, and
                 there was no renameProject anywhere in the codebase — the first name a project
                 was given was the only one it would ever have. */}
-            <PairItem label={t.projectName} icon={<MapPin size={12} strokeWidth={2.2} />}>
+            <PairItem label={t.projectName}>
               {renaming !== null ? (
                 <span style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                   <span style={{ minWidth: "180px", flex: 1 }}>
@@ -434,16 +442,16 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
                 </span>
               )}
             </PairItem>
-            <PairItem label={t.projectType} icon={<LayoutGrid size={12} strokeWidth={2.2} />}>{typeLabel(project.type)}</PairItem>
-            {projectTeam && <PairItem label={t.projectTeam} icon={<Building2 size={12} strokeWidth={2.2} />}>{projectTeam.name}</PairItem>}
-            {projectTeam?.region && <PairItem label={t.projectRegion} icon={<Globe size={12} strokeWidth={2.2} />}>{projectTeam.region}</PairItem>}
+            <PairItem label={t.projectType}>{typeLabel(project.type)}</PairItem>
+            {projectTeam && <PairItem label={t.projectTeam}>{projectTeam.name}</PairItem>}
+            {projectTeam?.region && <PairItem label={t.projectRegion}>{projectTeam.region}</PairItem>}
             {/* The one editable pair on the card, in the same shape as the four above it: the
                 control sits where a value would, rather than being pushed to the far right of a
                 ruled row. A setting is a value you can change, and it should look like the values
                 it sits with. */}
             {/* A select that opens and then refuses is worse than a value that never looked
                 editable — the same rule the Users table's permission cell follows. */}
-            <PairItem label={t.projectTimeZone} icon={<Clock size={12} strokeWidth={2.2} />}>
+            <PairItem label={t.projectTimeZone}>
               {mayEdit ? (
                 <FilterSelect
                   value={project.timeZone ?? PROJECT_TIME_ZONE}
@@ -474,7 +482,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
                   page sits under the words naming it; the heaviest one should not be the
                   exception. The word is short because the line above already says which project. */}
               <button className="portal-btn-outline-danger" onClick={() => { setDeleteEcho(""); setConfirmingDelete(true); }}
-                style={{ display: "inline-flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 12px", marginTop: "10px", borderRadius: "8px", border: "1px solid var(--danger-200)", backgroundColor: "white", color: "var(--danger-500)", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 12px", marginTop: "10px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                 <Trash2 size={13} strokeWidth={2.2} />
                 {t.deleteAction}
               </button>
@@ -545,7 +553,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
         is why it sits here beside the other two team policies.
       */}
       {myTeam && (
-        <CardSection heading={t.teamMailTitle} desc={t.teamMailIntro}>
+        <CardSection heading={t.teamMailTitle} icon={<Mail size={15} strokeWidth={2.2} />} subheading={myTeam.name} desc={t.teamMailIntro}>
           {/* No maxWidth of its own any more — the section's content column is the cap, and two
               of these grids with two different ones is how columns stop lining up between
               sections. */}
@@ -586,7 +594,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
       )}
 
       {myTeamId && (
-        <CardSection heading={t.categoryTitle}>
+        <CardSection heading={t.categoryTitle} icon={<Tag size={15} strokeWidth={2.2} />}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)" }}>
               {t.categoryCount(teamCategories.filter(c => !c.archived).length)}
@@ -613,7 +621,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
           a question the reader has to answer ("do I need to fill this in?") about something that
           cannot affect them. The flag is the switch — see complianceConfig. */}
       {requirePurpose && myTeamId && (
-        <CardSection heading={t.purposeTitle}>
+        <CardSection heading={t.purposeTitle} icon={<ClipboardList size={15} strokeWidth={2.2} />}>
           {/* What the empty list actually costs, said here rather than only in the app. An
               administrator who has not built this list needs to know that the requirement is on and
               unmet — otherwise the console looks configured and the gate quietly waves everyone
@@ -629,9 +637,9 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
         </CardSection>
       )}
 
-      <CardSection heading={t.displayTitle}>
+      <CardSection heading={t.displayTitle} icon={<Monitor size={15} strokeWidth={2.2} />}>
         <PairGrid>
-          <PairItem label={t.language} icon={<Languages size={12} strokeWidth={2.2} />}>
+          <PairItem label={t.language}>
             {/* Each language named in its own script — the one label a person who cannot read the
                 current interface still recognises. */}
             <FilterSelect
@@ -659,11 +667,24 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
  * rule stated two ways reads as two rules, and a person who has seen it there should recognise it
  * here.
  *
- * HANDOFF NOTE: submits nowhere. The real call posts the current and new password together and the
- * server rejects the pair if the current one is wrong — which is why the current-password field
- * gets no validation of its own here: the front end cannot check it, and a field that says "wrong
- * password" from a guess would be inventing an answer only the server has. Everything the front end
- * *can* judge is judged: the format rule, and the two new entries matching.
+ * Two steps: prove it is you, then choose. All three fields used to sit on one form, so the only
+ * moment you learned the current password was wrong was after composing a new one and typing it
+ * twice — and the answer threw that work away. The check belongs before the writing, not after.
+ *
+ * HANDOFF NOTE: submits nowhere, and neither step is real yet.
+ *
+ *   Step 1  POST /api/portal/account/password/verify  — the ONLY thing that can answer this. The
+ *           front end must never guess: a field that says "wrong password" without asking the
+ *           server is inventing an answer. **It needs login's throttling** — this is a password
+ *           oracle sitting behind an authenticated session, so the same 5-attempts-in-15-minutes
+ *           lockout the backend already applies to sign-in applies here, or this endpoint becomes
+ *           the cheapest way to brute-force a password that sign-in refuses to.
+ *   Step 2  POST .../password — send the verified current password with the new one anyway. A
+ *           server that trusts step 1's say-so trusts the client; and between the two steps the
+ *           session can be revoked, so step 2 re-checks or the revocation did nothing.
+ *
+ * Everything the front end *can* judge is still judged here: the format rule, and the two new
+ * entries matching.
  */
 function ChangePasswordModal({ t, lang, onClose }: {
   t: (typeof T)["en"] | (typeof T)["ko"];
@@ -673,6 +694,7 @@ function ChangePasswordModal({ t, lang, onClose }: {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [step, setStep] = useState<"verify" | "change">("verify");
   const { showToast } = useToast();
   useEscapeKey(onClose, true);
 
@@ -680,7 +702,17 @@ function ChangePasswordModal({ t, lang, onClose }: {
   // Only once something has been typed in the confirm box. A mismatch warning that appears on an
   // empty field is telling somebody off for not having finished.
   const mismatch = confirm.length > 0 && confirm !== next;
-  const canSubmit = current.length > 0 && formatValid && confirm.length > 0 && !mismatch;
+  const canVerify = current.length > 0;
+  const canSubmit = formatValid && confirm.length > 0 && !mismatch;
+
+  /* Advances on any non-empty entry, because there is nothing here that could disagree. That is
+     the mock, not the design — see the HANDOFF NOTE. The screen deliberately says nothing like
+     "correct", only that the step is done, so the day it is wired the wrong-password path is an
+     addition rather than a contradiction. */
+  const verify = () => {
+    if (!canVerify) return;
+    setStep("change");
+  };
 
   const submit = () => {
     if (!canSubmit) return;
@@ -702,28 +734,62 @@ function ChangePasswordModal({ t, lang, onClose }: {
       <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "420px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
         <div style={{ padding: "16px 20px 4px" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.changePassword}</p>
+          {/* Which of the two steps you are on. Named, not numbered: "1 / 2" tells you where you
+              are, "Confirm it is you" tells you what is being asked. */}
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "3px" }}>
+            {step === "verify" ? t.verifyStep : t.changeStep}
+          </p>
         </div>
-        <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
-          {field(t.currentPassword, current, setCurrent, "current-password")}
-          {field(t.newPassword, next, setNext, "new-password",
-            /* The rule under the field, not in a tooltip: it should be readable before it is
-               broken rather than after. Amber only once what is typed breaks it. */
-            <p style={{ marginTop: "6px", fontSize: "11px", lineHeight: 1.6, color: next.length > 0 && !formatValid ? "var(--warning-500)" : "var(--gray-400)" }}>
-              {PASSWORD_RULE_TEXT[lang]}
-            </p>)}
-          {field(t.confirmPassword, confirm, setConfirm, "new-password",
-            mismatch ? <p style={{ marginTop: "6px", fontSize: "11px", lineHeight: 1.6, color: "var(--warning-500)" }}>{t.mismatch}</p> : undefined)}
-        </div>
-        <div style={{ padding: "0 20px 20px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-          <button className="portal-btn-outline" onClick={onClose}
-            style={{ height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-            {t.cancel}
-          </button>
-          <button className="portal-btn-primary" onClick={submit} disabled={!canSubmit}
-            style={{ height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: "none", backgroundColor: canSubmit ? "var(--primary-400)" : "var(--gray-200)", color: canSubmit ? "white" : "var(--gray-400)", fontSize: "13px", fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
-            {t.updatePassword}
-          </button>
-        </div>
+        {step === "verify" ? (
+          <>
+            <div style={{ padding: "16px 20px 20px" }}>
+              {field(t.currentPassword, current, setCurrent, "current-password")}
+            </div>
+            <div style={{ padding: "0 20px 20px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button className="portal-btn-outline" onClick={onClose}
+                style={{ height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                {t.cancel}
+              </button>
+              <button className="portal-btn-primary" onClick={verify} disabled={!canVerify}
+                style={{ height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: "none", backgroundColor: canVerify ? "var(--primary-400)" : "var(--gray-200)", color: canVerify ? "white" : "var(--gray-400)", fontSize: "13px", fontWeight: 700, cursor: canVerify ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                {t.verify}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
+              {/* The step behind you, stated rather than left blank.
+   
+                  No way back from here, and that is not an omission. It briefly had one, on the
+                  reasoning that you might have typed the current password wrong — but once the
+                  server answers step 1, a wrong one never reaches this screen. The button existed
+                  only because the mock lets anything through, and it would have been dead weight
+                  the day this was wired. Cancel is the way out. */}
+              <div style={{ padding: "9px 12px", borderRadius: "8px", backgroundColor: "var(--gray-50)", border: BORDER }}>
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)" }}>{t.verified}</span>
+              </div>
+              {field(t.newPassword, next, setNext, "new-password",
+                /* The rule under the field, not in a tooltip: it should be readable before it is
+                   broken rather than after. Amber only once what is typed breaks it. */
+                <p style={{ marginTop: "6px", fontSize: "11px", lineHeight: 1.6, color: next.length > 0 && !formatValid ? "var(--warning-500)" : "var(--gray-400)" }}>
+                  {PASSWORD_RULE_TEXT[lang]}
+                </p>)}
+              {field(t.confirmPassword, confirm, setConfirm, "new-password",
+                mismatch ? <p style={{ marginTop: "6px", fontSize: "11px", lineHeight: 1.6, color: "var(--warning-500)" }}>{t.mismatch}</p> : undefined)}
+            </div>
+            <div style={{ padding: "0 20px 20px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button className="portal-btn-outline" onClick={onClose}
+                style={{ height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                {t.cancel}
+              </button>
+              <button className="portal-btn-primary" onClick={submit} disabled={!canSubmit}
+                style={{ height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: "none", backgroundColor: canSubmit ? "var(--primary-400)" : "var(--gray-200)", color: canSubmit ? "white" : "var(--gray-400)", fontSize: "13px", fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                {t.updatePassword}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

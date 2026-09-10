@@ -778,14 +778,30 @@ export function SummaryStrip({ cells }: { cells: SummaryCell[] }) {
  *
  * `desc` is optional because not every section has something to explain — Account is five facts
  * about you, and a sentence saying so would be furniture.
+ *
+ * The icon belongs here and nowhere else on this page. Nine of them once sat beside the 12px
+ * field captions, where each one repeated a word that was already written ("Name", with a person
+ * beside it) and put a second mark on every row. Six beside the 15px headings do the opposite
+ * job: they mark where a section starts, which is what the eye looks for when it comes back to a
+ * settings page for one thing. One rank carries a mark, and it is the rank that leads.
  */
-export function CardSection({ heading, desc, first, children }: { heading: string; desc?: string; first?: boolean; children: React.ReactNode }) {
+export function CardSection({ heading, icon, subheading, desc, first, children }: { heading: string; icon?: React.ReactNode; subheading?: string; desc?: string; first?: boolean; children: React.ReactNode }) {
   return (
     <div className="portal-settings-section" style={{ padding: "22px 24px", borderTop: first ? "none" : BORDER }}>
       <div>
         {/* <p>, not <h2>: nothing in Portal uses heading elements yet, and one lone h2 under no h1
             is not an outline. Giving Portal a real heading order is its own pass. */}
-        <p style={{ fontSize: "15px", fontWeight: 800, color: "var(--gray-900)", lineHeight: "20px" }}>{heading}</p>
+        <p style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "15px", fontWeight: 800, color: "var(--gray-900)", lineHeight: "20px" }}>
+          {icon && <span style={{ display: "flex", flexShrink: 0, color: "var(--gray-400)" }}>{icon}</span>}
+          {heading}
+        </p>
+        {/* Whose settings these are, when that is not the same answer as the project on screen.
+            Part of the title block rather than the sentence below it — a reader who mistakes the
+            owner of a setting will not be saved by prose — but on its own line, because a 240px
+            rail turns a 50-character institution name into three lines of 15px/800. */}
+        {subheading && (
+          <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", lineHeight: 1.45, marginTop: "4px" }}>{subheading}</p>
+        )}
         {desc && (
           <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.65, marginTop: "6px" }}>{desc}</p>
         )}
@@ -807,11 +823,17 @@ export function CardSection({ heading, desc, first, children }: { heading: strin
  */
 export function PairGrid({ children }: { children: React.ReactNode }) {
   return (
-    /* Two columns in practice, and by arithmetic rather than by a hard-coded 2: the section's
-       content column is capped at 520px, so 220px tracks fit twice and never three times. It is
-       written as auto-fit so the grid drops to one column when the section stacks on a narrow
-       card, which a fixed two would not do. */
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px 20px" }}>
+    /* Two columns, at 250px tracks.
+   
+       It went to one column when the page felt dense, and that was treating the symptom: the
+       density was nine icons and a wall of 700-weight values, both now gone. What one column
+       cost was height — six facts became six rows, and the page turned into a scroll for
+       content that fits on a screen.
+   
+       250px rather than the old 220px, so the tracks are wider than the values that used to
+       wrap into two lines at 240. A long team name still wraps; that is one pair wrapping, not
+       a reason to halve the page's density. */
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "18px 20px" }}>
       {children}
     </div>
   );
@@ -825,19 +847,22 @@ export function PairGrid({ children }: { children: React.ReactNode }) {
  * competing; this is a settings page with five, on a column with room to spare, and at 11px the
  * captions read as fine print on a page that has no fine print.
  *
- * The icon tracks the caption: 12px at stroke 2.2 is a 1.1px line, still under the 1.4px Portal
- * draws elsewhere, because a mark beside an 12px caption has to match its weight as well as its
- * height — a 14px glyph at 1.4px stands taller than the letters and heavier than their stems.
+ * No icon, and no bold on the value. Every pair used to carry a 12px glyph beside its 12px
+ * caption, which put a second mark on a row whose first mark was already the word "Name" — nine
+ * of them in the top two sections, none of them telling you anything the caption did not. With
+ * every value at 700 on top of that, a page of six plain facts arrived looking like a form to be
+ * filled in. 600 is still unmistakably the value against a grey caption; the weight above it now
+ * belongs to the section heading, which is the thing that should be leading.
+ *
+ * None of the settings pages this was checked against (Later, Airtable, Lindy, Flodesk,
+ * Time2book) puts an icon on a field label.
  */
-export function PairItem({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+export function PairItem({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <p style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", lineHeight: "16px", color: "var(--gray-500)" }}>
-        <span style={{ display: "flex", color: "var(--gray-400)", flexShrink: 0 }}>{icon}</span>
-        {label}
-      </p>
+      <p style={{ fontSize: "12px", lineHeight: "16px", color: "var(--gray-500)" }}>{label}</p>
       {typeof children === "string"
-        ? <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)", marginTop: "3px", wordBreak: "break-word" }}>{children}</p>
+        ? <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--gray-900)", marginTop: "3px", wordBreak: "break-word" }}>{children}</p>
         : (
           /* flex, not a plain block: FilterSelect's trigger is inline-grid, so in a block it sits
              on a text baseline and inherits this column's 24px line height — about twenty pixels
