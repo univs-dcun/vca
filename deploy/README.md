@@ -96,6 +96,11 @@ sim `/ingest` 실관찰 주입 + 박스 번인 스트림 `ann-{cameraId}`) → A
 3. `.env`에 `REALCAM_CAMS={cameraId}=rtsp://mediamtx:8554/fake-street-src` → `docker compose up -d --build sim fake-cam2 realcam`
 4. 확인: `docker compose logs realcam`(fps·tracks), `logs sim | grep ingest`, 브라우저 BEST FRAME → Normal network → 그 카메라
 
+**sim을 재빌드·재기동하면 provisioning이 비어 있다.** sim은 카메라 목록을 메모리에만 들고 Admin은 자기 기동·카메라 변경 때만 push하므로,
+sim만 다시 올린 뒤에는 `POST /api/portal/provision/sync`(owner 세션, Portal에서도 가능)를 한 번 호출해야 realcam의 ingest가 404에서 풀리고
+카메라가 RUNNING으로 돌아온다 — 2026-09-10 첫 배포에서 실제 발생. 브라우저 확인은 LAN의 실제 브라우저로: BEST FRAME 사이드바 목록은 MQTT
+WebSocket(:8083) 상태 메시지로 채워지므로, WebSocket이 막힌 환경(일부 샌드박스 브라우저)에서는 라이브 카메라가 목록에 나타나지 않는다.
+
 realcam 베이스 이미지(ultralytics, 수 GB) 첫 빌드 수 분. 되돌리기: `docker compose rm -sf realcam fake-cam2` + Admin에서 카메라 삭제.
 
 ## 운영으로 갈 때 바꿀 것
