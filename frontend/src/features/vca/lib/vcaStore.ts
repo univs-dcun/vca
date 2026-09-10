@@ -651,7 +651,13 @@ export function hasSomeAccess(permission: PortalPermission, appAccess: boolean):
 export function projectsVisibleInApp(users: PortalUser[], projects: Project[]): Project[] {
   const session = getSessionUser();
   if (session) {
-    // owner는 설치 전체(UV-58 서버 규칙과 동일), 그 외는 배정 프로젝트만
+    // 세션 응답의 projects(id·이름, owner 전체 / 그 외 배정 — UV-52 2차)가 원천. 스토어에 같은 프로젝트가 있으면(콘솔
+    // 역할이 Portal을 채운 경우) 그 행을, 없으면(앱 전용 계정 — Portal API 403) 세션 값으로 최소 객체를 만든다
+    const refs = session.projects ?? [];
+    if (refs.length > 0) {
+      const known = new Map(projects.map(p => [p.id, p]));
+      return refs.map(r => known.get(r.id) ?? { id: r.id, teamId: session.teamId ?? "", name: r.name, type: "smart_city" as ProjectType });
+    }
     if (session.permission === "owner") return projects;
     return projects.filter(p => session.projectIds.includes(p.id));
   }

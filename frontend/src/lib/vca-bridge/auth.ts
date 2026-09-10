@@ -5,7 +5,11 @@
 // (기동 안 됨 — 프록시가 502 VCA-5021/504 VCA-5041로 구분해 준다) 'unavailable'을
 // 반환하고, 화면은 기존 mock 흐름을 유지한다. 자격증명 오류(ADM-4010 등)는 실패다.
 import { useEffect } from 'react'
-import { changePassword, getMe, login, logout, redeemInvite, setupPassword, verifyPassword } from '../../api/generated/auth/auth'
+import {
+  changePassword, getMe, login, logout, redeemInvite, register, registerLookup, resetPasswordComplete, resetPasswordRequest,
+  resetPasswordVerify, setupPassword, verifyPassword,
+} from '../../api/generated/auth/auth'
+import type { AuthCodeLookupResponseData, AuthResetRequestResponseData, AuthResetVerifyResponseData } from '../../api/generated/model'
 import type { LoginFailure } from '../../features/vca/lib/authErrors'
 import { setSession, useSession } from './session'
 import type { AuthUserProfile } from '../../api/generated/model'
@@ -153,4 +157,38 @@ export function loginFailureFromCode(code: string | undefined): LoginFailure | n
     case 'ADM-4019': return 'notActivated' // 임시 비밀번호 만료 — 담당자 재발급이 필요하다는 점에서 같은 안내
     default: return null
   }
+}
+
+/** 데이터가 실리는 호출의 공통 결과 (UV-52 2차) — 해석 규칙은 AuthResult와 같다 */
+export type ApiOutcome<T> =
+  | { status: 'ok'; data: T }
+  | { status: 'rejected'; code: string; message: string }
+  | { status: 'unavailable' }
+
+async function outcome<T>(call: () => Promise<{ data?: T | null }>): Promise<ApiOutcome<T>> {
+  try {
+    const res = await call()
+    return { status: 'ok', data: res.data as T }
+  } catch (e) {
+    return interpret(e) as ApiOutcome<T>
+  }
+}
+
+// ── 등록 코드 (UV-51 /auth/register) — 명부 코드·셋업 코드 모두 서버가 판정, 시도 스로틀도 서버(ADM-4023)
+export function authRegisterLookup(code: string): Promise<ApiOutcome<AuthCodeLookupResponseData>> {
+  return outcome(() => registerLookup({ code }))
+}
+export function authRegister(code: string, password: string): Promise<ApiOutcome<unknown>> {
+  return outcome(() => register({ code, password }))
+}
+
+// ── 이메일 코드 재설정 (UV-56 /auth/password/reset/*) — 존재 여부 비노출, 재발송·시도 한도는 서버 값
+export function authResetRequest(identifier: string): Promise<ApiOutcome<AuthResetRequestResponseData>> {
+  return outcome(() => resetPasswordRequest({ identifier }))
+}
+export function authResetVerify(identifier: string, code: string): Promise<ApiOutcome<AuthResetVerifyResponseData>> {
+  return outcome(() => resetPasswordVerify({ identifier, code }))
+}
+export function authResetComplete(resetToken: string, newPassword: string): Promise<ApiOutcome<unknown>> {
+  return outcome(() => resetPasswordComplete({ resetToken, newPassword }))
 }

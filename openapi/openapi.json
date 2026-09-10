@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "VCA API",
-    "version": "0.19.0",
+    "version": "0.20.0",
     "description": "백엔드가 생성/관리하는 API 계약. 프론트는 orval(npm run gen:api)로 이 스펙에서 타입/훅을 생성한다.\n\n실시간 데이터(카메라 상태 변화, VIP 감지 이벤트, 집계 카운터)는 이 API가 아닌 MQTT로 전달된다 — 채널 경계와 병합 규칙은 vca-mqtt-broker 레포의 SPEC.md 참고. REST는 스냅샷(페이징 목록·이력·그래프)을, MQTT는 그 이후의 변화분을 담당한다.\n\n공통 규약:\n- 모든 응답은 { success, data, message, code } envelope\n- 페이징은 { content, page, size, totalElements } (page는 0부터)\n- 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘\n- ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)\n- similarity는 0~1 실수 (표시 포맷은 프론트 책임)"
   },
   "servers": [{ "url": "/api" }],
@@ -1732,10 +1732,15 @@
           "keepLoggedIn": { "type": "boolean", "default": false, "description": "체크 시 쿠키 Max-Age·서버 세션 30일 (미체크 브라우저 세션 + 12시간). Portal 로그인 화면은 보내지 않는다(공유 워크스테이션)" }
         }
       },
+      "AuthProjectRef": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": { "id": { "type": "string" }, "name": { "type": "string" } }
+      },
       "AuthUserProfile": {
         "type": "object",
         "description": "로그인 사용자 프로필 (My Page·Navbar·Portal 셸) — 민감 필드 없음. permission/appAccess/appSearch/projectIds는 기획자 스탠드인(currentPortalRole·projectsVisibleInApp·canSearchInApp)이 세션에서 읽어야 하는 값 (UV-50)",
-        "required": ["id", "name", "accountId", "role", "team", "mustSetPassword", "permission", "appAccess", "appSearch", "status", "projectIds"],
+        "required": ["id", "name", "accountId", "role", "team", "mustSetPassword", "permission", "appAccess", "appSearch", "status", "projectIds", "projects"],
         "properties": {
           "id": { "type": "integer", "format": "int64" },
           "name": { "type": "string", "example": "John Doe" },
@@ -1750,7 +1755,8 @@
           "appSearch": { "type": "boolean", "description": "앱 내 인물 검색 권한" },
           "status": { "$ref": "#/components/schemas/PortalAccountStatus" },
           "teamId": { "type": "string", "nullable": true },
-          "projectIds": { "type": "array", "items": { "type": "string" }, "description": "앱에서 볼 수 있는 프로젝트 — 비어 있으면 팀의 전 프로젝트" }
+          "projectIds": { "type": "array", "items": { "type": "string" }, "description": "앱에서 볼 수 있는 프로젝트 id (배정). owner는 전체 — projects를 볼 것" },
+          "projects": { "type": "array", "description": "앱 헤더 현장 전환용 — 실제로 볼 수 있는 프로젝트의 id·이름 (owner 전체 / 그 외 배정, UV-58 규칙). 앱 전용 계정은 Portal API가 403이라 여기서만 이름을 얻는다 (UV-52 2차)", "items": { "$ref": "#/components/schemas/AuthProjectRef" } }
         }
       },
       "PortalPermission": {

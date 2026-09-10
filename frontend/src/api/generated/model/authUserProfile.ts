@@ -12,10 +12,11 @@
 - 시각은 ISO-8601 UTC, 날짜 파라미터의 기본값은 사이트 로컬(Asia/Singapore) 기준 오늘
 - ID는 문자열: cameraId/locationId는 ^[a-z0-9-]{1,64}$ (MQTT 토픽 경로와 공유)
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
- * OpenAPI spec version: 0.19.0
+ * OpenAPI spec version: 0.20.0
  */
 import type { PortalPermission } from './portalPermission';
 import type { PortalAccountStatus } from './portalAccountStatus';
+import type { AuthProjectRef } from './authProjectRef';
 
 /**
  * 로그인 사용자 프로필 (My Page·Navbar·Portal 셸) — 민감 필드 없음. permission/appAccess/appSearch/projectIds는 기획자 스탠드인(currentPortalRole·projectsVisibleInApp·canSearchInApp)이 세션에서 읽어야 하는 값 (UV-50)
@@ -44,6 +45,8 @@ export interface AuthUserProfile {
   status: PortalAccountStatus;
   /** @nullable */
   teamId?: string | null;
-  /** 앱에서 볼 수 있는 프로젝트 — 비어 있으면 팀의 전 프로젝트 */
+  /** 앱에서 볼 수 있는 프로젝트 id (배정). owner는 전체 — projects를 볼 것 */
   projectIds: string[];
+  /** 앱 헤더 현장 전환용 — 실제로 볼 수 있는 프로젝트의 id·이름 (owner 전체 / 그 외 배정, UV-58 규칙). 앱 전용 계정은 Portal API가 403이라 여기서만 이름을 얻는다 (UV-52 2차) */
+  projects: AuthProjectRef[];
 }
