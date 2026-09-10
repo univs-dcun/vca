@@ -85,6 +85,19 @@ async rewrites() {
 첫 배포에서 배운 것: `VCA_ADMIN_SEED_PASSWORD`가 비밀번호 규칙(8자+영문+숫자+특수문자)에 어긋나면 admin이 기동 직후
 종료·재시작을 반복하고 proxy·frontend가 올라오지 않는다 — `docker compose logs admin`에 `password must be at least 8 characters…`.
 
+## 모의 CCTV — BEST FRAME에 실영상 카메라 1대 (UV-61)
+
+실제 분석 모듈이 붙기 전 "동작하는 CCTV"를 보여주는 대역 경로다. `fake-cam2`(보행자 영상 무한 반복 RTSP) → `realcam`(YOLO 사람 추적 →
+sim `/ingest` 실관찰 주입 + 박스 번인 스트림 `ann-{cameraId}`) → Admin 카메라 rtspUrl → MediaMTX → BEST FRAME 라이브 타일.
+절차는 [backend/vca-mqtt-broker/sim/realcam/DEPLOY.md](../backend/vca-mqtt-broker/sim/realcam/DEPLOY.md) — 요약:
+
+1. 영상·가중치 scp: `deploy/media/cam2.mp4`, `deploy/models/yolov8n.pt`·`face_yolov8n.pt` (git 미추적)
+2. Admin에 카메라 등록(Portal Input Sources 또는 API) → `cameraId` → 같은 카메라의 rtspUrl을 `rtsp://127.0.0.1:8554/ann-{cameraId}`로 갱신
+3. `.env`에 `REALCAM_CAMS={cameraId}=rtsp://mediamtx:8554/fake-street-src` → `docker compose up -d --build sim fake-cam2 realcam`
+4. 확인: `docker compose logs realcam`(fps·tracks), `logs sim | grep ingest`, 브라우저 BEST FRAME → Normal network → 그 카메라
+
+realcam 베이스 이미지(ultralytics, 수 GB) 첫 빌드 수 분. 되돌리기: `docker compose rm -sf realcam fake-cam2` + Admin에서 카메라 삭제.
+
 ## 운영으로 갈 때 바꿀 것
 
 - TLS 앞단(리버스 프록시) + `VCA_COOKIE_SECURE=true`, `VCA_MQTT_WS_URL=wss://…`

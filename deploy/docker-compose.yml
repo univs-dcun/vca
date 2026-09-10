@@ -63,6 +63,41 @@ services:
     depends_on:
       - mediamtx
 
+  # 모의 카메라(실영상, UV-61) — 시내 보행자 영상(CC-BY)을 실시간 속도로 무한 반복 발행 → 원본 path fake-street-src.
+  # 파일은 deploy/media/cam2.mp4 (git 미추적, scp — sim/realcam/DEPLOY.md). REALCAM_CAMS가 비어 있으면 realcam이 유휴라 함께 꺼도 된다
+  fake-cam2:
+    image: linuxserver/ffmpeg:latest
+    restart: unless-stopped
+    volumes:
+      - ./media:/media:ro
+    command: >-
+      -re -stream_loop -1 -i /media/cam2.mp4
+      -c:v copy -an -f rtsp rtsp://mediamtx:8554/fake-street-src
+    depends_on:
+      - mediamtx
+
+  # 대역 분석 검출기(UV-61) — 원본 RTSP를 YOLO+ByteTrack으로 읽어 sim /ingest에 실관찰 주입 + 박스 번인 스트림을
+  # ann-{cameraId}로 재발행 (backend/vca-mqtt-broker/sim/realcam/README.md). 실제 엔진이 붙으면 sim과 함께 제거.
+  # 가중치는 deploy/models/*.pt (git 미추적, scp). CAMS 형식 "cameraId=rtsp://mediamtx:8554/fake-street-src" — cameraId는 Admin 발급
+  realcam:
+    build:
+      context: ../backend/vca-mqtt-broker/sim/realcam
+      args: { BASE: "${REALCAM_BASE:-ultralytics/ultralytics:latest-cpu}" }   # x86 서버 cpu / GPU면 latest / Apple Silicon latest-arm64
+    image: ${VCA_IMAGE_PREFIX:-vca}/realcam:${VCA_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    volumes:
+      - ./models:/models:ro
+    environment:
+      SIM_URL: http://sim:8081
+      CAMS: ${REALCAM_CAMS:-}
+      PUBLISH_BASE: rtsp://mediamtx:8554
+      CONF: ${REALCAM_CONF:-0.5}
+      MIN_TRACK_FRAMES: ${REALCAM_MIN_TRACK_FRAMES:-6}
+    depends_on:
+      - sim
+      - mediamtx
+      - fake-cam2
+
   # 분석 모듈 자리 — 실제 모듈이 붙으면 이 서비스를 빼고(--scale sim=0) VCA_MODULE_API_BASE_URL을 모듈 주소로
   sim:
     build: ../backend/vca-mqtt-broker/sim
