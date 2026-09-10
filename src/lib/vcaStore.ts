@@ -102,6 +102,26 @@ export interface Project {
    * project predates the field, and a missing timezone must not become "UTC" by accident.
    */
   timeZone?: string;
+  /**
+   * How long recordings are kept at this site, in days.
+   *
+   * A number that ends up in an ordinance, a contract and a privacy notice, and until now the
+   * product had nowhere to put it — so it lived in whoever set up the recorder. The audit log
+   * seed even carried "Retention period changed from 30 to 60 days" for a control that did not
+   * exist; that line was removed as a fabrication, and this is the control it was pretending to
+   * describe.
+   *
+   * Optional and unset by default. There is no safe default to pick: 30 days is a guess, and a
+   * guessed retention is either an illegal over-hold or a deletion nobody agreed to. Unset reads
+   * as "not decided" on screen, which is the truth for a site nobody has configured.
+   *
+   * HANDOFF NOTE: recording the policy is NOT enforcing it. Nothing in this front end deletes a
+   * frame, and it never will — the recorder and the server own expiry. What this value has to do
+   * is reach them: the console is where a customer states the number, and the deletion job is
+   * where it takes effect. Until that call exists, the screen says so out loud rather than
+   * letting "saved" read as "footage is now being deleted on this schedule".
+   */
+  retentionDays?: number;
   licenseChannelLimit?: number;
   licensePlan?: string;
   // A date string, or the literal "Unlimited" for a plan with no expiry.
@@ -366,6 +386,78 @@ export interface SearchAccessRecord {
   ip?: string;
 }
 
+/**
+ * A person's call on one detection: this is them, or it is not.
+ *
+ * Kept apart from the audit log on purpose. The audit log records what an administrator did to
+ * the system; this records what an operator concluded about a face, which is a different kind of
+ * fact with a different reader. An auditor asks the first "who changed the retention period"; a
+ * prosecutor, an ML engineer and the next shift all ask the second.
+ *
+ * It was component state until 2026-09-10 — a Set in the Redmap page — so a judgement lived until
+ * the next search cleared it and was never attributed to anybody. Three things needed it to be a
+ * record instead: a defence that a human reviewed the match, a signal for the model about what it
+ * got wrong, and a handover so the next shift does not re-decide the same false positive.
+ *
+ * Both verdicts, not just the rejection. "Nobody has looked at this yet" and "somebody looked and
+ * it is right" are different states, and a screen with only an exclude button cannot tell them
+ * apart — which is exactly the question a shift handover asks.
+ *
+ * HANDOFF NOTE: lives in the store, so it survives moving around the app and does NOT survive a
+ * refresh — the whole mock store is in memory. The server owns these: they are evidence, and the
+ * write needs the operator's identity from the session rather than the browser's word for it.
+ */
+export type DetectionVerdict = "confirmed" | "false_positive";
+
+export interface DetectionJudgement {
+  id: string;
+  /** Which screen the call was made on — the same subject id can exist on more than one. */
+  surface: "redmap" | "redface";
+  /** The sighting or node judged. Stable across searches: these are seeded record ids. */
+  subjectId: string;
+  /** Who the search was about, so a verdict belongs to an investigation and not to nothing. */
+  targetLabel: string;
+  verdict: DetectionVerdict;
+  actor: string;
+  at: string;
+}
+
+/** The one on a subject, or undefined if nobody has judged it. */
+export function judgementFor(
+  list: DetectionJudgement[],
+  surface: DetectionJudgement["surface"],
+  subjectId: string,
+): DetectionJudgement | undefined {
+  return list.find(j => j.surface === surface && j.subjectId === subjectId);
+}
+
+/**
+ * One detection taken out of the console.
+ *
+ * The extraction is the audit-worthy act, not the viewing. Somebody reading a screen leaves the
+ * data where it is; somebody exporting has made a copy that the console can no longer see, and
+ * the only question anyone will ask afterwards — "where did this file come from" — is answerable
+ * only if this row exists.
+ *
+ * HANDOFF NOTE: written by the browser here, which makes it a note to ourselves rather than a
+ * record. The real export is a server call that logs before it returns the bytes; a client that
+ * writes its own audit row can also skip writing it.
+ */
+export interface EvidenceExportRecord {
+  id: string;
+  /** The site the sighting belongs to, so the extraction lands in that project's log. */
+  projectId: string;
+  /** The sighting exported — the same id a judgement is filed against. */
+  subjectId: string;
+  surface: "redmap" | "bestframe";
+  /** Who or what the search was about, so the row reads without opening the file. */
+  targetLabel: string;
+  /** Digest of the manifest as written, so a file in hand can be matched to this row. */
+  manifestHash: string;
+  actor: string;
+  at: string;
+}
+
 export interface SearchPurposeSelection {
   purposeId: string;
   /** Case or document reference, when the purpose requires one. */
@@ -553,6 +645,10 @@ interface VcaStoreState {
   searchPurpose: SearchPurposeSelection | null;
   /** Every look-up, newest first. Empty until the app records one — see SearchAccessRecord. */
   searchAccessLog: SearchAccessRecord[];
+  /** Operator calls on individual detections — see DetectionJudgement. */
+  detectionJudgements: DetectionJudgement[];
+  /** Every detection taken out of the console — see EvidenceExportRecord. */
+  evidenceExports: EvidenceExportRecord[];
   events: VcaEvent[];
   uploads: UploadedMedia[];
   portalUsers: PortalUser[];
@@ -602,8 +698,37 @@ interface VcaStoreState {
    * Channels, plan and term arrive with the licence and are read-only to everything in here.
    * Removed 2026-09-10; see the licence-as-signed-file question in the vendor-admin review.
    */
+  /**
+   * Installs a licence file the vendor issued. This is the "arrive with the licence" above.
+   *
+   * Not the removed mutator under another name, and the difference is the whole point: that one
+   * took three numbers an administrator typed, this one takes an artifact somebody else signed and
+   * copies out what it says. The console still cannot choose a channel count — it can only accept
+   * one. Which is why this is the only writer of those three fields in the product, and why the
+   * screen shows what would change before it calls.
+   *
+   * HANDOFF NOTE: the server verifies the signature and is the authority on whether a file is
+   * genuine — the public key is compiled into the server binary, not configured, so that a
+   * customer cannot point it at a key of their own. This action stands in for applying whatever
+   * the server accepted (POST /v1/projects/{id}/licence; shape in lib/licenseFile.ts). When that
+   * endpoint exists, the values written here come from its response, not from the browser's parse.
+   */
+  installLicenseFile: (projectId: string, licence: {
+    licenseId: string;
+    plan: string;
+    channelLimit: number;
+    /** A date, or UNLIMITED_EXPIRY for a perpetual term. */
+    expiresAt: string;
+  }) => void;
+  /** One call per subject: recording again replaces the previous verdict rather than stacking. */
+  recordJudgement: (j: Pick<DetectionJudgement, "surface" | "subjectId" | "targetLabel" | "verdict">) => void;
+  /** Back to "nobody has looked at this". Not the same as marking it a false positive. */
+  clearJudgement: (surface: DetectionJudgement["surface"], subjectId: string) => void;
+  recordEvidenceExport: (e: Pick<EvidenceExportRecord, "projectId" | "subjectId" | "surface" | "targetLabel" | "manifestHash">) => void;
   updateProjectMail: (projectId: string, updates: Pick<Project, "mailDomain" | "smtp">) => void;
   setProjectTimeZone: (projectId: string, timeZone: string) => void;
+  /** null clears it back to "not decided". See Project.retentionDays. */
+  setProjectRetention: (projectId: string, days: number | null) => void;
   // null clears the override and falls back to the auto-detected value; true/false pins it.
   setNetworkIsolationOverride: (projectId: string, override: boolean | null) => void;
   updateTeamMail: (teamId: string, updates: Pick<Team, "mailDomain" | "smtp">) => void;
@@ -1338,13 +1463,26 @@ export interface PortalUser {
    * May run person searches in the monitoring app (Data's search screens and Redmap).
    *
    * Kept apart from `permission`, which is a console role: a person can be app-only and still be
-   * the one who runs searches, and a Portal admin may have no business searching at all. It is one
-   * flag rather than an app role ladder because search is the only weighted action the app actually
-   * has — no export, no VIP editing, no camera control lives there (checked 2026-09-04). When more
-   * of those arrive, this is the seam to widen.
+   * the one who runs searches, and a Portal admin may have no business searching at all.
    *
    * Undefined means not granted. Reconstructing where a person went is the app's most invasive
    * capability, so it is given deliberately, not inherited.
+   *
+   * STILL ONE FLAG, BUT NO LONGER FOR THE ORIGINAL REASON. It said "search is the only weighted
+   * action the app has — no export, no VIP editing, no camera control (checked 2026-09-04)", and
+   * on 2026-09-10 evidence export arrived in Redmap: a detection's metadata and the operator's
+   * call, as a file, out of the console. That is a second weighted action.
+   *
+   * It is covered today because it sits inside Redmap, and Redmap is gated by this flag as a
+   * whole screen — you cannot export a sighting you were never allowed to find. That is a real
+   * containment, not an accident, and it is why this is not urgent.
+   *
+   * What it does not answer: whether taking evidence OUT deserves its own grant. Searching and
+   * exporting fail differently — a search that should not have happened leaves a record and
+   * ends; an export leaves a copy the console can no longer see. Institutions that separate
+   * "may look" from "may take away" are not being fussy. Deciding that is a policy call about
+   * who gets which grant, not a refactor, so it is written here rather than guessed at: this is
+   * the seam to widen, and there is now one thing waiting at it.
    */
   appSearch?: boolean;
   /**
@@ -2196,6 +2334,8 @@ const AUDIT_LOG: AuditEvent[] = [
   { id: "audit-19", projectId: "proj-sg", message: "License renewed until 2029-03-31", actor: "Grace Tan", at: auditAt(12960) },
 ];
 let auditSeq = AUDIT_LOG.length;
+let judgementSeq = 0;
+let exportSeq = 0;
 
 // Latest seed timestamp — anything at or before this is historical, so the bell starts with
 // nothing unread instead of surfacing all 12 seed VIP hits as "new" on first load.
@@ -2284,6 +2424,8 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
   searchPurpose: null,
   // No seed. These are events, and an installation that has run no searches has none.
   searchAccessLog: [],
+  detectionJudgements: [],
+  evidenceExports: [],
   events: SEED_EVENTS,
   portalUsers: PORTAL_USERS,
   servers: SERVERS,
@@ -2422,6 +2564,36 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
         }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
+  installLicenseFile: (projectId, licence) =>
+    set(state => {
+      const project = state.projects.find(p => p.id === projectId);
+      if (!project) return state;
+      /**
+       * The audit line names the file, not just the numbers.
+       *
+       * "Channels changed to 100" is the sentence the removed mutator would have written, and it
+       * is missing the only part that matters here — who said so. A licence id is traceable back
+       * to the vendor's issuance record, so a year later this line answers "on what authority"
+       * rather than just "what". The old values ride along for the same reason a rename carries
+       * both names.
+       */
+      const before = project.licenseChannelLimit === undefined
+        ? "none recorded"
+        : `${project.licensePlan ?? "—"}, ${project.licenseChannelLimit}ch, ${project.licenseExpiresAt ?? "—"}`;
+      return {
+        projects: state.projects.map(p => (p.id === projectId ? {
+          ...p,
+          licensePlan: licence.plan,
+          licenseChannelLimit: licence.channelLimit,
+          licenseExpiresAt: licence.expiresAt,
+        } : p)),
+        auditLog: [{
+          id: `audit-${++auditSeq}`, projectId,
+          message: `Licence ${licence.licenseId} installed (${before} → ${licence.plan}, ${licence.channelLimit}ch, ${licence.expiresAt})`,
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
   removeProject: (projectId) =>
     set(state => {
       const project = state.projects.find(p => p.id === projectId);
@@ -2493,6 +2665,71 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       ].slice(0, AUDIT_LOG_LIMIT),
     })),
 
+  recordJudgement: ({ surface, subjectId, targetLabel, verdict }) =>
+    set(state => ({
+      detectionJudgements: [
+        {
+          id: `judge-${++judgementSeq}`,
+          surface, subjectId, targetLabel, verdict,
+          // The signed-in stand-in, like every other actor field in this mock. The real one comes
+          // from the session — a browser naming its own operator is not evidence of anything.
+          actor: SIGNED_IN_USER.name,
+          at: new Date().toISOString(),
+        },
+        // Replace rather than append: one subject holds one current verdict. The history of
+        // changed minds belongs on the server, where an earlier call cannot be quietly dropped.
+        ...state.detectionJudgements.filter(j => !(j.surface === surface && j.subjectId === subjectId)),
+      ],
+    })),
+  recordEvidenceExport: ({ projectId, subjectId, surface, targetLabel, manifestHash }) =>
+    set(state => {
+      const at = new Date().toISOString();
+      return {
+        // Append, never replace. Exporting the same detection twice is two copies in the world.
+        evidenceExports: [
+          {
+            id: `export-${++exportSeq}`,
+            projectId, subjectId, surface, targetLabel, manifestHash,
+            actor: SIGNED_IN_USER.name, at,
+          },
+          ...state.evidenceExports,
+        ],
+        // And into the log an administrator actually reads. A record nothing displays is a
+        // record nobody checks — the same trap the search access log was in. The manifest digest
+        // goes in the line so a file in somebody's inbox can be matched back to this row.
+        auditLog: [{
+          id: `audit-${++auditSeq}`,
+          projectId,
+          message: `Evidence exported: ${subjectId} (${targetLabel}) · manifest ${manifestHash.slice(0, 12)}`,
+          actor: SIGNED_IN_USER.name, at,
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
+  clearJudgement: (surface, subjectId) =>
+    set(state => ({
+      detectionJudgements: state.detectionJudgements.filter(
+        j => !(j.surface === surface && j.subjectId === subjectId),
+      ),
+    })),
+  setProjectRetention: (projectId, days) =>
+    set(state => {
+      const project = state.projects.find(p => p.id === projectId);
+      if (!project) return state;
+      const before = project.retentionDays;
+      if (before === (days ?? undefined)) return state;
+      return {
+        projects: state.projects.map(p => (p.id === projectId ? { ...p, retentionDays: days ?? undefined } : p)),
+        // Audited, and the old value goes in the line. "Changed to 60" cannot answer "what were
+        // we keeping in March", which is the question a complaint or a court asks.
+        auditLog: [{
+          id: `audit-${++auditSeq}`, projectId,
+          message: days === null
+            ? `Retention period cleared (was ${before ?? "unset"} days)`
+            : `Retention period changed from ${before ?? "unset"} to ${days} days`,
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      };
+    }),
   updateProjectMail: (projectId, updates) =>
     set(state => ({
       projects: state.projects.map(p => (p.id === projectId ? { ...p, ...updates } : p)),

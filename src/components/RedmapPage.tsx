@@ -6,7 +6,9 @@ import type { RedmapMode as Mode, SimilarityLimit, HitResult, DateRange } from "
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useToast } from "./Toast";
 import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtDateKey } from "@/lib/time";
-import { camerasInProject, canSearchInApp, useActiveProjectId, useProjectCameras, useVcaStore, type Camera } from "@/lib/vcaStore";
+import { camerasInProject, canSearchInApp, judgementFor, useActiveProjectId, useProjectCameras, useVcaStore, type Camera } from "@/lib/vcaStore";
+import { buildEvidenceManifest, evidenceFilename, saveManifest } from "@/lib/evidence";
+import { siteTimeZone } from "@/lib/time";
 import RemoveImageButton from "./RemoveImageButton";
 import SidebarToggleIcon from "./SidebarToggleIcon";
 
@@ -26,6 +28,20 @@ const T = {
     searchResults: "Search results",
     excluded: "Excluded",
     restore: "Restore",
+    confirmed: "Confirmed",
+    confirmIt: "Same person — confirm this sighting",
+    undoConfirm: "Undo",
+    confirmedToast: (place: string) => `Confirmed "${place}" as the same person`,
+    unnamedTarget: "Manual search",
+    exportEvidence: "Export evidence",
+    exportEvidenceHint: "Metadata and the operator's call, as a file. The frame is referenced, not enclosed.",
+    exported: (place: string) => `Evidence exported — ${place}`,
+    exportedDesc: "The extraction is recorded in this project's log.",
+    thresholdCost: (kept: number, total: number) => `${kept} of ${total} candidates`,
+    thresholdCostNone: (total: number) => `none of ${total} candidates`,
+    personChip: (n: number) => `Person ${n}`,
+    resultTally: (hits: number, people: number) => `${hits} sighting${hits === 1 ? "" : "s"} · ${people} different people`,
+    peopleNote: "These sightings were matched to more than one person. Pick a chip to follow one of them.",
     modePerson: "PERSON",
     modeVehicle: "VEHICLE",
     licensePlate: "License plate",
@@ -98,6 +114,20 @@ const T = {
     searchResults: "검색 결과",
     excluded: "제외됨",
     restore: "복원",
+    confirmed: "확인됨",
+    confirmIt: "같은 사람입니다 — 이 목격을 확인",
+    undoConfirm: "되돌리기",
+    confirmedToast: (place: string) => `"${place}"${josa(place, "을", "를")} 같은 사람으로 확인했습니다`,
+    unnamedTarget: "직접 검색",
+    exportEvidence: "증거 내보내기",
+    exportEvidenceHint: "메타데이터와 관제요원의 판단을 파일로. 프레임은 참조만 하고 담지 않습니다.",
+    exported: (place: string) => `증거를 내보냈습니다 — ${place}`,
+    exportedDesc: "추출 사실이 이 프로젝트 기록에 남았습니다.",
+    thresholdCost: (kept: number, total: number) => `후보 ${total}건 중 ${kept}건`,
+    thresholdCostNone: (total: number) => `후보 ${total}건 중 0건`,
+    personChip: (n: number) => `인물 ${n}`,
+    resultTally: (hits: number, people: number) => `목격 ${hits}건 · 인물 ${people}명`,
+    peopleNote: "서로 다른 사람으로 판정된 결과입니다. 칩을 눌러 한 명씩 경로를 보세요.",
     modePerson: "사람",
     modeVehicle: "차량",
     licensePlate: "차량 번호",
@@ -231,7 +261,7 @@ const HIT_SET_TRAIL: HitShape[] = [
     faceUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
     elapsed: "20m 12s",
-    personId: "p1", personLabel: "Match 1",
+    personId: "p1",
   },
   {
     id: "hit-2",
@@ -242,7 +272,7 @@ const HIT_SET_TRAIL: HitShape[] = [
     faceUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
     elapsed: "30m 32s",
-    personId: "p1", personLabel: "Match 1",
+    personId: "p1",
   },
   {
     id: "hit-3",
@@ -252,7 +282,7 @@ const HIT_SET_TRAIL: HitShape[] = [
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    personId: "p1", personLabel: "Match 1",
+    personId: "p1",
   },
 ];
 
@@ -271,7 +301,7 @@ const HIT_SET_MODERATE: HitShape[] = [
     faceUrl: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
     elapsed: "1h 40m",
-    personId: "p1", personLabel: "Match 1",
+    personId: "p1",
   },
   {
     id: "hit-m2",
@@ -281,7 +311,7 @@ const HIT_SET_MODERATE: HitShape[] = [
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    personId: "p1", personLabel: "Match 1",
+    personId: "p1",
   },
 ];
 
@@ -294,7 +324,7 @@ const HIT_SET_SPARSE: HitShape[] = [
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    personId: "p1", personLabel: "Match 1",
+    personId: "p1",
   },
 ];
 
@@ -310,7 +340,7 @@ const HIT_SET_LOOKALIKES: HitShape[] = [
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    personId: "p1", personLabel: "Match 1",
+    personId: "p1",
   },
   {
     id: "hit-l2",
@@ -320,7 +350,7 @@ const HIT_SET_LOOKALIKES: HitShape[] = [
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=200&q=80",
-    personId: "p1", personLabel: "Match 1",
+    personId: "p1",
   },
   {
     id: "hit-l3",
@@ -330,7 +360,7 @@ const HIT_SET_LOOKALIKES: HitShape[] = [
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&h=200&q=80",
-    personId: "p2", personLabel: "Match 2",
+    personId: "p2",
   },
   {
     id: "hit-l4",
@@ -340,7 +370,7 @@ const HIT_SET_LOOKALIKES: HitShape[] = [
     isUnregistered: true,
     faceUrl: "https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=100&h=100&q=80",
     bodyUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&h=200&q=80",
-    personId: "p2", personLabel: "Match 2",
+    personId: "p2",
   },
 ];
 
@@ -517,6 +547,14 @@ function RemoveFromTraceIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <path d="M2.5 2.5L9.5 9.5M9.5 2.5L2.5 9.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DownloadIconSm() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path d="M6 1.5V8M6 8L3.5 5.5M6 8L8.5 5.5M2 9.5V10.5H10V9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -756,7 +794,13 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
 }
 
 /* ── Component ─────────────────────────────────────────────── */
-export default function RedmapPage({ initialSearchName, onInitialSearchConsumed }: { initialSearchName?: string | null; onInitialSearchConsumed?: () => void } = {}) {
+export default function RedmapPage({ initialSearchName, onInitialSearchConsumed, initialSeedFace, onInitialSeedConsumed }: {
+  initialSearchName?: string | null;
+  onInitialSearchConsumed?: () => void;
+  /** A frame handed over from another screen — "this person, find them again". */
+  initialSeedFace?: { url: string; label: string } | null;
+  onInitialSeedConsumed?: () => void;
+} = {}) {
   const [lang] = useLanguage();
   const t = T[lang];
   const { showToast } = useToast();
@@ -822,7 +866,66 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // gets pulled out of the route without being deleted from the underlying search results — the
   // left result list still shows it, just dimmed, so excluding is a correction to the trace, not
   // a destructive edit to what was actually found.
-  const [excludedHitIds, setExcludedHitIds] = useState<Set<string>>(new Set());
+  /**
+   * Judgements live in the store now, not in this component.
+   *
+   * This was a Set of excluded ids, and it was wiped by every new search and by Reset because it
+   * counted as "search outcome". A call that a sighting is the wrong person is not an outcome of
+   * a query — it is a person's conclusion about a specific record, and it is worth exactly as
+   * much the second time somebody searches. So it survives both, and it now carries who said so
+   * and when. See DetectionJudgement.
+   */
+  const detectionJudgements = useVcaStore(state => state.detectionJudgements);
+  const recordJudgement = useVcaStore(state => state.recordJudgement);
+  const clearJudgement = useVcaStore(state => state.clearJudgement);
+  const verdictOf = (id: string) => judgementFor(detectionJudgements, "redmap", id)?.verdict;
+  const isExcluded = (id: string) => verdictOf(id) === "false_positive";
+
+  const recordEvidenceExport = useVcaStore(state => state.recordEvidenceExport);
+  const siteProjectName = useVcaStore(state => state.projects.find(pr => pr.id === state.activeProjectId)?.name ?? "");
+
+  /**
+   * One sighting, out of the console and into a file.
+   *
+   * Assembled from what this row already shows — camera, site clock, score, who was searched for,
+   * and the operator's call if one has been made. The frame is referenced rather than enclosed,
+   * and the manifest hashes itself rather than the image: see src/lib/evidence.ts for why a
+   * browser-computed frame hash would be worse than none.
+   *
+   * `purpose: null` until the app collects one. Written explicitly rather than omitted so the
+   * gap is visible in every file produced before that exists.
+   */
+  const exportEvidence = async (node: { key: string; camera?: string; fullLocation: string; date: string; time: string; faceUrl: string }) => {
+    const judged = judgementFor(detectionJudgements, "redmap", node.key);
+    const hit = results.find(h => h.id === node.key);
+    const at = new Date();
+    const manifest = await buildEvidenceManifest(
+      {
+        surface: "redmap",
+        subjectId: node.key,
+        cameraCode: node.camera,
+        location: node.fullLocation,
+        siteDate: node.date,
+        siteTime: node.time,
+        timeZone: siteTimeZone(),
+        similarity: hit?.score,
+        targetLabel: traceName ?? t.unnamedTarget,
+        frameRef: node.faceUrl,
+        verdict: judged?.verdict,
+        verdictBy: judged?.actor,
+        verdictAt: judged?.at,
+      },
+      { projectName: siteProjectName, operator: portalUsers[0]?.name ?? "", purpose: null },
+      at,
+    );
+    saveManifest(manifest, evidenceFilename(node.key, at));
+    recordEvidenceExport({
+      projectId: siteProjectId, subjectId: node.key, surface: "redmap",
+      targetLabel: traceName ?? t.unnamedTarget,
+      manifestHash: manifest.integrity.manifest_sha256,
+    });
+    showToast({ variant: "success", title: t.exported(node.fullLocation), desc: t.exportedDesc });
+  };
   // Which distinct person(s) the map/route-history panel currently trace — only meaningful (and
   // only shown as chips) when the current results actually contain more than one distinct person.
   const [selectedPersonIds, setSelectedPersonIds] = useState<Set<string>>(new Set());
@@ -834,6 +937,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // is the common case, not an edge case) is still detected as "new" instead of being silently
   // treated as already-consumed because it happened to match the initial state.
   const [consumedSearchName, setConsumedSearchName] = useState<string | null | undefined>(undefined);
+  const [consumedSeedFace, setConsumedSeedFace] = useState<string | null | undefined>(undefined);
   useEscapeKey(() => setUploadFor(null), uploadFor !== null);
 
   // Compared in Singapore time, not the browser's: on New Year's Eve a device a few hours behind
@@ -868,11 +972,39 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     setTraceName(initialSearchName);
   }
 
+  /**
+   * Arriving with the person already attached.
+   *
+   * The other entry to this screen is a form: describe who you are looking for, in words, and
+   * hope the description survives the translation. That is the weaker half of person search and
+   * always was — a captured frame carries everything a sentence about clothing throws away. The
+   * frame is usually already on screen somewhere else when the question comes up, so the useful
+   * move is to carry it here rather than ask the operator to re-describe it.
+   *
+   * Attached, NOT searched. The threshold and the date range are still the operator's to set,
+   * and now that the slider shows what a setting costs, landing on a finished search would have
+   * spent that decision for them.
+   */
+  if (initialSeedFace != null && initialSeedFace.url !== consumedSeedFace) {
+    setConsumedSeedFace(initialSeedFace.url);
+    setMode("person");
+    setFaceImage(initialSeedFace.url);
+    // The upload path keys a file by name+size so the same image reproduces the same result set.
+    // A seeded frame has neither, and its URL is both stable and unique — same guarantee.
+    setFaceFileKey(`seed:${initialSeedFace.url}`);
+    setTraceName(initialSeedFace.label);
+    setHasSearched(false);
+    setResults(defaultResults);
+  }
+
   // Tell the parent its deep-link hint has been consumed — a real side effect (notifying an
   // external callback), so it belongs in an effect rather than the render-phase block above.
   useEffect(() => {
     if (initialSearchName) onInitialSearchConsumed?.();
   }, [initialSearchName, onInitialSearchConsumed]);
+  useEffect(() => {
+    if (initialSeedFace) onInitialSeedConsumed?.();
+  }, [initialSeedFace, onInitialSeedConsumed]);
 
   // A body-only search has only build and clothing to go on, which matches far more loosely than a
   // face does — the same 70% a face search treats as solid confidence lets in the kind of
@@ -882,6 +1014,31 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // deliberately loose pass over body-only footage is a legitimate thing to want. The warning
   // lives on the label's tooltip instead.
   const bodyOnly = mode === "person" && !!bodyFileKey && !faceFileKey;
+
+  /**
+   * What this threshold costs, while the hand is still on the slider.
+   *
+   * The control decides which matches an operator ever sees, and until now moving it told you
+   * nothing until after you searched — you turned the dial with your eyes shut and found out
+   * afterwards, by which time the number you had before was gone. This counts the candidates
+   * the current setting would keep, against the pool the current query actually has.
+   *
+   * Only with something attached. With no image the pool is whatever the empty search key hashes
+   * to, and a count for a query nobody has made is worse than no count: it looks like a fact.
+   *
+   * HANDOFF NOTE: this counts a mock candidate set. The version worth having is "at this
+   * threshold, yesterday would have produced N alerts" — the backend already serves a daily
+   * detection series per project, so the real preview is a query against that rather than a
+   * count of what one search returned.
+   */
+  const thresholdCost = useMemo(() => {
+    if (mode !== "person") return null;
+    if (!faceFileKey && !bodyFileKey) return null;
+    const pool = resultSets[hashStr(`person:${faceFileKey ?? ""}|${bodyFileKey ?? ""}`) % resultSets.length];
+    if (!pool.length) return null;
+    const kept = pool.filter(hit => parseFloat(bodyOnly ? hit.bodyScore : hit.score) >= similarity).length;
+    return { kept, total: pool.length };
+  }, [mode, faceFileKey, bodyFileKey, bodyOnly, similarity, resultSets]);
 
   const handleUploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -989,7 +1146,9 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             desc: t.widenDates });
     }
     setResults(filtered);
-    setExcludedHitIds(new Set());
+    // Judgements are NOT cleared here. They used to be, on the reasoning that they described this
+    // search's outcome; they describe a sighting instead, and re-running a query is not a reason
+    // to make somebody decide the same false positive twice.
     setHasSearched(true);
     // Nothing is selected until the user selects something. The route (map line + timeline) shows
     // the whole result set on its own, so pre-selecting the most recent hit added no information —
@@ -1025,7 +1184,6 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
     setActiveNode(null);
     setSelectedPersonIds(new Set());
     setTraceName(null);
-    setExcludedHitIds(new Set());
     setEmptyReason(null);
   }, [defaultResults]);
 
@@ -1078,10 +1236,23 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
   // Distinct people in the CURRENT results, in first-appearance order. Chips only render when
   // there's more than one — a single person's own sightings don't need disambiguating, and
   // showing a one-chip row every search would just be noise.
-  const distinctPersons = Array.from(new Map(results.map((h) => [h.personId, h.personLabel])).entries())
-    .map(([personId, personLabel], i) => ({ personId, personLabel, color: PERSON_COLORS[i % PERSON_COLORS.length] }));
+  /**
+   * The label is made here, not read from the data.
+   *
+   * The seeds carried personLabel: "Match 1" / "Match 2", and on screen that reads as a ranking
+   * of one person's results — "the first match, the second match". They are not: they are
+   * DIFFERENT PEOPLE the search returned. In a control room that misreading turns four sightings
+   * into one person's route (Novena → Geylang → Toa Payoh → Bedok) and a journey nobody made.
+   *
+   * Numbering positionally also keeps it honest as a display concern: it is "the first distinct
+   * person in these results", which is exactly what the chip selects, and it translates. A label
+   * frozen into the mock data could do neither.
+   */
+  const distinctPersons = Array.from(new Set(results.map((h) => h.personId)))
+    .map((personId, i) => ({ personId, personLabel: t.personChip(i + 1), color: PERSON_COLORS[i % PERSON_COLORS.length] }));
   const showPersonChips = distinctPersons.length > 1;
   const personColor = (personId: string) => distinctPersons.find((p) => p.personId === personId)?.color ?? PERSON_COLORS[0];
+  const personLabelOf = (personId: string) => distinctPersons.find((p) => p.personId === personId)?.personLabel ?? "";
   const togglePerson = (personId: string) => {
     setSelectedPersonIds((prev) => {
       const next = new Set(prev);
@@ -1366,7 +1537,21 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 onChange={e => setSimilarity(Number(e.target.value))}
                 style={{ width: "120px", flexShrink: 0, cursor: "pointer" }}
               />
-              <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary-400)", width: "30px", flexShrink: 0 }}>{similarity}%</span>
+              {/* The number and what it costs, stacked. The toolbar has no room for a second
+                  row, and the cost belongs to this control rather than to the toolbar. */}
+              <span style={{ display: "flex", flexDirection: "column", flexShrink: 0, minWidth: thresholdCost ? "84px" : "30px", lineHeight: 1.2 }}>
+                <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary-400)" }}>{similarity}%</span>
+                {thresholdCost && (
+                  <span style={{
+                    fontSize: "10px", fontWeight: 600, whiteSpace: "nowrap",
+                    // Amber only when the setting leaves nothing. Colouring every reduction would
+                    // paint the normal case as a problem — dropping weak candidates is the job.
+                    color: thresholdCost.kept === 0 ? "var(--warning-500)" : "var(--gray-500)",
+                  }}>
+                    {thresholdCost.kept === 0 ? t.thresholdCostNone(thresholdCost.total) : t.thresholdCost(thresholdCost.kept, thresholdCost.total)}
+                  </span>
+                )}
+              </span>
             </div>
           </>
         )}
@@ -1510,6 +1695,14 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                 distinct person. Toggling a chip controls who the map/route-history panel trace;
                 the results grid below always keeps showing everyone regardless of selection. */}
             {showPersonChips && (
+              /* Said once, above the chips. The chips alone leave the reader to work out why
+                 there is more than one — and the wrong answer to that ("these are ranked
+                 matches") is the one that produces a route nobody walked. */
+              <p style={{ fontSize: "11px", lineHeight: 1.6, color: "var(--gray-500)", margin: "0 0 8px" }}>
+                {t.resultTally(results.length, distinctPersons.length)} — {t.peopleNote}
+              </p>
+            )}
+            {showPersonChips && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                 {distinctPersons.map((p) => {
                   const active = selectedPersonIds.has(p.personId);
@@ -1589,7 +1782,8 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 {results.map((hit, index) => {
-                  const excluded = excludedHitIds.has(hit.id);
+                  const verdict = verdictOf(hit.id);
+                  const excluded = verdict === "false_positive";
                   return (
                   <div
                     key={hit.id}
@@ -1627,16 +1821,28 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                     </div>
                     {excluded ? (
                       <button
-                        onClick={e => { e.stopPropagation(); setExcludedHitIds(prev => { const next = new Set(prev); next.delete(hit.id); return next; }); }}
+                        onClick={e => { e.stopPropagation(); clearJudgement("redmap", hit.id); }}
                         style={{ display: "flex", alignItems: "center", gap: "4px", border: "none", background: "none", padding: 0, cursor: "pointer", width: "fit-content" }}
                       >
                         <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--danger-400)" }}>{t.excluded}</span>
                         <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--primary-400)", textDecoration: "underline" }}>{t.restore}</span>
                       </button>
+                    ) : verdict === "confirmed" ? (
+                      /* The other half of the pair. Without it, "nobody has looked at this" and
+                         "somebody looked and it is right" are the same picture — and the second
+                         is the one a handover, a defence and a training set all need stated. */
+                      <button
+                        onClick={e => { e.stopPropagation(); clearJudgement("redmap", hit.id); }}
+                        title={t.undoConfirm}
+                        style={{ display: "flex", alignItems: "center", gap: "4px", border: "none", background: "none", padding: 0, cursor: "pointer", width: "fit-content" }}
+                      >
+                        <CheckIconSm />
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--success-400)" }}>{t.confirmed}</span>
+                      </button>
                     ) : showPersonChips && (
                       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                         <span style={{ width: "6px", height: "6px", borderRadius: "999px", backgroundColor: personColor(hit.personId), flexShrink: 0 }} />
-                        <span style={{ fontSize: "10px", fontWeight: 700, color: personColor(hit.personId) }}>{hit.personLabel}</span>
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: personColor(hit.personId) }}>{personLabelOf(hit.personId)}</span>
                       </div>
                     )}
                     <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -1693,7 +1899,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
               groupId: h.personId,
               // Keeps `results` and `hits` the same length/order — see the comment on
               // TrackingHit.hidden in RedmapMap.tsx for why this can't just be a `.filter()`.
-              hidden: excludedHitIds.has(h.id),
+              hidden: isExcluded(h.id),
             })) : []}
             trackingActive={trackingActive}
             activeNode={activeNode}
@@ -1741,7 +1947,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                     const tracedHits = results
                       .map((hit, hitIndex) => ({ hit, hitIndex }))
                       .filter(({ hit }) => !showPersonChips || selectedPersonIds.has(hit.personId))
-                      .filter(({ hit }) => !excludedHitIds.has(hit.id));
+                      .filter(({ hit }) => !isExcluded(hit.id));
                     // Every node is a sighting from the results — no synthetic starting point.
                     // A fixed TRACKING_ORIGIN used to be prepended here, the same hardcoded place,
                     // photo and timestamp for every search regardless of who was being traced. It
@@ -1897,7 +2103,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                 <button
                                   onClick={e => {
                                     e.stopPropagation();
-                                    setExcludedHitIds(prev => new Set(prev).add(node.key));
+                                    recordJudgement({ surface: "redmap", subjectId: node.key, targetLabel: traceName ?? t.unnamedTarget, verdict: "false_positive" });
                                     // The left list's own "Excluded · Restore" tag is the lasting way
                                     // back, but it's easy to miss right after the click — a toast with
                                     // its own Undo gives an immediate way to reverse a misclick without
@@ -1905,7 +2111,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                     showToast({
                                       variant: "default", title: t.removedFromTrace(node.fullLocation),
                                       actionLabel: t.undo,
-                                      onAction: () => setExcludedHitIds(prev => { const next = new Set(prev); next.delete(node.key); return next; }),
+                                      onAction: () => clearJudgement("redmap", node.key),
                                     });
                                   }}
                                   title={t.notSamePerson}
@@ -1918,7 +2124,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                     e.currentTarget.style.color = "var(--gray-500)";
                                   }}
                                   style={{
-                                    position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)",
+                                    position: "absolute", right: "26px", top: "50%", transform: "translateY(-50%)",
                                     width: "22px", height: "22px", borderRadius: "999px", flexShrink: 0,
                                     // Grey, borderless, and quiet. This is a secondary action on a
                                     // reversible change — it drops a hit from this one route, leaves
@@ -1932,6 +2138,59 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                   <RemoveFromTraceIcon />
                                 </button>
                               )}
+                              {/* The other verdict, beside the one that was already here.
+   
+                                  An exclude button on its own can only ever record doubt, so a
+                                  route full of sightings nobody has looked at looks exactly like
+                                  a route somebody has been through and agreed with. Saying "yes,
+                                  this is them" is the half that a handover reads, that a defence
+                                  rests on, and that a model can learn from — and it costs one
+                                  button beside a button that already exists.
+   
+                                  Toggles: pressing it again clears the call rather than leaving
+                                  the operator with no way to take back a misclick. */}
+                              {node.hitIndex >= 0 && (() => {
+                                const confirmed = verdictOf(node.key) === "confirmed";
+                                return (
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      if (confirmed) { clearJudgement("redmap", node.key); return; }
+                                      recordJudgement({ surface: "redmap", subjectId: node.key, targetLabel: traceName ?? t.unnamedTarget, verdict: "confirmed" });
+                                      showToast({
+                                        variant: "default", title: t.confirmedToast(node.fullLocation),
+                                        actionLabel: t.undoConfirm,
+                                        onAction: () => clearJudgement("redmap", node.key),
+                                      });
+                                    }}
+                                    title={confirmed ? t.undoConfirm : t.confirmIt}
+                                    aria-pressed={confirmed}
+                                    onMouseEnter={e => {
+                                      if (confirmed) return;
+                                      e.currentTarget.style.backgroundColor = "var(--gray-200)";
+                                      e.currentTarget.style.color = "var(--gray-700)";
+                                    }}
+                                    onMouseLeave={e => {
+                                      if (confirmed) return;
+                                      e.currentTarget.style.backgroundColor = "var(--gray-100)";
+                                      e.currentTarget.style.color = "var(--gray-500)";
+                                    }}
+                                    style={{
+                                      position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)",
+                                      width: "22px", height: "22px", borderRadius: "999px", flexShrink: 0,
+                                      border: "none",
+                                      // Filled only once the call is made. At rest it matches the
+                                      // exclude button beside it — neither verdict is the default,
+                                      // and a green button sitting there would suggest one is.
+                                      backgroundColor: confirmed ? "var(--success-100)" : "var(--gray-100)",
+                                      color: confirmed ? "var(--success-400)" : "var(--gray-500)",
+                                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                                    }}
+                                  >
+                                    <CheckIconSm />
+                                  </button>
+                                );
+                              })()}
                             </div>
                             {/* The frame itself, 16:9 at the panel's full width. Opening it here
                                 rather than navigating to Best Frame keeps the trace alive —
@@ -1944,9 +2203,34 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed 
                                 evidence, without taking width off the map. It covers the connector
                                 line while open, the same way the circles sit on top of it. */}
                             {openFrameKey === node.key && (
-                              <div style={{ marginLeft: "-48px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--gray-200)" }}>
-                                <img src={frameImageSrc(node.faceUrl)} alt={`Captured frame — ${node.fullLocation} ${node.date} ${node.time}`}
-                                     style={{ display: "block", width: "100%", aspectRatio: "16 / 9", objectFit: "cover" }} />
+                              <div style={{ marginLeft: "-48px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                                <div style={{ borderRadius: "8px", overflow: "hidden", border: "1px solid var(--gray-200)" }}>
+                                  <img src={frameImageSrc(node.faceUrl)} alt={`Captured frame — ${node.fullLocation} ${node.date} ${node.time}`}
+                                       style={{ display: "block", width: "100%", aspectRatio: "16 / 9", objectFit: "cover" }} />
+                                </div>
+                                {/* Here rather than on the row: this is the moment the frame is
+                                    actually being looked at, and the row already carries two
+                                    absolutely-positioned buttons. Until now the only way to take a
+                                    sighting out of this screen was to photograph it, which loses
+                                    the camera, the site clock, the score and who said it was them. */}
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", flexWrap: "wrap" }}>
+                                  <button
+                                    onClick={e => { e.stopPropagation(); void exportEvidence(node); }}
+                                    style={{
+                                      display: "inline-flex", alignItems: "center", gap: "6px", flexShrink: 0,
+                                      height: "28px", padding: "0 11px", borderRadius: "8px",
+                                      border: "1px solid var(--gray-200)", backgroundColor: "white",
+                                      color: "var(--gray-700)", fontSize: "11px", fontWeight: 700,
+                                      cursor: "pointer", fontFamily: "inherit",
+                                    }}
+                                  >
+                                    <DownloadIconSm />
+                                    {t.exportEvidence}
+                                  </button>
+                                  <span style={{ flex: 1, minWidth: "180px", fontSize: "10.5px", lineHeight: 1.55, color: "var(--gray-500)" }}>
+                                    {t.exportEvidenceHint}
+                                  </span>
+                                </div>
                               </div>
                             )}
                             {/* Renders for the newest sighting even with no duration to show. The
