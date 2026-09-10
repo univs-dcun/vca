@@ -35,14 +35,19 @@ public final class AuthDtos {
 	 * permission/appAccess/appSearch/status/teamId/projectIds는 기획자 스탠드인(currentPortalRole,
 	 * projectsVisibleInApp, canSearchInApp)이 세션에서 읽어야 하는 값 — 이 응답 하나로 답한다.
 	 */
+	/** 앱 헤더의 현장 전환용 최소 정보 (UV-52 2차) — 앱 전용 계정은 Portal API(403)로 이름을 못 받는다 */
+	public record ProjectRef(String id, String name) {
+	}
+
 	public record UserProfile(Long id, String name, String email, String employeeId, String accountId, String role,
 			String team, boolean mustSetPassword, String permission, boolean appAccess, boolean appSearch,
-			String status, String teamId, List<String> projectIds) {
+			String status, String teamId, List<String> projectIds, List<ProjectRef> projects) {
 
-		static UserProfile of(UserAccountEntity u) {
+		/** projects = 앱에서 볼 수 있는 프로젝트(owner는 전체, 그 외 배정) — 이름 포함. UV-58 ProjectScope 규칙과 동일 */
+		static UserProfile of(UserAccountEntity u, List<ProjectRef> projects) {
 			return new UserProfile(u.getId(), u.getName(), u.getEmail(), u.getEmployeeId(), u.getAccountId(),
 					u.getRole(), u.getTeam(), u.isMustSetPassword(), u.getPermission().json(), u.isAppAccess(),
-					u.isAppSearch(), u.getStatus().json(), u.getTeamId(), List.copyOf(u.getProjectIds()));
+					u.isAppSearch(), u.getStatus().json(), u.getTeamId(), List.copyOf(u.getProjectIds()), projects);
 		}
 	}
 
