@@ -661,6 +661,23 @@ interface VcaStoreState {
   lastReadNotifAt: string;
   setCameraStatus: (cameraId: string, status: CameraStatus) => void;
   addCamera: (camera: Omit<Camera, "id">) => void;
+  /**
+   * Register many cameras at once — installation day, from the installer's own spreadsheet.
+   *
+   * One store call rather than addCamera in a loop, for the reason addRosterEntries exists: each
+   * mutation trims the audit log, so a file of three hundred cameras would erase every entry
+   * before it. And one line in the log is the truth anyway — this was one decision about three
+   * hundred cameras, not three hundred decisions.
+   *
+   * THE CHANNEL LIMIT IS ENFORCED HERE, not only on the screen. A licence granting 100 channels
+   * has to mean 100 whichever way cameras arrive; a limit that only the Add form respects is a
+   * limit that an import walks straight past. Cameras beyond the remaining allowance are refused
+   * and returned, so the caller can say which ones did not make it rather than reporting a
+   * success that silently dropped the tail of the file.
+   *
+   * Returns the codes it refused: over the limit, or colliding with a code already registered.
+   */
+  addCameras: (cameras: Omit<Camera, "id">[], source: string) => string[];
   updateCamera: (cameraId: string, updates: Partial<Omit<Camera, "id" | "projectId">>) => void;
   removeCamera: (cameraId: string) => void;
   /**
@@ -817,6 +834,23 @@ interface VcaStoreState {
   setActiveProjectId: (projectId: string) => void;
   updatePortalUserProjects: (userId: string, projectIds: string[]) => void;
   updatePortalUserStatus: (userId: string, status: PortalUserStatus) => void;
+  /**
+   * Close several accounts at once — a contractor's people rotating off a site.
+   *
+   * Suspend, never delete. Suspension is reversible and keeps the person on the list, which is
+   * what an administrator doing a clear-out actually wants: the accounts stop working today, and
+   * the ones that turn out to still be needed come back without being re-invited. Deleting in
+   * bulk would also delete the record that they were ever here.
+   *
+   * One call, one audit line, for the reason addRosterEntries and removeCameras exist: twenty
+   * separate entries in the same second bury the fact that this was one decision about twenty
+   * people, which is the thing anyone reading the log later needs.
+   *
+   * The last-active-administrator rule is applied per id, exactly as the single-user path does —
+   * a bulk action must not be the way around a guard the individual action enforces. Ids it
+   * refused come back so the screen can say who is still active and why.
+   */
+  suspendPortalUsers: (userIds: string[]) => string[];
   /**
    * Issue a temporary password for an account and return the plaintext, once. Returns null when
    * there is no such user, so the caller shows nothing rather than an empty credential box.
@@ -2401,7 +2435,11 @@ function personHitHistory(events: VcaEvent[], personName: string, nowMs: number)
   const hits: LiveHit[] = [];
   events.filter(e => e.personName === personName).forEach(e => {
     if (e.personType === "Tracking" && e.personPath) {
-      hits.push(...e.personPath.map(p => ({ location: p.location, cameraLabel: p.cameraLabel, timestamp: p.timestamp, confidence: p.confidence ?? 0, lat: e.lat ?? 0, lng: e.lng ?? 0 })));
+      // The hop's own coordinate, not the event's. `e.lat` is where this person was seen LAST,
+      // so using it for every hop collapsed a trail across three districts onto the newest one.
+      // A hop written before TrackingHop carried coordinates has none; it falls back to the
+      // event's, which is the old behaviour and the best guess available for it.
+      hits.push(...e.personPath.map(p => ({ location: p.location, cameraLabel: p.cameraLabel, timestamp: p.timestamp, confidence: p.confidence ?? 0, lat: p.lat ?? e.lat ?? 0, lng: p.lng ?? e.lng ?? 0 })));
     } else {
       hits.push({ location: e.location ?? "", cameraLabel: e.cameraLabel, timestamp: e.timestamp, confidence: e.confidence ?? 0, lat: e.lat ?? 0, lng: e.lng ?? 0 });
     }
@@ -2446,6 +2484,41 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
         auditLog: [auditEntry, ...state.auditLog].slice(0, AUDIT_LOG_LIMIT),
       };
     }),
+  addCameras: (cameras, source) => {
+    const state = get();
+    const projectId = cameras[0]?.projectId;
+    if (projectId === undefined) return [];
+    const project = state.projects.find(p => p.id === projectId);
+    const limit = project ? projectChannelLimit(project) : undefined;
+    const used = state.cameras.filter(c => c.projectId === projectId).length;
+    // Undefined limit is "not licensed", the same reading the Cameras tab uses — a project with
+    // no channel count recorded cannot take cameras from a file any more than from the form.
+    const allowance = limit === undefined ? 0 : Math.max(0, limit - used);
+
+    const taken = new Set(state.cameras.map(c => c.code.trim().toLowerCase()));
+    const refused: string[] = [];
+    const accepted: Camera[] = [];
+    cameras.forEach(cam => {
+      const key = cam.code.trim().toLowerCase();
+      if (taken.has(key)) { refused.push(cam.code); return; }
+      if (accepted.length >= allowance) { refused.push(cam.code); return; }
+      taken.add(key);
+      accepted.push({ ...cam, id: `cam-${++cameraSeq}` });
+    });
+
+    if (accepted.length > 0) {
+      set(st => ({
+        cameras: [...st.cameras, ...accepted],
+        auditLog: [{
+          id: `audit-${++auditSeq}`, projectId,
+          message: `${accepted.length} camera${accepted.length === 1 ? "" : "s"} imported from ${source}`
+            + (refused.length > 0 ? ` (${refused.length} refused)` : ""),
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...st.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      }));
+    }
+    return refused;
+  },
   addCamera: (camera) =>
     set(state => ({
       cameras: [...state.cameras, { ...camera, id: `cam-${++cameraSeq}` }],
@@ -3004,7 +3077,10 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
           lat: latest.lat,
           lng: latest.lng,
           confidence: 0,
-          personPath: history.map(h => ({ location: h.location, cameraLabel: h.cameraLabel, timestamp: h.timestamp, confidence: h.confidence })),
+          // lat/lng included: a hop is a sighting and has its own place. Dropping them here left
+          // the read below to substitute the event's own coordinate for every hop, which put a
+          // whole trail at its newest sighting — see personHitHistory.
+          personPath: history.map(h => ({ location: h.location, cameraLabel: h.cameraLabel, timestamp: h.timestamp, confidence: h.confidence, lat: h.lat, lng: h.lng })),
         }];
       } else {
         // Still only ever seen at one camera — one VIP row per (session-merged) hit.
@@ -3116,6 +3192,33 @@ export const useVcaStore = create<VcaStoreState>((set, get) => ({
       if (status !== "active" && isLastActiveAdmin(state.portalUsers, userId)) return state;
       return { portalUsers: state.portalUsers.map(u => (u.id === userId ? { ...u, status } : u)) };
     }),
+  suspendPortalUsers: (userIds) => {
+    const state = get();
+    const refused: string[] = [];
+    // Evaluated against a list that shrinks as we go: suspending four of five administrators must
+    // still leave the fifth, and checking every id against the ORIGINAL list would let all five
+    // through — each one individually "not the last" at the moment it was checked.
+    let projected = state.portalUsers;
+    userIds.forEach(id => {
+      const target = projected.find(u => u.id === id);
+      if (!target || target.status === "suspended") { refused.push(id); return; }
+      if (isLastActiveAdmin(projected, id)) { refused.push(id); return; }
+      projected = projected.map(u => (u.id === id ? { ...u, status: "suspended" as const } : u));
+    });
+    const changed = userIds.filter(id => !refused.includes(id));
+    if (changed.length > 0) {
+      set(st => ({
+        portalUsers: st.portalUsers.map(u => (changed.includes(u.id) ? { ...u, status: "suspended" as const } : u)),
+        auditLog: [{
+          id: `audit-${++auditSeq}`,
+          message: `${changed.length} account${changed.length === 1 ? "" : "s"} suspended in one action`
+            + (refused.length > 0 ? ` (${refused.length} left active)` : ""),
+          actor: SIGNED_IN_USER.name, at: new Date().toISOString(),
+        }, ...st.auditLog].slice(0, AUDIT_LOG_LIMIT),
+      }));
+    }
+    return refused;
+  },
   issueTemporaryPassword: (userId) => {
     const user = get().portalUsers.find(u => u.id === userId);
     if (!user) return null;
@@ -3537,6 +3640,18 @@ export interface DetectionHit {
   id: string;
   timestamp: string;
   location: string;
+  /**
+   * Where the hit happened, so a caller can place it without working back from `location`.
+   *
+   * Added for the dashboard map's district pills, which were counting `type === "VIP"` rows and
+   * therefore dropping every VIP who had moved between cameras — those collapse into one
+   * "Tracking" row (see the note below) and vanished from the count. Rather than the map
+   * re-deriving hits a fourth way, the derivation carries what the map needs.
+   *
+   * Optional for the same reason TrackingHop's are: an older event may carry none.
+   */
+  lat?: number;
+  lng?: number;
 }
 
 // A "Tracking" row is a VIEW: the same underlying VIP re-identifications, just collapsed into
@@ -3551,10 +3666,12 @@ export function todaysDetectionHits(events: VcaEvent[]): DetectionHit[] {
   const hits: DetectionHit[] = [];
   events.forEach(e => {
     if (e.personType === "VIP" && e.location) {
-      hits.push({ id: e.id, timestamp: e.timestamp, location: e.location });
+      hits.push({ id: e.id, timestamp: e.timestamp, location: e.location, lat: e.lat, lng: e.lng });
     } else if (e.personType === "Tracking" && e.personPath) {
       e.personPath.forEach((hop, i) => {
-        if (hop.location) hits.push({ id: `${e.id}-${i}`, timestamp: hop.timestamp, location: hop.location });
+        // Each hop's own coordinate — a trail crossing three districts is three hits in three
+        // places, not three in the last one.
+        if (hop.location) hits.push({ id: `${e.id}-${i}`, timestamp: hop.timestamp, location: hop.location, lat: hop.lat ?? e.lat, lng: hop.lng ?? e.lng });
       });
     }
   });

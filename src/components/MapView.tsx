@@ -6,7 +6,7 @@ import { LiveEvent, Device, TrackingHop, nearestDistrict, getFacePhoto, formatTi
   DEFAULT_DISTRICT_ALERT_THRESHOLD, DEFAULT_DISTRICT_MODERATE_THRESHOLD } from "@/lib/mockData";
 import {
   vcaEventsToLiveEvents,
-  useProjectEvents, useProjectCameras, type Camera,
+  useProjectEvents, useProjectCameras, todaysDetectionHits, type Camera,
 } from "@/lib/vcaStore";
 import { useCameraStatus, runStateOf } from "@/lib/realtime/cameraStatus";
 import { useApiData } from "@/hooks/useApiData";
@@ -24,6 +24,12 @@ const T = {
     // The district pill's denominator and its no-coverage wording. Kept short: this is a label on
     // a map, and the full sentence lives in the tooltip below it.
     camerasShort: (n: number) => `${n} cam${n === 1 ? "" : "s"}`,
+    // Empty in English on purpose. Korean's counter is one character and earns its width; the
+    // English word for the same thing ("1 hit") is five, on a pill that seventeen of share one
+    // map — and it crowded the figure it was supposed to be labelling. "VIP 1 · 5 cams" already
+    // says the 1 is about a VIP, and the exact people-vs-detections breakdown is one zoom in, on
+    // the hit pin's own summary.
+    hitsUnit: () => "",
     noCamera: "no camera",
     camerasDown: "all down",
     spotSummary: (people: number, hits: number) =>
@@ -43,6 +49,7 @@ const T = {
   },
   ko: {
     camerasShort: (n: number) => `${n}대`,
+    hitsUnit: () => "건",
     noCamera: "카메라 없음",
     camerasDown: "전부 중단",
     spotSummary: (people: number, hits: number) => `이 지점 오늘 ${people}명 · ${hits}건`,
@@ -142,6 +149,11 @@ const OVERVIEW_ZOOM = 12;
  * The count carries weight beyond this screen: customers submit it upward as the evidence for
  * where to install more cameras. So it never travels alone.
  *
+ * What the figure counts is DETECTIONS today, not distinct people — so it carries that unit, and
+ * the word VIP in front of it. Without both, "1 / 5 cams" was a bare number next to a camera
+ * count: nothing on the pill said a person had been detected at all, which is the one thing it
+ * exists to say.
+ *
  * `cameraCount` is beside it because 29 hits from 3 cameras and 29 from 40 are opposite findings,
  * and the raw number reads identically. And a district with no camera at all is called that
  * outright rather than showing 0 — 0 reads as "nothing happens here" when it means "nothing can
@@ -191,8 +203,15 @@ function districtPillHtml(
     ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;opacity:0.85">${camSvg}${t.noCamera}</span>`
     : isDashed
       ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;opacity:0.85">${camSvg}${t.camerasDown}</span>`
-      : `<span style="font-size:14px;font-weight:800;letter-spacing:-0.3px">${count}</span>` +
-        `<span style="font-size:11px;font-weight:500;opacity:0.62">&nbsp;/&nbsp;${t.camerasShort(cameraCount)}</span>`;
+      // Named, and no longer a fraction. It used to read "1 / 5 cams", which says neither what
+      // the 1 is nor what it is 1 of — and a slash between two figures reads as "1 OF 5 cameras",
+      // a different and wrong claim. So: the word VIP in front, the unit behind the number, and a
+      // middot instead of the slash, because the camera count sits beside this figure rather than
+      // under it. The figure stays the biggest thing on the pill — you find a district by
+      // position and then read its number.
+      : `<span style="font-size:10px;font-weight:700;opacity:0.82;letter-spacing:0.2px">VIP</span>` +
+        `<span style="font-size:14px;font-weight:800;letter-spacing:-0.3px;margin-left:3px">${count}</span>` +
+        `<span style="font-size:11px;font-weight:500;opacity:0.62">${t.hitsUnit()}&nbsp;·&nbsp;${t.camerasShort(cameraCount)}</span>`;
 
   const shadow = isDark || isAlert ? "0 2px 10px rgba(14, 22, 42,0.2)" : "0 2px 6px rgba(14, 22, 42,0.08)";
   return `<div style="transform:translateX(-50%) translateY(-50%);display:inline-flex;flex-direction:column;
@@ -465,7 +484,18 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
   // directly (no ref needed there since that effect already re-runs on every change).
   // This site's detections only. A map is the one screen where mixing two sites is worst: the
   // pins would sit in two cities and "respond to this" would point at the wrong one.
-  const recentEvents = vcaEventsToLiveEvents(useProjectEvents());
+  const projectEvents = useProjectEvents();
+  const recentEvents = vcaEventsToLiveEvents(projectEvents);
+  /**
+   * Today's VIP detections at this site, one entry per sighting, with where each happened.
+   *
+   * The same derivation the sidebar's "detections today" and the activity chart already share
+   * (todaysDetectionHits) — the district pills are the third screen asking this question, and
+   * they were answering it themselves by counting `type === "VIP"` rows. That silently dropped
+   * every VIP who had been picked up by two or more cameras, because those collapse into one
+   * "Tracking" row: the most active people in a district counted zero there.
+   */
+  const todaysHits = useMemo(() => todaysDetectionHits(projectEvents), [projectEvents]);
 
   // ── Map initialization ───────────────────────────────────────────
   useEffect(() => {
@@ -634,17 +664,18 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
         }
       } else if (zoom <= CLUSTER_ZOOM_BREAKPOINT) {
         // ── Zoomed out: one pill per district ──
-        const now = new Date();
         districts.forEach((district) => {
           const camerasInDistrict = cameras.filter(c => nearestDistrict(c.lat, c.lng).id === district.id);
           // The dashed pill means "this district's cameras are all down right now" — a coverage
           // gap, which is worth a pin even with nothing to report. Checking run state rather than
           // array length is what captures that.
           const hasOnlineCamera = camerasInDistrict.some(c => cameraStatus.byId(c.id) === "running");
-          const count = recentEvents.filter(ev =>
-            ev.type === "VIP" &&
-            isTodaySgt(new Date(ev.timestamp), now) &&
-            nearestDistrict(ev.lat, ev.lng).id === district.id
+          // Already today-only and already VIP-only (Tracking is a VIP view, not a category) —
+          // so this filters on place alone. A hit with no coordinate cannot be placed in a
+          // district and is left out rather than guessed at.
+          const count = todaysHits.filter(h =>
+            h.lat !== undefined && h.lng !== undefined &&
+            nearestDistrict(h.lat, h.lng).id === district.id
           ).length;
           // A district with a working camera but zero detections is pure noise ("nothing happened
           // here") — maps that show location pins/badges (Airbnb, Kayak, Expedia, Zillow — checked
@@ -720,7 +751,7 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
     });
 
     return () => { cancelled = true; };
-  }, [recentEvents, cameras, zoom, mapReady, alertThreshold, moderateThreshold, districts, lang, districtFilter, cameraStatus, t]);
+  }, [recentEvents, todaysHits, cameras, zoom, mapReady, alertThreshold, moderateThreshold, districts, lang, districtFilter, cameraStatus, t]);
 
   // ── District selection → zoom into that district ───────────────
   // Clicking a pill was a list filter and nothing more: the map stayed at island zoom with every
