@@ -9,6 +9,7 @@ import {
 import { useCameraStatus, getCameraStatus, runStateOf } from "@/lib/realtime/cameraStatus";
 import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtClockTime, sgtDateKey } from "@/lib/time";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { usePopoverDismiss } from "@/hooks/usePopoverDismiss";
 import RemoveImageButton from "./RemoveImageButton";
 
 import { useLanguage, type AppLanguage } from "@/lib/i18n";
@@ -363,7 +364,10 @@ function attr(value: string, lang: AppLanguage): string {
   return lang === "ko" ? (ATTR_KO[value] ?? value) : value;
 }
 
-const BORDER = "1px solid var(--gray-200)";
+// The console's one hairline value — see --line in globals.css, which was defined for exactly
+// this and then never reached the app: eight files each declared their own gray-200 rule instead,
+// so Portal and the app drew different lines.
+const BORDER = "1px solid var(--line)";
 /**
  * The Data screen's sub-tabs.
  *
@@ -735,6 +739,10 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
   const [lang] = useLanguage();
   const t = T[lang];
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Escape and click-outside, like the app's other popovers. Without them this one could only be
+  // closed by clicking its trigger again — and its 320px-tall list sits over the camera wall.
+  const pickerRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(pickerRef, pickerOpen, () => setPickerOpen(false));
   const cameras = useProjectCameras();
   const camera = cameras.find(c => c.code === camId);
   const isAll = camId === ALL_CAMERAS_ID;
@@ -746,7 +754,7 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
     <div style={{ position:"relative", flex:1, overflow:"hidden" }}>
     <div ref={scrollRef} className="vca-hide-scrollbar" style={{ position:"absolute", inset:0, overflowY:"auto", padding:"20px 24px", backgroundColor:"white", borderRadius:"12px", boxSizing:"border-box" }}>
       <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"12px" }}>
-        <div style={{ position:"relative", width:"152px" }}>
+        <div ref={pickerRef} style={{ position:"relative", width:"152px" }}>
           <button onClick={() => setPickerOpen(o => !o)} style={{
             display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
             padding:"8px 12px", borderRadius:"8px", backgroundColor:"white", border:"1px solid var(--primary-400)",
@@ -949,8 +957,10 @@ function SimpleSelect({ value, options, onChange }: { value:string; options:stri
   const [lang] = useLanguage();
   const t = T[lang];
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(ref, open, () => setOpen(false));
   return (
-    <div style={{ position:"relative", width:"100%" }}>
+    <div ref={ref} style={{ position:"relative", width:"100%" }}>
       <style>{`
         .vca-simple-select-trigger:hover { border-color:var(--primary-300) !important; }
         /* The option rows set their own background inline (selected vs not), and an inline
@@ -1985,9 +1995,37 @@ const SHOE_COLORS: { id:string; hex:string }[] = [
   { id:"black",     hex:"#0f172a" },
   { id:"gray",      hex:"#94a3b8" },
 ];
-// A light swatch needs its own outline to stay visible against the white filter-panel
-// background — a colored swatch never does.
-const LIGHT_SWATCH_HEXES = new Set(["var(--gray-0)", "var(--gray-200)"]);
+/**
+ * Whether a swatch needs its own outline to stay visible against the filter panel behind it.
+ *
+ * The test is CONTRAST AGAINST THE PANEL, at 3:1 — the threshold WCAG sets for a non-text
+ * interface component, which is what a colour swatch is. Not "is this colour light": a first
+ * pass here used perceived lightness and caught only white and light grey, while tan (1.89:1),
+ * gold (1.92:1), grey (2.56:1) and orange (2.80:1) stayed outline-less on a white panel. Six of
+ * the eighteen swatches fail, not two.
+ *
+ * The list this replaces held design-token strings ("var(--gray-0)") while the swatches carry
+ * real hex, so it never matched anything at all and no swatch was ever outlined.
+ *
+ * The swatch hexes stay raw on purpose: they are DATA, not theme. A white shirt is white whatever
+ * the palette does, and tokenising them would let a design change repaint the clothing an
+ * operator is searching for.
+ */
+const SWATCH_PANEL_LUMINANCE = 1; // white — every panel these sit on is --gray-0
+function isLightSwatch(hex: string): boolean {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  // sRGB relative luminance, per WCAG — not a channel average. The gamma curve is why gold and
+  // orange read as far lighter than their raw numbers suggest.
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  const lum = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  const contrast = (SWATCH_PANEL_LUMINANCE + 0.05) / (lum + 0.05);
+  return contrast < 3;
+}
 
 function ColorSwatch({ hex, active, onClick, size = 22 }: { hex:string; active:boolean; onClick:()=>void; size?:number }) {
   return (
@@ -1999,7 +2037,7 @@ function ColorSwatch({ hex, active, onClick, size = 22 }: { hex:string; active:b
         backgroundColor:hex, border:"none",
         boxShadow: active
           ? "0 0 0 2px white, 0 0 0 4px var(--primary-400)"
-          : LIGHT_SWATCH_HEXES.has(hex) ? "inset 0 0 0 1px var(--gray-300)" : "none",
+          : isLightSwatch(hex) ? "inset 0 0 0 1px var(--gray-300)" : "none",
       }}
     />
   );
@@ -2950,6 +2988,8 @@ function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: st
   const [lang] = useLanguage();
   const t = T[lang];
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(ref, open, () => setOpen(false));
   const cameraStatus = useCameraStatus();
   const statusOf = (code: string) => cameraStatus.byCode(code);
   // The register, scoped to the site on screen — not the module-level CAMERA_OPTIONS this used to
@@ -2959,7 +2999,7 @@ function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: st
   const label = value || t.allCameras;
   return (
     /* 152px fitted "NC-1"; a real code plus its ON/OFF needs more, and the label was ellipsing. */
-    <div style={{ position:"relative", width:"186px" }}>
+    <div ref={ref} style={{ position:"relative", width:"186px" }}>
       <button onClick={() => setOpen(o => !o)} style={{
         display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%",
         padding:"8px 12px", borderRadius:"8px", backgroundColor:"white", border:"1px solid var(--primary-400)",

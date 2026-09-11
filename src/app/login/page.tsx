@@ -328,7 +328,7 @@ function LoginForm() {
                 <label style={FIELD_LABEL}>
                   {authConfig.employeeIdLogin ? t.identifierWithId : t.identifierEmailOnly}
                 </label>
-                <div style={{ display: "flex", alignItems: "center", height: "52px", padding: "0 18px", border: FIELD_BORDER, borderRadius: "8px" }}>
+                <div className="vca-auth-field" style={{ display: "flex", alignItems: "center", height: "52px", padding: "0 18px", border: FIELD_BORDER, borderRadius: "8px" }}>
                   <input
                     value={identifier}
                     onChange={e => { setIdentifier(e.target.value); setNotice(null); }}
@@ -338,7 +338,7 @@ function LoginForm() {
                     // restore above moves focus to the password — the field with something left
                     // to do — as soon as it knows that.
                     autoFocus
-                    style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-900)", letterSpacing: "-0.35px" }}
+                    style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-900)", letterSpacing: "-0.32px" }}
                   />
                 </div>
               </div>
@@ -358,7 +358,7 @@ function LoginForm() {
                     {t.forgot}
                   </button>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", height: "52px", padding: "0 18px", border: FIELD_BORDER, borderRadius: "8px" }}>
+                <div className="vca-auth-field" style={{ display: "flex", alignItems: "center", height: "52px", padding: "0 18px", border: FIELD_BORDER, borderRadius: "8px" }}>
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
@@ -368,7 +368,7 @@ function LoginForm() {
                     placeholder="••••••••"
                     autoComplete="current-password"
                     ref={passwordRef}
-                    style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-900)", letterSpacing: "-0.35px" }}
+                    style={{ flex: 1, border: "none", outline: "none", boxShadow: "none", fontSize: "16px", color: "var(--gray-900)", letterSpacing: "-0.32px" }}
                   />
                   <button type="button" onClick={() => setShowPassword(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                     {showPassword ? <EyeIcon /> : <EyeOffIcon />}
@@ -510,10 +510,10 @@ function LoginForm() {
                   {/* Above the figure, and grey — it says which kind of fact this is at a glance
                       without competing with the number, which is the thing worth reading. */}
                   <Icon size={15} strokeWidth={2} color="var(--gray-400)" />
-                  <span style={{ fontSize: "15px", fontWeight: 800, color: "var(--primary-400)", letterSpacing: "-0.3px" }}>
+                  <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--primary-400)", letterSpacing: "-0.32px" }}>
                     {fact.value}
                   </span>
-                  <span style={{ fontSize: "10.5px", fontWeight: 600, color: "var(--gray-400)", letterSpacing: "-0.21px" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-400)", letterSpacing: "-0.2px" }}>
                     {fact.label}
                   </span>
                 </div>

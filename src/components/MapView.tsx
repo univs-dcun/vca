@@ -104,16 +104,18 @@ function recentPingHtml(color: string): string {
     </div>`;
 }
 
-// The box is 14px, not the 10px it reads as: box-sizing is border-box globally, so the 2px white
-// casing eats into the width and the visible fill lands back at 10px. Fill is gray-700 rather than
-// gray-600 — still quiet next to a colour ping, but it survives a light basemap.
-// Same footprint as recentPingHtml (so both anchor identically) but no expanding ring and a
-// muted dark-gray fill — every camera's location still gets marked when zoomed in, but only the
-// ones with a recent VIP hit get the attention-grabbing pulse.
+// Same 22px hit box as recentPingHtml (so both anchor identically), but everything visible is
+// dialled down: no expanding ring, a 12px box against the ping's 14px, a 1.5px casing against
+// 2px, and gray-600 rather than gray-700. box-sizing is border-box globally, so the casing eats
+// into the width and the visible fill lands at 9px.
+//
+// It was drawn at the ping's own weight, with the same double-ring casing, fifty-nine times over.
+// That is louder than a camera with nothing to report should ever be, and a field of identical
+// ringed dots reads as a texture rather than as places — see .vca-map-dot-quiet in globals.css.
 function quietCameraDotHtml(): string {
   return `
     <div class="vca-camera-dot-hit" style="position:relative;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;transform:translateX(-50%) translateY(-50%)">
-      <div class="vca-camera-dot-visual vca-map-dot" style="position:relative;width:14px;height:14px;border-radius:50%;background:var(--gray-700);transition:transform 0.15s ease"></div>
+      <div class="vca-camera-dot-visual vca-map-dot-quiet" style="position:relative;width:12px;height:12px;border-radius:50%;background:var(--gray-600);transition:transform 0.15s ease"></div>
     </div>`;
 }
 
@@ -189,7 +191,11 @@ function districtPillHtml(
   // Offline cameras aren't as urgent a signal as a real, nonzero VIP count — purple is reserved
   // for things that actually need attention, so this stays a neutral gray instead.
   else if (isDashed || isUncovered) { bg = "white"; textColor = "var(--gray-500)"; border = "border:1.5px dashed var(--gray-300);"; }
-  else              { bg = "white";   textColor = "var(--gray-700)"; border = "border:1.5px solid var(--primary-400);"; }
+  // The quiet state is the hairline, not purple. Most of the seventeen districts are quiet at any
+  // moment, so a purple border here meant a map of a dozen purple pills — and purple ended up
+  // meaning "normal", which is the opposite of what the line above reserves it for. Solid vs
+  // dashed still separates "has cameras" from "has none".
+  else              { bg = "white";   textColor = "var(--gray-700)"; border = "border:1.5px solid var(--line);"; }
   const camSvg = (isDashed || isUncovered)
     ? `<svg width="12" height="12" viewBox="0 0 18 18" fill="none" style="flex-shrink:0">
         <path d="M7.99512 4.5H10.5001C10.8979 4.5 11.2795 4.65804 11.5608 4.93934C11.8421 5.22064 12.0001 5.60218 12.0001 6V7.875L15.9361 5.5785C15.9931 5.54524 16.0579 5.52762 16.1238 5.52739C16.1898 5.52717 16.2547 5.54436 16.3119 5.57722C16.3691 5.61009 16.4167 5.65747 16.4497 5.71459C16.4827 5.7717 16.5001 5.83652 16.5001 5.9025V12.0495"
@@ -218,10 +224,12 @@ function districtPillHtml(
       // middot instead of the slash, because the camera count sits beside this figure rather than
       // under it. The figure stays the biggest thing on the pill — you find a district by
       // position and then read its number.
-      // The mark hugs the figure (no space between them) — it is part of reading the number, not
-      // a separate word. "VIP" keeps its own gap in front.
+      // The mark reads with the figure rather than as a separate word, so it stays close — but
+      // not touching. Set flush it collided with the number: a 10px × has almost no side bearing
+      // and the 14px 800-weight digit starts immediately, so the two glyphs ran together. 2px is
+      // the smallest gap that separates them without turning the mark into its own token.
       : `<span style="font-size:10px;font-weight:700;opacity:0.82;letter-spacing:0.2px;margin-right:3px">VIP</span>` +
-        (t.hitsMark() ? `<span style="font-size:11px;font-weight:600;opacity:0.62">${t.hitsMark()}</span>` : "") +
+        (t.hitsMark() ? `<span style="font-size:10px;font-weight:600;opacity:0.62;margin-right:2px">${t.hitsMark()}</span>` : "") +
         `<span style="font-size:14px;font-weight:800;letter-spacing:-0.3px">${count}</span>` +
         `<span style="font-size:11px;font-weight:500;opacity:0.62">${t.hitsUnit()}&nbsp;·&nbsp;${t.camerasShort(cameraCount)}</span>`;
 
@@ -839,7 +847,11 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
         map.flyTo([nodes[nodes.length - 1].lat, nodes[nodes.length - 1].lng], 14, { duration: 0.8, easeLinearity: 0.5 });
 
         const line = L.polyline(nodes.map(n => [n.lat, n.lng]), {
-          color: "var(--primary-400)", weight: 2, opacity: 1, lineJoin: "round", className: "vca-route-line",
+          // The trail is drawn in the Tracking colour, the same one the sidebar list and the map's
+          // own event pins already use for a Tracking row (see typeColor above). It was purple,
+          // so one event was olive in the list and purple on the map — and a long trail painted
+          // the map purple in proportion to how many hops it had.
+          color: "var(--type-tracking)", weight: 2, opacity: 1, lineJoin: "round", className: "vca-route-line",
         }).addTo(map);
         trackingRouteLayersRef.current.push(line);
 
@@ -851,7 +863,7 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
           const arrowLng = a.lng + (b.lng - a.lng) * t;
           const bearing = (Math.atan2(b.lng - a.lng, b.lat - a.lat) * 180) / Math.PI;
           const arrowIcon = L.divIcon({
-            html: `<svg width="14" height="14" viewBox="0 0 14 14" style="display:block;transform:rotate(${bearing}deg)"><path d="M7 1L12.5 12H1.5Z" fill="var(--primary-400)"/></svg>`,
+            html: `<svg width="14" height="14" viewBox="0 0 14 14" style="display:block;transform:rotate(${bearing}deg)"><path d="M7 1L12.5 12H1.5Z" fill="var(--type-tracking)"/></svg>`,
             iconSize: [14, 14], iconAnchor: [7, 7], className: "",
           });
           const arrowMarker = L.marker([arrowLat, arrowLng], { icon: arrowIcon, interactive: false }).addTo(map);
@@ -865,21 +877,21 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
           const size = isLast ? 44 : 36;
 
           const circleHtml = isLast
-            ? `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--primary-400);display:flex;align-items:center;justify-content:center;
-                          font-family:'SUIT',sans-serif;font-size:14px;font-weight:700;color:white;box-shadow:0 0 0 10px rgba(90,61,251,0.15)">${num}</div>`
-            : `<div style="width:${size}px;height:${size}px;border-radius:50%;background:white;border:2px solid var(--primary-400);display:flex;align-items:center;justify-content:center;
-                          font-family:'SUIT',sans-serif;font-size:13px;font-weight:700;color:var(--primary-400);box-shadow:0 2px 6px rgba(14, 22, 42,0.12)">${num}</div>`;
+            ? `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--type-tracking);display:flex;align-items:center;justify-content:center;
+                          font-family:'SUIT',sans-serif;font-size:14px;font-weight:700;color:white;box-shadow:0 0 0 10px rgba(109,147,0,0.15)">${num}</div>`
+            : `<div style="width:${size}px;height:${size}px;border-radius:50%;background:white;border:2px solid var(--type-tracking);display:flex;align-items:center;justify-content:center;
+                          font-family:'SUIT',sans-serif;font-size:13px;font-weight:700;color:var(--type-tracking);box-shadow:0 2px 6px rgba(14, 22, 42,0.12)">${num}</div>`;
 
           const tailCenterY = size / 2;
           const tailHtml = isLast
-            ? routeBubbleTailHtml(tailCenterY, "var(--primary-400)", "var(--primary-400)")
+            ? routeBubbleTailHtml(tailCenterY, "var(--type-tracking)", "var(--type-tracking)")
             : routeBubbleTailHtml(tailCenterY, "white", "var(--gray-200)");
 
           const cardHtml = isLast
-            ? `<div style="position:relative;font-family:'SUIT',sans-serif;filter:drop-shadow(0 4px 10px rgba(90,61,251,0.25))">
+            ? `<div style="position:relative;font-family:'SUIT',sans-serif;filter:drop-shadow(0 4px 10px rgba(109,147,0,0.25))">
                  ${tailHtml}
-                 <div style="position:relative;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1.5px solid var(--primary-400)">
-                   <div style="background:var(--primary-400);color:white;font-size:11px;font-weight:800;padding:6px 12px;display:flex;align-items:center;gap:4px;white-space:nowrap">
+                 <div style="position:relative;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1.5px solid var(--type-tracking)">
+                   <div style="background:var(--type-tracking);color:white;font-size:11px;font-weight:800;padding:6px 12px;display:flex;align-items:center;gap:4px;white-space:nowrap">
                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M6 0.5L1.5 6.5H5L4.5 10.5L9.5 4.5H6L6 0.5Z" fill="white"/></svg>
                      ${t.lastSeen}
                    </div>
@@ -888,9 +900,9 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
                      <div style="font-size:13px;color:var(--gray-500);margin-top:2px">${node.time}</div>
                      <div onclick="window.__vcaGoRedmapTrace && window.__vcaGoRedmapTrace('${escapeAttr(selectedEvent.name)}')"
                        style="margin-top:6px;padding-top:6px;border-top:1px solid var(--gray-100);display:flex;align-items:center;gap:4px;
-                       font-size:12px;font-weight:700;color:var(--primary-400);cursor:pointer">
+                       font-size:12px;font-weight:700;color:var(--type-tracking);cursor:pointer">
                        ${t.fullTrace}
-                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2L7 5L3 8" stroke="var(--primary-400)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2L7 5L3 8" stroke="var(--type-tracking)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                      </div>
                    </div>
                  </div>
@@ -905,7 +917,13 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
           const html = `<div style="display:inline-flex;align-items:flex-start;gap:10px">${circleHtml}${cardHtml}</div>`;
           const icon = L.divIcon({ html, iconSize: [1, 1], iconAnchor: [size / 2, size / 2], className: "" });
           const marker = L.marker([node.lat, node.lng], { icon }).addTo(map);
-          marker.setZIndexOffset(i * 100);
+          // Above the camera dots. Every hop now sits exactly on the camera that captured it
+          // (hops carry their own coordinates since 57b7282 — before that they all shared the
+          // event's, so only one node ever coincided with a dot). The dot is 12px and drawn on
+          // top: it covered the node's step number and turned each stop into a dot inside a ring,
+          // which is the bullseye pattern the quiet dots were redrawn to avoid. The node circle
+          // is opaque and larger, so putting it above hides the dot it is standing on.
+          marker.setZIndexOffset(1000 + i * 100);
           trackingRouteLayersRef.current.push(marker);
         });
         return;
