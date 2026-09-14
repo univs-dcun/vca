@@ -12,9 +12,9 @@ export interface LiveCounter {
 }
 
 export interface LiveDashboardStats {
-  /** Navbar 상단 "N Running / N Stopped" */
-  aiRunning: number
-  aiStopped: number
+  /** Navbar 상단 "N Running / N Stopped" — 카메라 가동/중단 대수 */
+  camsRunning: number
+  camsStopped: number
   /** EVENTS 탭 "VIP Detections" — 당일 등록 VIP 감지 누적 */
   watchlistMatch: LiveCounter
   /** EVENTS 탭 "Today's detections" — 당일 전체 얼굴 감지(VIP + 미등록) 누적 */
@@ -36,8 +36,8 @@ export function useLiveDashboardStats(): LiveDashboardStats | null {
   const summary = useStatsSummary()
   if (!summary) return null
   return {
-    aiRunning: summary.cameras.running,
-    aiStopped: summary.cameras.stopped,
+    camsRunning: summary.cameras.running,
+    camsStopped: summary.cameras.stopped,
     watchlistMatch: toCounter(summary.vipDetections),
     eventsToday: toCounter(summary.faceDetections),
   }

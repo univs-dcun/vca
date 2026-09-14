@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVcaStore, type Project } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { usePortalLanguage } from "@/lib/i18n";
-import { BORDER, BREADCRUMB_PROJECT_MAX_WIDTH, TABLE_HEADER_COLOR, TYPE_META, SelectedCheckIcon } from "./PortalShared";
-import { ChevronRight, MapPin } from "lucide-react";
+import { BORDER, BREADCRUMB_PROJECT_MAX_WIDTH, TABLE_HEADER_COLOR, SelectedCheckIcon, useTypeLabel } from "./PortalShared";
+import { Building2, Check, ChevronRight, Mail, MapPin } from "lucide-react";
 
 interface ProjectSwitcherProps {
   /**
@@ -24,47 +24,108 @@ interface ProjectSwitcherProps {
    *  breadcrumb to the left of this control already says which team you are in — listing every
    *  team's projects here would contradict it. */
   teamId: string;
+  /** Switch the whole picker — and the shell behind it — to another team. */
+  onSwitchTeam?: (teamId: string) => void;
   currentProjectId: string;
   onSelect: (projectId: string) => void;
-  onNewProject: () => void;
+  /** Opens the "how do I get another project" notice. Not a create action — see the header. */
+  onRequestProject: () => void;
+  /**
+   * Changes when the shell wants this picker open again.
+   *
+   * "New project" is reached from inside this dropdown, and the dropdown closes to make way for
+   * the dialog. Cancelling the dialog therefore left the reader nowhere — back on the console
+   * with the list they had been choosing from closed, and a second click needed to get back to
+   * where they already were. Cancel should undo the step it cancels, not two of them.
+   *
+   * A counter rather than a boolean: the same request can be made twice in a row, and a boolean
+   * that is already true does not fire an effect.
+   */
+  reopenSignal?: number;
 }
 
 type Tab = "recent" | "starred" | "all";
 const TAB_IDS: Tab[] = ["recent", "starred", "all"];
 
+/**
+ * What this picker remembers between visits: which projects are starred, and when each was
+ * last opened.
+ *
+ * Both were missing and both were visible as bugs. Stars were plain component state, so they
+ * vanished on refresh — the Starred tab said "No starred projects yet" about projects starred
+ * a minute earlier. And nothing recorded recency at all, so "Recent" and "All" rendered
+ * byte-identical lists: a tab that is a copy of the tab beside it.
+ *
+ * Per browser, not per account, and deliberately so: this is which sites THIS person keeps
+ * coming back to on THIS machine, which is a convenience and not a setting anybody else should
+ * inherit. Every read and write is guarded — a private window, cleared site data or a browser
+ * set to block storage all throw here, and none of them should break a switcher.
+ */
+const SWITCHER_MEMORY_KEY = "vca:portalSwitcher";
+
+interface SwitcherMemory {
+  starred: string[];
+  /** projectId -> epoch ms of the last time it was picked from this list. */
+  opened: Record<string, number>;
+}
+
+function readMemory(): SwitcherMemory {
+  try {
+    const raw = window.localStorage.getItem(SWITCHER_MEMORY_KEY);
+    if (!raw) return { starred: [], opened: {} };
+    const parsed = JSON.parse(raw) as Partial<SwitcherMemory>;
+    return {
+      starred: Array.isArray(parsed.starred) ? parsed.starred.filter(v => typeof v === "string") : [],
+      opened: parsed.opened && typeof parsed.opened === "object" ? parsed.opened : {},
+    };
+  } catch {
+    return { starred: [], opened: {} };
+  }
+}
+
+/** Wall-clock, read at the moment of a click. Out here rather than inline in the handler so
+ *  the component body stays free of impure calls. */
+function stamp(): number {
+  return Date.now();
+}
+
+function writeMemory(memory: SwitcherMemory): void {
+  try {
+    window.localStorage.setItem(SWITCHER_MEMORY_KEY, JSON.stringify(memory));
+  } catch {
+    // Nothing to do and nothing to say: a switcher that cannot remember still switches.
+  }
+}
+
 const T = {
   en: {
     selectProject: "Select project",
-    selectResource: "Select a resource",
-    newProject: "New Project",
+    requestProject: "Add a project",
     noTeam: "No Team",
-    searchPlaceholder: "Search projects and folders",
+    // "folders" came from the GCP picker this borrowed its shape from. Portal has no folders,
+    // and a placeholder naming something the product does not have is a promise it cannot keep.
+    searchPlaceholder: "Search projects",
     tabRecent: "Recent",
     tabStarred: "Starred",
     tabAll: "All",
     colName: "Name",
-    colType: "Type",
     colId: "ID",
-    typeTeam: "Team",
-    typeProject: "Project",
+    switchTeam: "Switch team",
     noStarredProjects: "No starred projects yet.",
     noResultsFor: (query: string) => `No results for "${query}".`,
     cancel: "Cancel",
   },
   ko: {
     selectProject: "프로젝트 선택",
-    selectResource: "리소스 선택",
-    newProject: "새 프로젝트",
+    requestProject: "프로젝트 추가",
     noTeam: "팀 없음",
-    searchPlaceholder: "프로젝트 및 폴더 검색",
+    searchPlaceholder: "프로젝트 검색",
     tabRecent: "최근",
     tabStarred: "즐겨찾기",
     tabAll: "전체",
     colName: "이름",
-    colType: "유형",
     colId: "ID",
-    typeTeam: "팀",
-    typeProject: "프로젝트",
+    switchTeam: "팀 변경",
     noStarredProjects: "즐겨찾기한 프로젝트가 없습니다.",
     noResultsFor: (query: string) => `"${query}"에 대한 검색 결과가 없습니다.`,
     cancel: "취소",
@@ -79,15 +140,10 @@ function ChevronDown({ size = 12 }: { size?: number }) {
   );
 }
 
+/** The building the rail's team foot wears. It was four squares here and a building there, for
+ *  the same thing on the same screen. One mark per idea. */
 function TeamIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="var(--gray-400)" strokeWidth="1.4"/>
-      <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="var(--gray-400)" strokeWidth="1.4"/>
-      <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="var(--gray-400)" strokeWidth="1.4"/>
-      <rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="var(--gray-400)" strokeWidth="1.4"/>
-    </svg>
-  );
+  return <Building2 size={16} strokeWidth={1.8} color="var(--gray-400)" />;
 }
 
 function ProjectIcon() {
@@ -106,9 +162,10 @@ function StarIcon({ filled }: { filled: boolean }) {
   );
 }
 
-export default function ProjectSwitcher({ dark, compact, teamId, currentProjectId, onSelect, onNewProject }: ProjectSwitcherProps) {
+export default function ProjectSwitcher({ dark, compact, teamId, currentProjectId, onSelect, onRequestProject, onSwitchTeam, reopenSignal }: ProjectSwitcherProps) {
   const [lang] = usePortalLanguage();
   const t = T[lang];
+  const typeLabel = useTypeLabel();
   const TAB_LABELS: Record<Tab, string> = { recent: t.tabRecent, starred: t.tabStarred, all: t.tabAll };
   const projects = useVcaStore(s => s.projects);
   const teams = useVcaStore(s => s.teams);
@@ -116,7 +173,32 @@ export default function ProjectSwitcher({ dark, compact, teamId, currentProjectI
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [tab, setTab] = useState<Tab>("all");
-  const [starred, setStarred] = useState<Set<string>>(new Set());
+  /*
+   * Read after mount, never during render: localStorage is not available on the server, and a
+   * first paint that disagreed with the second is the hydration mismatch this codebase avoids
+   * everywhere else. Until it is read the list behaves as if nothing is remembered, which is
+   * the same thing a first-time visitor sees.
+   */
+  const [memory, setMemory] = useState<SwitcherMemory>({ starred: [], opened: {} });
+  useEffect(() => { queueMicrotask(() => setMemory(readMemory())); }, []);
+  const starred = useMemo(() => new Set(memory.starred), [memory.starred]);
+  const [teamMenuOpen, setTeamMenuOpen] = useState(false);
+  const teamMenuRef = useRef<HTMLDivElement>(null);
+  // Not on mount — only when the shell raises the signal. See reopenSignal.
+  const firstSignal = useRef(true);
+  useEffect(() => {
+    if (firstSignal.current) { firstSignal.current = false; return; }
+    setOpen(true);
+  }, [reopenSignal]);
+  // Same outside-click close every other menu in Portal uses.
+  useEffect(() => {
+    if (!teamMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (teamMenuRef.current && !teamMenuRef.current.contains(e.target as Node)) setTeamMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [teamMenuOpen]);
 
   const current = projects.find(p => p.id === currentProjectId);
   /**
@@ -125,7 +207,7 @@ export default function ProjectSwitcher({ dark, compact, teamId, currentProjectI
    * below cannot say. A missing half is dropped rather than printing a separator with nothing on
    * one side of it.
    */
-  const subtitle = [teams.find(tm => tm.id === current?.teamId)?.region, current ? TYPE_META[current.type].label : undefined]
+  const subtitle = [teams.find(tm => tm.id === current?.teamId)?.region, current ? typeLabel(current.type) : undefined]
     .filter(Boolean)
     .join(" · ");
   const team = teams.find(o => o.id === teamId) ?? teams[0];
@@ -135,19 +217,26 @@ export default function ProjectSwitcher({ dark, compact, teamId, currentProjectI
   const visibleProjects = projects
     .filter(p => p.teamId === team?.id)
     .filter(p => p.name.toLowerCase().includes(q))
-    .filter(p => tab !== "starred" || starred.has(p.id));
-  const showTeamRow = tab !== "starred" && team && team.name.toLowerCase().includes(q);
+    .filter(p => tab !== "starred" || starred.has(p.id))
+    // Recent means recently opened FROM HERE, so a project never picked is not in it. That
+    // makes the tab empty on a first visit, which is the truth — it used to be a duplicate of
+    // All, which was not.
+    .filter(p => tab !== "recent" || memory.opened[p.id] !== undefined)
+    .sort((a, b) => (tab === "recent" ? (memory.opened[b.id] ?? 0) - (memory.opened[a.id] ?? 0) : 0));
+
+  const remember = (next: SwitcherMemory) => { setMemory(next); writeMemory(next); };
 
   const toggleStar = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setStarred(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
+    remember({
+      ...memory,
+      starred: memory.starred.includes(id) ? memory.starred.filter(x => x !== id) : [...memory.starred, id],
     });
   };
 
   const selectProject = (p: Project) => {
+    // Recording the pick is what makes the Recent tab a real answer rather than a copy of All.
+    remember({ ...memory, opened: { ...memory.opened, [p.id]: stamp() } });
     onSelect(p.id);
     setOpen(false);
     setQuery("");
@@ -182,7 +271,7 @@ export default function ProjectSwitcher({ dark, compact, teamId, currentProjectI
                thing the whole rail is scoped to. primary-400 at 18% with a 40% edge reads as a
                lit panel rather than a slightly different grey, and the pin inside it goes
                primary-300 so the colour starts at the mark and not at the border. */
-            backgroundColor: "rgba(140, 133, 255, 0.16)", border: "1px solid rgba(140, 133, 255, 0.34)",
+            backgroundColor: "color-mix(in srgb, var(--primary-300) 16%, transparent)", border: "1px solid color-mix(in srgb, var(--primary-300) 34%, transparent)",
           } : null),
           /* minHeight and alignItems have to be undone here, not just overridden with height and
              gap: the dark branch above sets minHeight 60 and flex-start so the expanded card can
@@ -257,30 +346,86 @@ export default function ProjectSwitcher({ dark, compact, teamId, currentProjectI
           }}>
             {/* Header */}
             <div style={{ padding: "20px 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.selectResource}</p>
+              <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.selectProject}</p>
+              {/* Not "New Project" any more, and not because of permissions.
+                  A project is a licensed site: its channels and term come from the contract, the
+                  Licence screen says so in as many words, and updateProjectLicense has no caller
+                  by design. A create button here produced a project nobody could put a camera
+                  in. On-premise there is nothing lost by the vendor doing it instead — a new
+                  site means hardware going in, so an engineer is on site anyway. */}
               <button
-                onClick={() => { setOpen(false); onNewProject(); }}
-                style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", cursor: "pointer", color: "var(--primary-400)", fontSize: "12px", fontWeight: 700 }}
+                className="portal-btn-quiet"
+                onClick={() => { setOpen(false); onRequestProject(); }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 8px", borderRadius: "6px", background: "none", border: "none", cursor: "pointer", color: "var(--gray-500)", fontSize: "12px", fontWeight: 600, fontFamily: "inherit" }}
               >
-                <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 2.9V11.1M2.9 7H11.1" stroke="var(--primary-400)" strokeWidth="1.22" strokeLinecap="round"/></svg>
-                {t.newProject}
+                <Mail size={13} strokeWidth={2.2} />
+                {t.requestProject}
               </button>
             </div>
 
             <div style={{ padding: "14px 20px 0" }}>
-              {/* Which team's projects are listed. It used to carry a chevron and open nothing —
-                  a control that looks like a menu and is not. Switching teams is a real thing now,
-                  but it belongs to the breadcrumb behind this modal, so this states the filter and
-                  leaves the switching there. */}
-              {/* A line of text, not a boxed chip. The box was drawn back when this thing looked
-                  like a control; it states which team's projects are listed and nothing more, and
-                  a border around a statement invites a click that does nothing. */}
-              <div style={{
-                display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px",
-                fontSize: "12px", fontWeight: 700, color: "var(--gray-600)",
-              }}>
-                <TeamIcon />
-                {team?.name ?? t.noTeam}
+              {/*
+                Which team's projects are listed — and, when there is more than one team, the way
+                to change that.
+
+                This line has been a chip with a chevron that opened nothing, then a plain
+                statement. Neither was right: the list below is scoped to one team, so somebody
+                looking for a project that is not there has no way forward from the screen they
+                are on, and the only door was the breadcrumb behind the modal they would first
+                have to close.
+
+                Still plain text on a single-team installation. A menu with one item in it is a
+                control that lies about having a choice.
+              */}
+              <div ref={teamMenuRef} style={{ position: "relative", marginBottom: "12px", width: "fit-content" }}>
+                {teams.length > 1 ? (
+                  <button onClick={() => setTeamMenuOpen(o => !o)} title={t.switchTeam}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "6px",
+                      background: "none", border: "none", padding: "2px 4px", marginLeft: "-4px", borderRadius: "6px",
+                      cursor: "pointer", fontFamily: "inherit",
+                      fontSize: "12px", fontWeight: 700, color: "var(--gray-600)",
+                    }}>
+                    <TeamIcon />
+                    {team?.name ?? t.noTeam}
+                    <span style={{ display: "flex", color: "var(--gray-400)" }}><ChevronDown size={12} /></span>
+                  </button>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "var(--gray-600)" }}>
+                    <TeamIcon />
+                    {team?.name ?? t.noTeam}
+                  </div>
+                )}
+                {teamMenuOpen && (
+                  <div style={{
+                    position: "absolute", top: "100%", left: 0, marginTop: "4px", zIndex: 20,
+                    minWidth: "260px", backgroundColor: "white", border: BORDER, borderRadius: "10px",
+                    boxShadow: "0 12px 28px rgba(14,22,42,0.16)", padding: "4px", overflow: "hidden",
+                  }}>
+                    {teams.map(tm => (
+                      <button key={tm.id} className="portal-navmenu-item"
+                        onClick={() => {
+                          setTeamMenuOpen(false);
+                          if (tm.id === team?.id) return;
+                          setQuery("");
+                          setOpen(false);
+                          onSwitchTeam?.(tm.id);
+                        }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: "8px", width: "100%",
+                          padding: "8px 10px", borderRadius: "8px", border: "none", background: "none",
+                          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                          fontSize: "13px", fontWeight: tm.id === team?.id ? 700 : 500,
+                          color: "var(--gray-900)",
+                        }}>
+                        <span style={{ display: "flex", width: "14px", flexShrink: 0, color: "var(--gray-900)" }}>
+                          {tm.id === team?.id ? <Check size={14} strokeWidth={2.6} /> : null}
+                        </span>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tm.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Search */}
@@ -324,31 +469,33 @@ export default function ProjectSwitcher({ dark, compact, teamId, currentProjectI
 
             {/* Table */}
             <div style={{ flex: 1, overflowY: "auto" }}>
-              {/* The name takes the width the other two were not using.
-                  Type is one word ("Project" / "Team") and an id is a slug — at 0.9fr and 1.3fr
-                  they each held a column of empty space while "Marina Bay & CBD Surveillance
-                  Network" was cut mid-word two columns to the left. The name is what somebody is
-                  reading this table to find. */}
-              <div style={{ display: "grid", gridTemplateColumns: "28px 2.6fr 0.7fr 0.9fr 32px", padding: "8px 20px", gap: "8px" }}>
+              {/* Name, id, star. No TYPE column: with the team row gone every row is a project,
+                  so the column was the same word repeated down the list.
+
+                  The name takes the width the others were not using — an id is a slug, and at
+                  1.3fr it held a column of empty space while "Marina Bay & CBD Surveillance
+                  Network" was cut mid-word beside it. The name is what somebody is reading this
+                  table to find. */}
+              <div style={{ display: "grid", gridTemplateColumns: "28px 2.6fr 0.9fr 32px", padding: "8px 20px", gap: "8px" }}>
                 <span />
-                {[t.colName, t.colType, t.colId, ""].map((h, i) => (
+                {[t.colName, t.colId, ""].map((h, i) => (
                   <span key={i} style={{ fontSize: "10px", fontWeight: 600, color: TABLE_HEADER_COLOR, letterSpacing: "0.4px" }}>{h.toUpperCase()}</span>
                 ))}
               </div>
 
-              {showTeamRow && (
-                <div style={{ display: "grid", gridTemplateColumns: "28px 2.6fr 0.7fr 0.9fr 32px", padding: "8px 20px", gap: "8px", alignItems: "center" }}>
-                  <span />
-                  <span style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 700, color: "var(--gray-900)" }}>
-                    <TeamIcon /> {team?.name}
-                  </span>
-                  <span style={{ fontSize: "12px", color: "var(--gray-500)" }}>{t.typeTeam}</span>
-                  <span style={{ fontSize: "10px", color: "var(--gray-400)", fontFamily: "monospace" }}>{team?.id}</span>
-                  <span />
-                </div>
-              )}
-
-              {visibleProjects.length === 0 && !showTeamRow && (
+              {/*
+                No team row.
+               
+                It was a row in a list whose entire purpose is picking one thing — and it was
+                the only row that could not be picked: a plain div with no onClick, no pointer
+                cursor and no hover, drawn identically to the clickable projects under it. That
+                is what made the list feel like two kinds of thing mixed together.
+               
+                Nothing is lost. The team is named in the selector directly above the search
+                box, and switching team is offered there and again in the rail's own team
+                switcher — a third route through an unclickable row was never one of them.
+              */}
+              {visibleProjects.length === 0 && (
                 <p style={{ fontSize: "12px", color: "var(--gray-400)", padding: "20px", textAlign: "center" }}>
                   {tab === "starred" ? t.noStarredProjects : t.noResultsFor(query)}
                 </p>
@@ -362,7 +509,7 @@ export default function ProjectSwitcher({ dark, compact, teamId, currentProjectI
                     onClick={() => selectProject(p)}
                     className="portal-switcher-row"
                     style={{
-                      display: "grid", gridTemplateColumns: "28px 2.6fr 0.7fr 0.9fr 32px", padding: "8px 20px", gap: "8px",
+                      display: "grid", gridTemplateColumns: "28px 2.6fr 0.9fr 32px", padding: "8px 20px", gap: "8px",
                       alignItems: "center", cursor: "pointer",
                     }}
                   >
@@ -370,7 +517,6 @@ export default function ProjectSwitcher({ dark, compact, teamId, currentProjectI
                     <span style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       <ProjectIcon /> {p.name}
                     </span>
-                    <span style={{ fontSize: "12px", color: "var(--gray-500)" }}>{t.typeProject}</span>
                     <span style={{ fontSize: "10px", color: "var(--gray-400)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis" }}>{p.id}</span>
                     <button onClick={e => toggleStar(p.id, e)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
                       <StarIcon filled={starred.has(p.id)} />

@@ -30,14 +30,19 @@ const CATEGORY_TO_TYPE: Record<string, DetType> = {
 }
 
 const pct = (v: number) => `${Math.round(v * 1000) / 10}%`
+// 20260910 반입: Detection.date 필수. 업로드 미디어는 촬영 시각(recordedAt)이 있으면 그 날짜,
+// 없으면 빈 문자열 — 화면은 날짜가 비면 그 자리를 비워 둔다(없는 날짜를 오늘로 지어내지 않는다).
+const dateSgt = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) : ''
 const mmss = (sec: number) => {
   const s = Math.round(sec)
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 }
 
-function imageTargetToDetection(t: ImageTarget): ScreenDetection {
+function imageTargetToDetection(t: ImageTarget, date: string): ScreenDetection {
   return {
     id: t.targetId,
+    date,
     type: CATEGORY_TO_TYPE[t.category] ?? 'Unknown',
     name: t.label,
     group: t.groupLabel ?? t.category,
@@ -52,9 +57,10 @@ function imageTargetToDetection(t: ImageTarget): ScreenDetection {
   }
 }
 
-function videoTargetToDetection(t: VideoTarget): ScreenDetection {
+function videoTargetToDetection(t: VideoTarget, date: string): ScreenDetection {
   return {
     id: t.targetId,
+    date,
     type: CATEGORY_TO_TYPE[t.category] ?? 'Unknown',
     name: t.label,
     group: t.groupLabel ?? t.category,
@@ -109,7 +115,7 @@ export function useMediaLive(): {
                 bgUrl: v.thumbnailUrl ?? undefined,
                 videoUrl: v.contentUrl,
                 recordedAt: v.recordedAt ?? undefined, // (v1.5) Analyze Frame 절대 시각 축
-                detections: (tres.data?.content ?? []).map(videoTargetToDetection),
+                detections: (tres.data?.content ?? []).map((t) => videoTargetToDetection(t, dateSgt(v.recordedAt))),
               })
               bump((n) => n + 1)
             })
@@ -123,7 +129,8 @@ export function useMediaLive(): {
                 camLabel: img.name,
                 location: img.name,
                 bgUrl: img.imageUrl,
-                detections: (tres.data?.targets ?? []).map(imageTargetToDetection),
+                // 정지 이미지는 촬영 시각이 계약에 없다(uploadedAt은 업로드 시각) — 날짜를 지어내지 않고 빈 값
+                detections: (tres.data?.targets ?? []).map((t) => imageTargetToDetection(t, '')),
               })
               bump((n) => n + 1)
             })

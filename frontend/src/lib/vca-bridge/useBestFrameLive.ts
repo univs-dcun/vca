@@ -33,6 +33,7 @@ const CATEGORY_TO_TYPE: Record<string, DetType> = {
   false_positive: 'Unknown',
 }
 
+const dateSgt = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
 const timeSgt = (iso: string) =>
   new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour12: false })
 
@@ -51,6 +52,8 @@ function toScreenDetection(e: AnyDetection, frame: BestFrameMessage | undefined)
     // 화면은 % 정수(98.4)로 표시 — 계약은 0~1 실수
     confidence: e.confidence != null ? Math.round(e.confidence * 1000) / 10 : 0,
     time: timeSgt(e.detectedAt),
+    // 20260910 반입: Detection.date 필수 — 감지 시각의 현장(SGT) 날짜
+    date: dateSgt(e.detectedAt),
     // 현재 프레임에 보이는 대상만 박스 좌표를 가진다 — 지나간 감지는 0% (그리지 않음과 동일)
     top: obj ? pct(obj.bbox.y) : '0%',
     left: obj ? pct(obj.bbox.x) : '0%',

@@ -1,27 +1,46 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Film as FilmIcon, Image as ImageIcon, MapPinOff, Scan, ServerOff, Video as VideoIcon } from "lucide-react";
-import { useVcaStore, type Camera, type CameraAiFeature, type CameraStatus, type UploadedMedia, type UploadStatus, SIGNED_IN_USER } from "@/lib/vcaStore";
+import { CircleAlert, Film as FilmIcon, Image as ImageIcon, RotateCw, ShieldCheck, Video as VideoIcon, VideoOff } from "lucide-react";
+import { useVcaStore, projectChannelLimit, type Camera, type CameraStatus, type UploadedMedia, type UploadStatus, SIGNED_IN_USER } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { usePortalLanguage } from "@/lib/i18n";
 import { useToast } from "../Toast";
-import { CARD_BORDER, BORDER, TABLE_COLUMN_GAP, CONTROL_HEIGHT, PANEL_SHADOW, FIELD_STYLE, FIELD_FOCUS, RowActionsMenu, FilterSelect, TextField, SortableHeader, SummaryStrip, sortRows, useTableSort, ActiveFilterCount } from "./PortalShared";
+import { CARD_BORDER, CARD_RADIUS, BORDER, TABLE_COLUMN_GAP, CONTROL_HEIGHT, PANEL_SHADOW, FIELD_STYLE, FIELD_FOCUS, RowActionsMenu, FilterSelect, TextField, SortableHeader, SummaryStrip, sortRows, useTableSort, ActiveFilterCount, usePortalEditAccess, ConfirmModal } from "./PortalShared";
 import CameraStreamModal from "./CameraStreamModal";
 
 const T = {
   en: {
     exportCsv: "Export CSV",
+    refresh: "Refresh",
+    checkedJustNow: "checked just now",
+    checkedMinsAgo: (n: number) => `checked ${n} min ago`,
     addCamera: "Add camera",
     online: "Online",
     offline: "Offline",
     statusError: "Error",
+    atLimitReason: (limit: number) => `All ${limit} licensed channels are in use. Raising the limit is a contract change — see the Licence screen.`,
+    atLimitBanner: (limit: number) => `All ${limit} licensed channels are in use. No further source can be connected until the limit is raised.`,
+    errIp: "That does not look like an address.",
+    errRtsp: "A stream address starts with rtsp://",
+    errLat: "Latitude runs from -90 to 90.",
+    errLng: "Longitude runs from -180 to 180.",
     offlineSuffix: (n: number) => `${n} offline`,
     onlineCountLabel: (n: number) => `${n} online`,
+    confirmDeleteCamTitle: (name: string) => `Remove ${name}?`,
+    confirmDeleteCamBody: "The camera comes off this project along with its zone, its server assignment and its place on the map. Recorded detections stay.",
+    healthConnected: "connected",
+    healthConnectedWhy: "Answered the last connection attempt. It says the stream is reachable, not that anything is looking at it.",
+    healthOfFleet: (total: number) => `of ${total}`,
+    healthOffline: "offline",
+    healthOfflineWhy: "No answer at all — the address is unreachable. Usually power, cable or network rather than the camera itself.",
+    healthError: "refusing the connection",
+    healthErrorWhy: "The camera answered and turned us away. Almost always the wrong credentials or a stream path that has changed.",
+    healthShowOnly: "Show only these",
+    healthClear: "Show everything again",
     searchPlaceholder: "Search by camera name, code, RTSP URL, or IP address",
     filterAllZones: "All zones",
     filterAllStatus: "All status",
-    filterAllAiEngines: "All AI engines",
     filtersActive: (n: number) => `${n} filter${n === 1 ? "" : "s"}`,
 
     // Source kinds — cameras and uploaded footage share one table
@@ -29,12 +48,20 @@ const T = {
     kindTabCamera: "Cameras",
     kindTabVideo: "Videos",
     kindTabImage: "Images",
+    kindTabDeepfake: "Deepfake",
+    sourceDeepfake: "Deepfake check",
+    verdictAuthentic: "Authentic",
+    verdictManipulated: "Manipulated",
+    verdictInconclusive: "Inconclusive",
+    verdictScore: (n: number) => `${Math.round(n * 100)}%`,
+    deepfakeFileOption: "Check a file for manipulation",
+    deepfakeUploadTitle: "Deepfake check",
+    deepfakeUploadHint: "MP4, MOV, JPG, PNG. Judged authentic or manipulated — this does not search the file for faces.",
     colSource: "Source",
     sourceCamera: "Camera",
-    sourceAiCamera: "AI camera",
     sourceVideo: "Video",
     sourceImage: "Image",
-    colAddress: "Address / Resolution",
+    colAddress: "Connection info",
     uploadsSuffix: (n: number) => `${n} uploaded`,
     statusPending: "Queued",
     statusAnalyzing: "Analysing",
@@ -48,7 +75,6 @@ const T = {
     uploadDrop: "Drag a file here",
     uploadHint: "MP4, MOV, JPG, PNG. Analysed for faces and shown in Best Frame.",
     uploadChoose: "Choose file",
-    uploadPendingNotice: "Analysis runs on the server and is not connected yet — uploads stay queued.",
     toastUploadedTitle: "Uploaded",
     removeUploadAction: "Remove upload",
     toastUploadRemovedTitle: "Upload removed",
@@ -81,17 +107,10 @@ const T = {
     viewTable: "Table",
     viewGrid: "Grid",
     colCamera: "Camera",
-    colMaker: "Maker",
+    colServer: "Server",
     colResolution: "Resolution",
     colZone: "Zone",
     colRtspStream: "RTSP Stream",
-    colAiEngines: "AI Engines",
-    gapNoEngine: "no AI engine",
-    gapNoServer: "no server assigned",
-    gapNoCoords: "not on the map",
-    gapUnit: "cameras",
-    gapShowOnly: "Show only these",
-    gapClear: "Show everything again",
     colStatus: "Status",
     emptyAll: "No cameras connected to this project yet.",
     emptyFiltered: "No cameras match these filters.",
@@ -112,10 +131,7 @@ const T = {
     fieldRtspUrl: "Connection — RTSP URL *",
     fieldResolution: "Resolution",
     fieldMaker: "Maker",
-    fieldInputKind: "Input kind",
     fieldStatus: "Status",
-    aiCameraOption: "AI Camera",
-    cctvOption: "CCTV",
     cancel: "Cancel",
     saveChanges: "Save changes",
     addDevice: "Add device",
@@ -139,24 +155,38 @@ const T = {
     csvHeaderLocation: "Location",
     csvHeaderRtspUrl: "RTSP URL",
     csvHeaderStatus: "Status",
-    csvHeaderAiFeatures: "AI Features",
-    aiFeatureLabels: {
-      "Re-ID Analysis": "Re-ID Analysis",
-      "License Plate Recognition": "License Plate Recognition",
-    } as Record<CameraAiFeature, string>,
   },
   ko: {
     exportCsv: "CSV 내보내기",
+    refresh: "새로고침",
+    checkedJustNow: "방금 확인함",
+    checkedMinsAgo: (n: number) => `${n}분 전 확인`,
     addCamera: "카메라 추가",
     online: "온라인",
     offline: "오프라인",
     statusError: "오류",
+    atLimitReason: (limit: number) => `라이선스 채널 ${limit}개를 모두 쓰고 있습니다. 한도를 올리는 것은 계약 변경입니다 — 라이선스 화면을 보세요.`,
+    atLimitBanner: (limit: number) => `라이선스 채널 ${limit}개를 모두 쓰고 있습니다. 한도를 올리기 전에는 소스를 더 연결할 수 없습니다.`,
+    errIp: "주소 형식이 아닙니다.",
+    errRtsp: "스트림 주소는 rtsp:// 로 시작합니다.",
+    errLat: "위도는 -90에서 90 사이입니다.",
+    errLng: "경도는 -180에서 180 사이입니다.",
     offlineSuffix: (n: number) => `${n} 오프라인`,
     onlineCountLabel: (n: number) => `온라인 ${n}`,
+    confirmDeleteCamTitle: (name: string) => `${name}을(를) 삭제할까요?`,
+    confirmDeleteCamBody: "이 프로젝트에서 카메라가 빠지고, 존·서버 배정·지도 위 위치도 함께 사라집니다. 기록된 탐지는 남습니다.",
+    healthConnected: "연결됨",
+    healthConnectedWhy: "마지막 연결 시도에 응답했습니다. 스트림에 닿는다는 뜻이지, 누가 보고 있다는 뜻은 아닙니다.",
+    healthOfFleet: (total: number) => `/ ${total}대`,
+    healthOffline: "오프라인",
+    healthOfflineWhy: "응답이 아예 없습니다. 주소에 닿지 않는 상태로, 대개 카메라보다 전원·케이블·네트워크 문제입니다.",
+    healthError: "연결 거부",
+    healthErrorWhy: "카메라가 응답은 했지만 접속을 거절했습니다. 거의 항상 계정 정보가 틀렸거나 스트림 경로가 바뀐 경우입니다.",
+    healthShowOnly: "이 항목만 보기",
+    healthClear: "전체 다시 보기",
     searchPlaceholder: "카메라 이름, 코드, RTSP URL, IP 주소로 검색",
     filterAllZones: "전체 구역",
     filterAllStatus: "전체 상태",
-    filterAllAiEngines: "전체 AI 엔진",
     filtersActive: (n: number) => `필터 ${n}개`,
 
     // Source kinds — cameras and uploaded footage share one table
@@ -164,12 +194,20 @@ const T = {
     kindTabCamera: "카메라",
     kindTabVideo: "영상",
     kindTabImage: "이미지",
+    kindTabDeepfake: "딥페이크",
+    sourceDeepfake: "딥페이크 검사",
+    verdictAuthentic: "진짜",
+    verdictManipulated: "조작됨",
+    verdictInconclusive: "판정 불가",
+    verdictScore: (n: number) => `${Math.round(n * 100)}%`,
+    deepfakeFileOption: "딥페이크 검사 의뢰",
+    deepfakeUploadTitle: "딥페이크 검사",
+    deepfakeUploadHint: "MP4, MOV, JPG, PNG. 진짜인지 조작인지 판정합니다 — 얼굴을 찾지는 않습니다.",
     colSource: "종류",
     sourceCamera: "카메라",
-    sourceAiCamera: "AI 카메라",
     sourceVideo: "영상",
     sourceImage: "이미지",
-    colAddress: "주소 / 해상도",
+    colAddress: "연결 정보",
     uploadsSuffix: (n: number) => `업로드 ${n}건`,
     statusPending: "대기",
     statusAnalyzing: "분석 중",
@@ -183,7 +221,6 @@ const T = {
     uploadDrop: "여기에 파일을 놓으세요",
     uploadHint: "MP4, MOV, JPG, PNG. 얼굴을 분석해 베스트 프레임에서 볼 수 있습니다.",
     uploadChoose: "파일 선택",
-    uploadPendingNotice: "분석은 서버에서 돌아가며 아직 연결되지 않았습니다 — 업로드는 대기 상태로 남습니다.",
     toastUploadedTitle: "업로드됨",
     removeUploadAction: "업로드 삭제",
     toastUploadRemovedTitle: "업로드가 삭제됨",
@@ -216,17 +253,10 @@ const T = {
     viewTable: "테이블",
     viewGrid: "그리드",
     colCamera: "카메라",
-    colMaker: "제조사",
+    colServer: "서버",
     colResolution: "해상도",
     colZone: "구역",
     colRtspStream: "RTSP 스트림",
-    colAiEngines: "AI 엔진",
-    gapNoEngine: "AI 엔진 없음",
-    gapNoServer: "서버 미할당",
-    gapNoCoords: "지도에 없음",
-    gapUnit: "대",
-    gapShowOnly: "이 항목만 보기",
-    gapClear: "전체 다시 보기",
     colStatus: "상태",
     emptyAll: "아직 이 프로젝트에 연결된 카메라가 없습니다.",
     emptyFiltered: "이 필터와 일치하는 카메라가 없습니다.",
@@ -247,10 +277,7 @@ const T = {
     fieldRtspUrl: "연결 — RTSP URL *",
     fieldResolution: "해상도",
     fieldMaker: "제조사",
-    fieldInputKind: "입력 유형",
     fieldStatus: "상태",
-    aiCameraOption: "AI 카메라",
-    cctvOption: "CCTV",
     cancel: "취소",
     saveChanges: "변경사항 저장",
     addDevice: "기기 추가",
@@ -274,11 +301,6 @@ const T = {
     csvHeaderLocation: "위치",
     csvHeaderRtspUrl: "RTSP URL",
     csvHeaderStatus: "상태",
-    csvHeaderAiFeatures: "AI 기능",
-    aiFeatureLabels: {
-      "Re-ID Analysis": "Re-ID 분석",
-      "License Plate Recognition": "번호판 인식",
-    } as Record<CameraAiFeature, string>,
   },
 } as const;
 
@@ -356,7 +378,7 @@ function useStickyHeader<T extends HTMLElement>() {
 // Badge icons for the metric cards, at the size the Overview's badges use.
 
 const DEFAULT_THUMBNAIL = "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80";
-type CameraSortKey = "name" | "maker" | "resolution" | "zone" | "status";
+type CameraSortKey = "name" | "server" | "resolution" | "zone" | "status";
 
 /**
  * One row type for both kinds of input source.
@@ -393,16 +415,15 @@ const STATUS_RANK: Record<CameraStatus | UploadStatus, number> = {
   done: 6,
 };
 
-type SourceKind = "camera" | "video" | "image";
+type SourceKind = "camera" | "video" | "image" | "deepfake";
 type SourceRow =
   | { kind: "camera"; id: string; name: string; camera: Camera }
-  | { kind: "video" | "image"; id: string; name: string; upload: UploadedMedia };
+  | { kind: "video" | "image" | "deepfake"; id: string; name: string; upload: UploadedMedia };
 
-const AI_FEATURES: CameraAiFeature[] = ["Re-ID Analysis", "License Plate Recognition"];
 const MAKERS = ["Hanwha", "Hikvision", "Dahua"];
 const RESOLUTIONS = ["FHD (1920×1080)", "4K (3840×2160)"];
-const INPUT_KINDS = ["CCTV", "AI Camera"] as const;
-type InputKind = typeof INPUT_KINDS[number];
+// No Source Type chooser: the v1 contract is plain CCTV only, so there is nothing to choose
+// between (backend reply C2, 2026-09-09). See the note above Camera in the store.
 
 interface CameraFormValues {
   name: string;
@@ -424,8 +445,6 @@ interface CameraFormValues {
   serverId: string;
   lat: string;
   lng: string;
-  inputKind: InputKind;
-  aiFeatures: CameraAiFeature[];
   status: CameraStatus;
 }
 
@@ -433,15 +452,41 @@ const EMPTY_FORM: CameraFormValues = {
   name: "", ip: "", location: "", zone: "", rtspUrl: "",
   resolution: RESOLUTIONS[0], maker: MAKERS[0], model: "", username: "", password: "",
   serverId: "", lat: "", lng: "",
-  inputKind: "CCTV", aiFeatures: [], status: "offline",
+  status: "offline",
 };
 
 // Camera codes are an internal identifier (shown in the table, used in mock RTSP paths) — the
 // reference popup this modal now matches doesn't surface a code field, so it's derived from the
 // name instead of typed in by the operator.
-function generateCameraCode(name: string, existingCount: number): string {
-  const prefix = name.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "CAM";
-  return `CAM-${prefix}-${String(existingCount + 1).padStart(3, "0")}`;
+function generateCameraCode(name: string, existing: string[]): string {
+  /*
+   * No Latin letters in the name means no prefix at all — "CAM-001", not "CAM-CAM-001".
+   * The fallback used to be the literal string "CAM", so a Korean-named fleet came out as
+   * CAM-CAM-001, CAM-CAM-002 … and the segment that exists to tell cameras apart told you
+   * nothing about any of them.
+   */
+  const letters = name.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
+  const prefix = letters || null;
+  /*
+   * The sequence comes from the codes that exist, not from how many cameras there are.
+   *
+   * Counting produced collisions the moment anything had been deleted: five cameras, add
+   * "Alpha Gate" -> CAM-ALP-006, delete an older one, add "Alpine Road" -> CAM-ALP-006 again.
+   * Two cameras sharing the code that the table, the CSV export and every audit message
+   * identify them by.
+   *
+   * Scoped to the prefix, so the numbers stay short and readable per family rather than being
+   * one global counter.
+   */
+  const stem = prefix ? `CAM-${prefix}-` : "CAM-";
+  const used = new Set(existing);
+  let n = existing.filter(c => c.startsWith(stem)).length + 1;
+  let code = `${stem}${String(n).padStart(3, "0")}`;
+  while (used.has(code)) {
+    n += 1;
+    code = `${stem}${String(n).padStart(3, "0")}`;
+  }
+  return code;
 }
 
 function CameraFormModal({
@@ -459,13 +504,30 @@ function CameraFormModal({
 }) {
   useEscapeKey(onClose);
   const [form, setForm] = useState<CameraFormValues>(initial);
-  const valid = form.name.trim().length > 0 && form.rtspUrl.trim().length > 0;
+  /*
+   * Coordinates and the address are checked, not swallowed.
+   *
+   * `Number(values.lat) || 0` turned a typo into 0,0 — a camera silently placed in the Gulf of
+   * Guinea rather than a form saying the number is wrong. The IP took any string at all, and
+   * the RTSP field took one with no scheme.
+   *
+   * Deliberately loose where looseness is right: IP is optional (a camera can be registered
+   * before its address is known) and only refused when what is typed plainly is not one.
+   */
+  const latNum = form.lat.trim() === "" ? null : Number(form.lat);
+  const lngNum = form.lng.trim() === "" ? null : Number(form.lng);
+  const latError = latNum !== null && (!Number.isFinite(latNum) || latNum < -90 || latNum > 90);
+  const lngError = lngNum !== null && (!Number.isFinite(lngNum) || lngNum < -180 || lngNum > 180);
+  const ipError = form.ip.trim() !== "" && !/^[0-9a-zA-Z.:_-]+$/.test(form.ip.trim());
+  const rtspError = form.rtspUrl.trim() !== "" && !/^rtsp:\/\/.+/i.test(form.rtspUrl.trim());
+  const valid = form.name.trim().length > 0 && form.rtspUrl.trim().length > 0
+    && !latError && !lngError && !ipError && !rtspError;
 
   const field = (
     key: "name" | "ip" | "location" | "zone" | "rtspUrl" | "model" | "username" | "password" | "lat" | "lng",
     label: string,
     placeholder: string,
-    opts?: { type?: string; inputMode?: "decimal" },
+    opts?: { type?: string; inputMode?: "decimal"; error?: string },
   ) => (
     <div>
       <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>{label}</label>
@@ -479,6 +541,11 @@ function CameraFormModal({
         inputMode={opts?.inputMode}
         autoComplete={key === "password" ? "new-password" : undefined}
       />
+      {/* Under the field it belongs to. The submit button greys out either way, but a disabled
+          button with no reason is a form that has stopped talking to you. */}
+      {opts?.error && (
+        <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--danger-500)", lineHeight: 1.5, marginTop: "6px" }}>{opts.error}</p>
+      )}
     </div>
   );
 
@@ -489,16 +556,6 @@ function CameraFormModal({
     </div>
   );
 
-  const setInputKind = (kind: InputKind) => {
-    setForm(f => ({
-      ...f,
-      inputKind: kind,
-      // Switching to AI Camera turns on a sensible default engine if none were mapped yet;
-      // switching back to CCTV clears them — granular per-engine mapping still lives in the
-      // camera detail view, this popup just decides whether any engine runs at all.
-      aiFeatures: kind === "AI Camera" ? (f.aiFeatures.length > 0 ? f.aiFeatures : ["Re-ID Analysis"]) : [],
-    }));
-  };
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -513,32 +570,9 @@ function CameraFormModal({
           </button>
         </div>
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "14px" }}>
-          {/* Source type first, as two buttons rather than a select: it is a required choice
-              between exactly two things and it changes what the rest of the form means. */}
-          <div>
-            <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>{t.fieldInputKind}</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              {INPUT_KINDS.map(kind => {
-                const active = form.inputKind === kind;
-                return (
-                  <button key={kind} onClick={() => setInputKind(kind)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "8px", padding: "10px 12px", borderRadius: "10px", cursor: "pointer",
-                      border: active ? "1px solid var(--gray-900)" : BORDER,
-                      backgroundColor: active ? "var(--gray-100)" : "white",
-                      color: active ? "var(--gray-900)" : "var(--gray-600)",
-                      fontSize: "13px", fontWeight: 700, fontFamily: "inherit",
-                    }}>
-                    <VideoIcon size={16} strokeWidth={2.1} />
-                    {kind === "AI Camera" ? t.aiCameraOption : t.cctvOption}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
           {field("name", t.fieldDeviceName, t.fieldDeviceNamePlaceholder)}
-          {field("ip", t.fieldIp, t.fieldIpPlaceholder)}
+          {field("ip", t.fieldIp, t.fieldIpPlaceholder, { error: ipError ? t.errIp : undefined })}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             {selectField(t.fieldMaker, form.maker, MAKERS.map(m => ({ value: m, label: m })), v => setForm(f => ({ ...f, maker: v })))}
@@ -557,7 +591,7 @@ function CameraFormModal({
             </p>
           </div>
 
-          {field("rtspUrl", t.fieldRtspUrl, "rtsp://10.20.4.11:554/stream1")}
+          {field("rtspUrl", t.fieldRtspUrl, "rtsp://10.20.4.11:554/stream1", { error: rtspError ? t.errRtsp : undefined })}
 
           {selectField(
             t.fieldServer,
@@ -567,8 +601,8 @@ function CameraFormModal({
           )}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            {field("lat", t.fieldLat, "0.0", { inputMode: "decimal" })}
-            {field("lng", t.fieldLng, "0.0", { inputMode: "decimal" })}
+            {field("lat", t.fieldLat, "0.0", { inputMode: "decimal", error: latError ? t.errLat : undefined })}
+            {field("lng", t.fieldLng, "0.0", { inputMode: "decimal", error: lngError ? t.errLng : undefined })}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
@@ -633,17 +667,6 @@ function ConfirmStatusModal({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function AiFeatureBadges({ features, t }: { features?: CameraAiFeature[]; t: (typeof T)["en"] | (typeof T)["ko"] }) {
-  if (!features || features.length === 0) return <span style={{ fontSize: "10px", color: "var(--gray-300)" }}>—</span>;
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-      {features.map(f => (
-        <span key={f} style={{ fontSize: "10px", fontWeight: 600, color: "var(--gray-700)", backgroundColor: "var(--gray-100)", padding: "2px 6px", borderRadius: "999px" }}>{t.aiFeatureLabels[f]}</span>
-      ))}
     </div>
   );
 }
@@ -733,24 +756,42 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
   const [searchFocused, setSearchFocused] = useState(false);
   const [zoneFilter, setZoneFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "online" | "offline" | "error">("ALL");
-  const [aiFilter, setAiFilter] = useState<"ALL" | CameraAiFeature>("ALL");
   /**
    * Which "installed but doing nothing" gap the list is narrowed to, if any — set by the summary
    * strip above the table.
    */
-  const [gapFilter, setGapFilter] = useState<"noEngine" | "noServer" | "noCoords" | null>(null);
   // Which kind of source the table is showing. A tab row, not another select in the filter strip:
   // it is the top-level cut of the list, and the counts belong on it.
   const [kindTab, setKindTab] = useState<"ALL" | SourceKind>("ALL");
-  const [showUpload, setShowUpload] = useState(false);
+  /** Which purpose the upload sheet was opened for: null when closed. The sheet is the same one
+   *  either way — the same files go in — and only the question being asked of them differs, which
+   *  is what the wording and the resulting row's kind follow. */
+  const [uploadPurpose, setUploadPurpose] = useState<"media" | "deepfake" | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  // An auditor reads this fleet; they do not add to it, re-point it or delete from it.
+  const { mayEdit, reason: readOnlyReason } = usePortalEditAccess();
   const [hoveredAddItem, setHoveredAddItem] = useState<string | null>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const [hoveredAction, setHoveredAction] = useState<"export" | "add" | null>(null);
 
   const projectCameras = cameras.filter(c => c.projectId === projectId);
+  /*
+   * The licensed ceiling, enforced rather than only drawn.
+   *
+   * The Licence screen states "no further camera can be connected until the limit is raised"
+   * and the Overview's bar turns red past it — and nothing checked. A hundred-channel project
+   * took a hundred and one cameras, so the one number the customer pays per unit of was the
+   * one number the console did not hold.
+   *
+   * Uploads are not channels and are not counted: a channel is a live stream being processed.
+   *
+   * HANDOFF NOTE: this is the UI half. The provisioning call has to refuse it too, or a client
+   * that never opened Portal is unbounded.
+   */
+  const channelLimit = project ? projectChannelLimit(project) : undefined;
+  const channelsUsed = projectCameras.length;
+  const atChannelLimit = channelLimit !== undefined && channelsUsed >= channelLimit;
   const projectUploads = uploads.filter(u => u.projectId === projectId);
   const projectServers = servers.filter(sv => sv.projectId === projectId);
 
@@ -779,31 +820,31 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
    * carries both counts, and a summary that repeats a control is a summary the reader learns to
    * skip.
    */
-  const noEngineCameras = projectCameras.filter(c => (c.aiFeatures ?? []).length === 0);
-  const noServerCameras = projectCameras.filter(c => !c.serverId);
-  const noCoordCameras = projectCameras.filter(c => c.lat === undefined || c.lng === undefined);
-  const gapCameras = {
-    noEngine: new Set(noEngineCameras.map(c => c.id)),
-    noServer: new Set(noServerCameras.map(c => c.id)),
-    noCoords: new Set(noCoordCameras.map(c => c.id)),
-  } as const;
 
-  const activeFilterCount = [zoneFilter, statusFilter, aiFilter].filter(v => v !== "ALL").length + (gapFilter ? 1 : 0);
+  const activeFilterCount = [zoneFilter, statusFilter].filter(v => v !== "ALL").length;
   // Selected camera ids. Held as a Set of ids rather than of rows so a selection survives the list
   // being re-sorted or re-filtered underneath it.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
+  /*
+   * Escape for the two dialogs on this screen that are inline JSX rather than components, so
+   * they cannot each call useEscapeKey for themselves. Both had a working backdrop click and a
+   * dead Escape key, which is the exact drift the shared hook exists to prevent — and one of
+   * the two is the bulk delete.
+   */
+  useEscapeKey(
+    () => { if (confirmingBulkDelete) setConfirmingBulkDelete(false); else setUploadPurpose(null); },
+    confirmingBulkDelete || uploadPurpose !== null,
+  );
 
-  const clearFilters = () => { setZoneFilter("ALL"); setStatusFilter("ALL"); setAiFilter("ALL"); setGapFilter(null); };
+  const clearFilters = () => { setZoneFilter("ALL"); setStatusFilter("ALL"); };
 
   const q = search.trim().toLowerCase();
   const matchingCameras = projectCameras.filter(c => {
     const matchesSearch = !q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || c.rtspUrl.toLowerCase().includes(q) || c.ip.includes(q);
     const matchesZone = zoneFilter === "ALL" || c.zone === zoneFilter;
     const matchesStatus = statusFilter === "ALL" || c.status === statusFilter;
-    const matchesAi = aiFilter === "ALL" || (c.aiFeatures ?? []).includes(aiFilter);
-    const matchesGap = !gapFilter || gapCameras[gapFilter].has(c.id);
-    return matchesSearch && matchesZone && matchesStatus && matchesAi && matchesGap;
+    return matchesSearch && matchesZone && matchesStatus;
   });
   const matchingUploads = projectUploads.filter(u => {
     const matchesSearch = !q || u.fileName.toLowerCase().includes(q);
@@ -812,7 +853,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
     // honest answer, not showing them as if they had passed a filter they cannot be judged by.
     // A gap filter is a camera question too — a file has no engine, no server and no coordinates,
     // and showing files while one is on would be showing rows that cannot be judged by it.
-    const cameraOnlyFilterSet = zoneFilter !== "ALL" || aiFilter !== "ALL" || gapFilter !== null;
+    const cameraOnlyFilterSet = zoneFilter !== "ALL";
     // Status filter is shared but its values are not: "online"/"offline" describe a connection and
     // a file has none, so the same reasoning applies.
     return matchesSearch && !cameraOnlyFilterSet && statusFilter === "ALL";
@@ -832,7 +873,10 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
       const c = r.camera;
       switch (key) {
         case "name": return c.name.toLowerCase();
-        case "maker": return c.maker?.toLowerCase();
+        // Unassigned sinks to the bottom of the ascending pass rather than sorting under an
+        // empty string at the top — a camera on no server is the interesting row, and the reader
+        // reaches it by sorting the other way.
+        case "server": return projectServers.find(sv => sv.id === c.serverId)?.name.toLowerCase();
         case "resolution": return c.resolution?.toLowerCase();
         case "zone": return c.zone?.toLowerCase();
         case "status": return STATUS_RANK[c.status];
@@ -904,13 +948,16 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
   // `password` is read off the form and dropped here on purpose — see CameraFormValues. Everything
   // else the form collects is stored.
   const createCamera = (values: CameraFormValues) => {
+    // Refused here as well as disabled above: the button is the UI, this is the rule.
+    if (atChannelLimit) return;
     addCamera({
-      projectId, name: values.name.trim(), code: generateCameraCode(values.name.trim(), projectCameras.length), rtspUrl: values.rtspUrl.trim(),
+      projectId, name: values.name.trim(), code: generateCameraCode(values.name.trim(), cameras.map(c => c.code)), rtspUrl: values.rtspUrl.trim(),
       location: values.location.trim(), zone: values.zone.trim() || values.location.trim(),
-      maker: values.maker, model: values.model.trim() || undefined, resolution: values.resolution, aiFeatures: values.aiFeatures,
+      maker: values.maker, model: values.model.trim() || undefined, resolution: values.resolution,
       username: values.username.trim() || undefined, serverId: values.serverId || undefined,
       ip: values.ip.trim(), mac: "", status: values.status, thumbnail: DEFAULT_THUMBNAIL,
-      lat: Number(values.lat) || 0, lng: Number(values.lng) || 0,
+      lat: values.lat.trim() === "" ? 0 : Number(values.lat),
+      lng: values.lng.trim() === "" ? 0 : Number(values.lng),
     });
     setShowAdd(false);
     showToast({ variant: "success", title: t.toastCameraAddedTitle, desc: t.toastCameraAddedDesc(values.name.trim()) });
@@ -923,8 +970,8 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
       location: values.location.trim(), zone: values.zone.trim() || values.location.trim(),
       maker: values.maker, model: values.model.trim() || undefined, resolution: values.resolution,
       username: values.username.trim() || undefined, serverId: values.serverId || undefined,
-      lat: Number(values.lat) || 0, lng: Number(values.lng) || 0,
-      aiFeatures: values.aiFeatures,
+      lat: values.lat.trim() === "" ? 0 : Number(values.lat),
+      lng: values.lng.trim() === "" ? 0 : Number(values.lng),
     });
     setEditingCamera(null);
     showToast({ variant: "success", title: t.toastCameraUpdatedTitle, desc: values.name.trim() });
@@ -936,9 +983,17 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
     showToast({ variant: next === "online" ? "success" : "default", title: next === "online" ? t.toastReconnectedTitle : t.toastDisconnectedTitle, desc: cam.name });
   };
 
-  const handleDelete = (cam: Camera) => {
-    removeCamera(cam.id);
-    showToast({ variant: "warning", title: t.toastCameraRemovedTitle, desc: cam.name });
+  // Confirmed, like the bulk delete beside it. One route to an irreversible action should not
+  // be safer than another route to the same action — ticking a row and pressing Delete asked
+  // you to confirm, and the row's own ⋯ → Remove did it on the first click.
+  const [confirmingDeleteCam, setConfirmingDeleteCam] = useState<Camera | null>(null);
+  const handleDelete = (cam: Camera) => setConfirmingDeleteCam(cam);
+  const confirmDeleteCam = () => {
+    if (!confirmingDeleteCam) return;
+    const name = confirmingDeleteCam.name;
+    removeCamera(confirmingDeleteCam.id);
+    setConfirmingDeleteCam(null);
+    showToast({ variant: "warning", title: t.toastCameraRemovedTitle, desc: name });
   };
 
   /**
@@ -969,21 +1024,63 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
     accepted.forEach(f => addUpload({
       projectId,
       fileName: f.name,
-      kind: f.type.startsWith("image/") ? "image" : "video",
+      kind: uploadPurpose === "deepfake" ? "deepfake" : f.type.startsWith("image/") ? "image" : "video",
       sizeBytes: f.size,
       uploadedBy: SIGNED_IN_USER.name,
     }));
     if (accepted.length === 0) return;
-    setShowUpload(false);
-    setKindTab("ALL");
+    // Land on the tab the files went to, not on ALL: the person just asked a question about these
+    // files and the answer is on that list.
+    setKindTab(uploadPurpose === "deepfake" ? "deepfake" : "ALL");
+    setUploadPurpose(null);
     showToast({ variant: "success", title: t.toastUploadedTitle, desc: accepted.map(f => f.name).join(", ") });
   };
 
+  /**
+   * When the fleet's status was last fetched, and a clock to say how long ago that was.
+   *
+   * Portal polls — decided by the backend on 2026-09-09 (reply D1). The module publishes status
+   * over MQTT and the server keeps the latest value loaded, so a poll is always the current answer
+   * and costs almost nothing; a browser subscription is the fallback plan, not the v1 shape.
+   *
+   * Both are set after mount, never during render: a timestamp taken while rendering differs
+   * between the server's HTML and the browser's first pass, and the two would not match.
+   *
+   * There is no 30-second interval resetting lastPolledAt. There was, and it fetched nothing:
+   * the value the label measures FROM was being pushed forward by the same timer that was
+   * supposed to make the label move, so polledMinsAgo could never reach 1 and the toolbar read
+   * "checked just now" permanently, over figures that might be hours old. A label that always
+   * says the same thing is worse than a stale one — a stale timestamp at least tells you to
+   * distrust it. The refresh button is now the only writer, so the words measure a real event.
+   *
+   * HANDOFF NOTE: pressing refresh is where the fetch goes —
+   * GET /api/portal/projects/{id}/camera-connectivity, answer into the store. Until that exists
+   * the button only re-stamps the clock, which is why it does not claim the figures changed.
+   */
+  const [lastPolledAt, setLastPolledAt] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => {
+    // queueMicrotask, not a bare call: setting state synchronously inside an effect makes React
+    // throw the render away and start again. The same deferral the rest of Portal uses for
+    // clock-dependent values.
+    queueMicrotask(() => { setLastPolledAt(Date.now()); setNowMs(Date.now()); });
+    // Just the label's clock. "3 min ago" does not need per-second accuracy, and a timer that
+    // fires every second to redraw two words is a timer nobody asked for.
+    const clock = setInterval(() => setNowMs(Date.now()), 10_000);
+    return () => clearInterval(clock);
+  }, []);
+  const polledMinsAgo = nowMs !== null && lastPolledAt !== null
+    ? Math.floor((nowMs - lastPolledAt) / 60_000)
+    : null;
+
   const exportCsv = () => {
-    const header = [t.csvHeaderName, t.csvHeaderCode, t.csvHeaderZone, t.csvHeaderLocation, t.csvHeaderRtspUrl, t.csvHeaderStatus, t.csvHeaderAiFeatures];
+    const header = [t.csvHeaderName, t.csvHeaderCode, t.csvHeaderZone, t.csvHeaderLocation, t.csvHeaderRtspUrl, t.csvHeaderStatus];
     const rows = projectCameras.map(c => [
-      c.name, c.code, c.zone, c.location, c.rtspUrl, c.status === "online" ? t.online : t.offline,
-      (c.aiFeatures ?? []).map(f => t.aiFeatureLabels[f]).join("; "),
+      // Three states, not two. A camera refusing the connection is not "a worse offline" —
+      // the store's own note says so — and exporting it as Offline hands an auditor a file
+      // that disagrees with the screen it came from.
+      c.name, c.code, c.zone, c.location, c.rtspUrl,
+      c.status === "online" ? t.online : c.status === "error" ? t.statusError : t.offline,
     ]);
     const csv = [header, ...rows].map(row => row.map(csvEscape).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -1053,6 +1150,10 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
           { id: "camera", label: t.kindTabCamera, count: projectCameras.length },
           { id: "video", label: t.kindTabVideo, count: projectUploads.filter(u => u.kind === "video").length },
           { id: "image", label: t.kindTabImage, count: projectUploads.filter(u => u.kind === "image").length },
+          // Its own tab, not a filter inside Videos: a deepfake submission is a different errand
+          // with a different answer, and mixed into the footage list its verdict column would be
+          // empty on every other row.
+          { id: "deepfake", label: t.kindTabDeepfake, count: projectUploads.filter(u => u.kind === "deepfake").length },
         ] as { id: "ALL" | SourceKind; label: string; count: number }[]).map(tab => {
           const active = kindTab === tab.id;
           return (
@@ -1075,43 +1176,73 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
       </div>
 
       {/*
-        The gaps, in the shared summary strip — the same shape the VIP registry uses.
+        Is the fleet up? — which is the question somebody opens this screen with, and the one the
+        list alone takes a scroll to answer.
 
-        Under the tabs, not above them. Above, it was the first thing on the page and the tabs
-        looked like a caption on it; under, the order reads as it should — which kind of source you
-        are looking at, then what is wrong with it, then the list. It rides in the sticky header
-        with the tabs and the toolbar, which is right for a figure you may want while scrolling a
-        long table.
+        It is not the counts the old console put here (TOTAL / NORMAL / AI / INACTIVE, four cards
+        directly above tabs that said the same four numbers). Nor is it the gaps it carried until
+        2026-09-09: "56 cameras with no server assigned", 56 of 60, is not a fault report, it is a
+        description of the deployment, and clicking it filtered away four rows.
 
-        Only cells with something in them: a column reading "0" invites a click that returns an
-        empty table. If all three are zero the strip disappears, which is the correct state for a
-        fleet with nothing wrong with it.
+        These three figures live nowhere else on the screen. They are in the status filter's list —
+        which is a closed dropdown, so the answer to "is anything wrong" cost a click to find, and
+        that is exactly why the page read as a bare list. Same numbers, said out loud.
+
+        The cells drive that same filter rather than one of their own, so pressing "8 offline" and
+        picking Offline from the dropdown are one state, not two that can disagree.
       */}
-      {/* Not on the Videos and Images tabs. All three figures count cameras, and under a tab
-          showing two video files "60 cameras with no AI engine" is a statement about rows that are
-          not on screen — which is exactly the misreading that putting the strip below the tabs
-          invites. Shown where it matches what the list holds, hidden where it does not. */}
+      {/* Above the strip, because it changes what the numbers below it mean: at the ceiling the
+          fleet count stops being "how many we have" and becomes "how many we may have". A
+          disabled button whose tooltip nobody hovers is the same silence as no rule at all. */}
+      {atChannelLimit && channelLimit !== undefined && (
+        <div style={{
+          display: "flex", alignItems: "flex-start", gap: "10px", marginBottom: "12px",
+          padding: "12px 14px", borderRadius: "10px",
+          backgroundColor: "var(--warning-100)", border: "1px solid var(--warning-200)",
+        }}>
+          <span style={{ display: "flex", flexShrink: 0, marginTop: "1px", color: "var(--warning-500)" }}>
+            <CircleAlert size={15} strokeWidth={2.2} />
+          </span>
+          <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--warning-500)", lineHeight: 1.6 }}>
+            {t.atLimitBanner(channelLimit)}
+          </p>
+        </div>
+      )}
       {(kindTab === "ALL" || kindTab === "camera") && <SummaryStrip cells={[
-        { key: "noEngine", cameras: noEngineCameras, label: t.gapNoEngine, // Scan, not BrainCircuit: that glyph is a brain full of traces and at 14px with a
-        // 2.4 stroke it collapsed into a scribble that looked like a rotated mistake. Four
-        // corner brackets survive the size and say "detection" without any detail to lose.
-        icon: <Scan size={14} strokeWidth={2.4} /> },
-        { key: "noServer", cameras: noServerCameras, label: t.gapNoServer, icon: <ServerOff size={14} strokeWidth={2.4} /> },
-        { key: "noCoords", cameras: noCoordCameras, label: t.gapNoCoords, icon: <MapPinOff size={14} strokeWidth={2.4} /> },
+        {
+          key: "online" as const, count: onlineCount, label: t.healthConnected, why: t.healthConnectedWhy,
+          unit: t.healthOfFleet(projectCameras.length), tone: "neutral" as const,
+          icon: <VideoIcon size={14} strokeWidth={2.4} />,
+        },
+        {
+          key: "offline" as const, count: offlineCount, label: t.healthOffline, why: t.healthOfflineWhy,
+          unit: undefined, tone: "warning" as const,
+          icon: <VideoOff size={14} strokeWidth={2.4} />,
+        },
+        {
+          key: "error" as const, count: errorCount, label: t.healthError, why: t.healthErrorWhy,
+          unit: undefined, tone: "warning" as const,
+          icon: <CircleAlert size={14} strokeWidth={2.4} />,
+        },
       ]
-        .filter(item => item.cameras.length > 0)
+        // A cell reading "0 refusing the connection" is a click that returns an empty table. The
+        // connected cell stays whatever it says: zero of sixty connected is the loudest thing this
+        // strip could ever report.
+        .filter(item => item.key === "online" || item.count > 0)
         .map(item => ({
           key: item.key,
           icon: item.icon,
-          figure: item.cameras.length,
-          unit: t.gapUnit,
+          figure: item.count,
+          unit: item.unit,
           label: item.label,
-          tone: "warning" as const,
-          active: gapFilter === item.key,
-          title: gapFilter === item.key ? t.gapClear : t.gapShowOnly,
-          onClick: () => setGapFilter(gapFilter === item.key ? null : (item.key as "noEngine" | "noServer" | "noCoords")),
+          // Offline and refusing-the-connection are two words apart and two different callouts —
+          // one is an electrician, the other is a password. The underline is where that goes.
+          explanation: item.why,
+          tone: item.tone,
+          active: statusFilter === item.key,
+          title: statusFilter === item.key ? t.healthClear : t.healthShowOnly,
+          onClick: () => setStatusFilter(statusFilter === item.key ? "ALL" : item.key),
         }))} />}
-
       {/* Search & filters */}
       {/* alignItems center, not the default stretch: every control in this row sets its own height
           (CONTROL_HEIGHT), so stretch looked fine until a bare <span> joined them — the selection
@@ -1154,11 +1285,6 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
             ...(errorCount > 0 ? [{ value: "error", label: `${t.statusError} (${errorCount})` }] : []),
           ]}
         />
-        <FilterSelect
-          value={aiFilter}
-          onChange={v => setAiFilter(v as typeof aiFilter)}
-          options={[{ value: "ALL", label: t.filterAllAiEngines }, ...AI_FEATURES.map(f => ({ value: f, label: t.aiFeatureLabels[f] }))]}
-        />
         <ActiveFilterCount count={activeFilterCount} onClear={clearFilters} label={t.filtersActive(activeFilterCount)} />
         {/* Grid is a wall of camera thumbnails, and an unanalysed file has no frame to put in one.
             Rather than let file rows vanish the moment someone picks Grid, the toggle is only
@@ -1188,10 +1314,35 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
           uses (search and filters left, Import / Add right) and the one this row already had in
           miniature with its bulk actions.
         */}
-        <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
-          <button onClick={exportCsv}
-            onMouseEnter={() => setHoveredAction("export")} onMouseLeave={() => setHoveredAction(null)}
-            style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", border: BORDER, backgroundColor: hoveredAction === "export" ? "var(--gray-50)" : "white", color: "var(--gray-600)", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          {/* How stale the status figures are, next to the control that refreshes them. Without it
+              a refresh button is a button you press on a hunch — the reader cannot tell whether the
+              screen is a minute old or an hour. Rendered only once the clock is known. */}
+          {polledMinsAgo !== null && (
+            <span style={{ fontSize: "10px", color: "var(--gray-400)", whiteSpace: "nowrap" }}>
+              {polledMinsAgo < 1 ? t.checkedJustNow : t.checkedMinsAgo(polledMinsAgo)}
+            </span>
+          )}
+          {/*
+            Secondary actions carry no box.
+
+            They were bordered buttons at 10px, which was the wrong fix for the right complaint:
+            the toolbar felt loud, so the type was shrunk — but what draws the eye on a control is
+            the border and the fill, not the letters, so the row stayed loud and only got harder to
+            read. Take the box away and the action recedes on its own; then the label can be the
+            same size as the table it sits above.
+
+            Zapier's table footer is the reference — New record / Import / Export / Download as
+            borderless icon-and-text, with the one filled button kept for the action that makes
+            something. Hover brings a tint back, so the target is still findable by pointing.
+          */}
+          <button className="portal-btn-quiet" onClick={() => setLastPolledAt(Date.now())} title={t.refresh} aria-label={t.refresh}
+            style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 10px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: "var(--gray-600)", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            <RotateCw size={14} strokeWidth={2.4} />
+            {t.refresh}
+          </button>
+          <button className="portal-btn-quiet" onClick={exportCsv}
+            style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 10px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: "var(--gray-600)", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
               <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 1.75V9.33M7 9.33 4.08 6.42M7 9.33 9.92 6.42M2.33 9.92v1.17c0 .64.53 1.16 1.17 1.16h7c.64 0 1.17-.52 1.17-1.16V9.92" stroke="var(--gray-600)" strokeWidth="1.22" strokeLinecap="round" strokeLinejoin="round"/></svg>
               {t.exportCsv}
             </button>
@@ -1199,9 +1350,12 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
               answers — a menu is what keeps the header from growing a second primary button that
               competes with this one. */}
           <div ref={addMenuRef} style={{ position: "relative", flexShrink: 0 }}>
+            {/* Export stays. A read-only account still needs the fleet list as a file — that is
+                most of what the role is for. Adding is what goes. */}
             <button className="portal-btn-primary" onClick={() => setAddMenuOpen(o => !o)}
-              onMouseEnter={() => setHoveredAction("add")} onMouseLeave={() => setHoveredAction(null)}
-              style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "10px", fontWeight: 700, cursor: "pointer", filter: hoveredAction === "add" ? "brightness(0.92)" : "none" }}>
+              disabled={!mayEdit || atChannelLimit}
+              title={!mayEdit ? readOnlyReason : atChannelLimit ? t.atLimitReason(channelLimit ?? 0) : undefined}
+              style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: "none", backgroundColor: (mayEdit && !atChannelLimit) ? "var(--primary-400)" : "var(--gray-200)", color: (mayEdit && !atChannelLimit) ? "white" : "var(--gray-400)", fontSize: "12px", fontWeight: 700, cursor: (mayEdit && !atChannelLimit) ? "pointer" : "not-allowed" }}>
               <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 2.9V11.1M2.9 7H11.1" stroke="currentColor" strokeWidth="1.22" strokeLinecap="round"/></svg>
               {t.addSource}
             </button>
@@ -1213,7 +1367,8 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
               }}>
                 {[
                   { label: t.addCameraOption, onClick: () => setShowAdd(true) },
-                  { label: t.uploadFileOption, onClick: () => setShowUpload(true) },
+                  { label: t.uploadFileOption, onClick: () => setUploadPurpose("media") },
+                  { label: t.deepfakeFileOption, onClick: () => setUploadPurpose("deepfake") },
                 ].map(item => (
                   <button
                     key={item.label}
@@ -1259,18 +1414,25 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
               {t.selectedCount(visibleSelectedIds.length)}
             </span>
             <span style={{ width: "1px", alignSelf: "stretch", backgroundColor: "var(--gray-700)" }} />
-            <FilterSelect
-              fitContent
-              value=""
-              onChange={zone => { if (zone) bulkMoveToZone(zone); }}
-              options={[{ value: "", label: t.bulkMoveToZone }, ...zones.map(z => ({ value: z, label: z }))]}
-            />
-            <button
-              onClick={() => setConfirmingBulkDelete(true)}
-              style={{ height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", border: "none", backgroundColor: "var(--danger-400)", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
-            >
-              {t.bulkDelete}
-            </button>
+            {/* Selecting rows is still allowed — it is how you count a subset. The two things
+                that change them are what a read-only account loses, and the bar says so rather
+                than showing two dead buttons. */}
+            {mayEdit ? (<>
+              <FilterSelect
+                fitContent
+                value=""
+                onChange={zone => { if (zone) bulkMoveToZone(zone); }}
+                options={[{ value: "", label: t.bulkMoveToZone }, ...zones.map(z => ({ value: z, label: z }))]}
+              />
+              <button
+                onClick={() => setConfirmingBulkDelete(true)}
+                style={{ height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", border: "none", backgroundColor: "var(--danger-400)", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
+              >
+                {t.bulkDelete}
+              </button>
+            </>) : (
+              <span style={{ fontSize: "12px", color: "var(--gray-400)", flexShrink: 0 }}>{readOnlyReason}</span>
+            )}
             {/* The way out of the mode, and the reason the bar can be this assertive: nothing here
                 is reachable by accident, and one click puts the page back. */}
             <button
@@ -1304,9 +1466,8 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
               { label: "" },
               { label: t.colCamera, key: "name" },
               { label: t.colSource },
-              ...(showCameraColumns ? [{ label: t.colMaker, key: "maker" as CameraSortKey }, { label: t.colZone, key: "zone" as CameraSortKey }] : []),
+              ...(showCameraColumns ? [{ label: t.colServer, key: "server" as CameraSortKey }, { label: t.colZone, key: "zone" as CameraSortKey }] : []),
               { label: t.colAddress },
-              ...(showCameraColumns ? [{ label: t.colAiEngines }] : []),
               { label: t.colStatus, key: "status" },
               { label: "" },
             ] as { label: string; key?: CameraSortKey }[]).map((h, i) => (
@@ -1374,6 +1535,14 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
             if (row.kind !== "camera") {
               const u = row.upload;
               const tone = UPLOAD_STATUS_TONE[u.status];
+              // Only once the check has finished — a queued submission has no verdict and keeps the
+              // ordinary pipeline word.
+              const verdict = u.status === "done" ? u.deepfakeVerdict : undefined;
+              // Red for the one answer that is news. Authentic is the expected result and
+              // inconclusive is the absence of a result; colouring either would make three
+              // verdicts read as three alarms.
+              const verdictDot = verdict === "manipulated" ? "var(--danger-400)"
+                : verdict === "authentic" ? "var(--gray-900)" : "var(--gray-300)";
               return (
                 <div key={row.id} style={rowStyle}>
                   {checkbox}
@@ -1381,7 +1550,9 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
                       a frame we do not have. Inventing a poster image would imply the analysis had
                       already looked at it. */}
                   <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "40px", height: "40px", borderRadius: "8px", backgroundColor: "var(--gray-100)", color: "var(--gray-500)" }}>
-                    {u.kind === "image" ? <ImageIcon size={18} strokeWidth={1.87} /> : <FilmIcon size={18} strokeWidth={1.87} />}
+                    {u.kind === "image" ? <ImageIcon size={18} strokeWidth={1.87} />
+                      : u.kind === "deepfake" ? <ShieldCheck size={18} strokeWidth={1.87} />
+                      : <FilmIcon size={18} strokeWidth={1.87} />}
                   </span>
                   <div style={{ minWidth: 0 }}>
                     <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.fileName}</p>
@@ -1390,29 +1561,50 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
                     </p>
                   </div>
                   <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--gray-600)" }}>
-                    {u.kind === "image" ? <ImageIcon size={13} strokeWidth={2.58} /> : <FilmIcon size={13} strokeWidth={2.58} />}
-                    {u.kind === "image" ? t.sourceImage : t.sourceVideo}
+                    {u.kind === "image" ? <ImageIcon size={13} strokeWidth={2.58} />
+                      : u.kind === "deepfake" ? <ShieldCheck size={13} strokeWidth={2.58} />
+                      : <FilmIcon size={13} strokeWidth={2.58} />}
+                    {u.kind === "image" ? t.sourceImage : u.kind === "deepfake" ? t.sourceDeepfake : t.sourceVideo}
                   </span>
                   {showCameraColumns && <span style={{ fontSize: "12px", color: "var(--gray-300)" }}>—</span>}
                   {showCameraColumns && <span style={{ fontSize: "12px", color: "var(--gray-300)" }}>—</span>}
                   <span style={{ fontSize: "10px", color: "var(--gray-600)", fontFamily: "monospace" }}>{u.resolution ?? "—"}</span>
                   {showCameraColumns && <span style={{ fontSize: "12px", color: "var(--gray-300)" }}>—</span>}
                   <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: tone.dot, flexShrink: 0 }} />
-                    <span style={{ fontSize: "12px", fontWeight: 700, color: tone.text }}>{t[tone.label]}</span>
-                    {u.status === "done" && u.detectionCount !== undefined && (
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: verdict ? verdictDot : tone.dot, flexShrink: 0 }} />
+                    {/* A finished deepfake row says the verdict here instead of "Analysed". The
+                        pipeline word is only news while the answer is missing; once it is there,
+                        printing both makes the reader step over "Analysed" to reach it. */}
+                    {!verdict && <span style={{ fontSize: "12px", fontWeight: 700, color: tone.text }}>{t[tone.label]}</span>}
+                    {u.status === "done" && u.kind !== "deepfake" && u.detectionCount !== undefined && (
                       <span style={{ fontSize: "10px", color: "var(--gray-400)" }}>{t.detectionsFound(u.detectionCount)}</span>
+                    )}
+                    {/* A deepfake row's result is a judgement, not a count — and the score travels
+                        with it, because "manipulated" at 41% and at 94% are the same word and very
+                        different news. Only "manipulated" is coloured: authentic is the expected
+                        answer and inconclusive is an absence of one, and painting either would
+                        make three verdicts look like three alarms. */}
+                    {verdict && (
+                      <>
+                        <span style={{ fontSize: "12px", fontWeight: 700, color: verdict === "manipulated" ? "var(--danger-400)" : "var(--gray-900)" }}>
+                          {verdict === "manipulated" ? t.verdictManipulated
+                            : verdict === "authentic" ? t.verdictAuthentic
+                            : t.verdictInconclusive}
+                        </span>
+                        {u.deepfakeScore !== undefined && (
+                          <span style={{ fontSize: "10px", color: "var(--gray-400)", whiteSpace: "nowrap" }}>{t.verdictScore(u.deepfakeScore)}</span>
+                        )}
+                      </>
                     )}
                   </span>
                   <RowActionsMenu actions={[
-                    { label: t.removeUploadAction, onClick: () => { removeUpload(u.id); showToast({ variant: "warning", title: t.toastUploadRemovedTitle, desc: u.fileName }); }, danger: true },
+                    { label: t.removeUploadAction, onClick: () => { removeUpload(u.id); showToast({ variant: "warning", title: t.toastUploadRemovedTitle, desc: u.fileName }); }, danger: true, disabled: !mayEdit, reason: readOnlyReason },
                   ]} />
                 </div>
               );
             }
 
             const cam = row.camera;
-            const isAiCamera = (cam.aiFeatures ?? []).length > 0;
             return (
               <div key={row.id} {...rowInteraction}>
                 {checkbox}
@@ -1425,19 +1617,39 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
                 </div>
                 <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--gray-600)" }}>
                   <VideoIcon size={13} strokeWidth={2.58} />
-                  {isAiCamera ? t.sourceAiCamera : t.sourceCamera}
+                  {t.sourceCamera}
                 </span>
-                {showCameraColumns && <span style={{ fontSize: "12px", color: "var(--gray-600)" }}>{cam.maker ?? "—"}</span>}
+                {/* The server, where the maker used to be. A make is settled at purchase and is
+                    not what anybody scans a list for; the server is the answer to "why is this one
+                    doing nothing", and until now it appeared on no screen at all — not in this
+                    table and not on the camera's own sheet, where it now sits with the maker. */}
+                {showCameraColumns && (
+                  <span style={{ fontSize: "12px", color: cam.serverId ? "var(--gray-600)" : "var(--gray-300)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {projectServers.find(sv => sv.id === cam.serverId)?.name ?? "—"}
+                  </span>
+                )}
                 {showCameraColumns && <span style={{ fontSize: "12px", color: "var(--gray-600)" }}>{cam.zone}</span>}
-                {/* Stream address and resolution in one cell — the same column a file fills with
-                    its resolution alone. Two separate columns left one of them blank on every row
-                    of the other kind. */}
+                {/* The IP, not the RTSP URL — and resolution under it, in the same column a file
+                    fills with its resolution alone. (Two separate columns left one of them blank on
+                    every row of the other kind.)
+
+                    It printed the full stream address until 2026-09-09, which is forty characters
+                    of scheme, host, port and path in a cell narrow enough to cut it after about
+                    twenty-five: every row ended in an ellipsis and no two rows differed anywhere
+                    you could see. The address that identifies a camera at a glance is the host, so
+                    that is what is printed. The full URL is still searchable and still on the
+                    camera's own sheet, where there is room to read it. */}
+                {/* 11px monospace, not 10. These are the only cells on the page read a character
+                    at a time — an address is checked digit by digit against a switch or a label on
+                    a wall — and they were the smallest text in the table. Monospace runs narrow, so
+                    11 here sits at about the width of the 12px column beside it. */}
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ fontSize: "10px", color: "var(--gray-400)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cam.rtspUrl}</p>
-                  <p style={{ fontSize: "10px", color: "var(--gray-600)", fontFamily: "monospace" }}>{cam.resolution ?? "—"}</p>
+                  <p style={{ fontSize: "11px", color: "var(--gray-500)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cam.ip}</p>
+                  <p style={{ fontSize: "11px", color: "var(--gray-600)", fontFamily: "monospace" }}>{cam.resolution ?? "—"}</p>
                 </div>
-                {showCameraColumns && <AiFeatureBadges features={cam.aiFeatures} t={t} />}
-                <button onClick={() => setConfirmingStatusCam(cam)} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                {/* The status pill is also the control that changes it. For a reader who cannot
+                    change it, it goes back to being a pill. */}
+                <button onClick={() => mayEdit && setConfirmingStatusCam(cam)} disabled={!mayEdit} title={readOnlyReason} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", cursor: mayEdit ? "pointer" : "default", padding: 0 }}>
                   <span style={{ width: "6px", height: "6px", borderRadius: "50%", flexShrink: 0, backgroundColor: cam.status === "online" ? "var(--success-400)" : cam.status === "error" ? "var(--danger-400)" : "var(--gray-400)" }} />
                   {/* Three states, three words. Error is the only one in danger red: offline is a
                       camera that stopped talking, which is common and often expected, while an
@@ -1455,10 +1667,12 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
                     modal, but a thumbnail is not a control anyone is told about — a named item in
                     the menu is. */}
                 <span {...stopRowClick}>
+                {/* Preview stays open to everybody — looking at a camera is the auditor's job.
+                    Only the two that change something take the gate. */}
                 <RowActionsMenu actions={[
                   { label: t.previewAction, onClick: () => setInspectingCameraId(cam.id) },
-                  { label: t.editAction, onClick: () => setEditingCamera(cam) },
-                  { label: t.removeAction, onClick: () => handleDelete(cam), danger: true },
+                  { label: t.editAction, onClick: () => setEditingCamera(cam), disabled: !mayEdit, reason: readOnlyReason },
+                  { label: t.removeAction, onClick: () => handleDelete(cam), danger: true, disabled: !mayEdit, reason: readOnlyReason },
                 ]} />
                 </span>
               </div>
@@ -1477,7 +1691,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
             // card would cut it off at its own edge. The thumbnail rounds its own top corners
             // instead, which is all that hiding was doing.
             return (
-              <div key={cam.id} style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW }}>
+              <div key={cam.id} style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: CARD_RADIUS, boxShadow: PANEL_SHADOW }}>
                 <button onClick={() => setInspectingCameraId(cam.id)} style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", border: "none", padding: 0, cursor: "pointer", display: "block", backgroundColor: "var(--gray-900)", overflow: "hidden", borderTopLeftRadius: "12px", borderTopRightRadius: "12px" }}>
                   <img src={cam.thumbnail || DEFAULT_THUMBNAIL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: online ? 1 : 0.4 }} />
                   <span style={{
@@ -1499,9 +1713,9 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
                     <span style={{ flex: 1 }} />
                     <span style={{ fontSize: "10px", color: "var(--gray-400)", flexShrink: 0 }}>{cam.zone}</span>
                     <RowActionsMenu actions={[
-                      { label: t.editAction, onClick: () => setEditingCamera(cam) },
-                      { label: t.toggleStatusTitle, onClick: () => setConfirmingStatusCam(cam) },
-                      { label: t.removeAction, onClick: () => handleDelete(cam), danger: true },
+                      { label: t.editAction, onClick: () => setEditingCamera(cam), disabled: !mayEdit, reason: readOnlyReason },
+                      { label: t.toggleStatusTitle, onClick: () => setConfirmingStatusCam(cam), disabled: !mayEdit, reason: readOnlyReason },
+                      { label: t.removeAction, onClick: () => handleDelete(cam), danger: true, disabled: !mayEdit, reason: readOnlyReason },
                     ]} />
                   </div>
                   <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", marginTop: "2px" }}>{cam.name}</p>
@@ -1516,13 +1730,13 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
       {/* Same drop-zone shape Redmap's image upload already uses — dashed border on a gray-50 field
           with a Choose button — so the two upload surfaces in the product are one pattern. Accepts
           video as well as image, which is the only real difference. */}
-      {showUpload && (
-        <div onClick={e => { if (e.target === e.currentTarget) setShowUpload(false); }}
+      {uploadPurpose && (
+        <div onClick={e => { if (e.target === e.currentTarget) setUploadPurpose(null); }}
           style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "520px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
             <div style={{ padding: "16px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.uploadTitle}</p>
-              <button onClick={() => setShowUpload(false)} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex" }}>
+              <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{uploadPurpose === "deepfake" ? t.deepfakeUploadTitle : t.uploadTitle}</p>
+              <button onClick={() => setUploadPurpose(null)} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex" }}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
               </button>
             </div>
@@ -1542,7 +1756,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
                 </span>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--gray-900)" }}>{t.uploadDrop}</span>
-                  <span style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.6 }}>{t.uploadHint}</span>
+                  <span style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.6 }}>{uploadPurpose === "deepfake" ? t.deepfakeUploadHint : t.uploadHint}</span>
                 </div>
                 <button className="portal-btn-primary" onClick={() => uploadInputRef.current?.click()}
                   style={{ padding: "10px 16px", borderRadius: "8px", border: "none", cursor: "pointer", backgroundColor: "var(--gray-900)", color: "white", fontSize: "13px", fontWeight: 700 }}>
@@ -1552,9 +1766,12 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
                   onChange={e => { acceptFiles(e.target.files); e.target.value = ""; }}
                   style={{ display: "none" }} />
               </div>
-              {/* Says the analysis has not run rather than showing a progress bar that finishes on
-                  its own. A file sitting at "Queued" is the truth until the core has an endpoint. */}
-              <p style={{ fontSize: "11px", color: "var(--warning-500)", lineHeight: 1.6 }}>{t.uploadPendingNotice}</p>
+              {/* No "the analysis is not connected yet" line here any more (2026-09-09). It was a
+                  sentence about the state of the build, printed inside the product — and the row's
+                  own status already says "Queued", which is both true now and still true once the
+                  endpoint lands and a real job waits its turn. The note would have had to be
+                  deleted on the day the backend arrived; the status will not. The dependency is
+                  recorded where it belongs, in the HANDOFF note on addUpload in vcaStore. */}
             </div>
           </div>
         </div>
@@ -1577,8 +1794,6 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
             password: "",
             serverId: editingCamera.serverId ?? "",
             lat: String(editingCamera.lat ?? ""), lng: String(editingCamera.lng ?? ""),
-            inputKind: (editingCamera.aiFeatures ?? []).length > 0 ? "AI Camera" : "CCTV",
-            aiFeatures: editingCamera.aiFeatures ?? [],
             status: editingCamera.status,
           }}
           servers={projectServers}
@@ -1589,6 +1804,17 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
       )}
       {inspectingCameraId && cameras.find(c => c.id === inspectingCameraId) && (
         <CameraStreamModal camera={cameras.find(c => c.id === inspectingCameraId) as Camera} onClose={() => setInspectingCameraId(null)} />
+      )}
+      {confirmingDeleteCam && (
+        <ConfirmModal
+          title={t.confirmDeleteCamTitle(confirmingDeleteCam.name)}
+          body={t.confirmDeleteCamBody}
+          confirmLabel={t.removeAction}
+          cancelLabel={t.cancel}
+          danger
+          onConfirm={confirmDeleteCam}
+          onClose={() => setConfirmingDeleteCam(null)}
+        />
       )}
       {confirmingStatusCam && (
         <ConfirmStatusModal

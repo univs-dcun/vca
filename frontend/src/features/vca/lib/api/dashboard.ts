@@ -2,19 +2,74 @@
 // Currently returns the static mock data from lib/mockData.ts.
 // Swap the body of each function for a real fetch(`${API_BASE_URL}/...`) call later.
 
-import { dashboardStats, liveEvents, devices, mapMarkers, DISTRICTS, hourlyDetections, type HourlyDetection } from "@/lib/mockData";
+import { dashboardStats, liveEvents, mapMarkers, DISTRICTS, hourlyDetections, formatTimeAgo, type Device, type HourlyDetection } from "@/lib/mockData";
+import { useVcaStore, camerasInProject, type Camera } from "@/lib/vcaStore";
+import { runStateOf } from "@/lib/realtime/cameraStatus";
 import { mockDelay } from "./client";
 
-export async function getDashboardStats() {
-  return mockDelay(dashboardStats);
+/**
+ * Portal is the system of record for cameras, so the app's device list reads what Portal writes —
+ * and nothing else.
+ *
+ * There used to be a second half: a thousand mock rows padding the list out to a smart-city scale.
+ * That made three different answers to "how many cameras does this site have" — the map's district
+ * pills counted the register (59), this list counted register plus filler (1,040), and the map's
+ * zoomed-in dots counted a separate simulation pool (1,029) — all three on screen at once, each
+ * calling itself the site's camera count. Worse, the padding rows exist in no register, so the
+ * eighty-odd of them reading OFFLINE named nothing anybody could go and fix.
+ *
+ * One register, one count. Decided 2026-09-10: the demo does not need to read as a
+ * thousand-camera deployment.
+ *
+ * `useVcaStore.getState()` rather than a hook: this is a module function standing in for a
+ * request. The screens that call it pass the store's cameras as a dependency, so a change in
+ * Portal re-runs the "request".
+ */
+function cameraToDevice(camera: Camera): Device {
+  return {
+    id: camera.id,
+    // Read through the status seam, not off the camera — lib/realtime/cameraStatus.ts is the one
+    // place that decides what "running" means, and the one place the backend swaps at intake.
+    status: runStateOf(camera.status) === "running" ? "Live" : "Off",
+    name: camera.name,
+    // The store carries no equivalent. Device.type is display-only and every mock row says the
+    // same thing, so nothing is lost until a real camera type arrives from the backend.
+    type: "Normal",
+    ip: camera.ip,
+    lat: camera.lat,
+    lng: camera.lng,
+    // English, like the rest of this column today.
+    lastSeen: camera.lastSeenAt ? formatTimeAgo(camera.lastSeenAt) : "—",
+  };
+}
+
+function deploymentDevices(projectId?: string): Device[] {
+  const all = useVcaStore.getState().cameras;
+  return (projectId ? camerasInProject(all, projectId) : all).map(cameraToDevice);
+}
+
+export async function getDashboardStats(projectId?: string) {
+  // Availability was computed at module load from the static array, so it disagreed with the
+  // camera counts the moment those started coming from the store. Same list, same figure.
+  const all = deploymentDevices(projectId);
+  const live = all.filter(d => d.status === "Live").length;
+  // A site with no cameras registered yet has no availability to report — 0/0 is NaN, and a donut
+  // reading "NaN%" is worse than one reading nothing.
+  const availability = all.length === 0 ? 0 : Math.round((live / all.length) * 1000) / 10;
+  return mockDelay({
+    ...dashboardStats,
+    linkedCams: { ...dashboardStats.linkedCams, count: live },
+    offlineCams: { ...dashboardStats.offlineCams, count: all.length - live },
+    availability,
+  });
 }
 
 export async function getLiveEvents() {
   return mockDelay(liveEvents);
 }
 
-export async function getDevices() {
-  return mockDelay(devices);
+export async function getDevices(projectId?: string) {
+  return mockDelay(deploymentDevices(projectId));
 }
 
 export async function getMapMarkers() {

@@ -11,7 +11,7 @@
 // 연결 여부로 구독을 게이트하면 연결이 영영 시작되지 않는다. 대신 스토어 쓰기만 isLive로 게이트.
 // 반환값 isLive는 ClientLayout이 가짜 감지 시뮬레이션(VipAlertTicker)을 끄는 데 쓴다.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useVcaStore } from '../../features/vca/lib/vcaStore'
+import { getActiveProjectId, useVcaStore } from '../../features/vca/lib/vcaStore'
 import { getConnectionStatus, onConnectionStatusChange, subscribe } from '../realtime/mqttClient'
 import { cameraIdFromTopic, topics } from '../realtime/topics'
 import { isVipDetection, type CameraStatusMessage, type DetectionEvent, type MqttConnectionStatus } from '../realtime/types'
@@ -80,9 +80,19 @@ export function useVcaLiveBridge(): boolean {
         return
       }
       const next = statusToCamera(payload as CameraStatusMessage)
-      const idx = cameras.findIndex((c) => c.id === cameraId)
+      const known = cameras.find((c) => c.id === cameraId)
+      // 20260910 반입 이후 앱 화면은 프로젝트 범위(camerasInProject)로 좁혀진다 — projectId가 빈
+      // 카메라는 어느 화면에도 보이지 않는다. 이미 등록부(Admin API)로 들어온 행이면 등록 정보를
+      // 그대로 두고 브로커가 소유한 값(상태·이름·좌표)만 갱신하고, 처음 보는 카메라면 지금 보고
+      // 있는 현장에 붙인다.
+      const live = {
+        status: next.status, name: next.name, location: next.location,
+        zone: next.zone, lat: next.lat, lng: next.lng, lastSeenAt: next.lastSeenAt,
+      }
       useVcaStore.setState({
-        cameras: idx === -1 ? [...cameras, next] : cameras.map((c) => (c.id === cameraId ? next : c)),
+        cameras: known
+          ? cameras.map((c) => (c.id === cameraId ? { ...c, ...live } : c))
+          : [...cameras, { ...next, projectId: getActiveProjectId() }],
       })
     })
   }, [])

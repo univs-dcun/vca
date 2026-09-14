@@ -68,9 +68,11 @@ export function analyzeDates(): string[] {
   return [dateSgt(now), dateSgt(now - 24 * 3600e3)]
 }
 
-function targetToDetection(t: BestFrameTarget, time: string): ScreenDetection {
+function targetToDetection(t: BestFrameTarget, time: string, date: string): ScreenDetection {
   return {
     id: t.targetId,
+    // 20260910 반입: Detection.date 필수 — 프레임이 찍힌 현장(SGT) 날짜
+    date,
     type: CATEGORY_TO_TYPE[t.category] ?? 'Unknown',
     name: t.label,
     group: t.groupLabel ?? t.category,
@@ -184,7 +186,7 @@ export function useAnalyzeTimeline(source: AnalyzeSource | null): {
       : getVideoBestframeTargets(source.id, frame.id)
     load
       .then((res) => {
-        const targets = (res.data?.targets ?? []).map((t) => targetToDetection(t, frame.time))
+        const targets = (res.data?.targets ?? []).map((t) => targetToDetection(t, frame.time, dateSgt(frame.ms)))
         targetsCache.current.set(frame.id, targets)
         if (!stale) setDetections(targets)
       })

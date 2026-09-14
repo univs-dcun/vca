@@ -241,6 +241,23 @@ Admin envelope 그대로.
 - 스탠드인 4곳: 세션 스냅샷(`session.ts`) 기반, 세션 없음 = 거부, 서버 미가동만 mock. `/portal`은 RequireAuth+RequirePortal.
 - 2차(2026-09-10): register·forgot-password 실배선(서버 판정·스로틀·재발송 한도, 목업 분기 삭제), `/auth/me` `projects[{id,name}]`(앱 헤더
   현장 이름), 시드 owner 이름 `VCA_ADMIN_SEED_NAME`. 남은 것: VIP(W5)·업로드(W6) mock, request-access(accessRequest=false, 서버 계약 없음).
+- 3차(2026-09-14, 태그 `import-snapshot-20260910` = portal-handoff-v2): 기획자가 zip이 아니라 이 레포의 `import/frontend-ui-20260910`
+  브랜치로 직접 push하는 방식으로 바뀌었다 — **태그가 전달 신호**, 태그 없는 커밋은 작업 중이므로 반입 대상이 아니다. 55파일·충돌 54 hunk.
+  새 화면 4종(설정·변경 기록·조회 기록·명단 분류), 앱 전 화면의 현장(프로젝트) 범위화, `Detection.date` 필수화, 카메라 상태 단일 조회 seam
+  (`lib/realtime/cameraStatus.ts` — 스토어를 우리 MQTT 브리지가 채우므로 본문 교체 없이 라이브). 추가 배선: 프로젝트·팀 이름 변경, 명부 일괄 반입.
+  `removeProject`/`removeTeam`은 Admin API에 삭제 계약이 없어 mock 유지(§9 11번).
+
+### 8.2 기획 HANDOFF 20260910의 서버 계약 요구 3건 — 판정
+
+| 요구 | 판정 |
+|---|---|
+| 1. 카메라 목록 API가 화면의 유일한 모집단(목업 필러 1,000대 삭제) | 이미 그렇다. Portal 카메라 등록부가 원천이고 앱은 그 목록을 투영한다 |
+| 2. 검출/프레임 응답의 시각은 날짜를 포함할 것 | 이미 그렇다. 계약의 `detectedAt`·`capturedAt`은 ISO instant — 브리지가 현장 시각대로 날짜를 만든다 |
+| 3. 세션/로그인 응답에 권한 플래그 + **계정 상태** | 이미 그렇다. `/auth/me`가 `permission`·`appAccess`·`appSearch`·`status`를 함께 준다 |
+
+추가 질문 1건(카메라 시계 편차를 받을 수 있는가)은 모듈 계약 협의 목록에 올린다 — 경과 시간이 음수면 화면이 "시각 어긋남"으로 표시하므로,
+정밀 동기화가 아니라 편차 값의 제공 여부가 질문이다. 회신 3번 정정 요청(어느 프론트 기준인가)에 대한 답: **출시 대상은 모노레포 `frontend/`**
+(Vite + react-router, `mqtt` 의존성 보유, EMQX WebSocket 직접 구독). 기획자의 Next.js 스냅샷은 화면 원본이고 실행 대상이 아니다.
 
 ## 9. 기획 확인 항목
 
@@ -249,7 +266,14 @@ Admin envelope 그대로.
 3. **숫자 확정** — 코드 14일 / 초대 7일 / 임시 비밀번호 24h (기획자 OPEN QUESTION 표기). 확정 전까지 §4.5 값으로 구현
 4. **재설정 코드 이중 발급** — 관리자가 메일로 보낸 코드와 사용자가 "Forgot password?"로 요청한 코드의 상호 무효화 정책 (기획자 OPEN QUESTION)
 5. **문서 불일치 확인** — HANDOFF.md §7 "Portal 일부 화면 제외"(실제는 6탭 전부 구현), grace.tan 역할(문서 admin / 시드 owner), Excel import "미구축" 주석(CSV import 구현됨), FEATURES.md §8 무동작 목록 vs §4 배선 완료
-6. **Input Sources "AI engines"·"server assigned" 칩** — 카메라별 AI 기능 배정·서버 배정의 실사용 의미(모듈 분석 옵션과의 관계)
+6. **Input Sources "AI engines"·"server assigned" 칩** — 카메라별 AI 기능 배정·서버 배정의 실사용 의미(모듈 분석 옵션과의 관계).
+   20260910 반입에서 기획자가 `Camera.aiFeatures`를 삭제했다("타입만 있고 아무도 채우지 않았다") — 브리지의 매핑도 함께 제거
+7. **준수 기능의 서버 계약** — 조회 목적(searchPurpose)·조회 기록(searchAccess)·명단 분류(watchlistCategory)·인물 해제/복권이
+   20260910 반입으로 화면에 생겼으나 서버 계약이 없다. 조회 기록은 UV-59의 `GET /admin/api/search-audit`로 이을 수 있다
+8. **프로젝트·팀 삭제** — 화면에 삭제가 생겼으나 Admin API에 계약이 없다. 연쇄 삭제(카메라·서버·명부·명단·조회기록) 범위 확정 필요
+9. **영상 보관기간** — 기획 HANDOFF 7번: 보관기간은 기록일 뿐 집행이 아니다. 레코더·서버의 만료 작업에 닿아야 효력이 생긴다
+10. **증거 파일의 frame_sha256** — 기획 HANDOFF 8번: 브라우저가 받은 사본을 해싱하면 촬영이 아니라 사본을 증명한다. 추출 자체가 서버 호출이어야 한다
+11. **채널 한도** — 기획 HANDOFF 9번: 프로비저닝 호출도 한도를 거절해야 한다. 한도 미기록은 무제한이 아니라 "라이선스 없음". 설치 단위인지 프로젝트 단위인지가 선행 질문
 
 ## 10. 변경 이력
 
