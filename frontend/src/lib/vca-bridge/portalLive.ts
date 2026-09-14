@@ -14,12 +14,12 @@ import { useEffect, useRef } from 'react'
 import * as api from '../../api/generated/portal/portal'
 import type {
   PortalAuditEvent, PortalCamera, PortalCameraRequest, PortalDailyDetections, PortalMailRequest, PortalMailView,
-  PortalProject, PortalRosterRow, PortalServer, PortalServerRequest, PortalStabilityRow, PortalTeam,
+  PortalProject, PortalProjectRequest, PortalRosterRow, PortalServer, PortalServerRequest, PortalStabilityRow, PortalTeam,
   PortalUser as ApiPortalUser,
 } from '../../api/generated/model'
 import {
   useVcaStore,
-  type AuditEvent, type Camera, type CameraAiFeature, type CameraStatus, type LiveAggregates, type PortalPermission,
+  type AuditEvent, type Camera, type CameraStatus, type LiveAggregates, type PortalPermission,
   type PortalUser, type PortalUserStatus, type Project, type ProjectType, type Server, type ServerStatus,
   type ServerType, type SmtpConfig, type Team,
 } from '../../features/vca/lib/vcaStore'
@@ -81,7 +81,6 @@ function mapCamera(c: PortalCamera): Camera {
     lastSeenAt: c.lastSeenAt ?? undefined,
     location: c.location ?? c.locationId, zone: c.zone, thumbnail: c.thumbnail ?? '',
     lat: c.coordinates.lat, lng: c.coordinates.lng,
-    aiFeatures: (c.aiFeatures ?? []) as CameraAiFeature[],
     protocol: c.protocol === 'TCP' || c.protocol === 'UDP' ? c.protocol : undefined,
     maker: c.maker ?? undefined, model: c.model ?? undefined, resolution: c.resolution ?? undefined,
     username: c.username ?? undefined, serverId: c.serverId ?? undefined,
@@ -239,8 +238,7 @@ function cameraRequestOf(c: Omit<Camera, 'id'> & Partial<Pick<Camera, 'id'>>, pa
     ip: c.ip || undefined, mac: c.mac || undefined, maker: c.maker, model: c.model, resolution: c.resolution,
     protocol: c.protocol, username: c.username, password,
     rtspUrl: c.rtspUrl, zone: c.zone, location: c.location || undefined,
-    coordinates: { lat: c.lat, lng: c.lng }, serverId: c.serverId,
-    aiFeatures: c.aiFeatures as PortalCameraRequest['aiFeatures'], thumbnail: c.thumbnail || undefined,
+    coordinates: { lat: c.lat, lng: c.lng }, serverId: c.serverId, thumbnail: c.thumbnail || undefined,
   }
 }
 
@@ -284,6 +282,13 @@ function installLiveActions(): void {
       await after(refreshProjects)
       return res.data.id
     },
+    // 20260910 반입: 설정 화면의 이름 변경. 서버에 삭제 계약은 없어 removeProject/removeTeam은
+    // 기획 원본(mock)을 그대로 둔다 — 폴링이 돌면 서버 목록으로 되돌아온다.
+    renameProject: async (projectId, name) => {
+      const cur = useVcaStore.getState().projects.find((p) => p.id === projectId)
+      await api.portalUpdateProject(projectId, { name, type: cur?.type as PortalProjectRequest['type'] })
+      await after(refreshProjects)
+    },
     updateProjectLicense: (projectId, updates) => {
       void api.portalUpdateLicense(projectId, { plan: updates.licensePlan ?? null, channelLimit: updates.licenseChannelLimit ?? null, expiresAt: updates.licenseExpiresAt ?? null })
         .then(() => after(refreshProjects))
@@ -292,6 +297,11 @@ function installLiveActions(): void {
     setProjectTimeZone: (projectId, timeZone) => { void api.portalUpdateTimeZone(projectId, { timeZone }).then(() => after(refreshProjects)) },
     setNetworkIsolationOverride: (projectId, override) => { void api.portalUpdateNetworkIsolation(projectId, { override }).then(() => after(refreshProjects)) },
     updateTeamMail: (teamId, updates) => { void api.portalUpdateTeamMail(teamId, mailRequestOf(updates)).then(() => after(refreshTeams)) },
+    renameTeam: async (teamId, name) => {
+      const cur = useVcaStore.getState().teams.find((t) => t.id === teamId)
+      await api.portalUpdateTeam(teamId, { name, region: cur?.region || null })
+      await after(refreshTeams)
+    },
     addTeam: async (team) => {
       const res = await api.portalCreateTeam({ name: team.name, region: team.region || null })
       await after(refreshTeams)
@@ -348,6 +358,21 @@ function installLiveActions(): void {
       })
       await after(refreshRoster)
       return (res.data.rows[0]?.ok ?? false)
+    },
+    // 20260910 반입: CSV 일괄 반입이 행마다 호출하던 것을 한 번의 호출로 바꿨다(감사 로그 1건).
+    // 서버는 행별 ok를 돌려주므로 거절된 employeeId만 모아 화면의 skipped 집계에 넘긴다.
+    addRosterEntries: async (entries, _source) => {
+      if (entries.length === 0) return []
+      const projectId = entries[0].projectId
+      const res = await api.portalAddRoster({
+        projectId,
+        entries: entries.map((e) => ({
+          employeeId: e.employeeId, name: e.name,
+          department: e.department ?? null, email: e.email ?? null, permission: e.permission,
+        })),
+      })
+      await after(refreshRoster)
+      return res.data.rows.filter((r) => !r.ok).map((r) => r.employeeId ?? '').filter((id) => id !== '')
     },
     updateRosterEntry: (employeeId, updates) => {
       const cur = useVcaStore.getState().staffRoster.find((r) => r.employeeId === employeeId)

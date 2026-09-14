@@ -254,3 +254,33 @@ W3 2차(UV-52, 2026-09-10) — 인증 화면 배선 + 앱 프로젝트 이름:
   앱 전용 계정(Portal API 403)도 헤더 현장 전환에 이름이 나온다.
 - 시드 owner 이름: `VCA_ADMIN_SEED_NAME`(기본 Administrator). 기존 DB의 "John Doe"는 시더가 건드리지 않는다(수동 변경).
 
+
+반입 20260910 (UV-52 W3 3차, import-snapshot-20260910 = portal-handoff-v2 — 55파일 +9.3k/-2.4k): 기획자가 zip이 아니라
+이 레포의 `import/frontend-ui-20260910` 브랜치로 직접 push한다(태그가 전달 신호, 태그 없는 커밋은 작업 중). 3-way base는
+`import-snapshot-20260909`. 새 화면: PortalSettingsPage(계정·프로젝트·팀 메일·명단 분류·조회 목적·언어, PortalMyPage 대체 —
+원본 삭제), ProjectActivityTab(감사 로그), ProjectSearchLogTab(조회 기록 — complianceConfig로 1차 배포에서는 꺼짐),
+WatchlistCategories, AuthTrailArt/AuthTrailList(로그인 우측 아트), `lib/complianceConfig.ts`, `lib/realtime/cameraStatus.ts`.
+충돌 54 hunk(DataPage 13·BestFramePage 8…) 해소 규칙은 반입 PR(UV-52) 본문.
+
+**구조 변경 3가지와 우리 쪽 대응**
+- **현장(프로젝트) 범위**: 앱 화면이 전부 `useProjectCameras`/`useProjectEvents`/`camerasInProject`로 좁혀졌다.
+  `camDataFor()`의 mock 폴백을 전역 `CAM_DATA` → `siteCamData`로 바꿨고, Sidebar/DataPage의 `getDashboardStats`·
+  `getDevices`는 기획의 projectId 인자 버전을 쓰되 라이브 오버라이드(`useLiveDevices`·`useLiveDashboardStats`)는 유지.
+  **주의**: MQTT `statusToCamera`는 projectId를 모른다 — projectId가 빈 카메라는 범위 필터에 걸려 어느 화면에도 안 나온다.
+  `useVcaLiveBridge`가 등록부 행이 있으면 상태·이름·좌표만 갱신하고, 처음 보는 카메라만 현재 현장에 붙인다.
+- **Detection.date 필수**: 화면이 시각에 "오늘"을 붙이던 것을 고쳤다. 브리지 3곳(useBestFrameLive·useMediaLive·
+  analyzeTimeline)이 ISO instant에서 현장(SGT) 날짜를 넣는다. 업로드 이미지는 계약에 촬영 시각이 없어 빈 값(추측 금지).
+- **카메라 상태 seam**: `features/vca/lib/realtime/cameraStatus.ts`는 기획이 만든 단일 조회 지점이고 "여기에 MQTT 클라이언트를
+  넣지 말라"는 HANDOFF 주석이 붙어 있다. 스토어의 `camera.status`는 이미 우리 MQTT 브리지가 적재하므로 **본문 교체 없이
+  그대로 라이브다**. 화면이 `camera.status`를 직접 읽지 않는 한 이 seam만 보면 된다.
+
+**이번에 추가로 배선한 라이브 액션(portalLive.ts)**: `renameProject`(PUT /portal/projects/{id})·`renameTeam`(PUT /portal/teams/{id})·
+`addRosterEntries`(POST /portal/roster 한 번 — 행별 ok, 거절 employeeId 반환. 행마다 호출하면 감사 로그가 밀린다는 기획 지적 반영).
+`removeProject`/`removeTeam`은 **서버에 삭제 계약이 없어 mock 그대로** — 폴링이 돌면 서버 목록으로 되돌아온다(후속 과제).
+
+**버그 수정**: 20260909 반입 때 `ClientLayout`의 `usePortalLive({poll:false})`가 VipSimulation의 `return null` **뒤**에 들어가
+죽어 있었다(앱 헤더의 현장 목록이 서버로 안 채워짐). ClientLayout 본문 첫 줄로 옮겼다.
+
+**mock으로 남은 것**: VIP persons/groups(W5)·uploads(W6)·accessRequests, 그리고 이번에 새로 생긴 준수 기능 전체 —
+searchPurpose(조회 목적)·searchAccess(조회 기록)·watchlistCategory(명단 분류)·releasePerson/reinstatePerson.
+서버 계약이 아직 없다. 조회 기록은 UV-59의 `GET /admin/api/search-audit`가 이미 있으니 complianceConfig를 켤 때 잇는다.

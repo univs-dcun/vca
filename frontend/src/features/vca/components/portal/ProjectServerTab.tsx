@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Globe, Mail, RotateCcw, ServerCrash, Unplug, Video} from "lucide-react";
 import { resolveMailConfig, isNetworkIsolated, useVcaStore, type Server, type ServerType } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useToast } from "../Toast";
 import { usePortalLanguage } from "@/lib/i18n";
-import { SummaryStrip, CARD_BORDER, TextField, BORDER, TABLE_COLUMN_GAP, CONTROL_HEIGHT, PANEL_SHADOW, RowActionsMenu, FilterSelect, SortableHeader, sortRows, useTableSort, Switch } from "./PortalShared";
+import { SummaryStrip, CARD_BORDER, CARD_RADIUS, TextField, BORDER, TABLE_COLUMN_GAP, CONTROL_HEIGHT, PANEL_SHADOW, RowActionsMenu, FilterSelect, SortableHeader, sortRows, useTableSort, Switch, usePortalEditAccess, ConfirmModal } from "./PortalShared";
 
 const SERVER_TYPES: ServerType[] = ["AI Camera", "Normal Camera", "Face Recognition", "Image Store", "Database"];
 
@@ -21,17 +21,21 @@ const STATUS_T = {
 interface ServerFormValues {
   name: string;
   ip: string;
+  /** Held as text, like every other field: a half-typed port is "80", and a number input turns
+   *  that into a value the moment it is keyed. Parsed on save. */
+  port: string;
   type: ServerType;
   specification: string;
   status: "success" | "error";
 }
 
-const EMPTY_FORM: ServerFormValues = { name: "", ip: "", type: SERVER_TYPES[0], specification: "", status: "success" };
+const EMPTY_FORM: ServerFormValues = { name: "", ip: "", port: "", type: SERVER_TYPES[0], specification: "", status: "success" };
 
 const MODAL_T = {
   en: {
     serverName: "Server Name *", serverNamePlaceholder: "FR 2",
     serverIp: "Server IP *", serverIpPlaceholder: "192.168.0.36",
+    serverPort: "Server Port", serverPortPlaceholder: "8011",
     serverType: "Server Type", status: "Status",
     specification: "Specification", specificationPlaceholder: "8 vCPU · 32GB RAM",
     cancel: "Cancel", save: "Save",
@@ -39,6 +43,7 @@ const MODAL_T = {
   ko: {
     serverName: "서버 이름 *", serverNamePlaceholder: "FR 2",
     serverIp: "서버 IP *", serverIpPlaceholder: "192.168.0.36",
+    serverPort: "서버 포트", serverPortPlaceholder: "8011",
     serverType: "서버 유형", status: "상태",
     specification: "사양", specificationPlaceholder: "8 vCPU · 32GB RAM",
     cancel: "취소", save: "저장",
@@ -75,9 +80,17 @@ function ServerFormModal({
             <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>{t.serverName}</label>
             <TextField value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder={t.serverNamePlaceholder} />
           </div>
-          <div>
-            <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>{t.serverIp}</label>
-            <TextField value={form.ip} onChange={v => setForm(f => ({ ...f, ip: v }))} placeholder={t.serverIpPlaceholder} />
+          {/* Address and port on one row: between them they are one thing, and nothing reaches a
+              server with only half of it. */}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "12px" }}>
+            <div>
+              <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>{t.serverIp}</label>
+              <TextField value={form.ip} onChange={v => setForm(f => ({ ...f, ip: v }))} placeholder={t.serverIpPlaceholder} />
+            </div>
+            <div>
+              <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>{t.serverPort}</label>
+              <TextField value={form.port} onChange={v => setForm(f => ({ ...f, port: v.replace(/[^0-9]/g, "") }))} placeholder={t.serverPortPlaceholder} />
+            </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div>
@@ -118,19 +131,45 @@ const API_ENDPOINTS = [
 ];
 
 const API_DOC_T = {
-  en: { baseUrl: "API Base URL", endpoints: "Endpoints" },
-  ko: { baseUrl: "API 기본 URL", endpoints: "엔드포인트" },
+  en: {
+    baseUrl: "API Base URL",
+    endpoints: "Endpoints",
+    baseUrlNote: "This installation's own address. There is no vendor-hosted API — the product is on-premise, so the base URL is whatever host this console is served from.",
+    noKeys: "API keys are not issued or revoked from Portal yet. Until they are, treat these endpoints as documentation rather than as something you can call today.",
+  },
+  ko: {
+    baseUrl: "API 기본 URL",
+    endpoints: "엔드포인트",
+    baseUrlNote: "이 설치본 자신의 주소입니다. 벤더가 호스팅하는 API는 없습니다 — 온프레미스 제품이라, 기본 URL은 이 콘솔이 서비스되는 호스트입니다.",
+    noKeys: "API 키 발급과 폐기는 아직 포털에 없습니다. 생기기 전까지 이 엔드포인트들은 지금 호출할 수 있는 것이 아니라 문서로 보시면 됩니다.",
+  },
 } as const;
 
 function ApiDocumentation({ projectId }: { projectId: string }) {
   const [lang] = usePortalLanguage();
   const t = API_DOC_T[lang];
+  // After mount: window does not exist while this renders on the server, and a guessed host
+  // corrected a frame later is the hydration mismatch the rest of Portal avoids.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => { queueMicrotask(() => setOrigin(window.location.origin)); }, []);
   return (
-    <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "20px" }}>
+    <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: CARD_RADIUS, boxShadow: PANEL_SHADOW, padding: "20px" }}>
       <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{t.baseUrl}</p>
-      <p style={{ fontSize: "12px", color: "var(--gray-500)", fontFamily: "monospace", marginTop: "6px", backgroundColor: "var(--gray-50)", border: BORDER, borderRadius: "8px", padding: "8px 10px" }}>
-        https://api.univs.ai/portal/{projectId}
+      {/*
+        The host this console is served from, not a vendor cloud.
+       
+        It printed https://api.univs.ai/portal/{id} — a URL on the supplier's own domain, on a
+        product that is on-premise only (decided 2026-09-02, no cloud hosting) and that on some
+        sites runs on a network with no route to the internet at all. An address the customer's
+        own installation cannot reach is not a base URL, it is a wrong answer.
+       
+        Read at render rather than baked in: this screen cannot know the deployment's hostname,
+        and the browser showing it is by definition sitting on one.
+      */}
+      <p style={{ fontSize: "12px", color: "var(--gray-500)", fontFamily: "monospace", marginTop: "6px", backgroundColor: "var(--gray-50)", border: BORDER, borderRadius: "8px", padding: "8px 10px", overflowX: "auto" }}>
+        {origin}/api/portal/projects/{projectId}
       </p>
+      <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, marginTop: "6px" }}>{t.baseUrlNote}</p>
       <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", marginTop: "20px", marginBottom: "10px" }}>{t.endpoints}</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {API_ENDPOINTS.map(ep => (
@@ -147,6 +186,9 @@ function ApiDocumentation({ projectId }: { projectId: string }) {
           </div>
         ))}
       </div>
+      {/* Said plainly: there is no key issue/revoke anywhere in Portal, so a reader who takes
+          this list as an invitation to integrate finds out later and by failing. */}
+      <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, marginTop: "14px" }}>{t.noKeys}</p>
     </div>
   );
 }
@@ -245,7 +287,7 @@ function NetworkStatus({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "20px" }}>
+    <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: CARD_RADIUS, boxShadow: PANEL_SHADOW, padding: "20px" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
           <span style={{ display: "flex", color: "var(--gray-400)", flexShrink: 0 }}><NetworkIcon /></span>
@@ -335,7 +377,7 @@ const MAIL_T = {
     useTls: "Use TLS", save: "Save",
     toastUsingTeam: "Using team mail settings",
     toastSaved: "Mail settings saved",
-    toastSavedDesc: (addr: string) => `Invites will be sent from ${addr}`,
+    toastSavedDesc: (addr: string) => `Invites will be sent from ${addr}. Nothing has been sent through this relay yet — send one invite and confirm it arrives before you rely on it.`,
     whatVcaSends: "What VCA sends",
     accountInvitation: "Account invitation", accountInvitationValue: "To the invited address, on approval",
     passwordReset: "Password reset", passwordResetValue: "To the account's own address, on request",
@@ -362,7 +404,7 @@ const MAIL_T = {
     useTls: "TLS 사용", save: "저장",
     toastUsingTeam: "팀 메일 설정 사용 중",
     toastSaved: "메일 설정 저장됨",
-    toastSavedDesc: (addr: string) => `초대장은 ${addr}에서 발송됩니다.`,
+    toastSavedDesc: (addr: string) => `초대장은 ${addr}에서 발송됩니다. 아직 이 릴레이로 보낸 적은 없습니다. 초대를 한 통 보내 도착하는지 확인한 뒤에 쓰세요.`,
     whatVcaSends: "VCA가 발송하는 메일",
     accountInvitation: "계정 초대", accountInvitationValue: "승인 시 초대받은 주소로 발송",
     passwordReset: "비밀번호 재설정", passwordResetValue: "요청 시 계정 본인 주소로 발송",
@@ -370,6 +412,7 @@ const MAIL_T = {
 } as const;
 
 function MailSettings({ projectId }: { projectId: string }) {
+  const { mayEdit, reason: readOnlyReason } = usePortalEditAccess();
   const projects = useVcaStore(s => s.projects);
   const teams = useVcaStore(s => s.teams);
   const updateProjectMail = useVcaStore(s => s.updateProjectMail);
@@ -397,7 +440,8 @@ function MailSettings({ projectId }: { projectId: string }) {
   // reject or spam-file it — worth catching here rather than discovering it when invites stop
   // arriving.
   const fromMatchesDomain = !domain || !fromAddress || fromAddress.trim().toLowerCase().endsWith(`@${domain.trim().toLowerCase()}`);
-  const canSave = !override || (domain.trim() !== "" && host.trim() !== "" && portValid && fromAddress.trim() !== "" && fromMatchesDomain);
+  const canSave = mayEdit
+    && (!override || (domain.trim() !== "" && host.trim() !== "" && portValid && fromAddress.trim() !== "" && fromMatchesDomain));
 
   const save = () => {
     if (!canSave) return;
@@ -410,6 +454,12 @@ function MailSettings({ projectId }: { projectId: string }) {
       mailDomain: domain.trim(),
       smtp: { host: host.trim(), port: portNumber, fromAddress: fromAddress.trim(), useTls },
     });
+    // Saved, not verified — nothing here connects to the relay. On an on-prem site the invite
+    // mail is how staff get accounts, so a typo'd host means invitations vanish with no sign on
+    // this screen; the toast says so rather than letting "saved" read as "working".
+    //
+    // HANDOFF NOTE: a test send is the fix — POST /api/portal/projects/{id}/mail/test, and this
+    // toast becomes a real result instead of a caveat.
     showToast({ variant: "success", title: t.toastSaved, desc: t.toastSavedDesc(fromAddress.trim()) });
   };
 
@@ -437,8 +487,8 @@ function MailSettings({ projectId }: { projectId: string }) {
               </p>
             </div>
           </div>
-          <button className="portal-btn-primary" onClick={() => setOverride(true)}
-            style={{ padding: "8px 14px", borderRadius: "8px", border: "none", backgroundColor: "var(--gray-900)", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap" }}>
+          <button className="portal-btn-primary" onClick={() => setOverride(true)} disabled={!mayEdit} title={readOnlyReason}
+            style={{ padding: "8px 14px", borderRadius: "8px", border: "none", backgroundColor: mayEdit ? "var(--gray-900)" : "var(--gray-200)", color: mayEdit ? "white" : "var(--gray-400)", fontSize: "12px", fontWeight: 700, cursor: mayEdit ? "pointer" : "not-allowed", flexShrink: 0, whiteSpace: "nowrap" }}>
             {t.setUpSmtp}
           </button>
         </div>
@@ -450,7 +500,7 @@ function MailSettings({ projectId }: { projectId: string }) {
           project with nothing configured anywhere is still a real problem worth surfacing regardless
           of override state, so that case bypasses the override check. */}
       {(override || !inherited.mailDomain) && (
-        <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "20px" }}>
+        <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: CARD_RADIUS, boxShadow: PANEL_SHADOW, padding: "20px" }}>
           <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{t.inEffect}</p>
           {inherited.mailDomain ? (
             <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -469,7 +519,7 @@ function MailSettings({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "20px" }}>
+      <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: CARD_RADIUS, boxShadow: PANEL_SHADOW, padding: "20px" }}>
         <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
           <input type="checkbox" checked={override} onChange={e => setOverride(e.target.checked)}
             style={{ marginTop: "3px", accentColor: "var(--gray-900)", cursor: "pointer" }} />
@@ -518,7 +568,7 @@ function MailSettings({ projectId }: { projectId: string }) {
             real change (revert to default) that still needs to be committed. */}
         {(override || overridden) && (
           <div style={{ marginTop: "20px", display: "flex", justifyContent: "flex-end" }}>
-            <button onClick={save} disabled={!canSave}
+            <button onClick={save} disabled={!canSave} title={mayEdit ? undefined : readOnlyReason}
               style={{
                 padding: "10px 16px", borderRadius: "8px", border: "none",
                 backgroundColor: canSave ? "var(--gray-900)" : "var(--gray-200)",
@@ -533,7 +583,7 @@ function MailSettings({ projectId }: { projectId: string }) {
 
       {/* Named so nobody has to guess what a mail change affects. The two events are the whole list
           on purpose — see the note on this component. */}
-      <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW, padding: "20px" }}>
+      <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: CARD_RADIUS, boxShadow: PANEL_SHADOW, padding: "20px" }}>
         <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{t.whatVcaSends}</p>
         <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
           <SettingRow label={t.accountInvitation} value={t.accountInvitationValue} />
@@ -580,11 +630,17 @@ function MailField({ label, value, onChange, placeholder, hint, error }: {
 const MAIN_T = {
   en: {
     subTabInfra: "Infrastructure", subTabMail: "Mail & Network", subTabApi: "API Documentation",
+    confirmDeleteTitle: (name: string) => `Remove ${name}?`,
+    confirmDeleteBody: "The server comes off this project. Any camera assigned to it is left unassigned — nothing stops processing that was not already stopped, but nobody is told where those cameras run next.",
+    confirmDeleteCameras: (n: number) => (n === 1 ? "1 camera is assigned to it." : `${n} cameras are assigned to it.`),
     gapError: "connection failing",
+    gapErrorWhy: "Portal cannot reach the server. Everything assigned to it stops being processed, whatever the cameras themselves say.",
     gapNoCameras: "no cameras assigned",
+    gapNoCamerasWhy: "The server is registered and reachable but has nothing pointed at it — capacity that is paid for and idle.",
     gapServerUnit: "servers",
-    gapPerServers: (n: number) => `across ${n} servers`,
+    gapPerServers: (n: number) => `across ${n} server${n === 1 ? "" : "s"}`,
     gapLoadLabel: "cameras to process",
+    gapLoadWhy: "Cameras in this project divided across its servers. The figure an argument for another server is made from — it is not a limit, and nothing here enforces one.",
     gapShowOnly: "Show only these",
     gapClear: "Show everything again",
     searchPlaceholder: "Search by server name or IP address",
@@ -592,7 +648,7 @@ const MAIN_T = {
     emptyNoServers: "No servers configured for this project yet.",
     emptyNoMatch: "No servers match these filters.",
     colStatus: "Status", colName: "Server Name", colIp: "Server IP", colType: "Server Type", colSpec: "Specification",
-    edit: "Edit", remove: "Remove",
+    edit: "Edit", remove: "Remove", cancel: "Cancel",
     showingEntries: (start: number, end: number, total: number) => `Showing ${start} to ${end} of ${total} entries`,
     rowsPerPage: "Rows per page:",
     addServerTitle: "Add server", editServerTitle: "Edit server",
@@ -600,11 +656,17 @@ const MAIN_T = {
   },
   ko: {
     subTabInfra: "인프라", subTabMail: "메일 및 네트워크", subTabApi: "API 문서",
+    confirmDeleteTitle: (name: string) => `${name}을(를) 삭제할까요?`,
+    confirmDeleteBody: "이 프로젝트에서 서버가 빠집니다. 여기 배정돼 있던 카메라는 미배정 상태가 됩니다 — 이미 멈춰 있던 것 말고 새로 멈추는 건 없지만, 그 카메라들이 이제 어디서 도는지는 아무도 모릅니다.",
+    confirmDeleteCameras: (n: number) => `배정된 카메라 ${n}대.`,
     gapError: "연결 실패",
+    gapErrorWhy: "포털에서 서버에 닿지 않습니다. 카메라 쪽 표시와 무관하게, 이 서버에 붙은 것은 전부 처리가 멈춥니다.",
     gapNoCameras: "카메라 미할당",
+    gapNoCamerasWhy: "등록되어 있고 연결도 되지만 아무것도 붙어 있지 않습니다. 비용은 나가고 놀고 있는 용량입니다.",
     gapServerUnit: "대",
     gapPerServers: (n: number) => `/ 서버 ${n}대`,
     gapLoadLabel: "처리할 카메라",
+    gapLoadWhy: "이 프로젝트의 카메라를 서버 수로 나눈 값입니다. 서버 증설을 설득할 때 쓰는 숫자이고, 한계치가 아니며 여기서 강제하지도 않습니다.",
     gapShowOnly: "이 항목만 보기",
     gapClear: "전체 다시 보기",
     searchPlaceholder: "서버 이름 또는 IP 주소로 검색",
@@ -612,7 +674,7 @@ const MAIN_T = {
     emptyNoServers: "이 프로젝트에 아직 설정된 서버가 없습니다.",
     emptyNoMatch: "필터와 일치하는 서버가 없습니다.",
     colStatus: "상태", colName: "서버 이름", colIp: "서버 IP", colType: "서버 유형", colSpec: "사양",
-    edit: "수정", remove: "삭제",
+    edit: "수정", remove: "삭제", cancel: "취소",
     showingEntries: (start: number, end: number, total: number) => `전체 ${total}건 중 ${start}–${end}건 표시`,
     rowsPerPage: "페이지당 행 수:",
     addServerTitle: "서버 추가", editServerTitle: "서버 수정",
@@ -623,6 +685,9 @@ const MAIN_T = {
 type ServerSortKey = "status" | "name" | "ip" | "type";
 
 export default function ProjectServerTab({ projectId }: { projectId: string }) {
+  // Servers and mail are infrastructure. An auditor reads what is deployed and where mail comes
+  // from; changing either is not what the role is for.
+  const { mayEdit, reason: readOnlyReason } = usePortalEditAccess();
   const servers = useVcaStore(s => s.servers);
   const cameras = useVcaStore(s => s.cameras);
   const addServer = useVcaStore(s => s.addServer);
@@ -715,6 +780,7 @@ export default function ProjectServerTab({ projectId }: { projectId: string }) {
   const createServer = (values: ServerFormValues) => {
     addServer({
       projectId, name: values.name.trim(), ip: values.ip.trim(),
+      port: Number(values.port) || undefined,
       type: values.type, specification: values.specification.trim() || undefined, status: values.status,
     });
     setShowAdd(false);
@@ -725,15 +791,23 @@ export default function ProjectServerTab({ projectId }: { projectId: string }) {
     if (!editingServer) return;
     updateServer(editingServer.id, {
       name: values.name.trim(), ip: values.ip.trim(),
+      port: Number(values.port) || undefined,
       type: values.type, specification: values.specification.trim() || undefined, status: values.status,
     });
     setEditingServer(null);
     showToast({ variant: "success", title: t.toastUpdated, desc: values.name.trim() });
   };
 
-  const handleDelete = (server: Server) => {
-    removeServer(server.id);
-    showToast({ variant: "warning", title: t.toastRemoved, desc: server.name });
+  // Confirmed, and it says what goes with it. Removing a server orphans every camera assigned
+  // to it, which is not visible from this table at all.
+  const [confirmingDelete, setConfirmingDelete] = useState<Server | null>(null);
+  const handleDelete = (server: Server) => setConfirmingDelete(server);
+  const confirmDelete = () => {
+    if (!confirmingDelete) return;
+    const name = confirmingDelete.name;
+    removeServer(confirmingDelete.id);
+    setConfirmingDelete(null);
+    showToast({ variant: "warning", title: t.toastRemoved, desc: name });
   };
 
   return (
@@ -767,14 +841,15 @@ export default function ProjectServerTab({ projectId }: { projectId: string }) {
           */}
           <SummaryStrip cells={[
             ...([
-              { key: "error" as const, servers: erroredServers, label: t.gapError, icon: <ServerCrash size={14} strokeWidth={2.4} /> },
-              { key: "noCameras" as const, servers: unusedServers, label: t.gapNoCameras, icon: <Unplug size={14} strokeWidth={2.4} /> },
+              { key: "error" as const, servers: erroredServers, label: t.gapError, why: t.gapErrorWhy, icon: <ServerCrash size={14} strokeWidth={2.4} /> },
+              { key: "noCameras" as const, servers: unusedServers, label: t.gapNoCameras, why: t.gapNoCamerasWhy, icon: <Unplug size={14} strokeWidth={2.4} /> },
             ].filter(item => item.servers.length > 0).map(item => ({
               key: item.key,
               icon: item.icon,
               figure: item.servers.length,
               unit: t.gapServerUnit,
               label: item.label,
+              explanation: item.why,
               tone: "warning" as const,
               active: gapFilter === item.key,
               title: gapFilter === item.key ? t.gapClear : t.gapShowOnly,
@@ -786,6 +861,7 @@ export default function ProjectServerTab({ projectId }: { projectId: string }) {
               figure: projectCameras.length,
               unit: t.gapPerServers(projectServers.length),
               label: t.gapLoadLabel,
+              explanation: t.gapLoadWhy,
             },
           ]} />
 
@@ -806,13 +882,13 @@ export default function ProjectServerTab({ projectId }: { projectId: string }) {
             {/* The only control on this row without a mark of its own — the select had its chevron
                 and Add Server its plus, so Reset read as a word somebody had left there. lucide
                 rather than a hand-drawn path, at the 1.4 stroke every Portal icon now uses. */}
-            <button className="portal-btn-outline" onClick={resetFilters}
-              style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "10px", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+            <button className="portal-btn-quiet" onClick={resetFilters}
+              style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 10px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: "var(--gray-600)", fontSize: "12px", fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
               <RotateCcw size={14} strokeWidth={2.4} />
               {t.reset}
             </button>
-            <button className="portal-btn-primary" onClick={() => setShowAdd(true)}
-              style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "10px", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+            <button className="portal-btn-primary" onClick={() => setShowAdd(true)} disabled={!mayEdit} title={readOnlyReason}
+              style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: "none", backgroundColor: mayEdit ? "var(--primary-400)" : "var(--gray-200)", color: mayEdit ? "white" : "var(--gray-400)", fontSize: "12px", fontWeight: 700, cursor: mayEdit ? "pointer" : "not-allowed", flexShrink: 0 }}>
               <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 2.9V11.1M2.9 7H11.1" stroke="currentColor" strokeWidth="1.22" strokeLinecap="round"/></svg>
               {t.addServer}
             </button>
@@ -855,12 +931,12 @@ export default function ProjectServerTab({ projectId }: { projectId: string }) {
                       <span style={{ fontSize: "12px", fontWeight: 700, color: ok ? "var(--success-400)" : "var(--danger-400)" }}>{ok ? st.success : st.error}</span>
                     </div>
                     <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{server.name}</span>
-                    <span style={{ fontSize: "12px", color: "var(--gray-600)", fontFamily: "monospace" }}>{server.ip}</span>
+                    <span style={{ fontSize: "12px", color: "var(--gray-600)", fontFamily: "monospace" }}>{server.port ? `${server.ip}:${server.port}` : server.ip}</span>
                     <span style={{ fontSize: "12px", color: "var(--gray-600)" }}>{server.type}</span>
                     <span style={{ fontSize: "12px", color: "var(--gray-400)" }}>{server.specification ?? "—"}</span>
                     <RowActionsMenu actions={[
-                      { label: t.edit, onClick: () => setEditingServer(server) },
-                      { label: t.remove, onClick: () => handleDelete(server), danger: true },
+                      { label: t.edit, onClick: () => setEditingServer(server), disabled: !mayEdit, reason: readOnlyReason },
+                      { label: t.remove, onClick: () => handleDelete(server), danger: true, disabled: !mayEdit, reason: readOnlyReason },
                     ]} />
                   </div>
                 );
@@ -904,6 +980,23 @@ export default function ProjectServerTab({ projectId }: { projectId: string }) {
         </>
       )}
 
+      {confirmingDelete && (
+        <ConfirmModal
+          title={t.confirmDeleteTitle(confirmingDelete.name)}
+          body={t.confirmDeleteBody}
+          confirmLabel={t.remove}
+          cancelLabel={t.cancel}
+          danger
+          onConfirm={confirmDelete}
+          onClose={() => setConfirmingDelete(null)}
+        >
+          {/* The count the table does not show. A server row says nothing about what runs on it,
+              so "are you sure" with no number is a question nobody can answer. */}
+          <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", marginTop: "12px" }}>
+            {t.confirmDeleteCameras(projectCameras.filter(c => c.serverId === confirmingDelete.id).length)}
+          </p>
+        </ConfirmModal>
+      )}
       {showAdd && (
         <ServerFormModal title={t.addServerTitle} initial={EMPTY_FORM} onClose={() => setShowAdd(false)} onSubmit={createServer} />
       )}
@@ -912,6 +1005,7 @@ export default function ProjectServerTab({ projectId }: { projectId: string }) {
           title={t.editServerTitle}
           initial={{
             name: editingServer.name, ip: editingServer.ip, type: editingServer.type,
+            port: editingServer.port ? String(editingServer.port) : "",
             specification: editingServer.specification ?? "", status: editingServer.status,
           }}
           onClose={() => setEditingServer(null)}

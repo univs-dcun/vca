@@ -7,9 +7,9 @@ import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useAnalyzeTimeline } from "../../../lib/vca-bridge/analyzeTimeline";
 import type { AnalyzeSource } from "../../../lib/vca-bridge/analyzeTimeline";
 import type { TrackTargetRef } from "../../../lib/vca-bridge/trackTargetOnMap";
-import { sgtClockTime, sgtDateKey } from "@/lib/time";
+import { sgtDateKey } from "@/lib/time";
 
-import { useLanguage } from "@/lib/i18n";
+import { useLanguage, type AppLanguage } from "@/lib/i18n";
 
 // See the per-file pattern note in lib/i18n.ts. Attribute tags, the enrolled-database names and
 // camera codes come from the detection data and stay as they are.
@@ -34,6 +34,7 @@ const T = {
     eventTime: "Event time",
     analysisResults: "Analysis results",
     attrBasic: "Basic",
+    noRegistration: "None on record",
     attrTop: "Top",
     attrBottom: "Bottom",
     attrAddons: "Add-ons",
@@ -67,6 +68,7 @@ const T = {
     eventTime: "검출 시각",
     analysisResults: "분석 결과",
     attrBasic: "기본",
+    noRegistration: "등록 정보 없음",
     attrTop: "상의",
     attrBottom: "하의",
     attrAddons: "소지품",
@@ -121,15 +123,40 @@ const VEHICLE_PHOTO = "https://images.unsplash.com/photo-1503376780353-7e6692767
 const DB_PHOTO = "/enrolled-db-sample.png";
 const LIVE_CAPTURE_PHOTO = "/live-capture-sample.png";
 
+/**
+ * The model's own words for what it saw, translated only where they are drawn — the same rule
+ * DataPage's ATTR_KO follows, and the reason the values below stay English in the data.
+ *
+ * Ages, years and plate numbers are not words and are left alone: "34YR" reads the same either
+ * way, and a plate is an identifier.
+ */
+const ATTR_KO_DETAIL: Record<string, string> = {
+  ASIAN: "아시아계", MALE: "남성", FEMALE: "여성",
+  "WHITE TOP": "흰 상의", "RED JACKET": "빨간 재킷",
+  "LONG SLEEVE": "긴팔", "SHORT SLEEVE": "반팔",
+  "BROWN BOTTOM": "갈색 하의", TROUSERS: "긴바지", "BLACK JEANS": "검정 청바지",
+  BACKPACK: "가방", "NO BACKPACK": "가방 없음",
+  SEDAN: "세단", WHITE: "흰색", REGISTERED: "등록됨",
+};
+function detailAttr(value: string, lang: AppLanguage): string {
+  return lang === "ko" ? ATTR_KO_DETAIL[value] ?? value : value;
+}
+
 const ATTRS: Record<DetType, { basic: string[]; top: string[]; bottom: string[]; addons: string[] }> = {
   VIP:     { basic:["ASIAN","MALE","34YR"],  top:["WHITE TOP","LONG SLEEVE"],   bottom:["BROWN BOTTOM","TROUSERS"], addons:["NO BACKPACK"] },
   Unknown: { basic:["ASIAN","MALE","28YR"],  top:["RED JACKET","SHORT SLEEVE"], bottom:["BLACK JEANS"],             addons:["BACKPACK"] },
   Vehicle: { basic:["SEDAN","WHITE","2020"], top:["SGX411"],                    bottom:[],                          addons:["REGISTERED"] },
 };
 
-const REGISTERED: Record<DetType, string> = {
+/**
+ * What the registry has on this person or vehicle.
+ *
+ * The Unknown case is not data: nothing was found, and saying so is the screen's own sentence, so
+ * it comes from T rather than sitting here in English under a Korean label.
+ */
+const REGISTERED: Record<DetType, string | null> = {
   VIP:     "Admin_Staff (Parking Zone F)",
-  Unknown: "N/A — No registration found",
+  Unknown: null,
   Vehicle: "Navy Fleet Registry",
 };
 
@@ -286,7 +313,7 @@ function ReelFilterBar({ filter, onChange }: { filter: ReelFilter; onChange: (f:
               border: active ? "1px solid var(--gray-900)" : "1px solid var(--gray-300)",
               backgroundColor: active ? "var(--gray-900)" : "white",
               color: active ? "white" : "var(--gray-700)", fontSize:"12px", fontWeight: active ? 700 : 600,
-            }}>All</button>
+            }}>{f.label}</button>
           );
         }
         const c = f.color!;
@@ -501,15 +528,15 @@ function AIInspectionDetail({ det, data, eventDate, onClose, onGoRedmapTrace }: 
           <TypeIcon type={det.type} color={c} size={15} />
           <span style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.32px" }}>{det.name}</span>
         </div>
-        <p style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)", marginBottom:"14px" }}>{t.registeredAs} {REGISTERED[det.type]}</p>
+        <p style={{ fontSize:"12px", fontWeight:600, color:"var(--gray-500)", marginBottom:"14px" }}>{t.registeredAs} {REGISTERED[det.type] ?? t.noRegistration}</p>
 
         {/* Divider — info below is separated by rules, not a boxed container */}
         <div style={{ height:"1px", backgroundColor:"var(--gray-200)", marginBottom:"14px" }} />
 
         {/* Meta */}
         <div style={{ marginBottom:"14px" }}>
-          {/* 데이터 연결(UV-37): 라이브면 이력 창의 날짜(eventDate), mock이면 오늘 */}
-          {[[t.cameraName, data.location], [t.eventTime, `${eventDate ?? sgtDateKey(new Date())} ${det.time}`]].map(([k, v]) => (
+          {/* 데이터 연결(UV-37): 라이브면 이력 창의 날짜(eventDate), mock이면 프레임 자신의 날짜 */}
+          {[[t.cameraName, data.location], [t.eventTime, `${eventDate ?? det.date} ${det.time}`]].map(([k, v]) => (
             <div key={k} style={{ display:"flex", alignItems:"center", padding:"3px 0" }}>
               <span style={{ fontSize:"12px", color:"var(--gray-500)", fontWeight:600, width:"88px", flexShrink:0 }}>{k}</span>
               <span style={{ fontSize:"13px", color:"var(--gray-900)", fontWeight:700 }}>{v}</span>
@@ -533,7 +560,7 @@ function AIInspectionDetail({ det, data, eventDate, onClose, onGoRedmapTrace }: 
             <div key={label as string} style={{ display:"flex", alignItems:"flex-start", gap:"8px", marginBottom:"8px" }}>
               <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-600)", width:"52px", flexShrink:0, paddingTop:"2px" }}>{label as string}</span>
               <div style={{ display:"flex", gap:"4px", flexWrap:"wrap" }}>
-                {(tags as string[]).map(t => <Tag key={t} label={t} />)}
+                {(tags as string[]).map(v => <Tag key={v} label={detailAttr(v, lang)} />)}
               </div>
             </div>
           ))}
@@ -648,7 +675,9 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
   const t = T[lang];
   const [selectedPerson, setSelectedPerson] = useState<Detection | null>(autoOpenDetail ? initialDet : null);
   const [focusedDet, setFocusedDet] = useState<Detection>(initialDet);
-  const [trackDate, setTrackDate] = useState(() => initialDate ?? sgtDateKey(new Date()));
+  // The day of the detection being inspected, not today — the strip is scrubbing that frame's
+  // own footage. A caller that names a moment (Dashboard's "Analyze Frame") overrides both.
+  const [trackDate, setTrackDate] = useState(() => initialDate ?? initialDet.date);
   const [dateOpen, setDateOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
   const [cameraHovered, setCameraHovered] = useState(false);
@@ -662,14 +691,11 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
       const [h, m, sec] = initialTime.split(":").map(Number);
       return h * 3600 + m * 60 + (sec || 0);
     }
-    // Singapore time, not the machine's. Every detection's `time` is an SGT clock string
-    // (recentSgtClockTime), the date button beside this reads sgtDateKey, and the header clock is
-    // SGT — but this one seed used getHours()/getMinutes() on local time. On any machine that
-    // isn't UTC+8 the strip therefore opened hours away from the data it is supposed to be
-    // scrubbing: the timestamps under the thumbnails disagreed with the detection list, and the
-    // VIP crown (a ±1s test against those same detection times) could match on frames it had no
-    // business marking, or never match at all.
-    return hhmmssToSec(sgtClockTime(new Date()));
+    // The moment being inspected. This used to seed from the clock — first the machine's, then
+    // the site's — which opened the strip wherever "now" happened to be rather than on the frame
+    // the operator clicked, and left the VIP crown (a ±1s test against the detection times) to
+    // match whatever was near now instead of the detection itself.
+    return hhmmssToSec(initialDet.time);
   });
   // The thumbnail strip's own center — deliberately separate from selectedSec. Clicking a
   // thumbnail only needs to move the selection onto whatever's already on screen; recomputing
@@ -826,8 +852,11 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                 <circle cx="8" cy="8" r="6" stroke="var(--gray-500)" strokeWidth="1.4"/>
                 <path d="M8 5v3l2 2" stroke="var(--gray-500)" strokeWidth="1.4" strokeLinecap="round"/>
               </svg>
-              {/* 라이브: 열려 있는 이력 창의 날짜 (UV-37) */}
-              {tl.live ? dateLabel : sgtDateKey(new Date())}
+              {/* The day of the frame on screen. This was today's date, so a frame captured
+                  before midnight was labelled with the wrong day — and, paired with its own
+                  clock time, read as a moment that has not happened yet.
+                  데이터 연결(UV-37): 라이브면 열려 있는 이력 창의 날짜 */}
+              {tl.live ? dateLabel : focusedDet.date}
             </div>
           </div>
           <div style={{ padding:"4px 10px", fontSize:"12px", fontWeight:700, color:"var(--gray-500)" }}>
@@ -862,7 +891,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
               {/* 라이브: 이력 창의 날짜 + 선택 프레임의 실제 시각 (UV-37) */}
               {tl.live
                 ? `${dateLabel} ${tl.frames[tl.selectedIdx]?.time ?? ""}`
-                : `${sgtDateKey(new Date()).split("-").reverse().join("-")} ${focusedDet.time}`}
+                : `${focusedDet.date.split("-").reverse().join("-")} ${focusedDet.time}`}
             </div>
 
             {/* 데이터 연결(UV-37): 라이브는 선택 프레임의 대상 목록(dets), mock은 data.detections */}
@@ -1195,7 +1224,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                   display:"flex", flexDirection:"column", alignItems:"center", pointerEvents:"none", zIndex:5,
                 }}>
                   <span style={{ fontSize:"12px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"4px 10px", borderRadius:"999px", fontFamily:"monospace", whiteSpace:"nowrap" }}>
-                    Hour {pad2(hoveredHour)}
+                    {lang === "ko" ? `${pad2(hoveredHour)}${t.hour}` : `${t.hour} ${pad2(hoveredHour)}`}
                   </span>
                   <span style={{ width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderTop:"6px solid var(--primary-400)", marginTop:"-2px" }} />
                 </div>
@@ -1230,7 +1259,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                   display:"flex", flexDirection:"column", alignItems:"center", pointerEvents:"none", zIndex:5,
                 }}>
                   <span style={{ fontSize:"12px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"4px 10px", borderRadius:"999px", fontFamily:"monospace", whiteSpace:"nowrap" }}>
-                    Min {pad2(hoveredMinute)}
+                    {lang === "ko" ? `${pad2(hoveredMinute)}${t.minute}` : `${t.minute} ${pad2(hoveredMinute)}`}
                   </span>
                   <span style={{ width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderTop:"6px solid var(--primary-400)", marginTop:"-2px" }} />
                 </div>

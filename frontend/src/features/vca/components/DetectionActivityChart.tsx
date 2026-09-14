@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useVcaStore, todaysDetectionHits } from "@/lib/vcaStore";
+import { todaysDetectionHits, useProjectEvents, useProjectCameras } from "@/lib/vcaStore";
 import { sgtHour, sgtMinute } from "@/lib/time";
 import { useLiveHourlyDetections } from "../../../lib/vca-bridge/useLiveHourlyDetections";
 import { useLanguage, type AppLanguage } from "@/lib/i18n";
@@ -111,8 +111,10 @@ export default function DetectionActivityChart({ onHide }: { onHide?: () => void
 
   const [lang] = useLanguage();
   const t = T[lang];
-  const cameras = useVcaStore(s => s.cameras);
-  const events = useVcaStore(s => s.events);
+  // The chart sits over the map, counting the same detections the map is drawing — so it scopes
+  // to the same site, or the curve would describe a city the pins are not in.
+  const cameras = useProjectCameras();
+  const events = useProjectEvents();
   const [selectedCameraId, setSelectedCameraId] = useState<CameraFilter>(null);
   const selectedCameraLabel = selectedCameraId === null
     ? t.allCameras
