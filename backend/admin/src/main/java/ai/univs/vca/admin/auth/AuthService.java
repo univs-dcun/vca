@@ -42,7 +42,11 @@ public class AuthService {
 	private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 	private final SecureRandom random = new SecureRandom();
 
-	public AuthService(UserAccountRepository users, UserSessionRepository sessions, AttemptService attempts) {
+	private final ai.univs.vca.admin.org.ProjectRepository projects;
+
+	public AuthService(UserAccountRepository users, UserSessionRepository sessions, AttemptService attempts,
+			ai.univs.vca.admin.org.ProjectRepository projects) {
+		this.projects = projects;
 		this.users = users;
 		this.sessions = sessions;
 		this.attempts = attempts;
@@ -107,7 +111,7 @@ public class AuthService {
 		session.setClient(userAgent, ip);
 		sessions.save(session);
 		user.markLogin(Instant.now());
-		return new LoginResult(token, keepLoggedIn, UserProfile.of(user));
+		return new LoginResult(token, keepLoggedIn, profileOf(user));
 	}
 
 	/** 내 세션 목록 — 현재 세션 표시. id는 해시(토큰 역산 불가) */
@@ -150,7 +154,15 @@ public class AuthService {
 
 	@Transactional
 	public UserProfile me(String token) {
-		return UserProfile.of(requireUser(token));
+		return profileOf(requireUser(token));
+	}
+
+	/** owner는 설치 전체, 그 외는 배정 프로젝트 — 앱 헤더 현장 전환의 이름 원천 (UV-52 2차, UV-58 규칙 동일) */
+	public UserProfile profileOf(UserAccountEntity u) {
+		java.util.List<ai.univs.vca.admin.org.ProjectEntity> rows = u.getPermission() == PortalPermission.OWNER
+				? projects.findAll()
+				: projects.findByIdInOrderByCreatedAt(u.getProjectIds());
+		return UserProfile.of(u, rows.stream().map(p -> new AuthDtos.ProjectRef(p.getId(), p.getName())).toList());
 	}
 
 	/** SessionInterceptor용 — 세션 → 사용자 (없거나 만료면 ADM-4011) */

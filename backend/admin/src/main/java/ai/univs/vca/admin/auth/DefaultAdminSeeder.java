@@ -73,7 +73,7 @@ public class DefaultAdminSeeder implements ApplicationRunner {
 				return;
 			}
 			AuthService.validateFormat(props.seedAdminPassword());
-			users.save(new UserAccountEntity(props.seedAdminEmail().trim().toLowerCase(), null, "John Doe",
+			users.save(new UserAccountEntity(props.seedAdminEmail().trim().toLowerCase(), null, props.seedAdminName(),
 					authService.encode(props.seedAdminPassword()), "VCA-ADMIN-8821", "Smart City Operations Manager",
 					"Operational Control Team Alpha", PortalPermission.OWNER, true, true, AccountStatus.ACTIVE,
 					defaultTeamId, List.of()));

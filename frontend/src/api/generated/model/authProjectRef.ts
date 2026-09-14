@@ -14,15 +14,8 @@
 - similarity는 0~1 실수 (표시 포맷은 프론트 책임)
  * OpenAPI spec version: 0.20.0
  */
-import type { BestFrameHistoryItem } from './bestFrameHistoryItem';
 
-/**
- * 분 단위 베스트 프레임 이력 (계약 v1.5). frames는 capturedAt 오름차순, 초당 1장·최대 60장 — 프레임 없는 초는 항목 없음
- */
-export interface BestFrameHistory {
-  /** 요청한 분 창의 시작 (UTC) */
-  from: string;
-  /** 분 창의 끝 (UTC, exclusive) */
-  to: string;
-  frames: BestFrameHistoryItem[];
+export interface AuthProjectRef {
+  id: string;
+  name: string;
 }

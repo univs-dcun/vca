@@ -239,8 +239,8 @@ Admin envelope 그대로.
 - 스토어 채우기 방식 채택: 화면은 Zustand만 보므로 `lib/vca-bridge/portalLive.ts`가 목록 7종+집계를 setState하고 변경 액션을 API로 교체.
   화면 파일 수정은 `usePortalLive()` 1줄 ×2, `await` 7곳, memo deps 1곳으로 한정.
 - 스탠드인 4곳: 세션 스냅샷(`session.ts`) 기반, 세션 없음 = 거부, 서버 미가동만 mock. `/portal`은 RequireAuth+RequirePortal.
-- 남은 것: VIP(W5)·업로드(W6)는 mock, register/forgot-password/request-access 배선(UV-51/56 API는 있음), 앱 전용 계정의 프로젝트 이름
-  조회(포털 API는 403 — `/auth/me`에 `projects[{id,name}]` 추가 검토), 시드 owner 이름 "John Doe"(SIGNED_IN_USER 값) 정리.
+- 2차(2026-09-10): register·forgot-password 실배선(서버 판정·스로틀·재발송 한도, 목업 분기 삭제), `/auth/me` `projects[{id,name}]`(앱 헤더
+  현장 이름), 시드 owner 이름 `VCA_ADMIN_SEED_NAME`. 남은 것: VIP(W5)·업로드(W6) mock, request-access(accessRequest=false, 서버 계약 없음).
 
 ## 9. 기획 확인 항목
 

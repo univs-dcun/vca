@@ -13,6 +13,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param seedDefaultCameras 기동 시 원장이 비어 있으면 기존 기본 카메라 8대를 시드 (Old VCA 등록분 이관 자리)
  * @param sessionCookieSecure 세션 쿠키 Secure 플래그 (UV-47) — 로컬 http 개발이라 기본 false, TLS 운영에서는 true로 주입
  * @param seedAdminEmail 계정 원장이 비어 있으면 시드할 초기 운영자 이메일 — 빈 값이면 시드 생략
+ * @param seedAdminName 초기 운영자 표시 이름 (UV-52 2차 — 기획 mock 값 "John Doe"가 시드에 남아 있었음)
  * @param seedAdminPassword 초기 운영자 비밀번호 — 개발 기본값. 운영에서는 반드시 환경변수로 주입 후 첫 로그인 시 변경
  * @param selfSignup 조직 자체 생성(/auth/signup) 허용 여부 (UV-51) — 온프레미스는 false(2026-09-02 결정). 프론트
  *                   authConfig.selfSignup의 거울: 화면이 숨겨도 서버가 거절해야 구멍이 닫힌다
@@ -25,7 +26,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "vca.admin")
 public record AdminProperties(String moduleBaseUrl, Duration moduleTimeout, String mediaApiBaseUrl, String encKey,
-		boolean seedDefaultCameras, boolean sessionCookieSecure, String seedAdminEmail, String seedAdminPassword,
+		boolean seedDefaultCameras, boolean sessionCookieSecure, String seedAdminEmail, String seedAdminName, String seedAdminPassword,
 		boolean selfSignup, String mqttBrokerUrl, String mqttSiteId, boolean mailDevLog,
 		int searchAuditRetentionDays) {
 }

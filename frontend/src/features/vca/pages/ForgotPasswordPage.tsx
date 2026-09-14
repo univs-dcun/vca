@@ -1,19 +1,23 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import AuthHeader from "@/components/AuthHeader";
 import { PersonFieldIcon, LockFieldIcon, EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
 import VerificationCodeInput from "@/components/VerificationCodeInput";
 import { isPasswordFormatValid, PASSWORD_RULE_TEXT, RESET_CODE_LENGTH, RESET_CODE_TTL_MIN } from "@/lib/password";
 import { getAuthConfig } from "@/lib/authConfig";
 import { useLanguage, type AppLanguage } from "@/lib/i18n";
+// 데이터 연결(UV-52 2차): 재설정 3단계는 서버(/auth/password/reset/request·verify·complete) — 존재 여부 비노출,
+// 재발송 한도·쿨다운·TTL·시도 한도(ADM-4025~4029)는 서버 값. 화면의 목업 분기·클라이언트 카운터는 기획 지시대로 삭제
+import { authResetComplete, authResetRequest, authResetVerify } from "../../../lib/vca-bridge/auth";
 
 // See the per-file pattern note in lib/i18n.ts.
 const T = {
   en: {
     errIdentifier: "Enter an employee number or email address.",
     errEmail: "Enter a valid email address.",
+    serverUnavailable: "The sign-in server is not reachable. Try again in a moment.",
     adminTitle: "Contact your administrator",
     adminSub: "This system can’t send reset emails",
     whoToContact: "WHO TO CONTACT",
@@ -59,6 +63,7 @@ const T = {
   ko: {
     errIdentifier: "사번 또는 이메일 주소를 입력해주세요.",
     errEmail: "올바른 이메일 주소를 입력해주세요.",
+    serverUnavailable: "인증 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.",
     adminTitle: "관리자에게 문의해주세요",
     adminSub: "이 시스템은 재설정 메일을 보낼 수 없습니다",
     whoToContact: "문의할 곳",
@@ -107,18 +112,7 @@ const FIELD_BORDER = "1px solid var(--gray-300)";
 /** Seconds before "Resend" becomes available again — stops a stuck user from mailing themselves ten
  *  codes, each of which invalidates the last. */
 const RESEND_COOLDOWN_SEC = 30;
-/**
- * How many codes one attempt at recovery gets. Past this the answer is not another code: something
- * else is wrong — the mail is going somewhere they cannot read — and more codes only invalidate the
- * one that may yet arrive.
- *
- * HANDOFF NOTE: counted in this component, so it resets on reload. The real limit is per account
- * and lives on the server, which also has to return `resendLimit`; this number has to match it.
- */
-const MAX_RESENDS = 3;
-/** A code the demo rejects so the wrong-code state is reachable without a backend. See the
- *  HANDOFF NOTE on verifyCode. */
-const DEMO_REJECTED_CODE = "12345678";
+/** 재발송 한도는 서버가 정하고(ADM-4028) 요청 응답(resendLimit)으로 알려준다 — 화면은 표시용으로만 받는다 */
 
 type Step = "email" | "code" | "password" | "done";
 
@@ -127,8 +121,7 @@ type Step = "email" | "code" | "password" | "done";
  * for each — retype, request a new one, or stop and telephone someone — and a single "invalid code"
  * leaves them guessing. On a closed network guessing wrong costs a phone call either way.
  *
- * HANDOFF NOTE: this is the error contract the verify endpoint has to satisfy. Each state can be
- * opened directly with /forgot-password?demo=<key>.
+ * 서버 계약(UV-56): ADM-4025 wrong · 4026 expired · 4027 throttled · 4028 resendLimit — 화면은 코드를 이 상태로 옮긴다.
  */
 type CodeFailure = "wrong" | "expired" | "throttled" | "resendLimit";
 
@@ -164,27 +157,6 @@ function fieldBorder(active: boolean) {
  * anyone could open the set-a-new-password form without proving they own the account, and nothing
  * was ever sent to anybody.
  */
-/**
- * HANDOFF NOTE — viewing every state without a backend.
- *
- * None of these can be reached by using the screen normally, because the responses that would
- * produce them do not exist yet. Open them directly instead; this is the list of states the reset
- * endpoints have to be able to produce:
- *
- *   /forgot-password                 ask for the address
- *   /forgot-password?demo=code       code entry
- *   /forgot-password?demo=wrong      code rejected
- *   /forgot-password?demo=expired    code too old
- *   /forgot-password?demo=throttled  too many attempts, entry locked
- *   /forgot-password?demo=resendLimit  asked for too many codes (also reachable for real, by
- *                                    pressing Resend past MAX_RESENDS)
- *   /forgot-password?demo=password   set the new password
- *   /forgot-password?demo=done       finished
- *   /forgot-password?demo=adminOnly  deployment with no mail server at all
- *
- * Delete this parameter once the endpoints are real.
- */
-const DEMO_EMAIL = "grace.tan@univs.ai";
 
 export default function ForgotPasswordPage() {
   return (
@@ -198,19 +170,20 @@ function ForgotPasswordFlow() {
   const router = useRouter();
   const [lang] = useLanguage();
   const t = T[lang];
-  const demo = useSearchParams().get("demo");
   const authConfig = getAuthConfig();
-  const [step, setStep] = useState<Step>(() => {
-    if (demo === "code" || demo === "wrong" || demo === "expired" || demo === "throttled" || demo === "resendLimit") return "code";
-    if (demo === "password" || demo === "done") return demo === "done" ? "done" : "password";
-    return "email";
-  });
+  const [step, setStep] = useState<Step>("email");
+  const [busy, setBusy] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  // 서버가 "이 설치는 메일 발송 불가"(ADM-4029)라고 답하면 관리자 안내 화면 — authConfig와 같은 분기
+  const [adminOnly, setAdminOnly] = useState(false);
+  // 검증 통과 시 서버가 준 단기 토큰 — URL·스토리지에 두지 않고 상태로만 완료 단계에 넘긴다
+  const [resetToken, setResetToken] = useState<string | null>(null);
 
   // ── step 1: who ────────────────────────────────────────────────────────────
   // Accepts an employee number as well as an email, matching the login prompt. Someone who signs in
   // with a number and has no address of their own would otherwise be locked out of recovery
   // entirely — the code still goes to whatever address the account carries.
-  const [identifier, setIdentifier] = useState(demo ? DEMO_EMAIL : "");
+  const [identifier, setIdentifier] = useState("");
   const [identifierTouched, setIdentifierTouched] = useState(false);
   const typedEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim());
   // An employee number is whatever the roster uses, so the only thing worth checking here is that
@@ -224,13 +197,8 @@ function ForgotPasswordFlow() {
 
   // ── step 2: code ───────────────────────────────────────────────────────────
   const [digits, setDigits] = useState<string[]>(() => Array(RESET_CODE_LENGTH).fill(""));
-  const [codeFailure, setCodeFailure] = useState<CodeFailure | null>(
-    demo === "wrong" || demo === "expired" || demo === "throttled" || demo === "resendLimit"
-      ? demo
-      : null
-  );
+  const [codeFailure, setCodeFailure] = useState<CodeFailure | null>(null);
   const [cooldown, setCooldown] = useState(0);
-  const [resends, setResends] = useState(0);
   // Bumped to send focus back to the first box after a resend.
   const [focusSignal, setFocusSignal] = useState(0);
   const code = digits.join("");
@@ -247,7 +215,7 @@ function ForgotPasswordFlow() {
   // Enabled only when the form would actually succeed. Checking non-emptiness alone leaves the
   // button lit while the passwords disagree, and clicking it then does nothing at all — the click
   // has to either work or be visibly unavailable.
-  const canSetPassword = formatValid && confirmPassword.length > 0 && !mismatch;
+  const canSetPassword = formatValid && confirmPassword.length > 0 && !mismatch && !busy;
   // The rule line doubles as the format error, so a disabled button always has a reason on screen.
   const formatBroken = newPassword.length > 0 && !formatValid;
 
@@ -264,51 +232,80 @@ function ForgotPasswordFlow() {
     setCodeFailure(null);
   };
 
-  // Deliberately does NOT check whether the account exists, and moves to the code step either way.
-  // This screen is public, so branching on "no such user" would let anyone test addresses to find
-  // out who has an account here. The backend simply sends nothing when there is no match, and an
-  // attacker learns only that they cannot guess an 8-digit code.
-  const sendCode = () => {
+  // 존재 여부는 답하지 않는다 — 서버가 매칭이 없어도 같은 응답을 주고 메일만 보내지 않는다 (UV-56)
+  const failureFromCode = (code: string): CodeFailure | null =>
+    code === "ADM-4025" ? "wrong" : code === "ADM-4026" ? "expired" : code === "ADM-4027" ? "throttled"
+      : code === "ADM-4028" ? "resendLimit" : null;
+
+  const requestCode = async (): Promise<boolean> => {
+    setBusy(true);
+    setServerError(null);
+    const r = await authResetRequest(identifier.trim());
+    setBusy(false);
+    if (r.status === "ok") {
+      setCooldown(r.data.resendCooldownSec || RESEND_COOLDOWN_SEC);
+      return true;
+    }
+    if (r.status === "rejected") {
+      if (r.code === "ADM-4029") { setAdminOnly(true); return false; }
+      const f = failureFromCode(r.code);
+      if (f) { setDigits(Array(RESET_CODE_LENGTH).fill("")); setCodeFailure(f); setStep("code"); return false; }
+      setServerError(r.message);
+      return false;
+    }
+    setServerError(t.serverUnavailable);
+    return false;
+  };
+
+  const sendCode = async () => {
     setIdentifierTouched(true);
-    if (!identifierValid) return;
+    if (!identifierValid || busy) return;
     resetCodeEntry();
-    setCooldown(RESEND_COOLDOWN_SEC);
-    setStep("code");
+    if (await requestCode()) setStep("code");
   };
 
-  const resend = () => {
-    if (cooldown > 0) return;
-    if (resends + 1 > MAX_RESENDS) {
-      setDigits(Array(RESET_CODE_LENGTH).fill(""));
-      setCodeFailure("resendLimit");
+  const resend = async () => {
+    if (cooldown > 0 || busy) return;
+    resetCodeEntry();
+    if (await requestCode()) setFocusSignal(n => n + 1);
+  };
+
+  const verifyCode = async () => {
+    if (!codeComplete || busy) return;
+    setBusy(true);
+    const r = await authResetVerify(identifier.trim(), code);
+    setBusy(false);
+    if (r.status === "ok") {
+      setCodeFailure(null);
+      setResetToken(r.data.resetToken);
+      setStep("password");
       return;
     }
-    setResends(n => n + 1);
-    resetCodeEntry();
-    setCooldown(RESEND_COOLDOWN_SEC);
-    setFocusSignal(n => n + 1);
-  };
-
-  // HANDOFF NOTE: there is no verify endpoint yet, so this cannot actually check the code. It
-  // accepts any 8 digits except DEMO_REJECTED_CODE, which exists only so the wrong-code state is
-  // reachable in the mockup. Replace the whole body with the backend call: on a rejection set
-  // codeError from the response (the backend, not this screen, has to decide how many attempts an
-  // address gets before the code is burned), and on success advance to "password" carrying whatever
-  // short-lived token it returns.
-  const verifyCode = () => {
-    if (!codeComplete) return;
-    if (code === DEMO_REJECTED_CODE) {
-      setCodeFailure("wrong");
+    if (r.status === "rejected") {
+      const f = failureFromCode(r.code);
+      if (f) { setCodeFailure(f); return; }
+      setServerError(r.message);
       return;
     }
-    setCodeFailure(null);
-    setStep("password");
+    setServerError(t.serverUnavailable);
   };
 
-  const savePassword = () => {
-    if (!canSetPassword || !formatValid || mismatch) return;
-    // HANDOFF NOTE: submits nowhere. The real call needs the verified-code token from verifyCode.
-    setStep("done");
+  const savePassword = async () => {
+    if (!canSetPassword || !formatValid || mismatch || !resetToken) return;
+    setBusy(true);
+    setServerError(null);
+    const r = await authResetComplete(resetToken, newPassword);
+    setBusy(false);
+    if (r.status === "ok") { setStep("done"); return; }
+    if (r.status === "rejected") {
+      if (r.code === "ADM-4026") {
+        // 완료 전에 토큰이 만료 — 코드 단계로 되돌린다
+        setResetToken(null); resetCodeEntry(); setCodeFailure("expired"); setStep("code"); return;
+      }
+      setServerError(r.message);
+      return;
+    }
+    setServerError(t.serverUnavailable);
   };
 
   const primaryButton = (label: string, enabled: boolean, onClick: () => void) => (
@@ -365,7 +362,7 @@ function ForgotPasswordFlow() {
           {/* A deployment with no mail server cannot send anything, so asking for an address would
               collect it and then do nothing — the person waits for a mail that was never going to
               arrive. Say plainly that recovery goes through a person, and name that person. */}
-          {(demo === "adminOnly" || authConfig.passwordRecovery === "adminOnly") ? (
+          {(adminOnly || authConfig.passwordRecovery === "adminOnly") ? (
             <>
               {heading(t.adminTitle, [t.adminSub])}
 
@@ -443,8 +440,14 @@ function ForgotPasswordFlow() {
                   ) : null}
                 </div>
 
+                {serverError && (
+                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                    <ErrorCircleIcon />
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--danger-400)", letterSpacing: "-0.26px" }}>{serverError}</span>
+                  </div>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px", width: "100%" }}>
-                  {primaryButton(t.sendCode, identifierValid, sendCode)}
+                  {primaryButton(t.sendCode, identifierValid && !busy, sendCode)}
                   <p style={{ textAlign: "center", fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}>
                     {t.rememberedIt} {textButton(t.logIn, () => router.push("/login"), "primary")}
                   </p>
@@ -545,8 +548,14 @@ function ForgotPasswordFlow() {
                   )}
                 </div>
 
+                {serverError && (
+                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                    <ErrorCircleIcon />
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--danger-400)", letterSpacing: "-0.26px" }}>{serverError}</span>
+                  </div>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px", width: "100%" }}>
-                  {primaryButton(t.next, codeComplete, verifyCode)}
+                  {primaryButton(t.next, codeComplete && !busy, verifyCode)}
                   <p style={{ textAlign: "center", fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}>
                     {authConfig.employeeIdLogin ? t.wrongOne : t.wrongAddress}{" "}
                     {textButton(
@@ -611,11 +620,11 @@ function ForgotPasswordFlow() {
                   {PASSWORD_RULE_TEXT[lang]}
                 </p>
 
-                {mismatch && (
+                {(mismatch || serverError) && (
                   <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                     <ErrorCircleIcon />
                     <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--danger-400)", letterSpacing: "-0.26px" }}>
-                      {t.mismatch}
+                      {mismatch ? t.mismatch : serverError}
                     </span>
                   </div>
                 )}

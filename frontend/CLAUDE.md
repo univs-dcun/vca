@@ -239,3 +239,18 @@ Navbar 프로젝트 전환·시각 피커 재설계·CommandPalette 삭제·self
   (공유 워크스테이션) → authLogin(…, false). PasswordSetupPage: `?token=` 초대 활성화(`authRedeemInvite` → 4024면 "링크 만료"
   화면) / 토큰 없음·`?reason=temp` = 임시 비밀번호 세션(authSetupPassword → 역할별 진입).
 
+W3 2차(UV-52, 2026-09-10) — 인증 화면 배선 + 앱 프로젝트 이름:
+- RegisterPage: `authRegisterLookup`(POST /auth/register/lookup) → 확인 단계(서버가 준 name·employeeId·projectName·permission),
+  `authRegister`(POST /auth/register — 코드 소진·계정 생성·비밀번호 한 트랜잭션). ADM-4020 unknown·4021 used·4022 expired는 기획
+  CODE_ERRORS 문구, 4023(IP 스로틀)은 throttled 화면. 클라이언트 시도 카운터(MAX_CODE_ATTEMPTS)·mock 조회(resolveRegistrationCode·
+  portalUsers.setupCode)·`?demo=` 삭제(기획 지시). Activation에 projectName 추가.
+- ForgotPasswordPage: `authResetRequest`(존재 여부 비노출, 서버 resendCooldownSec로 쿨다운) → `authResetVerify`(resetToken을
+  상태로만) → `authResetComplete`. ADM-4025 wrong·4026 expired·4027 throttled·4028 resendLimit → 기획 CodeFailure, 4029 → adminOnly
+  화면. MAX_RESENDS·DEMO_REJECTED_CODE·DEMO_EMAIL·`?demo=` 삭제. 각 단계에 serverError 행.
+- `auth.ts` `ApiOutcome<T>`(ok+data / rejected / unavailable) + 5개 함수. RequestAccessPage는 authConfig.accessRequest=false라
+  mock 그대로(서버 계약 없음, ADM-4018 예약).
+- 앱 프로젝트 이름: `/auth/me`·로그인 응답에 `projects[{id,name}]`(owner 전체 / 그 외 배정 — UV-58 규칙, admin-api 0.11.0 /
+  openapi 0.20.0). `projectsVisibleInApp`은 세션 projects를 원천으로 하고 스토어에 같은 프로젝트가 있으면 그 행을 쓴다 —
+  앱 전용 계정(Portal API 403)도 헤더 현장 전환에 이름이 나온다.
+- 시드 owner 이름: `VCA_ADMIN_SEED_NAME`(기본 Administrator). 기존 DB의 "John Doe"는 시더가 건드리지 않는다(수동 변경).
+
