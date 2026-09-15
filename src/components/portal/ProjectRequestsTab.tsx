@@ -8,7 +8,8 @@ import {
 } from "@/lib/vcaStore";
 import { usePortalLanguage } from "@/lib/i18n";
 import { useToast } from "../Toast";
-import { BORDER, CARD_BORDER, CONTROL_HEIGHT, PANEL_SHADOW, TextField, FilterSelect, ConfirmModal, usePortalEditAccess } from "./PortalShared";
+import { Eraser, Video } from "lucide-react";
+import { BORDER, CARD_BORDER, CONTROL_HEIGHT, PANEL_SHADOW, TextField, FilterSelect, ConfirmModal, HelpTip, usePortalEditAccess, MEASURE, MEASURE_TIGHT } from "./PortalShared";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 
 /**
@@ -96,7 +97,7 @@ const T = {
     eDetailNote: "A request cannot be completed while any row says “not decided”. That is deliberate — an unanswered question closed as answered is one nobody can find again.",
     dispo: { erase: "Erase", retain: "Keep", undecided: "Not decided", "out-of-reach": "Not ours to delete" } as Record<ErasureDisposition, string>,
     cat: {
-      watchlist: "Watchlist entry and enrolled photo",
+      watchlist: "VIP entry and enrolled photo",
       detections: "Detections naming this person",
       judgements: "Operator verdicts on those detections",
       searchLog: "Record of who looked them up",
@@ -172,7 +173,7 @@ const T = {
     eDetailNote: "한 줄이라도 “미정”이면 완료로 닫을 수 없습니다. 일부러 그렇게 했습니다 — 답하지 않은 질문을 답한 것으로 닫으면 다시 찾을 수 없습니다.",
     dispo: { erase: "지움", retain: "보존", undecided: "미정", "out-of-reach": "콘솔 소관 아님" } as Record<ErasureDisposition, string>,
     cat: {
-      watchlist: "명단 등록과 등록 사진",
+      watchlist: "VIP 등록과 등록 사진",
       detections: "이 사람을 지목한 검출 이력",
       judgements: "그 검출에 대한 관제요원 판단",
       searchLog: "이 사람을 조회한 기록",
@@ -182,7 +183,7 @@ const T = {
       recordings: "녹화 영상 자체",
     } as Record<ErasureCategory, string>,
     why: {
-      watchlist: "요청의 본체이고, 콘솔이 할 줄 아는 일입니다 — 명단에서 해제하는 것은 이미 있는 감사되는 동작입니다.",
+      watchlist: "요청의 본체이고, 콘솔이 할 줄 아는 일입니다 — VIP에서 해제하는 것은 이미 있는 감사되는 동작입니다.",
       detections: "열려 있습니다. 지우면 시스템이 이 사람에 대해 무엇을 했는지의 기록이 사라지고, 남기면 잊혀지길 요청한 사람의 생체정보 파생 기록을 계속 갖게 됩니다. 양쪽 다 근거가 있습니다.",
       judgements: "열려 있고, 위 검출에 묶여 있습니다 — 판단이 그 대상인 검출보다 오래 살 수는 없습니다.",
       searchLog: "보존하고, 그건 이 사람을 위한 것입니다. 누가 어떤 사유로 이 사람을 조회했는지의 기록이라, 본인 요청으로 지우면 본인의 증거가 사라집니다.",
@@ -226,6 +227,16 @@ type Row =
   | { kind: "erasure"; id: string; who: string; sub: string; filed: string; req: ErasureRequest };
 
 type Filter = "all" | "open" | "footage" | "erasure";
+
+/** The two "file a new request" buttons. Same shape as the secondary tools elsewhere in Portal:
+ *  bordered, marked with an icon. A row of unmarked grey pills on a page whose neighbours put a
+ *  mark on every action reads as unfinished. */
+const REGISTER_BTN: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: "6px",
+  height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", border: BORDER,
+  backgroundColor: "white", color: "var(--gray-700)",
+  fontSize: "12px", fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+};
 
 export default function ProjectRequestsTab({ projectId }: { projectId: string }) {
   const [lang] = usePortalLanguage();
@@ -283,27 +294,20 @@ export default function ProjectRequestsTab({ projectId }: { projectId: string })
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", flexWrap: "wrap", marginBottom: "14px" }}>
-        <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.7, maxWidth: "62ch", flex: 1, minWidth: "260px" }}>{t.intro}</p>
-        {mayEdit && (
-          <div style={{ display: "flex", gap: "8px", flexShrink: 0, flexWrap: "wrap" }}>
-            <button className="portal-btn-outline" onClick={() => setShowErasureForm(true)}
-              style={{ height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-700)", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              {t.newErasure}
-            </button>
-            <button className="portal-btn-primary" onClick={() => setShowFootageForm(true)}
-              style={{ height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", border: "none", backgroundColor: "var(--primary-400)", color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              {t.newFootage}
-            </button>
-          </div>
-        )}
-      </div>
+      {/* One row, not two. The filters and the two register buttons used to sit on separate lines,
+          and once the intro moved behind the mark the upper line had nothing on its left at all —
+          a full row of empty space above the chips. They are the same kind of thing anyway: what
+          you are looking at, and what you can add to it.
 
-      {all.length > 0 && (
-        /* Kind is a filter, not a tab. "What is open" is the question somebody actually arrives
-           with, and it does not care which of the two registers the row came from. */
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
-          {FILTERS.map(f => {
+          Two registers, two peers. The purple used to sit on "footage request" and the grey on
+          "erasure request", which said one of them is the page's main action — this tab exists
+          precisely because they are the same act filed from two directions, and neither outranks
+          the other. Both quiet, both marked, and the purple goes back to meaning something. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+        {/* Kind is a filter, not a tab. "What is open" is the question somebody actually arrives
+            with, and it does not care which of the two registers the row came from. */}
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          {all.length > 0 && FILTERS.map(f => {
             const active = filter === f.id;
             return (
               <button key={f.id} onClick={() => setFilter(f.id)}
@@ -319,13 +323,28 @@ export default function ProjectRequestsTab({ projectId }: { projectId: string })
             );
           })}
         </div>
-      )}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0, flexWrap: "wrap" }}>
+          <HelpTip text={t.intro} />
+          {mayEdit && (<>
+            <button className="portal-btn-outline" onClick={() => setShowErasureForm(true)}
+              style={{ ...REGISTER_BTN }}>
+              <Eraser size={14} strokeWidth={2.4} />
+              {t.newErasure}
+            </button>
+            <button className="portal-btn-outline" onClick={() => setShowFootageForm(true)}
+              style={{ ...REGISTER_BTN }}>
+              <Video size={14} strokeWidth={2.4} />
+              {t.newFootage}
+            </button>
+          </>)}
+        </div>
+      </div>
 
       <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px", boxShadow: PANEL_SHADOW }}>
         {rows.length === 0 ? (
           <div style={{ padding: "36px 24px", textAlign: "center" }}>
             <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{t.empty}</p>
-            <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.7, marginTop: "6px", maxWidth: "58ch", marginInline: "auto" }}>{t.emptyHint}</p>
+            <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5, marginTop: "6px", maxWidth: MEASURE_TIGHT, marginInline: "auto" }}>{t.emptyHint}</p>
           </div>
         ) : (
           <>
@@ -392,7 +411,7 @@ export default function ProjectRequestsTab({ projectId }: { projectId: string })
       )}
 
       {!mayDecide && all.length > 0 && (
-        <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, marginTop: "10px" }}>{t.ownerOnly}</p>
+        <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, marginTop: "10px" }}>{t.ownerOnly}</p>
       )}
 
       {showFootageForm && <FootageIntake t={t} projectId={projectId} onClose={() => setShowFootageForm(false)}
@@ -465,7 +484,7 @@ function ErasureDetail({ t, req, mayDecide, undecided, onSet, onClose }: {
   return (
     <Panel>
       <p style={{ fontSize: "14px", fontWeight: 800, color: "var(--gray-900)" }}>{t.eDetailTitle}</p>
-      <p style={{ fontSize: "11px", color: "var(--gray-500)", lineHeight: 1.65, marginTop: "6px", maxWidth: "68ch" }}>{t.eDetailNote}</p>
+      <p style={{ fontSize: "11px", color: "var(--gray-500)", lineHeight: 1.45, marginTop: "6px", maxWidth: MEASURE }}>{t.eDetailNote}</p>
       <div style={{ marginTop: "14px" }}>
         {CATEGORIES.map((cat, i) => {
           const d = req.dispositions[cat];
@@ -498,7 +517,7 @@ function ErasureDetail({ t, req, mayDecide, undecided, onSet, onClose }: {
       {mayDecide && req.status === "received" && (
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginTop: "16px", paddingTop: "14px", borderTop: BORDER }}>
           {undecided > 0 && (
-            <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--warning-500)", lineHeight: 1.55, flex: 1, minWidth: "200px" }}>{t.blocked(undecided)}</span>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--warning-500)", lineHeight: 1.45, flex: 1, minWidth: "200px" }}>{t.blocked(undecided)}</span>
           )}
           <button className="portal-btn-outline" onClick={onClose}
             style={{ marginLeft: "auto", flexShrink: 0, height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-700)", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
@@ -515,7 +534,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <div>
       <label style={{ display: "block", fontSize: "12px", color: "var(--gray-500)", marginBottom: "6px" }}>{label}</label>
       {children}
-      {hint && <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.55, marginTop: "6px" }}>{hint}</p>}
+      {hint && <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, marginTop: "6px" }}>{hint}</p>}
     </div>
   );
 }
@@ -526,8 +545,8 @@ function Modal({ title, children, footer, onClose, wide }: {
   useEscapeKey(onClose);
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: wide ? "520px" : "460px", width: "100%", maxHeight: "86vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: wide ? "520px" : "460px", width: "100%", maxHeight: "86vh", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "20px 20px 4px" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{title}</p>
         </div>
@@ -593,7 +612,7 @@ function FootageIntake({ t, projectId, onClose, onSaved, add }: {
         <Field label={t.fFrom}><TextField value={fromAt} onChange={setFromAt} placeholder="2026-09-03 14:00" /></Field>
         <Field label={t.fTo}><TextField value={toAt} onChange={setToAt} placeholder="2026-09-03 15:30" /></Field>
       </div>
-      <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.55, marginTop: "-6px" }}>{t.fWindowNote}</p>
+      <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, marginTop: "-6px" }}>{t.fWindowNote}</p>
       <Field label={t.fCameras}><TextField value={cameraNote} onChange={setCameraNote} placeholder={t.fCamerasPh} /></Field>
       <Field label={t.fPurpose}><TextField value={purpose} onChange={setPurpose} placeholder={t.fPurposePh} /></Field>
     </Modal>
@@ -640,11 +659,11 @@ function DecisionModal({ t, request, onClose, onDecide }: {
         <button className="portal-btn-outline-danger" disabled={!can} style={btn("ghost", can)} onClick={() => onDecide(false, note)}>{t.refuse}</button>
         <button className="portal-btn-primary" disabled={!can} style={btn("primary", can)} onClick={() => onDecide(true, note)}>{t.approve}</button>
       </>}>
-      <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.6 }}>
+      <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5 }}>
         {request.requesterName}{request.requesterOrg ? ` · ${request.requesterOrg}` : ""} — {t.fBasis[request.basis]}
         {request.reference ? ` · ${request.reference}` : ""}
       </p>
-      <p style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.7 }}>{request.purpose}</p>
+      <p style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.5 }}>{request.purpose}</p>
       <Field label={t.decideNote} hint={t.decideNoteHint}>
         <TextField value={note} onChange={setNote} placeholder={t.decideNotePh} autoFocus />
       </Field>
@@ -678,7 +697,7 @@ function ReleaseModal({ t, onClose, onRelease }: {
         <Field label={t.rTo}><TextField value={releasedTo} onChange={setReleasedTo} placeholder={t.rToPh} /></Field>
         {/* Unchecked by default, and a claim either way. Defaulting it to true would put the
             institution's signature on work nobody confirmed happened. */}
-        <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", cursor: "pointer", fontSize: "12px", color: "var(--gray-700)", lineHeight: 1.55 }}>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", cursor: "pointer", fontSize: "12px", color: "var(--gray-700)", lineHeight: 1.5 }}>
           <input type="checkbox" checked={redacted} onChange={e => setRedacted(e.target.checked)} style={{ marginTop: "2px" }} />
           {t.rRedacted}
         </label>

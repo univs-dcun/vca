@@ -1,16 +1,104 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardList, Mail, MapPin, Monitor, Pencil, Tag, Trash2, User } from "lucide-react";
+import { ClipboardList, Mail, MapPin, Monitor, Pencil, Plus, Tag, Trash2, User } from "lucide-react";
 import { usePortalLanguage, type AppLanguage } from "@/lib/i18n";
 import { useVcaStore, currentPortalUser, canEnterApp, canManageAccess, canSetPolicy, SIGNED_IN_USER, type SearchPurpose } from "@/lib/vcaStore";
 import { getComplianceConfig } from "@/lib/complianceConfig";
-import { BORDER, CARD_BORDER, CONTROL_HEIGHT, PANEL_SHADOW, CardSection, FilterSelect, PairGrid, PairItem, TextField, ConfirmModal, usePortalEditAccess, useTypeLabel } from "./PortalShared";
-import { WatchlistCategoryModal } from "./WatchlistCategories";
+import { portProblem, FIELD_CHECK_T } from "@/lib/fieldChecks";
+import { BORDER, CARD_BORDER, CONTROL_HEIGHT, PANEL_SHADOW, CardSection, FilterSelect, PairGrid, PairItem, TextField, ConfirmModal, FieldError, usePortalEditAccess, useTypeLabel } from "./PortalShared";
+import { VipCategoryModal } from "./VipCategories";
 import { isPasswordFormatValid, PASSWORD_RULE_TEXT } from "@/lib/password";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useToast } from "@/components/Toast";
 import { PROJECT_TIME_ZONE } from "@/lib/time";
+
+/**
+ * The settings rail: one section at a time.
+ *
+ * It was a scrollspy over a single tall card — the titles listed, the one you had scrolled to
+ * marked. That still made the reader scroll past four sections to reach the fifth, and it made
+ * every section share a page with the ones around it, so nothing on it had a shape of its own.
+ *
+ * These are tabs now (asked for 2026-09-11): clicking one shows that section and only that
+ * section. Settings is not read top to bottom — you arrive knowing which one thing you came to
+ * change — so a table of contents that also hides everything else is the more useful of the two.
+ * It also means the heaviest section on this page, deleting the project, is somewhere you have to
+ * choose to go rather than somewhere scrolling takes you.
+ */
+function SettingsNav({ sections, active, onSelect }: {
+  sections: { id: string; label: string; icon: React.ReactNode }[];
+  active: string;
+  onSelect: (id: string) => void;
+}) {
+  const [hovered, setHovered] = useState<string | null>(null);
+  return (
+    <nav style={{ flexShrink: 0, width: "180px", display: "flex", flexDirection: "column", gap: "2px" }}>
+      {sections.map(sec => {
+        const on = sec.id === active;
+        const warm = on || hovered === sec.id;
+        return (
+          <button
+            key={sec.id}
+            onClick={() => onSelect(sec.id)}
+            onMouseEnter={() => setHovered(sec.id)}
+            onMouseLeave={() => setHovered(null)}
+            aria-current={on ? "page" : undefined}
+            style={{
+              position: "relative",
+              display: "flex", alignItems: "center", gap: "9px",
+              // Extra left padding leaves room for the bar, and every row carries it so the labels
+              // stay on one line whether or not the bar is drawn.
+              padding: "9px 10px 9px 16px", borderRadius: "8px", border: "none",
+              // Grey, not purple. Purple is reserved for things that need attention, and "where
+              // you are" is not one — see the colour note in globals.css.
+              //
+              // A fill alone said it too quietly: gray-100 on the page's near-white ground is
+              // barely a shade, so the only real signal was the weight of the text. The pattern
+              // that carries at a glance is a mark at the leading edge — komoot and Pinterest
+              // both mark the active row that way rather than tinting it harder, and the mark
+              // works at any fill strength because it is a different KIND of difference.
+              // White, lifted — not a tint.
+              //
+              // Two tints were tried and both read as dusty: gray-100 (slate, 96%) and --line
+              // (purple, 93%). That is not a wrong token, it is the lightness band itself. Any
+              // saturated colour at 93-96% against this page's near-white ground has too little
+              // room left to be a colour, so it lands as grey with something in it.
+              //
+              // No fill on the selected row at all. Three were tried and each failed for its own
+              // reason, which together say the row should not be a surface:
+              //
+              //   gray-100 (slate, 96%)  dusty — at that lightness a hue has no room to be a hue
+              //   --line   (purple, 93%) dusty for the same reason, in the other family
+              //   white                  clean, but it is the panel's colour: a white pill beside
+              //                          a white card reads as the same object in two places
+              //
+              // So the mark carries it instead. This is Pinterest's settings rail: a bar at the
+              // leading edge, the label in full weight and colour, and no plate under either. The
+              // row stops competing with the card for what "a white box" means, and the signal is
+              // if anything stronger — a 3px rule against nothing is more definite than a 3%
+              // difference in ground.
+              backgroundColor: hovered === sec.id && !on ? "var(--gray-50)" : "transparent",
+              color: warm ? "var(--gray-900)" : "var(--gray-500)",
+              fontSize: "13px", fontWeight: on ? 700 : 600, fontFamily: "inherit",
+              textAlign: "left", cursor: "pointer", width: "100%",
+              transition: "background-color .12s ease, color .12s ease",
+            }}
+          >
+            {on && (
+              <span aria-hidden="true" style={{
+                position: "absolute", left: "5px", top: "50%", transform: "translateY(-50%)",
+                width: "3px", height: "16px", borderRadius: "999px", backgroundColor: "var(--gray-900)",
+              }} />
+            )}
+            <span style={{ display: "flex", flexShrink: 0, color: on ? "var(--gray-900)" : warm ? "var(--gray-600)" : "var(--gray-400)" }}>{sec.icon}</span>
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sec.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
 
 const T = {
   en: {
@@ -23,7 +111,7 @@ const T = {
     appNo: "Portal only",
     team: "Team",
     teamMailTitle: "Team mail",
-    teamMailIntro: "A project can override this in its Server tab. Most do not.",
+    teamMailIntro: "A project can override this in its Server tab.",
     teamMailDomain: "Mail domain",
     teamMailDomainHint: "Accounts must have an address on this domain. Requests and invites to anything else are refused.",
     teamMailHost: "SMTP host",
@@ -33,23 +121,26 @@ const T = {
     teamMailSave: "Save mail settings",
     teamMailSaved: "Team mail settings saved",
     teamMailFromMismatch: (d: string) => `The from address has to be on @${d}, or the receiving server rejects it.`,
-    teamMailUnverified: "Saved, not tested. Nothing here connects to the relay, so a wrong host means invitations vanish with no sign on this screen — send one invite and confirm it arrives.",
-    categoryTitle: "Watchlist categories",
+    teamMailUnverified: "Saved, not tested — this screen never reaches the relay. A wrong host loses invitations silently.",
+    categoryTitle: "VIP categories",
     categoryCount: (n: number) => (n === 1 ? "1 category in use" : `${n} categories in use`),
     categoryManage: "Manage categories",
+    categoryNone: "No categories yet.",
+    categoryAdd: "Add a category",
     projectTitle: "Project",
     projectName: "Name",
     rename: "Rename",
     renameSave: "Save",
     renameCancel: "Cancel",
     renamedToast: "Project renamed",
+    dangerTitle: "Delete project",
     deleteProject: "Delete this project",
     deleteAction: "Delete",
     deleteProjectHint: "The project and everything filed under it. The activity log survives, re-filed under the team.",
     deleteConfirmTitle: (name: string) => `Delete ${name}?`,
     deleteConfirmBody: "This cannot be undone. Type the project's name to confirm.",
     deleteConfirmCounts: (cameras: number, vips: number, staff: number) =>
-      `${cameras} input source(s), ${vips} watchlist record(s) and ${staff} roster row(s) go with it. Accounts stay — this project is removed from their list.`,
+      `${cameras} input source(s), ${vips} VIP record(s) and ${staff} roster row(s) go with it. Accounts stay — this project is removed from their list.`,
     deleteConfirmLabel: "Delete project",
     deletedToast: "Project deleted",
     deleteLastProject: "This is the team's only project. A team with none shows the setup screen instead.",
@@ -57,11 +148,11 @@ const T = {
     projectTeam: "Team",
     projectRegion: "Region",
     projectTimeZone: "Time zone",
-    timeZoneNote: "Days, hours and \"today\" on every screen are counted in this zone — for everyone who opens this project, wherever they are.",
+    timeZoneNote: "Every screen uses this zone, whoever opens it and from where.",
     retention: "Recording retention",
     retentionUnset: "Not decided",
     retentionDaysLabel: (n: number) => `${n} days`,
-    retentionNote: "Recorded here, deleted elsewhere. Nothing in this console removes footage — the recorder and the server do, on the number stated here. Until that is wired, setting this states the policy rather than enforcing it. Every change is written to the activity log with the value it replaced.",
+    retentionNote: "This console deletes nothing. The recorder and the server do, on this number.",
     purposeTitle: "Search purposes",
     purposeEmpty: "No purposes defined.",
     purposeRequirementOn: "Searches are supposed to record a purpose, and there is nothing to choose. Until one exists, operators search without giving a reason.",
@@ -76,7 +167,7 @@ const T = {
     purposeCreate: "Create",
     purposeCancel: "Cancel",
     purposeOwnerOnly: "Only the owner can change this list.",
-    displayTitle: "Display",
+    displayTitle: "Language",
     language: "Portal language",
     languageNote: "Portal only. The monitoring app keeps its own, set from My Page there.",
     password: "Password",
@@ -93,19 +184,19 @@ const T = {
     updatePassword: "Update password",
     passwordChanged: "Password changed",
     passwordChangedBody: "Sign in with the new password next time.",
-    roles: { owner: "Owner", admin: "Admin", auditor: "Auditor", none: "No portal access" } as Record<string, string>,
+    roles: { owner: "Owner", admin: "Admin", auditor: "Read-only admin", none: "No Portal access" } as Record<string, string>,
   },
   ko: {
     accountTitle: "계정",
     name: "이름",
     email: "이메일",
-    portalRole: "포털 역할",
+    portalRole: "Portal 역할",
     appAccess: "앱 접근",
     appYes: "모니터링 앱 사용",
-    appNo: "포털만",
+    appNo: "Portal만",
     team: "팀",
     teamMailTitle: "팀 메일",
-    teamMailIntro: "프로젝트의 서버 탭에서 덮어쓸 수 있습니다. 대개 그러지 않습니다.",
+    teamMailIntro: "프로젝트의 서버 탭에서 덮어쓸 수 있습니다.",
     teamMailDomain: "메일 도메인",
     teamMailDomainHint: "계정은 반드시 이 도메인의 주소여야 합니다. 그 외 주소로의 요청과 초대는 거부됩니다.",
     teamMailHost: "SMTP 호스트",
@@ -115,23 +206,26 @@ const T = {
     teamMailSave: "메일 설정 저장",
     teamMailSaved: "팀 메일 설정이 저장되었습니다",
     teamMailFromMismatch: (d: string) => `발신 주소는 @${d} 도메인이어야 합니다. 아니면 받는 쪽 서버가 거부합니다.`,
-    teamMailUnverified: "저장했을 뿐 테스트하지 않았습니다. 여기서 릴레이에 접속하지 않으므로 호스트가 틀리면 초대장이 이 화면에 아무 표시 없이 사라집니다 — 초대를 한 통 보내 도착하는지 확인하세요.",
-    categoryTitle: "관심인물 분류",
+    teamMailUnverified: "저장만 할 뿐 연결을 시험하지는 않습니다. 호스트가 틀리면 초대장이 아무 표시 없이 사라집니다.",
+    categoryTitle: "VIP 분류",
     categoryCount: (n: number) => `사용 중인 분류 ${n}개`,
     categoryManage: "분류 관리",
+    categoryNone: "아직 만든 분류가 없습니다.",
+    categoryAdd: "분류 추가",
     projectTitle: "프로젝트",
     projectName: "이름",
     rename: "이름 변경",
     renameSave: "저장",
     renameCancel: "취소",
     renamedToast: "프로젝트 이름이 바뀌었습니다",
+    dangerTitle: "프로젝트 삭제",
     deleteProject: "이 프로젝트 삭제",
     deleteAction: "삭제",
     deleteProjectHint: "프로젝트와 그 아래 모든 것이 지워집니다. 변경 기록은 팀 밑으로 옮겨져 남습니다.",
     deleteConfirmTitle: (name: string) => `${name}을(를) 삭제할까요?`,
     deleteConfirmBody: "되돌릴 수 없습니다. 확인을 위해 프로젝트 이름을 입력하세요.",
     deleteConfirmCounts: (cameras: number, vips: number, staff: number) =>
-      `입력 소스 ${cameras}개, 명단 ${vips}건, 명부 ${staff}행이 함께 지워집니다. 계정은 남고, 이 프로젝트만 목록에서 빠집니다.`,
+      `입력 소스 ${cameras}개, VIP ${vips}건, 직원 명부 ${staff}행이 함께 지워집니다. 계정은 남고, 이 프로젝트만 목록에서 빠집니다.`,
     deleteConfirmLabel: "프로젝트 삭제",
     deletedToast: "프로젝트가 삭제되었습니다",
     deleteLastProject: "팀의 마지막 프로젝트입니다. 프로젝트가 없는 팀은 설정 화면이 대신 열립니다.",
@@ -139,11 +233,11 @@ const T = {
     projectTeam: "팀",
     projectRegion: "지역",
     projectTimeZone: "시간대",
-    timeZoneNote: "모든 화면의 날짜와 시각, \"오늘\"의 기준이 이 시간대로 계산됩니다 — 어디서 열든, 누가 열든 이 프로젝트에 대해서는 같습니다.",
+    timeZoneNote: "누가 어디서 열든 모든 화면이 이 시간대를 씁니다.",
     retention: "영상 보관기간",
     retentionUnset: "미정",
     retentionDaysLabel: (n: number) => `${n}일`,
-    retentionNote: "여기서 정하고, 지우는 것은 다른 곳입니다. 이 콘솔은 영상을 삭제하지 않습니다 — 여기 적힌 숫자로 레코더와 서버가 지웁니다. 그 연결이 되기 전까지 이 값을 정하는 것은 정책을 밝히는 것이지 집행하는 것이 아닙니다. 변경은 이전 값과 함께 변경 기록에 남습니다.",
+    retentionNote: "이 콘솔은 영상을 지우지 않습니다. 레코더와 서버가 이 숫자대로 지웁니다.",
     purposeTitle: "조회 목적",
     purposeEmpty: "정의된 사유가 없습니다.",
     purposeRequirementOn: "조회할 때 목적을 기록하도록 되어 있는데 고를 것이 없습니다. 하나라도 만들기 전까지는 사유 없이 조회가 실행됩니다.",
@@ -158,9 +252,9 @@ const T = {
     purposeCreate: "만들기",
     purposeCancel: "취소",
     purposeOwnerOnly: "이 목록은 최고관리자만 바꿀 수 있습니다.",
-    displayTitle: "표시",
-    language: "포털 화면 언어",
-    languageNote: "포털에만 적용됩니다. 모니터링 앱은 별도이고, 앱의 마이페이지에서 정합니다.",
+    displayTitle: "언어",
+    language: "Portal 화면 언어",
+    languageNote: "Portal에만 적용됩니다. 모니터링 앱은 별도이고, 앱의 마이페이지에서 정합니다.",
     password: "비밀번호",
     passwordSetAgo: "3개월 전 설정",
     changePassword: "비밀번호 변경",
@@ -175,7 +269,7 @@ const T = {
     updatePassword: "비밀번호 변경",
     passwordChanged: "비밀번호가 변경되었습니다",
     passwordChangedBody: "다음 로그인부터 새 비밀번호를 사용하세요.",
-    roles: { owner: "최고관리자", admin: "관리자", auditor: "감사자", none: "포털 접근 없음" } as Record<string, string>,
+    roles: { owner: "최고관리자", admin: "관리자", auditor: "읽기 전용 관리자", none: "Portal 접근 없음" } as Record<string, string>,
   },
 } as const;
 
@@ -233,6 +327,7 @@ const LANGUAGE_OPTIONS: { value: AppLanguage; label: string }[] = [
  */
 export default function PortalSettingsPage({ projectId }: { projectId: string }) {
   const [lang, setLang] = usePortalLanguage();
+  const [section, setSection] = useState("account");
   const [changingPassword, setChangingPassword] = useState(false);
   const searchPurposes = useVcaStore(s => s.searchPurposes);
   const requirePurpose = getComplianceConfig().requireSearchPurpose;
@@ -272,7 +367,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
   // their own interface language.
   const { mayEdit } = usePortalEditAccess();
   const typeLabel = useTypeLabel();
-  const watchlistCategories = useVcaStore(s => s.watchlistCategories);
+  const vipCategories = useVcaStore(s => s.vipCategories);
   const [managingCategories, setManagingCategories] = useState(false);
   const project = projects.find(p => p.id === projectId);
   const projectTeam = project ? teams.find(tm => tm.id === project.teamId) : undefined;
@@ -308,7 +403,9 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
   const mailFromMismatch = mailDomain.trim() !== "" && mailFrom.trim() !== ""
     && !mailFrom.trim().toLowerCase().endsWith(`@${mailDomain.trim().toLowerCase()}`);
   const mailPortNum = Number(mailPort);
-  const mailPortValid = mailPort.trim() === "" || (Number.isInteger(mailPortNum) && mailPortNum > 0 && mailPortNum < 65536);
+  // Same rule as the project screen's SMTP port, from the one place it is written.
+  const mailPortIssue = portProblem(mailPort);
+  const mailPortValid = mailPortIssue === null;
   const canSaveTeamMail = mayEdit && liveMail !== null && !mailFromMismatch && mailPortValid;
   const saveTeamMail = () => {
     if (!canSaveTeamMail || !myTeam) return;
@@ -328,7 +425,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
   // stand-in identity belongs to no account list and would otherwise see no list at all.
   const myTeamId = me?.teamId ?? project?.teamId;
   const teamPurposes = searchPurposes.filter(sp => sp.teamId === myTeamId);
-  const teamCategories = watchlistCategories.filter(c => c.teamId === myTeamId);
+  const teamCategories = vipCategories.filter(c => c.teamId === myTeamId);
   const activePurposes = teamPurposes.filter(sp => !sp.archived);
   // Owner only — see canSetPolicy. With no matching account the stand-in identity is treated as
   // the owner it stands in for, the same assumption the rest of Portal makes about it.
@@ -343,6 +440,22 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
       ...(myTeam ? [{ label: t.team, value: myTeam.name }] : []),
     ] : []),
   ];
+
+  /* Same conditions as the sections themselves, in the same order. Written out rather than derived
+     from what rendered: a rail offering a section the page does not have would be a click that
+     silently does nothing. */
+  const sections = [
+    { id: "account", label: t.accountTitle, icon: <User size={15} strokeWidth={2.2} /> },
+    ...(project ? [{ id: "project", label: t.projectTitle, icon: <MapPin size={15} strokeWidth={2.2} /> }] : []),
+    ...(myTeam ? [{ id: "mail", label: t.teamMailTitle, icon: <Mail size={15} strokeWidth={2.2} /> }] : []),
+    ...(getComplianceConfig().vipCategories && myTeamId ? [{ id: "categories", label: t.categoryTitle, icon: <Tag size={15} strokeWidth={2.2} /> }] : []),
+    ...(requirePurpose && myTeamId ? [{ id: "purposes", label: t.purposeTitle, icon: <ClipboardList size={15} strokeWidth={2.2} /> }] : []),
+    { id: "display", label: t.displayTitle, icon: <Monitor size={15} strokeWidth={2.2} /> },
+  ];
+  /* Derived, not stored. The conditions above can stop holding while the page is open — a project
+     gets deleted, the search-purpose flag is read again — and a stored id would leave the card
+     blank with the rail marking a tab that no longer exists. */
+  const active = sections.some(sec => sec.id === section) ? section : sections[0].id;
 
   return (
     /**
@@ -368,7 +481,8 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
      * edge. A settings page is entered deliberately and read on its own, so the shift costs less
      * than the lopsidedness did.
      */
-    <div style={{ maxWidth: "880px", marginInline: "auto" }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "28px", maxWidth: "880px", marginInline: "auto" }}>
+      <SettingsNav sections={sections} active={active} onSelect={setSection} />
       {/* No page title here: the top bar's crumb already names this page, and printing the same
           word again 20px lower was the page introducing itself twice. What stays is the row of
           things you can do on it. */}
@@ -376,11 +490,12 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
           which they never reach — the first section has no top rule and the last no bottom one —
           and it clipped the one thing that has to escape this box: the language select sits in the
           final section, so its list opened straight into the card's bottom edge and was cut off. */}
-      <div className="portal-settings-card" style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "16px", boxShadow: PANEL_SHADOW, marginBottom: "20px" }}>
+      <div className="portal-settings-card" style={{ flex: 1, minWidth: 0, backgroundColor: "white", border: CARD_BORDER, borderRadius: "16px", boxShadow: PANEL_SHADOW, marginBottom: "20px" }}>
       {/* Which pairs exist depends on whether the signed-in address matches an account: with no
           match there is nothing to say about a role or a door, so those are absent rather than
           filled with a disclaimer. */}
-      <CardSection heading={t.accountTitle} icon={<User size={15} strokeWidth={2.2} />} first>
+      {active === "account" && (
+      <CardSection heading={t.accountTitle} icon={<User size={15} strokeWidth={2.2} />}>
         <PairGrid>
           {accountPairs.map(r => <PairItem key={r.label} label={r.label}>{r.value}</PairItem>)}
           {/* A pair like the others, whose value is a button rather than a fact: the sentence
@@ -397,6 +512,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
           </PairItem>
         </PairGrid>
       </CardSection>
+      )}
 
       {changingPassword && (
         <ChangePasswordModal t={t} lang={lang} onClose={() => setChangingPassword(false)} />
@@ -414,7 +530,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
         HANDOFF: when a project-settings screen exists (its natural home, alongside retention and
         the licence), this card moves there whole and Settings goes back to being the account only.
       */}
-      {project && (
+      {active === "project" && project && (
         <CardSection heading={t.projectTitle} icon={<MapPin size={15} strokeWidth={2.2} />}>
           <PairGrid>
             {/* Editable, at last. Every handover starts with a test project and a typo, and
@@ -472,7 +588,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
                 it sits with. */}
             {/* A select that opens and then refuses is worse than a value that never looked
                 editable — the same rule the Users table's permission cell follows. */}
-            <PairItem label={t.projectTimeZone}>
+            <PairItem label={t.projectTimeZone} hint={t.timeZoneNote}>
               {mayEdit ? (
                 <FilterSelect
                   value={project.timeZone ?? PROJECT_TIME_ZONE}
@@ -491,8 +607,8 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
                 the site rather than to the person looking, and changing it is audited.
 
                 Owner only. This is closer to a policy than a preference — the same gate the
-                search purposes and watchlist categories sit behind. */}
-            <PairItem label={t.retention}>
+                search purposes and VIP categories sit behind. */}
+            <PairItem label={t.retention} hint={t.retentionNote}>
               {maySetPolicy ? (
                 <FilterSelect
                   value={project.retentionDays === undefined ? "" : String(project.retentionDays)}
@@ -505,36 +621,37 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
               )}
             </PairItem>
           </PairGrid>
-          <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, marginTop: "14px" }}>{t.timeZoneNote}</p>
-          <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, marginTop: "8px" }}>{t.retentionNote}</p>
 
-          {/* Deleting a site is not a setting, so it does not sit among them: its own row at the
-              foot of the card, after everything you might come here to read. Owner only — this is
-              the heaviest thing anybody can do from the console, and it belongs with granting
-              roles rather than with changing a timezone. */}
+          {/* Deleting the site belongs to the project, so it lives in the project's tab — but at
+              the foot of it, behind a rule, after everything anybody actually comes here to change.
+              It had its own tab for a while, and that was the wrong kind of quiet: a tab is a
+              standing entry in the rail, so the heaviest thing on this screen was the one item
+              always on display. Down here it is found by whoever is already dealing with the
+              project and passed over by everybody else.
+
+              Owner only. This belongs with granting roles, not with changing a timezone. */}
           {mayDeleteProject && (
-            <div style={{ borderTop: BORDER, marginTop: "18px", paddingTop: "16px" }}>
-              <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)" }}>{t.deleteProject}</p>
-              <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, marginTop: "2px" }}>{t.deleteProjectHint}</p>
+            <div style={{ marginTop: "26px", paddingTop: "20px", borderTop: BORDER }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{t.dangerTitle}</p>
+              <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, marginTop: "4px" }}>{t.deleteProjectHint}</p>
               {/* Under its own words, flush with them. space-between held the button at the far
                   edge of the column, so the sentence explaining it and the thing it explains were
                   half a column apart and the hover tint landed nowhere near the text — read as a
-                  stray control rather than the end of this paragraph. Every other control on this
-                  page sits under the words naming it; the heaviest one should not be the
-                  exception. The word is short because the line above already says which project. */}
+                  stray control rather than the end of this paragraph. */}
               <button className="portal-btn-outline-danger" onClick={() => { setDeleteEcho(""); setConfirmingDelete(true); }}
-                style={{ display: "inline-flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 12px", marginTop: "10px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 12px", marginTop: "12px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                 <Trash2 size={13} strokeWidth={2.2} />
-                {t.deleteAction}
+                {t.deleteProject}
               </button>
             </div>
           )}
+
         </CardSection>
       )}
 
       {confirmingDelete && project && (
         /* Type the name back. A red button on a dialog is a click; a project holds a city's
-           cameras and a watchlist of named people, and the count of what goes is printed above
+           cameras and a VIP registry of named people, and the count of what goes is printed above
            the field so the number is read before the name is typed. */
         <ConfirmModal
           title={t.deleteConfirmTitle(project.name)}
@@ -552,7 +669,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <p style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.7 }}>
+            <p style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.5 }}>
               {t.deleteConfirmCounts(
                 cameras.filter(c => c.projectId === project.id).length,
                 persons.filter(pp => pp.projectId === project.id).length,
@@ -560,7 +677,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
               )}
             </p>
             {isLastProjectInTeam && (
-              <p style={{ fontSize: "12px", color: "var(--warning-500)", lineHeight: 1.7 }}>{t.deleteLastProject}</p>
+              <p style={{ fontSize: "12px", color: "var(--warning-500)", lineHeight: 1.5 }}>{t.deleteLastProject}</p>
             )}
             <TextField value={deleteEcho} onChange={setDeleteEcho} placeholder={project.name} autoFocus />
           </div>
@@ -571,13 +688,13 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
         Search purposes — the institution's own list, and the reason the app's purpose gate can be
         satisfied at all.
 
-        Here rather than on the VIP screen (where watchlist categories are managed) because a
+        Here rather than on the VIP screen (where VIP categories are managed) because a
         purpose is not a project's: it belongs to the institution, and the operator declaring one is
         in the monitoring app, not in this console. Settings is where the things that govern every
         site live.
       */}
       {/*
-        Watchlist categories, alongside the purposes for the same reason: both are the team's
+        VIP categories, alongside the purposes for the same reason: both are the team's
         policy, not a project's. This one was reachable only from inside the VIP registry, so a
         team waiting for its first site could set up its purposes and not its categories —
         backwards, because deciding what your institution's categories ARE is exactly the
@@ -593,8 +710,8 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
         that decides whether anybody can sign in — and it is a team's, not a project's, which
         is why it sits here beside the other two team policies.
       */}
-      {myTeam && (
-        <CardSection heading={t.teamMailTitle} icon={<Mail size={15} strokeWidth={2.2} />} subheading={myTeam.name} desc={t.teamMailIntro}>
+      {active === "mail" && myTeam && (
+        <CardSection heading={t.teamMailTitle} icon={<Mail size={15} strokeWidth={2.2} />} subheading={myTeam.name} hint={t.teamMailIntro}>
           {/* No maxWidth of its own any more — the section's content column is the cap, and two
               of these grids with two different ones is how columns stop lining up between
               sections. */}
@@ -602,7 +719,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
             <div>
               <label style={{ fontSize: "12px", color: "var(--gray-500)", display: "block", marginBottom: "6px" }}>{t.teamMailDomain}</label>
               <TextField value={mailDomain} onChange={setMailDomain} placeholder="company.local" />
-              <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.55, marginTop: "6px" }}>{t.teamMailDomainHint}</p>
+              <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, marginTop: "6px" }}>{t.teamMailDomainHint}</p>
             </div>
             <div>
               <label style={{ fontSize: "12px", color: "var(--gray-500)", display: "block", marginBottom: "6px" }}>{t.teamMailHost}</label>
@@ -611,12 +728,15 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
             <div>
               <label style={{ fontSize: "12px", color: "var(--gray-500)", display: "block", marginBottom: "6px" }}>{t.teamMailPort}</label>
               <TextField value={mailPort} onChange={v => setMailPort(v.replace(/[^0-9]/g, ""))} placeholder="587" inputMode="numeric" />
+              {/* Said, not merely enforced. The save button already greyed itself out for a bad
+                  port and gave no reason anywhere on the screen. */}
+              {mailPortIssue && <FieldError>{FIELD_CHECK_T[lang][mailPortIssue]}</FieldError>}
             </div>
             <div>
               <label style={{ fontSize: "12px", color: "var(--gray-500)", display: "block", marginBottom: "6px" }}>{t.teamMailFrom}</label>
               <TextField value={mailFrom} onChange={setMailFrom} placeholder="vca-noreply@company.local" />
               {mailFromMismatch && (
-                <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--danger-500)", lineHeight: 1.55, marginTop: "6px" }}>{t.teamMailFromMismatch(mailDomain.trim())}</p>
+                <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--danger-500)", lineHeight: 1.45, marginTop: "6px" }}>{t.teamMailFromMismatch(mailDomain.trim())}</p>
               )}
             </div>
           </div>
@@ -624,7 +744,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
             <input type="checkbox" checked={mailTls} onChange={e => setMailTls(e.target.checked)} disabled={!mayEdit} />
             {t.teamMailTls}
           </label>
-          <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, marginTop: "12px" }}>{t.teamMailUnverified}</p>
+          <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, marginTop: "12px" }}>{t.teamMailUnverified}</p>
           <div style={{ marginTop: "14px" }}>
             <button className="portal-btn-primary" onClick={saveTeamMail} disabled={!canSaveTeamMail}
               style={{ height: CONTROL_HEIGHT, padding: "0 16px", borderRadius: "8px", border: "none", backgroundColor: canSaveTeamMail ? "var(--primary-400)" : "var(--gray-200)", color: canSaveTeamMail ? "white" : "var(--gray-400)", fontSize: "12px", fontWeight: 700, cursor: canSaveTeamMail ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
@@ -634,22 +754,46 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
         </CardSection>
       )}
 
-      {myTeamId && (
+      {active === "categories" && myTeamId && (
         <CardSection heading={t.categoryTitle} icon={<Tag size={15} strokeWidth={2.2} />}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)" }}>
-              {t.categoryCount(teamCategories.filter(c => !c.archived).length)}
-            </span>
-            <button className="portal-btn-quiet" onClick={() => setManagingCategories(true)}
-              style={{ height: CONTROL_HEIGHT, padding: "0 12px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: "var(--gray-600)", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              {t.categoryManage}
-            </button>
-          </div>
+          {/* Nothing to manage yet, so the word is "add".
+              "Manage categories" beside "0 categories in use" offered to administer an empty list,
+              which reads as a dead end — and the count said the same nothing twice. The dashed box
+              is the shape the rest of Portal uses for "this is empty on purpose, not broken", and
+              the button inside it names the only move there is.
+
+              Both buttons are bordered now. The quiet borderless one sat beside a count and read
+              as part of the sentence rather than as something to press — the same thing that was
+              wrong with the licence install button. */}
+          {teamCategories.filter(c => !c.archived).length === 0 ? (
+            <div style={{
+              display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "12px",
+              padding: "22px", borderRadius: "12px", border: "1px dashed var(--gray-300)",
+            }}>
+              <p style={{ fontSize: "13px", color: "var(--gray-500)" }}>{t.categoryNone}</p>
+              <button className="portal-btn-outline" onClick={() => setManagingCategories(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-700)", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <Plus size={14} strokeWidth={2.4} />
+                {t.categoryAdd}
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)" }}>
+                {t.categoryCount(teamCategories.filter(c => !c.archived).length)}
+              </span>
+              <button className="portal-btn-outline" onClick={() => setManagingCategories(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-700)", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <Tag size={13} strokeWidth={2.4} />
+                {t.categoryManage}
+              </button>
+            </div>
+          )}
         </CardSection>
       )}
 
       {managingCategories && myTeamId && (
-        <WatchlistCategoryModal
+        <VipCategoryModal
           teamId={myTeamId}
           categories={teamCategories}
           canEdit={maySetPolicy}
@@ -661,7 +805,7 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
           that nothing asks for it. A settings section for a feature this release does not have is
           a question the reader has to answer ("do I need to fill this in?") about something that
           cannot affect them. The flag is the switch — see complianceConfig. */}
-      {requirePurpose && myTeamId && (
+      {active === "purposes" && requirePurpose && myTeamId && (
         <CardSection heading={t.purposeTitle} icon={<ClipboardList size={15} strokeWidth={2.2} />}>
           {/* What the empty list actually costs, said here rather than only in the app. An
               administrator who has not built this list needs to know that the requirement is on and
@@ -671,16 +815,17 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
             <p style={{
               padding: "10px 12px", marginBottom: "12px", borderRadius: "8px", maxWidth: "fit-content",
               backgroundColor: "var(--warning-100)", color: "var(--warning-500)",
-              fontSize: "12px", fontWeight: 700, lineHeight: 1.6,
+              fontSize: "12px", fontWeight: 700, lineHeight: 1.5,
             }}>{t.purposeRequirementOn}</p>
           )}
           <SearchPurposeList t={t} teamId={myTeamId} purposes={teamPurposes} canEdit={maySetPolicy} />
         </CardSection>
       )}
 
+      {active === "display" && (
       <CardSection heading={t.displayTitle} icon={<Monitor size={15} strokeWidth={2.2} />}>
         <PairGrid>
-          <PairItem label={t.language}>
+          <PairItem label={t.language} hint={t.languageNote}>
             {/* Each language named in its own script — the one label a person who cannot read the
                 current interface still recognises. */}
             <FilterSelect
@@ -691,11 +836,9 @@ export default function PortalSettingsPage({ projectId }: { projectId: string })
             />
           </PairItem>
         </PairGrid>
-        {/* Said out loud, because the two halves now disagree on purpose. Without it, somebody who
-            switches here and walks into the app reads the same words in English and concludes the
-            setting is broken. */}
-        <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, marginTop: "12px" }}>{t.languageNote}</p>
       </CardSection>
+      )}
+
       </div>
     </div>
   );
@@ -771,8 +914,8 @@ function ChangePasswordModal({ t, lang, onClose }: {
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "420px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "420px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "16px 20px 4px" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.changePassword}</p>
           {/* Which of the two steps you are on. Named, not numbered: "1 / 2" tells you where you
@@ -811,11 +954,11 @@ function ChangePasswordModal({ t, lang, onClose }: {
               {field(t.newPassword, next, setNext, "new-password",
                 /* The rule under the field, not in a tooltip: it should be readable before it is
                    broken rather than after. Amber only once what is typed breaks it. */
-                <p style={{ marginTop: "6px", fontSize: "11px", lineHeight: 1.6, color: next.length > 0 && !formatValid ? "var(--warning-500)" : "var(--gray-400)" }}>
+                <p style={{ marginTop: "6px", fontSize: "11px", lineHeight: 1.45, color: next.length > 0 && !formatValid ? "var(--warning-500)" : "var(--gray-400)" }}>
                   {PASSWORD_RULE_TEXT[lang]}
                 </p>)}
               {field(t.confirmPassword, confirm, setConfirm, "new-password",
-                mismatch ? <p style={{ marginTop: "6px", fontSize: "11px", lineHeight: 1.6, color: "var(--warning-500)" }}>{t.mismatch}</p> : undefined)}
+                mismatch ? <p style={{ marginTop: "6px", fontSize: "11px", lineHeight: 1.45, color: "var(--warning-500)" }}>{t.mismatch}</p> : undefined)}
             </div>
             <div style={{ padding: "0 20px 20px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
               <button className="portal-btn-outline" onClick={onClose}
@@ -837,7 +980,7 @@ function ChangePasswordModal({ t, lang, onClose }: {
 /**
  * The institution's list of search purposes: what is on it, and how to add to it.
  *
- * Opens empty and says so. No example row, for the same reason the watchlist categories have none
+ * Opens empty and says so. No example row, for the same reason the VIP registry categories have none
  * — a shipped "Case enquiry" would read as the standard, and the first thing a customer does with
  * somebody else's vocabulary is delete it.
  *
@@ -867,7 +1010,7 @@ function SearchPurposeList({ t, teamId, purposes, canEdit }: {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       {purposes.length === 0 && !creating && (
-        <p style={{ fontSize: "12px", color: "var(--gray-400)", lineHeight: 1.7 }}>{t.purposeEmpty}</p>
+        <p style={{ fontSize: "12px", color: "var(--gray-400)", lineHeight: 1.5 }}>{t.purposeEmpty}</p>
       )}
       {purposes.map(sp => (
         <div key={sp.id} style={{
@@ -894,14 +1037,14 @@ function SearchPurposeList({ t, teamId, purposes, canEdit }: {
       {!canEdit ? (
         // Said, not hidden. A reader who cannot find the Create button should learn that the list
         // has an owner rather than conclude the console is broken.
-        <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6 }}>{t.purposeOwnerOnly}</p>
+        <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45 }}>{t.purposeOwnerOnly}</p>
       ) : creating ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "14px", border: BORDER, borderRadius: "10px", backgroundColor: "var(--gray-50)" }}>
           <div>
             <label style={{ fontSize: "12px", color: "var(--gray-500)", display: "block", marginBottom: "6px" }}>{t.purposeLabelField}</label>
             <TextField value={label} onChange={setLabel} placeholder={t.purposeLabelPlaceholder} autoFocus />
           </div>
-          {/* Off by default, unlike the watchlist category's basis. A purpose is declared once a
+          {/* Off by default, unlike the VIP registry category's basis. A purpose is declared once a
               sitting and a reference is not always available at that moment; a category is chosen
               per person, where the paperwork already exists. */}
           <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "12px", color: "var(--gray-600)" }}>
@@ -926,7 +1069,7 @@ function SearchPurposeList({ t, teamId, purposes, canEdit }: {
         </button>
       )}
       {purposes.some(sp => sp.archived) && (
-        <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6 }}>{t.purposeRetireNote}</p>
+        <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45 }}>{t.purposeRetireNote}</p>
       )}
     </div>
   );

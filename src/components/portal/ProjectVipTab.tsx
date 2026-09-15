@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 // 2.4, not 1.4: lucide draws in a 24-unit box and this renders at 14px — see ICON_STROKE_PX.
-import { AlertTriangle, ArrowDownWideNarrow, Eye, ImageOff, RefreshCw, Users } from "lucide-react";
-import { canSetPolicy, currentPortalUser, registryHealth, useVcaStore, type Person, type PersonGroup, type WatchlistCategory } from "@/lib/vcaStore";
+import { AlertTriangle, ArrowDownWideNarrow, Eye, FileOutput, ImageOff, RefreshCw, Users } from "lucide-react";
+import { canSetPolicy, currentPortalUser, registryHealth, useVcaStore, type Person, type PersonGroup, type VipCategory } from "@/lib/vcaStore";
+import { getComplianceConfig } from "@/lib/complianceConfig";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { usePortalLanguage } from "@/lib/i18n";
 import { useToast } from "../Toast";
-import { TABLE_HEADER_COLOR, ActiveFilterCount, TextField, FIELD_STYLE, FIELD_FOCUS, BORDER, CARD_BORDER, CONTROL_HEIGHT, PANEL_SHADOW, TABLE_COLUMN_GAP, ConfirmModal, FilterSelect, RowActionsMenu, SortableHeader, SummaryStrip, Tooltip, sortRows, useTableSort, usePortalEditAccess } from "./PortalShared";
-import { WatchlistCategoryModal, categoryTint } from "./WatchlistCategories";
+import { TABLE_HEADER_COLOR, ActiveFilterCount, TextField, FIELD_STYLE, FIELD_FOCUS, BORDER, CARD_BORDER, CONTROL_HEIGHT, PANEL_SHADOW, TABLE_COLUMN_GAP, ConfirmModal, FilterSelect, RowActionsMenu, SortableHeader, SummaryStrip, Tooltip, sortRows, useTableSort, usePortalEditAccess, FacePhoto, MEASURE_TIGHT } from "./PortalShared";
+import { VipCategoryModal, categoryTint } from "./VipCategories";
 
 type VipSortKey = "name" | "priority" | "registered" | "lastDetected" | "expires";
 
@@ -16,6 +17,10 @@ type VipSortKey = "name" | "priority" | "registered" | "lastDetected" | "expires
 const VIP_GRID = "48px 1.2fr 0.8fr 0.6fr 0.7fr 0.7fr 0.8fr 0.8fr 36px";
 /** The All tab adds a Group column; the Individuals tab would print "Individual" on every row. */
 const VIP_GRID_WITH_GROUP = "48px 1.1fr 0.75fr 0.75fr 0.55fr 0.65fr 0.65fr 0.7fr 0.7fr 36px";
+/** Same two, with the category track dropped — see complianceConfig.vipCategories. The freed
+ *  width goes to the name, which is what a reader scans this table by. */
+const VIP_GRID_NO_CAT = "48px 1.6fr 0.6fr 0.7fr 0.7fr 0.8fr 0.8fr 36px";
+const VIP_GRID_WITH_GROUP_NO_CAT = "48px 1.4fr 0.85fr 0.55fr 0.65fr 0.65fr 0.7fr 0.7fr 36px";
 const GROUP_GRID = "1.5fr 0.6fr 0.8fr 1.6fr 36px";
 
 const PRIORITY_LABELS: NonNullable<Person["priorityLabel"]>[] = ["normal", "high", "very_high"];
@@ -40,7 +45,7 @@ const PRIORITY_COLOR: Record<NonNullable<Person["priorityLabel"]>, { bg: string;
 // There was a "Role" beside it — Regular / Lead / Captain / Health / Special, asked for on the
 // register form and printed in a table column. Nothing read it: no filter, no alert, no camera
 // behaviour, and it had already come off the cards. Its vocabulary was not this product's either
-// ("Captain" and "Health" are a team's roles, not a watchlist's). A field an administrator is
+// ("Captain" and "Health" are a team's roles, not a VIP registry's). A field an administrator is
 // asked to fill and nothing acts on is a question with no answer, so it is gone — group and
 // priority are what classify a face here.
 interface VipDict {
@@ -223,10 +228,10 @@ const T: Record<"en" | "ko", VipDict> = {
     csvUnclassified: "unclassified",
     csvStatusActive: "active",
     toastVipExportTitle: "Export complete",
-    toastVipExportDesc: (n: number) => `${n} watchlist record(s) exported to CSV.`,
+    toastVipExportDesc: (n: number) => `${n} vipRegistry record(s) exported to CSV.`,
     colPriority: "Priority",
     healthMissingPhoto: "no photo",
-    healthMissingPhotoWhy: "On the watchlist with no face attached. A CSV import can add a name without a photo; these people cannot be matched until one is uploaded.",
+    healthMissingPhotoWhy: "On the VIP list with no face attached. A CSV import can add a name without a photo; these people cannot be matched until one is uploaded.",
     healthEmbeddingFailed: "photo unreadable",
     healthEmbeddingFailedWhy: "A photo is attached, but the model could not read a face out of it — too small, too dark or turned too far. Open the person and replace the photo; that is what clears it.",
     healthReenrolling: "awaiting re-enrolment",
@@ -234,7 +239,7 @@ const T: Record<"en" | "ko", VipDict> = {
     photoReenrollingHint: "A replacement photo has been submitted. Until the model answers, this person is still unmatchable.",
     healthReenrollingWhy: "A new photo has been submitted and the model has not answered yet. These people are still unmatchable until it does — a replaced photo is a question re-asked, not a fix confirmed.",
     healthDuplicates: "possible duplicates",
-    healthDuplicatesWhy: "Two or more records that share a name. Usually the same person enrolled twice; the watchlist counts them twice either way.",
+    healthDuplicatesWhy: "Two or more records that share a name. Usually the same person enrolled twice; the VIP list counts them twice either way.",
     healthShowOnly: "Show only these",
     healthClear: "Show everyone again",
     healthPeopleUnit: "people",
@@ -249,27 +254,27 @@ const T: Record<"en" | "ko", VipDict> = {
     optionalMark: "optional",
     expiresLabel: "Listing expires",
     expiresNote: "The listing stops on this date. Expired people stay on the list, marked.",
-    noExpiryWarning: "No end date — this person stays on the watchlist until somebody removes them.",
+    noExpiryWarning: "No end date — this person stays a VIP until somebody removes them.",
     colCategory: "Category",
     colExpires: "Expires",
     statusExpired: "Expired",
     statusReleased: "Released",
     expiringInDays: (n: number) => `${n}d left`,
     noExpiry: "No end date",
-    releaseAction: "Release from watchlist",
-    reinstateAction: "Put back on the watchlist",
-    reinstateTitle: (name: string) => `Put ${name} back on the watchlist?`,
+    releaseAction: "Release from VIP",
+    reinstateAction: "Put back on the VIP list",
+    reinstateTitle: (name: string) => `Put ${name} back on the vipRegistry?`,
     reinstateBody: "Cameras start matching them again. The release and this reversal both stay in the activity log.",
     reinstateReasonPlaceholder: "Released in error · Listing renewed",
     reinstateConfirm: "Reinstate",
-    reinstatedToast: "Back on the watchlist",
+    reinstatedToast: "Back on the VIP list",
     releaseTitle: (name: string) => `Release ${name}?`,
-    releaseBody: "They come off the watchlist and cameras stop matching them. The row stays, marked as released, so the history survives.",
+    releaseBody: "They come off the VIP list and cameras stop matching them. The row stays, marked as released, so the history survives.",
     releaseReasonLabel: "Reason",
     releaseReasonPlaceholder: "Found · Arrested · Listed in error",
     releaseConfirm: "Release",
-    releasedToast: "Released from watchlist",
-    catModalTitle: "Watchlist categories",
+    releasedToast: "Released from VIP",
+    catModalTitle: "VIP categories",
     catEdit: "Edit",
     catModalIntro: "The words are yours, not ours.",
     catEmpty: "No categories yet. People can still be registered; they are listed as unclassified.",
@@ -287,13 +292,13 @@ const T: Record<"en" | "ko", VipDict> = {
     catSave: "Save",
     catOwnerOnly: "Only the owner can change this list.",
     healthReachLabel: "people detected · 7 days",
-    healthReachWhy: "How many people on the watchlist were seen at least once in the last 7 days — people, not detections. One person passing a camera twenty times counts once here.",
+    healthReachWhy: "How many people on the VIP list were seen at least once in the last 7 days — people, not detections. One person passing a camera twenty times counts once here.",
     healthReachTrend: (prev: number) => `vs ${prev} people last week`,
     healthReachFlat: "same as last week",
     colRegistered: "Registered",
     colNote: "Note",
     confirmRemoveTitle: "Remove this VIP?",
-    confirmRemoveBody: "They will be removed from this project's watchlist. Cameras will no longer detect them as a registered VIP.",
+    confirmRemoveBody: "They will be removed from this project's VIP list. Cameras will no longer detect them as a registered VIP.",
     removeAction: "Remove",
     vipRemovedTitle: "VIP removed",
     modalTitle: "Add new person",
@@ -325,7 +330,7 @@ const T: Record<"en" | "ko", VipDict> = {
     tabIndividualsHint: "People registered on their own — nobody in a group.",
     tabGroupsHint: "Parties registered together: a visiting delegation, a protection detail. Removing a group keeps its members registered.",
     tabReleased: "Released",
-    tabReleasedHint: "Taken off the watchlist, with a record of who did it and why. Cameras no longer match them — and nothing here has been deleted.",
+    tabReleasedHint: "Taken off the VIP list, with a record of who did it and why. Cameras no longer match them — and nothing here has been deleted.",
     addGroup: "Add group",
     colGroup: "Group",
     colMembers: "Members",
@@ -367,7 +372,7 @@ const T: Record<"en" | "ko", VipDict> = {
     filtersActive: (n: number) => `필터 ${n}개`,
     noSearchResults: "검색 결과와 일치하는 VIP가 없습니다.",
     noVips: "이 프로젝트에 등록된 VIP가 아직 없습니다.",
-    noVipsHint: "인물을 등록하거나 명단을 가져오면 됩니다 — 등록된 한 사람이 이 프로젝트의 카메라가 대조하는 얼굴 하나가 됩니다.",
+    noVipsHint: "한 명씩 등록하거나 목록을 가져오면 됩니다 — 등록된 한 사람이 이 프로젝트의 카메라가 대조하는 얼굴 하나가 됩니다.",
     registered: (date: string) => `등록일 ${date}`,
     viewGrid: "그리드",
     viewTable: "테이블",
@@ -379,10 +384,10 @@ const T: Record<"en" | "ko", VipDict> = {
     csvUnclassified: "미분류",
     csvStatusActive: "유효",
     toastVipExportTitle: "내보내기 완료",
-    toastVipExportDesc: (n: number) => `명단 ${n}건이 CSV로 내보내졌습니다.`,
+    toastVipExportDesc: (n: number) => `VIP ${n}건을 CSV로 내보냈습니다.`,
     colPriority: "우선순위",
     healthMissingPhoto: "사진 없음",
-    healthMissingPhotoWhy: "명단에는 있지만 얼굴 사진이 없습니다. CSV로 가져오면 사진 없이 이름만 등록될 수 있고, 사진을 올리기 전까지는 매칭되지 않습니다.",
+    healthMissingPhotoWhy: "VIP 목록에는 있지만 얼굴 사진이 없습니다. CSV로 가져오면 사진 없이 이름만 등록될 수 있고, 사진을 올리기 전까지는 매칭되지 않습니다.",
     healthEmbeddingFailed: "사진 인식 실패",
     healthEmbeddingFailedWhy: "사진은 있지만 모델이 얼굴을 읽어내지 못했습니다. 너무 작거나 어둡거나 옆을 봤을 때 생깁니다. 해당 인물을 열어 사진을 교체하면 풀립니다.",
     healthReenrolling: "재등록 대기",
@@ -390,7 +395,7 @@ const T: Record<"en" | "ko", VipDict> = {
     photoReenrollingHint: "교체할 사진이 접수되었습니다. 모델의 답이 오기 전까지는 여전히 매칭되지 않습니다.",
     healthReenrollingWhy: "새 사진을 올렸고 모델의 답을 기다리는 중입니다. 답이 오기 전까지는 여전히 매칭되지 않습니다 — 사진 교체는 다시 물어본 것이지, 해결이 확인된 게 아닙니다.",
     healthDuplicates: "중복 의심",
-    healthDuplicatesWhy: "이름이 같은 기록이 둘 이상입니다. 대개 같은 사람을 두 번 등록한 경우이고, 어느 쪽이든 명단에서는 두 명으로 셉니다.",
+    healthDuplicatesWhy: "이름이 같은 기록이 둘 이상입니다. 대개 같은 사람을 두 번 등록한 경우이고, 어느 쪽이든 목록에서는 두 명으로 셉니다.",
     healthShowOnly: "이 항목만 보기",
     healthClear: "전체 다시 보기",
     healthPeopleUnit: "명",
@@ -412,20 +417,20 @@ const T: Record<"en" | "ko", VipDict> = {
     statusReleased: "해제됨",
     expiringInDays: (n: number) => `${n}일 남음`,
     noExpiry: "무기한",
-    releaseAction: "명단에서 해제",
-    reinstateAction: "명단에 다시 올리기",
-    reinstateTitle: (name: string) => `${name}을(를) 명단에 다시 올릴까요?`,
+    releaseAction: "VIP에서 해제",
+    reinstateAction: "VIP로 되돌리기",
+    reinstateTitle: (name: string) => `${name}을(를) VIP로 되돌릴까요?`,
     reinstateBody: "카메라가 다시 이 사람을 매칭합니다. 해제와 이번 복구 둘 다 변경 기록에 남습니다.",
     reinstateReasonPlaceholder: "잘못 해제함 · 등록 연장",
     reinstateConfirm: "다시 올리기",
-    reinstatedToast: "명단에 다시 올렸습니다",
+    reinstatedToast: "VIP로 되돌렸습니다",
     releaseTitle: (name: string) => `${name}을(를) 해제할까요?`,
-    releaseBody: "명단에서 내려가고 카메라가 더 이상 대조하지 않습니다. 행은 해제 표시와 함께 남아 이력이 보존됩니다.",
+    releaseBody: "VIP 목록에서 내려가고 카메라가 더 이상 대조하지 않습니다. 행은 해제 표시와 함께 남아 이력이 보존됩니다.",
     releaseReasonLabel: "사유",
     releaseReasonPlaceholder: "발견 · 검거 · 착오 등록",
     releaseConfirm: "해제",
-    releasedToast: "명단에서 해제했습니다",
-    catModalTitle: "관심인물 분류",
+    releasedToast: "VIP에서 해제했습니다",
+    catModalTitle: "VIP 분류",
     catEdit: "수정",
     catModalIntro: "쓰는 말은 저희 것이 아니라 기관의 것입니다.",
     catEmpty: "아직 분류가 없습니다. 그래도 등록은 됩니다 — 미분류로 올라갑니다.",
@@ -443,13 +448,13 @@ const T: Record<"en" | "ko", VipDict> = {
     catSave: "저장",
     catOwnerOnly: "이 목록은 최고관리자만 바꿀 수 있습니다.",
     healthReachLabel: "지난 7일간 탐지된 인원",
-    healthReachWhy: "명단에 있는 사람 중 최근 7일 안에 한 번이라도 잡힌 인원 수입니다. 탐지 건수가 아니라 사람 수라서, 한 사람이 카메라 앞을 스무 번 지나가도 1로 셉니다.",
+    healthReachWhy: "VIP 목록에 있는 사람 중 최근 7일 안에 한 번이라도 잡힌 인원 수입니다. 탐지 건수가 아니라 사람 수라서, 한 사람이 카메라 앞을 스무 번 지나가도 1로 셉니다.",
     healthReachTrend: (prev: number) => `지난주 ${prev}명`,
     healthReachFlat: "지난주와 같음",
     colRegistered: "등록일",
     colNote: "메모",
     confirmRemoveTitle: "정말 삭제하시겠습니까?",
-    confirmRemoveBody: "이 프로젝트의 관심인물 목록에서 삭제됩니다. 이후 카메라는 이 인물을 등록된 VIP로 탐지하지 않습니다.",
+    confirmRemoveBody: "이 프로젝트의 VIP 목록에서 삭제됩니다. 이후 카메라는 이 사람을 대조하지 않습니다.",
     removeAction: "삭제",
     vipRemovedTitle: "VIP 삭제됨",
     modalTitle: "새 인물 추가",
@@ -481,7 +486,7 @@ const T: Record<"en" | "ko", VipDict> = {
     tabIndividualsHint: "혼자 등록된 사람입니다 — 그룹에 속한 사람은 빠집니다.",
     tabGroupsHint: "함께 등록된 일행입니다: 방문단, 경호 대상. 그룹을 지워도 소속된 사람은 등록된 채로 남습니다.",
     tabReleased: "해제됨",
-    tabReleasedHint: "명단에서 내려온 사람입니다. 누가 언제 왜 내렸는지가 함께 남습니다. 카메라는 더 이상 대조하지 않고, 삭제된 것은 아무것도 없습니다.",
+    tabReleasedHint: "VIP에서 내려온 사람입니다. 누가 언제 왜 내렸는지가 함께 남습니다. 카메라는 더 이상 대조하지 않고, 삭제된 것은 아무것도 없습니다.",
     addGroup: "그룹 추가",
     colGroup: "그룹",
     colMembers: "인원",
@@ -516,7 +521,7 @@ const T: Record<"en" | "ko", VipDict> = {
 
 interface RegisterValues {
   name: string;
-  /** Undefined = unclassified, which is a real state — see WatchlistCategory in the store. */
+  /** Undefined = unclassified, which is a real state — see VipCategory in the store. */
   categoryId?: string;
   basis?: string;
   /** Undefined = no expiry. */
@@ -545,7 +550,7 @@ function RegisterVipModal({ t, person, photoUnreadable, groups, categories, proj
    *  predicate — recomputing it here would be a second opinion on the same question. */
   photoUnreadable?: boolean;
   groups: PersonGroup[];
-  categories: WatchlistCategory[];
+  categories: VipCategory[];
   projectId: string;
   onClose: () => void;
   onSubmit: (values: RegisterValues) => void;
@@ -565,6 +570,7 @@ function RegisterVipModal({ t, person, photoUnreadable, groups, categories, proj
   const [priorityLabel, setPriorityLabel] = useState<NonNullable<Person["priorityLabel"]>>(person?.priorityLabel ?? "normal");
   const [description, setDescription] = useState(person?.description ?? "");
   const [groupId, setGroupId] = useState(person?.groupId ?? "");
+  const categoriesEnabled = getComplianceConfig().vipCategories;
   const [categoryId, setCategoryId] = useState(person?.categoryId ?? "");
   const [basis, setBasis] = useState(person?.basis ?? "");
   const [expiresAt, setExpiresAt] = useState(person?.expiresAt?.slice(0, 10) ?? "");
@@ -646,8 +652,8 @@ function RegisterVipModal({ t, person, photoUnreadable, groups, categories, proj
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "16px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>
             {editing ? t.editModalTitle(person.name) : t.modalTitle}
@@ -662,10 +668,12 @@ function RegisterVipModal({ t, person, photoUnreadable, groups, categories, proj
             <TextField value={name} onChange={setName} placeholder={t.namePlaceholder} />
           </div>
           {/* Classification, then what backs it, then when it ends — the three questions an audit
-              asks about a watchlist row, in the order somebody answers them. Above priority
+              asks about a registry row, in the order somebody answers them. Above priority
               because a category decides whether the basis is required and what the expiry starts
-              at, and a field that changes two others should come before them. */}
-          <div>
+              at, and a field that changes two others should come before them.
+              Behind complianceConfig.vipCategories: with it off the select is gone, `categoryId`
+              stays empty, and the basis below is therefore always optional on its own. */}
+          {categoriesEnabled && <div>
             <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", display: "block", marginBottom: "6px" }}>{t.categoryLabel}</label>
             <FilterSelect
               value={categoryId}
@@ -679,7 +687,7 @@ function RegisterVipModal({ t, person, photoUnreadable, groups, categories, proj
               ]}
               footerAction={{ label: t.manageCategories, onClick: onManageCategories }}
             />
-          </div>
+          </div>}
           <div>
             <label style={{ display: "flex", alignItems: "baseline", gap: "6px", fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", marginBottom: "6px" }}>
               {t.basisLabel}
@@ -694,7 +702,7 @@ function RegisterVipModal({ t, person, photoUnreadable, groups, categories, proj
             <TextField value={expiresAt} onChange={setExpiresAt} type="date" />
             {/* Said out loud rather than left to an empty field. A blank expiry is the most
                 consequential default on this form and the one nobody notices leaving. */}
-            <p style={{ fontSize: "11px", color: expiresAt ? "var(--gray-400)" : "var(--warning-500)", lineHeight: 1.6, marginTop: "6px" }}>
+            <p style={{ fontSize: "11px", color: expiresAt ? "var(--gray-400)" : "var(--warning-500)", lineHeight: 1.45, marginTop: "6px" }}>
               {expiresAt ? t.expiresNote : t.noExpiryWarning}
             </p>
           </div>
@@ -803,10 +811,10 @@ function RegisterVipModal({ t, person, photoUnreadable, groups, categories, proj
                 perfectly ordinary-looking photograph and no hint of what was wrong with it. The
                 model's complaint belongs against the picture it could not read. */}
             {photoState === "unreadable" && (
-              <p style={{ fontSize: "11px", color: "var(--warning-500)", lineHeight: 1.6, marginTop: "6px" }}>{t.photoUnreadableHint}</p>
+              <p style={{ fontSize: "11px", color: "var(--warning-500)", lineHeight: 1.45, marginTop: "6px" }}>{t.photoUnreadableHint}</p>
             )}
             {photoState === "reenrolling" && (
-              <p style={{ fontSize: "11px", color: "var(--gray-500)", lineHeight: 1.6, marginTop: "6px" }}>{t.photoReenrollingHint}</p>
+              <p style={{ fontSize: "11px", color: "var(--gray-500)", lineHeight: 1.45, marginTop: "6px" }}>{t.photoReenrollingHint}</p>
             )}
           </div>
         </div>
@@ -840,10 +848,10 @@ function RemoveVipConfirmModal({ t, person, onClose, onConfirm }: { t: VipDict; 
   useEscapeKey(onClose);
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "380px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "380px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "24px 20px 20px", textAlign: "center" }}>
-          <img src={person.photoUrl} alt="" style={{ width: "72px", height: "72px", borderRadius: "50%", objectFit: "cover", margin: "0 auto 14px" }} />
+          <FacePhoto src={person.photoUrl} size={72} radius="50%" style={{ margin: "0 auto 14px" }} />
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{person.name}</p>
           <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)", marginTop: "12px" }}>{t.confirmRemoveTitle}</p>
           <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "6px" }}>{t.confirmRemoveBody}</p>
@@ -939,8 +947,8 @@ function GroupModal({ t, group, projectId, onClose }: {
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "420px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "420px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "14px" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>
             {group ? t.groupModalEditTitle : t.groupModalAddTitle}
@@ -994,17 +1002,17 @@ function GroupModal({ t, group, projectId, onClose }: {
 /**
  * The registration moment as the detail sheet shows it: the day, plus the time when the stored
  * value carries one. Rows enrolled before Portal recorded instants have only a date, and inventing
- * a time for them would be making up a fact about when somebody was put on a watchlist.
+ * a time for them would be making up a fact about when somebody was put on a VIP registry.
  *
- * Only called from the sheet, which exists after a click, so formatting in the viewer's zone
- * cannot mismatch between server and client render.
+ * The locale is pinned because the day beside it is an ISO slice: a runtime-default locale would
+ * pair 2026-09-11 with whatever clock the viewer's machine happens to prefer.
  */
 function registeredLong(value: string): string {
   const day = value.slice(0, 10);
   if (!value.includes("T")) return day;
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return day;
-  return `${day} ${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+  return `${day} ${at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
 }
 
 function PersonDetailModal({ t, person, groups, onClose, onEdit, onRemove }: {
@@ -1047,13 +1055,14 @@ function PersonDetailModal({ t, person, groups, onClose, onEdit, onRemove }: {
     // there clips nothing the browser would not clip anyway. `margin: auto` on the sheet is what
     // keeps a tall one scrollable from its top instead of having its head cut off by centring.
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", overflowY: "auto" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "380px", width: "100%", margin: "auto", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", overflowY: "auto" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "380px", width: "100%", margin: "auto", boxShadow: "var(--shadow-modal)" }}>
         {/* Square, edge to edge, corners rounded only at the top so it reads as the sheet's own
             header rather than a picture sitting inside it. Capped so the sheet does not need to be
             taller than a short window on account of the photo alone. */}
-        <img src={person.photoUrl} alt=""
-          style={{ width: "100%", aspectRatio: "1 / 1", maxHeight: "320px", objectFit: "cover", display: "block", borderTopLeftRadius: "16px", borderTopRightRadius: "16px", backgroundColor: "var(--gray-100)" }} />
+        <FacePhoto src={person.photoUrl} radius="0"
+          style={{ width: "100%", aspectRatio: "1 / 1", maxHeight: "320px", borderTopLeftRadius: "16px", borderTopRightRadius: "16px", backgroundColor: "var(--gray-100)" }}
+          hiddenStyle={{ border: "none", borderBottom: "1px solid var(--gray-200)" }} />
         <div style={{ padding: "20px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
           <div style={{ minWidth: 0 }}>
@@ -1083,7 +1092,7 @@ function PersonDetailModal({ t, person, groups, onClose, onEdit, onRemove }: {
             {/* Group first, then what qualifies the person, then the note, then when they were
                 enrolled — last because it is the one value nobody comes here to read and the only
                 one that never changes. The time is shown as well: this is the detail view, and on
-                a watchlist "when was this face put in" is a question an inspection asks by the
+                a vipRegistry "when was this face put in" is a question an inspection asks by the
                 minute, not by the day. Rows enrolled before Portal recorded a time show only the
                 date rather than a made-up one. */}
             {row(t.colNote, person.description || <span style={{ color: "var(--gray-400)" }}>{t.detailNoNote}</span>)}
@@ -1109,16 +1118,16 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
   const persons = useVcaStore(s => s.persons);
   const personGroups = useVcaStore(s => s.personGroups);
   const projects = useVcaStore(s => s.projects);
-  const watchlistCategories = useVcaStore(s => s.watchlistCategories);
+  const vipCategories = useVcaStore(s => s.vipCategories);
   const releasePerson = useVcaStore(s => s.releasePerson);
   const reinstatePerson = useVcaStore(s => s.reinstatePerson);
   // Categories belong to the institution, so they are read through the project's team rather than
-  // through the project — see WatchlistCategory in the store.
+  // through the project — see VipCategory in the store.
   const teamId = projects.find(pr => pr.id === projectId)?.teamId;
-  const teamCategories = watchlistCategories.filter(c => c.teamId === teamId);
+  const teamCategories = vipCategories.filter(c => c.teamId === teamId);
   // Archived ones stay readable on rows that still reference them, but cannot be chosen again.
   const activeCategories = teamCategories.filter(c => !c.archived);
-  const categoryById = new Map(watchlistCategories.map(c => [c.id, c]));
+  const categoryById = new Map(vipCategories.map(c => [c.id, c]));
   // Same gate as the search-purpose list — see canSetPolicy. Both decide what the audit will find,
   // and an administrator able to loosen one and not the other would be a rule nobody could state.
   const me = currentPortalUser(useVcaStore.getState().portalUsers);
@@ -1138,13 +1147,13 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
   const [showRegister, setShowRegister] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState<Person | null>(null);
   const [search, setSearch] = useState("");
-  // Grid by default: a watchlist is looked at face-first, and the photo is the thing an operator
+  // Grid by default: a VIP registry is looked at face-first, and the photo is the thing an operator
   // recognises. Table is for the other job — comparing role, priority and when someone was added
   // across the whole list, which a wall of cards cannot do.
   /**
    * Table first, grid on request.
    *
-   * The grid opened by default because a watchlist is faces and faces are what you recognise — but
+   * The grid opened by default because a VIP registry is faces and faces are what you recognise — but
    * a hundred of them is a wall, and the job you come to this page with is usually "find this
    * person" or "check who is on the list", which a table answers in one line per person. The grid
    * is the right view for browsing and the wrong one for arriving.
@@ -1197,6 +1206,8 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
   const [detailFor, setDetailFor] = useState<Person | null>(null);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [managingCategories, setManagingCategories] = useState(false);
+  const releaseEnabled = getComplianceConfig().personRelease;
+  const categoriesEnabled = getComplianceConfig().vipCategories;
   const [releasing, setReleasing] = useState<Person | null>(null);
   const [reinstating, setReinstating] = useState<Person | null>(null);
   const [reinstateReason, setReinstateReason] = useState("");
@@ -1300,11 +1311,11 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
       : matchingPersons;
 
   /**
-   * The watchlist as a file.
+   * The VIP registry as a file.
    *
    * Cameras and the staff roster both export; this list — the one a control centre is audited on
    * and the one a shift supervisor is handed on paper — did not, while the seeded audit log
-   * carried a line reading "VIP watchlist exported to CSV" and taught the customer the button
+   * carried a line reading "VIP registry exported to CSV" and taught the customer the button
    * was there.
    *
    * What is on screen, not the whole registry: the toolbar's filters and search are how somebody
@@ -1314,13 +1325,13 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
    */
   const exportCsv = () => {
     const header = [
-      t.colName, t.colGroup, t.colCategory, t.colPriority, t.basisLabel,
+      t.colName, t.colGroup, ...(categoriesEnabled ? [t.colCategory] : []), t.colPriority, t.basisLabel,
       t.colRegistered, t.csvRegisteredBy, t.colExpires, t.colLastDetected, t.csvStatus,
     ];
     const rows = projectPersons.map(person => [
       person.name,
       person.groupId ? groupById.get(person.groupId)?.name ?? "" : "",
-      person.categoryId ? categoryById.get(person.categoryId)?.label ?? "" : t.csvUnclassified,
+      ...(categoriesEnabled ? [person.categoryId ? categoryById.get(person.categoryId)?.label ?? "" : t.csvUnclassified] : []),
       t.priorityText[person.priorityLabel ?? "normal"],
       person.basis ?? "",
       person.registeredAt.slice(0, 10),
@@ -1338,7 +1349,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${projects.find(pr => pr.id === projectId)?.name ?? "project"}-watchlist.csv`;
+    a.download = `${projects.find(pr => pr.id === projectId)?.name ?? "project"}-vipRegistry.csv`;
     a.click();
     URL.revokeObjectURL(url);
     showToast({ variant: "success", title: t.toastVipExportTitle, desc: t.toastVipExportDesc(rows.length) });
@@ -1447,7 +1458,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
           { id: "groups", label: t.tabGroups, count: personGroups.filter(g => g.projectId === projectId).length, hint: t.tabGroupsHint },
           // Only once there is something in it. A permanently visible "Released 0" invites the
           // question of whether releasing is something you are supposed to be doing.
-          ...(releasedPersons.length > 0
+          ...(releaseEnabled && releasedPersons.length > 0
             ? [{ id: "released" as const, label: t.tabReleased, count: releasedPersons.length, hint: t.tabReleasedHint }]
             : []),
         ] as { id: "all" | "individuals" | "groups" | "released"; label: string; count: number; hint: string }[]).map(tab => {
@@ -1646,7 +1657,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
               {t.addGroup}
             </button>
           ) : (<>
-          {/* Export stays open to a read-only account — handing the watchlist to an auditor as a
+          {/* Export stays open to a read-only account — handing the vipRegistry to an auditor as a
               file is most of what the role is for. Import is what goes. */}
           <button className="portal-btn-quiet" onClick={() => fileInputRef.current?.click()} disabled={!mayEdit} title={readOnlyReason}
             style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 10px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: mayEdit ? "var(--gray-600)" : "var(--gray-300)", fontSize: "12px", fontWeight: 600, cursor: mayEdit ? "pointer" : "not-allowed" }}>
@@ -1655,7 +1666,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
           </button>
           <button className="portal-btn-quiet" onClick={exportCsv} disabled={projectPersons.length === 0}
             style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 10px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: projectPersons.length === 0 ? "var(--gray-300)" : "var(--gray-600)", fontSize: "12px", fontWeight: 600, cursor: projectPersons.length === 0 ? "not-allowed" : "pointer" }}>
-            <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 1.75V9.33M7 9.33 4.08 6.42M7 9.33 9.92 6.42M2.33 9.92v1.17c0 .64.53 1.16 1.17 1.16h7c.64 0 1.17-.52 1.17-1.16V9.92" stroke="currentColor" strokeWidth="1.22" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <FileOutput size={14} strokeWidth={2.4} />
             {t.exportCsv}
           </button>
           <button className="portal-btn-primary" onClick={() => setShowRegister(true)} disabled={!mayEdit} title={readOnlyReason}
@@ -1731,7 +1742,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
             {q ? t.noSearchResults : vipTab === "individuals" ? t.noIndividuals : t.noVips}
           </p>
           {!q && vipTab !== "individuals" && (
-            <p style={{ fontSize: "12px", color: "var(--gray-300)", lineHeight: 1.55, marginTop: "6px", maxWidth: "46ch", marginInline: "auto" }}>{t.noVipsHint}</p>
+            <p style={{ fontSize: "12px", color: "var(--gray-300)", lineHeight: 1.5, marginTop: "6px", maxWidth: MEASURE_TIGHT, marginInline: "auto" }}>{t.noVipsHint}</p>
           )}
         </div>
       ) : view === "table" ? (
@@ -1740,14 +1751,14 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
               shell's scroller, at top:0 — no measuring, no fixed positioning, and it works because
               nothing between here and that scroller clips its overflow. zIndex 2 so rows pass
               beneath rather than over, and the gray-50 fill is what makes "beneath" invisible. */}
-          <div style={{ position: "sticky", top: 0, zIndex: 2, display: "grid", gridTemplateColumns: showGroupColumn ? VIP_GRID_WITH_GROUP : VIP_GRID, columnGap: TABLE_COLUMN_GAP, padding: "10px 16px", backgroundColor: "var(--gray-50)", borderBottom: BORDER, borderTopLeftRadius: "16px", borderTopRightRadius: "16px" }}>
+          <div style={{ position: "sticky", top: 0, zIndex: 2, display: "grid", gridTemplateColumns: categoriesEnabled ? (showGroupColumn ? VIP_GRID_WITH_GROUP : VIP_GRID) : (showGroupColumn ? VIP_GRID_WITH_GROUP_NO_CAT : VIP_GRID_NO_CAT), columnGap: TABLE_COLUMN_GAP, padding: "10px 16px", backgroundColor: "var(--gray-50)", borderBottom: BORDER, borderTopLeftRadius: "16px", borderTopRightRadius: "16px" }}>
             {/* The photo and the note carry no sortKey — a face has no order, and a free-text note
                 sorted alphabetically answers nothing. */}
             <span />
             {([
               { label: t.colName, key: "name" },
               ...(showGroupColumn ? [{ label: t.colGroup }] : []),
-              { label: t.colCategory },
+              ...(categoriesEnabled ? [{ label: t.colCategory }] : []),
               { label: t.colPriority, key: "priority", indent: true },
               { label: t.colRegistered, key: "registered" },
               { label: t.colLastDetected, key: "lastDetected" },
@@ -1767,7 +1778,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
             const isLast = i === projectPersons.length - 1;
             return (
               <div key={person.id} style={{
-                display: "grid", gridTemplateColumns: showGroupColumn ? VIP_GRID_WITH_GROUP : VIP_GRID, columnGap: TABLE_COLUMN_GAP, padding: "10px 16px", alignItems: "center",
+                display: "grid", gridTemplateColumns: categoriesEnabled ? (showGroupColumn ? VIP_GRID_WITH_GROUP : VIP_GRID) : (showGroupColumn ? VIP_GRID_WITH_GROUP_NO_CAT : VIP_GRID_NO_CAT), columnGap: TABLE_COLUMN_GAP, padding: "10px 16px", alignItems: "center",
                 borderBottom: isLast ? "none" : BORDER,
                 borderBottomLeftRadius: isLast ? "12px" : undefined, borderBottomRightRadius: isLast ? "12px" : undefined,
               }}>
@@ -1775,7 +1786,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
                     this column exists so the reader can tell one Michael from another. The row's
                     own padding is untouched — the first grid track grew with the picture, so the
                     row is taller by exactly what the picture needed and by nothing else. */}
-                <img src={person.photoUrl} alt="" style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "cover" }} />
+                <FacePhoto src={person.photoUrl} size={48} radius="8px" />
                 {/* The name is the way in, as it is in most tables — a narrow target that does not
                     fight the group select two cells over for the same click. */}
                 <button className="portal-link" onClick={() => setDetailFor(person)} title={person.name}
@@ -1810,7 +1821,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
                 {/* The category, in the institution's own word and its own colour. Unclassified
                     says so rather than showing a dash: it is a state somebody chose (or has not
                     got round to), not a missing value. */}
-                <span style={{ minWidth: 0 }}>
+                {categoriesEnabled && <span style={{ minWidth: 0 }}>
                   {(() => {
                     const cat = person.categoryId ? categoryById.get(person.categoryId) : undefined;
                     if (!cat) return <span style={{ fontSize: "11px", color: "var(--gray-400)" }}>{t.categoryNone}</span>;
@@ -1824,7 +1835,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
                       }}>{cat.label}</span>
                     );
                   })()}
-                </span>
+                </span>}
                 <span>{person.priorityLabel ? <PriorityTag priority={person.priorityLabel} text={t.priorityText[person.priorityLabel]} /> : <span style={{ fontSize: "12px", color: "var(--gray-300)" }}>—</span>}</span>
                 <span style={{ fontSize: "12px", color: "var(--gray-600)" }}>{person.registeredAt.slice(0, 10)}</span>
                 {/* The same em dash every other empty cell in this table uses, in the same grey as
@@ -1839,7 +1850,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
                 </span>
                 {/* Expiry, and what has already happened to it.
                     Released and expired rows stay in the list — if they vanished, nobody could tell
-                    which of the two happened, and "it is gone" is the one answer a watchlist must
+                    which of the two happened, and "it is gone" is the one answer a vipRegistry must
                     never give about somebody it used to hold. */}
                 <span style={{ fontSize: "12px", minWidth: 0 }}>
                   {(() => {
@@ -1869,9 +1880,14 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
                     // Released rows got no action at all here, which made release one-way: the
                     // only undo was delete-and-re-register, destroying the registration history
                     // the release was kept to preserve.
-                    person.releasedAt
-                      ? { label: t.reinstateAction, onClick: () => setReinstating(person), disabled: !mayEdit, reason: readOnlyReason }
-                      : { label: t.releaseAction, onClick: () => setReleasing(person), disabled: !mayEdit, reason: readOnlyReason },
+                    //
+                    // Both are behind complianceConfig.personRelease — off for the first release,
+                    // where delete is the only way off the list.
+                    ...(releaseEnabled
+                      ? [person.releasedAt
+                          ? { label: t.reinstateAction, onClick: () => setReinstating(person), disabled: !mayEdit, reason: readOnlyReason }
+                          : { label: t.releaseAction, onClick: () => setReleasing(person), disabled: !mayEdit, reason: readOnlyReason }]
+                      : []),
                     { label: t.removeAction, onClick: () => setConfirmingRemove(person), danger: true, disabled: !mayEdit, reason: readOnlyReason },
                   ]} />
                 </div>
@@ -1911,18 +1927,18 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
               }}>
               {/* 60, not 44. At 44 the thumbnail told you which card was whose and nothing more —
                   a face that small cannot be compared to a person standing in front of you, which
-                  is what a watchlist is for. The detail sheet behind the card carries the size that
+                  is what a vipRegistry is for. The detail sheet behind the card carries the size that
                   actually answers that; this is the largest the grid can give without the tags and
                   the name losing their line. */}
-              <img src={person.photoUrl} alt="" style={{ width: "60px", height: "60px", borderRadius: "10px", objectFit: "cover", flexShrink: 0 }} />
+              <FacePhoto src={person.photoUrl} size={60} radius="10px" style={{ flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 {/* Name first. The tags used to sit above it, which put a pill where the eye goes
-                    for the thing a watchlist card is actually scanned for — a face and a name. The
+                    for the thing a vipRegistry card is actually scanned for — a face and a name. The
                     group and the priority qualify that name, so they read after it. */}
                 {/* Two lines, always — reserved whether the name needs them or not.
                     "Muhammad Rizal bin Hassan" wraps at this width and "David Ho" does not, so a
                     height that follows the name made every card a different card. Clamped rather
-                    than ellipsised on one line, because a watchlist that truncates the name has
+                    than ellipsised on one line, because a vipRegistry that truncates the name has
                     broken the one thing it is for; two lines hold every name in the registry. */}
                 <p style={{
                   fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", lineHeight: 1.35,
@@ -1961,7 +1977,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
                 )}
                 {/* The note is not on the card.
                     It is free text with no length anybody controls, so on a card it either grew
-                    the card or had to be clamped — and a watchlist grid is read at a hundred faces
+                    the card or had to be clamped — and a vipRegistry grid is read at a hundred faces
                     at a time, where a line per card is a screenful. Four of six comparable grids
                     (Qatalog, Cosmos, Rive, and most of Wellfound's) leave it off the card for the
                     same reason; the ones that keep it (Kit) are grids where the prose IS the
@@ -1999,7 +2015,7 @@ export default function ProjectVipTab({ projectId }: { projectId: string }) {
         <RemoveVipConfirmModal t={t} person={confirmingRemove} onClose={() => setConfirmingRemove(null)} onConfirm={confirmRemove} />
       )}
       {managingCategories && teamId && (
-        <WatchlistCategoryModal teamId={teamId} categories={teamCategories} canEdit={maySetPolicy} onClose={() => setManagingCategories(false)} />
+        <VipCategoryModal teamId={teamId} categories={teamCategories} canEdit={maySetPolicy} onClose={() => setManagingCategories(false)} />
       )}
       {releasing && (
         <ConfirmModal

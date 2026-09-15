@@ -4,9 +4,11 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import RedmapMap from "./RedmapMap";
 import type { RedmapMode as Mode, SimilarityLimit, HitResult, DateRange } from "@/types/redmap";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { useOnValueChange } from "@/hooks/useOnValueChange";
 import { useToast } from "./Toast";
 import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtDateKey } from "@/lib/time";
 import { camerasInProject, canSearchInApp, judgementFor, useActiveProjectId, useProjectCameras, useVcaStore, type Camera } from "@/lib/vcaStore";
+import { getComplianceConfig } from "@/lib/complianceConfig";
 import { buildEvidenceManifest, evidenceFilename, saveManifest } from "@/lib/evidence";
 import { siteTimeZone } from "@/lib/time";
 import RemoveImageButton from "./RemoveImageButton";
@@ -18,6 +20,8 @@ import { josa, useLanguage, type AppLanguage } from "@/lib/i18n";
 // seeded match labels are data and stay as they are.
 const T = {
   en: {
+    logFaceImage: "Face image",
+    logBodyImage: "Body image",
     noPermissionTitle: "Person search permission required",
     noPermissionBody: "Redmap only shows results from a search, so with no search permission there is nothing to show. An administrator can grant it in the Portal, under Users & Permissions.",
     close: "Close",
@@ -104,8 +108,10 @@ const T = {
     notSamePerson: "Not the same person — remove from this trace",
   },
   ko: {
+    logFaceImage: "얼굴 이미지",
+    logBodyImage: "전신 이미지",
     noPermissionTitle: "인물 검색 권한이 필요합니다",
-    noPermissionBody: "Redmap은 검색으로만 결과를 보여주는 화면이라, 검색 권한 없이는 보여줄 것이 없습니다. 관리자에게 요청하면 포털의 사용자 및 권한에서 열어 줄 수 있습니다.",
+    noPermissionBody: "Redmap은 검색으로만 결과를 보여주는 화면이라, 검색 권한 없이는 보여줄 것이 없습니다. 관리자에게 요청하면 Portal의 사용자 및 권한에서 열어 줄 수 있습니다.",
     close: "닫기",
     prevMonth: "지난달",
     nextMonth: "다음달",
@@ -404,7 +410,35 @@ function hashStr(s: string): number {
 // Colors assigned to distinct people in a result set, in first-appearance order — shared by the
 // person-filter chips, each result card's person tag, and that person's trail/markers on the map,
 // so the same color always means the same person across all three.
-const PERSON_COLORS = ["#5a3dfb", "#38bdf8", "#f43f5e", "#16a34a", "#f59e0b"];
+/**
+ * One colour per distinct person in a result set.
+ *
+ * Three of these used to be the severity ramp — danger-400, success-400, warning-400 — so the
+ * third person in a comparison was drawn in the colour this product uses for a threat, and the
+ * fourth in the colour it uses for normal. A person is not a severity, and in a control room that
+ * reading is not harmless: it is a suggestion about somebody the search has not even confirmed is
+ * the same person.
+ *
+ * teal and magenta were added to the palette on 2026-09-10 for exactly this and were used nowhere
+ * until now. globals.css says why they exist: every other ramp is spoken for, and a taxonomy drawn
+ * in a severity ramp stops being tellable apart from severity. Both sit more than 30° from
+ * anything else in the palette, so five stay tellable apart at chip size.
+ *
+ * Fifth is neutral. A five-person comparison is rare and the palette has no further step that
+ * means nothing; inventing one belongs in the library, not here.
+ *
+ * These reach L.polyline's `color`, which Leaflet writes with setAttribute as an SVG `stroke`
+ * presentation attribute — var() resolves there (presentation attributes are parsed as CSS, and
+ * substitution happens at computed-value time). Verified against that exact call path, and the
+ * repo already depends on it in 202 places.
+ */
+const PERSON_COLORS = [
+  "var(--primary-400)",  // purple, and here it really is a person
+  "var(--type-vehicle)",
+  "var(--teal-500)",     // a hue that means nothing anywhere else
+  "var(--magenta-500)",  // same
+  "var(--gray-600)",
+];
 
 /* ── SVG Icons ──────────────────────────────────────────────── */
 function PersonIcon({ color = "currentColor", size = 16 }: { color?: string; size?: number }) {
@@ -690,7 +724,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (v: 
         <div style={{
           position: "absolute", top: "42px", left: 0, zIndex: 2000,
           backgroundColor: "white", border: "1px solid var(--gray-200)", borderRadius: "8px",
-          boxShadow: "0 8px 32px rgba(14, 22, 42,0.12)", display: "flex", overflow: "hidden", width: "560px",
+          boxShadow: "var(--shadow-popover)", display: "flex", overflow: "hidden", width: "560px",
         }}>
           {/* Left: month list */}
           <div ref={listRef} style={{
@@ -879,6 +913,8 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
    * and when. See DetectionJudgement.
    */
   const detectionJudgements = useVcaStore(state => state.detectionJudgements);
+  const judgementEnabled = getComplianceConfig().detectionJudgement;
+  const recordSearchAccess = useVcaStore(state => state.recordSearchAccess);
   const recordJudgement = useVcaStore(state => state.recordJudgement);
   const clearJudgement = useVcaStore(state => state.clearJudgement);
   const verdictOf = (id: string) => judgementFor(detectionJudgements, "redmap", id)?.verdict;
@@ -969,6 +1005,10 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
     setMode("person");
     setResults(defaultResults);
     setHasSearched(true);
+    // Arriving with a name and landing on results IS a look-up — the operator did not fill the
+    // form, but the system searched for a named person on their behalf. A log that only counted
+    // searches typed on this screen would miss every trace opened from Best Frame or the map.
+    recordSearchAccess({ projectId: siteProjectId, target: initialSearchName, surface: "redmap", resultCount: defaultResults.length });
     setActiveHit(null);
     setActiveNode(null);
     setSelectedPersonIds(defaultResults.length ? new Set([defaultResults[defaultResults.length - 1].personId]) : new Set());
@@ -1149,6 +1189,18 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
             desc: t.widenDates });
     }
     setResults(filtered);
+    // One line to the look-up log. No purpose is attached: complianceConfig.requireSearchPurpose
+    // is off, so nobody was asked for one and inventing one would put a claim in the record that
+    // the operator never made. What the log answers is who searched for what, and when.
+    recordSearchAccess({
+      projectId: siteProjectId,
+      // What the operator actually gave us: a plate they typed, or an image they uploaded. The
+      // image itself is not recorded — the server keeps a hash, and the browser has no business
+      // writing one (a hash of the copy it received proves the copy, not the capture).
+      target: mode === "car" ? licensePlate.trim() : bodyOnly ? t.logBodyImage : t.logFaceImage,
+      surface: "redmap",
+      resultCount: filtered.length,
+    });
     // Judgements are NOT cleared here. They used to be, on the reasoning that they described this
     // search's outcome; they describe a sighting instead, and re-running a query is not a reason
     // to make somebody decide the same false positive twice.
@@ -1193,11 +1245,11 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
   // The header switched site. A trail across the previous site's cameras is not a trail through
   // this one, so the outcome goes — while the query itself (mode, similarity, dates, the attached
   // photo) is the operator's own work and survives, ready to run again here.
-  const firstSiteRef = useRef(true);
-  useEffect(() => {
-    if (firstSiteRef.current) { firstSiteRef.current = false; return; }
-    clearSearchOutcome();
-  }, [siteProjectId, clearSearchOutcome]);
+  // Only siteProjectId decides. `clearSearchOutcome` used to sit in the dependency list too, and
+  // it is rebuilt whenever `defaultResults` changes — so a new `siteCameras` identity alone threw
+  // away a finished search the site switch had nothing to do with. The hook keeps the callback in
+  // a ref, which closes that path as well as the StrictMode one.
+  useOnValueChange(siteProjectId, () => clearSearchOutcome());
 
   const handleReset = () => {
     setMode("person");
@@ -1279,7 +1331,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
           <p style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--gray-800)", letterSpacing: "-0.36px" }}>
             {t.noPermissionTitle}
           </p>
-          <p style={{ margin: "10px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", lineHeight: 1.7 }}>
+          <p style={{ margin: "10px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", lineHeight: 1.5 }}>
             {t.noPermissionBody}
           </p>
         </div>
@@ -1297,13 +1349,13 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
         <div
           onClick={e => { if (e.target === e.currentTarget) setUploadFor(null); }}
           style={{
-            position: "absolute", inset: 0, zIndex: 2000, backgroundColor: "rgba(14,22,42,0.15)",
+            position: "absolute", inset: 0, zIndex: 2000, backgroundColor: "rgba(24,17,39,0.15)",
             display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: "24px",
           }}>
           <div style={{
             width: "730px", height: "303px", boxSizing: "border-box", backgroundColor: "white",
             border: "1px solid var(--gray-200)", borderRadius: "8px",
-            boxShadow: "0 2px 12px rgba(14, 22, 42,0.08)",
+            boxShadow: "0 2px 12px rgba(24,17,39,0.08)",
             padding: "12px", display: "flex", flexDirection: "column", gap: "10px",
           }}>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -1386,7 +1438,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
                   color: active ? "var(--primary-400)" : "var(--gray-500)",
                   fontWeight: active ? 800 : 600, fontSize: "13px", letterSpacing: "-0.26px",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-                  boxShadow: active ? "0 1px 3px rgba(14, 22, 42,0.08)" : "none",
+                  boxShadow: active ? "var(--shadow-raised)" : "none",
                   transition: "all 0.15s",
                 }}
               >
@@ -1498,7 +1550,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
                         aria-label={t.removeImage(label)}
                         style={{
                           position: "absolute", inset: 0, border: "none", cursor: "pointer",
-                          backgroundColor: "rgba(14, 22, 42, 0.55)",
+                          backgroundColor: "var(--scrim-media)",
                           display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
                           fontSize: "12px", fontWeight: 700, color: "white",
                         }}
@@ -1646,7 +1698,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
                           {hoverUpload === key && (
                             <div style={{
                               position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                              backgroundColor: image ? "rgba(14,22,42,0.35)" : "transparent",
+                              backgroundColor: image ? "rgba(24,17,39,0.35)" : "transparent",
                             }}>
                               <span style={{ fontSize: "12px", fontWeight: 700, color: image ? "white" : "var(--primary-400)" }}>
                                 {image ? t.clickToChange : t.clickToUpload}
@@ -1701,7 +1753,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
               /* Said once, above the chips. The chips alone leave the reader to work out why
                  there is more than one — and the wrong answer to that ("these are ranked
                  matches") is the one that produces a route nobody walked. */
-              <p style={{ fontSize: "11px", lineHeight: 1.6, color: "var(--gray-500)", margin: "0 0 8px" }}>
+              <p style={{ fontSize: "11px", lineHeight: 1.45, color: "var(--gray-500)", margin: "0 0 8px" }}>
                 {t.resultTally(results.length, distinctPersons.length)} — {t.peopleNote}
               </p>
             )}
@@ -1733,7 +1785,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
                   <circle cx="12" cy="12" r="8" stroke="var(--gray-200)" strokeWidth="2" />
                   <path d="M18 18L25 25" stroke="var(--gray-200)" strokeWidth="2" strokeLinecap="round" />
                 </svg>
-                <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "var(--gray-400)" }}>
+                <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.5, color: "var(--gray-400)" }}>
                   {mode === "person"
                     ? <>{t.promptPerson}<br />{t.promptPersonAnd} <strong style={{ color: "var(--gray-700)" }}>{t.searchPersons}</strong>{t.promptTail}</>
                     : <>{t.promptVehicle}<br /><strong style={{ color: "var(--gray-700)" }}>{t.searchVehicle}</strong>{t.promptTail}</>
@@ -1743,7 +1795,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
             ) : searching ? (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", padding: "24px 0" }}>
                 <div className="vca-skeleton-pulse" style={{ width: "28px", height: "28px", borderRadius: "999px", backgroundColor: "var(--primary-200)" }} />
-                <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "var(--gray-500)", fontWeight: 700 }}>
+                <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.5, color: "var(--gray-500)", fontWeight: 700 }}>
                   {t.searching}
                 </p>
               </div>
@@ -1757,7 +1809,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
                 {/* Names the actual cause. "No matching sightings" over a query that DID match but
                     scored under the threshold sends the user back to change the image — the one
                     thing that wasn't the problem. */}
-                <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.7, color: "var(--gray-400)" }}>
+                <p style={{ fontSize: "12px", textAlign: "center", lineHeight: 1.5, color: "var(--gray-400)" }}>
                   {emptyReason?.kind === "similarity" ? (
                     <>
                       <strong style={{ color: "var(--gray-700)" }}>
@@ -1804,7 +1856,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
                     <div style={{ display: "flex", gap: "4px" }}>
                       <div style={{ position: "relative", width: "63px", height: "62px", borderRadius: "8px", overflow: "hidden", flexShrink: 0 }}>
                         <img src={hit.faceUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} alt="" />
-                        <span style={{ position: "absolute", top: "4px", left: "4px", backgroundColor: "rgba(14, 22, 42,0.6)", color: "white", fontSize: "10px", fontWeight: 600, padding: "2px 4px", borderRadius: "3px" }}>{t.face}</span>
+                        <span style={{ position: "absolute", top: "4px", left: "4px", backgroundColor: "var(--label-plate)", color: "white", fontSize: "10px", fontWeight: 600, padding: "2px 4px", borderRadius: "3px" }}>{t.face}</span>
                       </div>
                       <div style={{ position: "relative", width: "63px", height: "62px", borderRadius: "8px", overflow: "hidden", flexShrink: 0 }}>
                         <img src={hit.bodyUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} alt="" />
@@ -2052,7 +2104,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
                                   {(hoverFrameKey === node.key || openFrameKey === node.key) && (
                                     <span style={{
                                       position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                                      backgroundColor: "rgba(14, 22, 42, 0.55)",
+                                      backgroundColor: "var(--scrim-media)",
                                     }}><ExpandFrameIcon /></span>
                                   )}
                                 </button>
@@ -2102,7 +2154,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
                                   a wrong one. Removing pulls it out of THIS route only; it stays in
                                   the left result list (dimmed, restorable) since it's still a real
                                   search hit, just not this person's. */}
-                              {node.hitIndex >= 0 && (
+                              {node.hitIndex >= 0 && judgementEnabled && (
                                 <button
                                   onClick={e => {
                                     e.stopPropagation();
@@ -2152,7 +2204,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
    
                                   Toggles: pressing it again clears the call rather than leaving
                                   the operator with no way to take back a misclick. */}
-                              {node.hitIndex >= 0 && (() => {
+                              {node.hitIndex >= 0 && judgementEnabled && (() => {
                                 const confirmed = verdictOf(node.key) === "confirmed";
                                 return (
                                   <button
@@ -2230,7 +2282,7 @@ export default function RedmapPage({ initialSearchName, onInitialSearchConsumed,
                                     <DownloadIconSm />
                                     {t.exportEvidence}
                                   </button>
-                                  <span style={{ flex: 1, minWidth: "180px", fontSize: "10px", lineHeight: 1.6, color: "var(--gray-500)" }}>
+                                  <span style={{ flex: 1, minWidth: "180px", fontSize: "10px", lineHeight: 1.45, color: "var(--gray-500)" }}>
                                     {t.exportEvidenceHint}
                                   </span>
                                 </div>

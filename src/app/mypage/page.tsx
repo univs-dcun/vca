@@ -38,7 +38,6 @@ const T = {
     saved: "Saved",
     settings: "Settings",
     myPage: "My page",
-    pageDesc: "Centrally manage your admin profile, security settings, and monitoring preferences.",
     profile: "Profile information",
     fullName: "Full name",
     emailAddress: "Email address",
@@ -81,7 +80,6 @@ const T = {
     saved: "저장됨",
     settings: "설정",
     myPage: "마이 페이지",
-    pageDesc: "관리자 프로필, 보안 설정, 관제 환경설정을 한곳에서 관리합니다.",
     profile: "프로필 정보",
     fullName: "이름",
     emailAddress: "이메일 주소",
@@ -99,7 +97,7 @@ const T = {
     activeNow: "지금 접속 중",
     systemPreferences: "시스템 환경설정",
     interfaceLanguage: "앱 화면 언어",
-    interfaceLanguageNote: "모니터링 앱에만 적용됩니다. 포털은 별도이고, 포털의 설정에서 정합니다.",
+    interfaceLanguageNote: "모니터링 앱에만 적용됩니다. Portal은 별도이고, Portal의 설정에서 정합니다.",
     thresholdLevels: "경보 단계",
     thresholdSummary: (alert: number, moderate: number) => `경보 ${alert} · 주의 ${moderate}`,
   },
@@ -241,7 +239,7 @@ function DropdownBtn<V extends string>({ value, options, onSelect, disabledValue
         <ChevronDownIcon />
       </button>
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20, backgroundColor: "white", border: "1px solid var(--gray-200)", borderRadius: "8px", boxShadow: "0 4px 12px rgba(14, 22, 42,0.08)", minWidth: "150px", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20, backgroundColor: "white", border: "1px solid var(--gray-200)", borderRadius: "8px", boxShadow: "var(--shadow-popover)", minWidth: "150px", overflow: "hidden" }}>
           {options.map(opt => {
             const unavailable = disabledValues.includes(opt.value);
             const selected = opt.value === value;
@@ -341,13 +339,13 @@ function PasswordChangeModal({ onClose, onSuccess }: { onClose: () => void; onSu
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{
-        position: "fixed", inset: 0, zIndex: 2000, backgroundColor: "rgba(14,22,42,0.35)",
+        position: "fixed", inset: 0, zIndex: 2000, backgroundColor: "var(--scrim)",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
       <div style={{
         width: "440px", maxWidth: "calc(100vw - 48px)", backgroundColor: "white",
-        borderRadius: "16px", padding: "28px", boxShadow: "0 12px 40px rgba(14,22,42,0.2)",
+        borderRadius: "16px", padding: "28px", boxShadow: "var(--shadow-modal)",
         display: "flex", flexDirection: "column", gap: "20px",
       }}>
         {step === "done" ? (
@@ -515,13 +513,13 @@ function ThresholdModal({ initialAlert, initialModerate, onSave, onClose }: { in
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{
-        position: "fixed", inset: 0, zIndex: 2000, backgroundColor: "rgba(14,22,42,0.35)",
+        position: "fixed", inset: 0, zIndex: 2000, backgroundColor: "var(--scrim)",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
       <div style={{
         width: "440px", maxWidth: "calc(100vw - 48px)", backgroundColor: "white",
-        borderRadius: "16px", padding: "28px", boxShadow: "0 12px 40px rgba(14,22,42,0.2)",
+        borderRadius: "16px", padding: "28px", boxShadow: "var(--shadow-modal)",
         display: "flex", flexDirection: "column", gap: "20px",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -621,17 +619,16 @@ export default function MyPage() {
       <Navbar activeTab={null} onTabChange={(tab) => router.push(`/?tab=${encodeURIComponent(tab)}`)} />
       <div style={{ flex: 1, overflowY: "auto", backgroundColor: "var(--gray-50)", display: "flex", justifyContent: "center", padding: "24px" }}>
         <div style={{ width: "100%", maxWidth: "1440px", display: "flex", flexDirection: "column", gap: "16px" }}>
-          {/* Header card */}
-          <div style={{ backgroundColor: "white", border: CARD_BORDER, borderRadius: "12px", padding: "24px" }}>
+          {/* Page heading — on the page, not in a card. A card is a container for content you
+              can act on; the crumb and the title are neither, and a white box around them reads
+              as the first of the panels below rather than the label on all of them. */}
+          <div style={{ padding: "0 4px 8px" }}>
             <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "8px" }}>
               <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.24px" }}>{t.settings}</span>
               <span style={{ fontSize: "11px", color: "var(--gray-400)" }}>{">"}</span>
               <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary-400)", letterSpacing: "-0.24px" }}>{t.myPage}</span>
             </div>
             <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "var(--gray-900)" }}>{t.myPage}</h1>
-            <p style={{ margin: "8px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.26px" }}>
-              {t.pageDesc}
-            </p>
           </div>
 
           {/* 3-column grid */}
@@ -738,7 +735,7 @@ export default function MyPage() {
                   {/* The two halves keep separate choices, so each says which one it is setting —
                       a bare "Interface language" in two places reads as one setting that does not
                       stick. Mirrors Portal's own note. */}
-                  <p style={{ margin: 0, fontSize: "11px", fontWeight: 600, color: "var(--gray-400)", lineHeight: 1.6 }}>
+                  <p style={{ margin: 0, fontSize: "11px", fontWeight: 600, color: "var(--gray-400)", lineHeight: 1.45 }}>
                     {t.interfaceLanguageNote}
                   </p>
                 </div>

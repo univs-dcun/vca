@@ -95,7 +95,7 @@ const T = {
     colReason: "사유",
     colVerdict: "",
     ok: "정상",
-    admin: "포털 관리자",
+    admin: "Portal 관리자",
     operator: "앱 사용자",
     chooseAnother: "다른 파일 선택",
     cancel: "취소",
@@ -112,7 +112,7 @@ const T = {
       "missing-employee-id": "사번이 비어 있습니다",
       "duplicate-in-file": "파일 앞쪽에 같은 사번이 있습니다",
       "duplicate-in-roster": "이미 명부에 있는 사번입니다",
-      "bad-permission": "권한은 포털 관리자 또는 앱 사용자여야 합니다",
+      "bad-permission": "권한은 Portal 관리자 또는 앱 사용자여야 합니다",
       "bad-email": "이메일 주소 형식이 아닙니다",
       "rejected": "명부가 거부했습니다",
     } as Record<string, string>,
@@ -246,18 +246,18 @@ export default function RosterImportModal({ projectId, onClose }: { projectId: s
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
       <div style={{
         backgroundColor: "white", borderRadius: "16px", border: BORDER, width: "100%",
         // Wide when there is a table to read, narrow while it is still a drop zone — a 760px box
         // around one "choose a file" line reads as an empty screen.
         maxWidth: parsed || result ? "760px" : "440px",
         maxHeight: "86vh", display: "flex", flexDirection: "column",
-        boxShadow: "0 20px 60px rgba(14,22,42,0.18)",
+        boxShadow: "var(--shadow-modal)",
       }}>
         <div style={{ padding: "20px", borderBottom: parsed || result ? BORDER : "none", flexShrink: 0 }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{result ? t.doneTitle : t.title}</p>
-          {!result && <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "6px", lineHeight: 1.6 }}>{t.subtitle}</p>}
+          {!result && <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "6px", lineHeight: 1.5 }}>{t.subtitle}</p>}
         </div>
 
         {/* ---------- Step 3: what happened ---------- */}
@@ -269,7 +269,7 @@ export default function RosterImportModal({ projectId, onClose }: { projectId: s
                 <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "2px" }}>{t.doneSkipped(result.skipped.length)}</p>
               )}
               {result.added > 0 && (
-                <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "10px", lineHeight: 1.6 }}>{t.doneNoCodeNote}</p>
+                <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "10px", lineHeight: 1.5 }}>{t.doneNoCodeNote}</p>
               )}
               {result.skipped.length > 0 && (
                 <div style={{ marginTop: "16px" }}>
@@ -393,12 +393,12 @@ export default function RosterImportModal({ projectId, onClose }: { projectId: s
               {fileError && (
                 <div style={{ marginTop: "12px", padding: "12px", borderRadius: "12px", backgroundColor: "var(--danger-100)" }}>
                   <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--danger-500)" }}>{fileError.title}</p>
-                  <p style={{ fontSize: "12px", color: "var(--danger-500)", marginTop: "4px", lineHeight: 1.6 }}>{fileError.body}</p>
+                  <p style={{ fontSize: "12px", color: "var(--danger-500)", marginTop: "4px", lineHeight: 1.5 }}>{fileError.body}</p>
                 </div>
               )}
 
-              <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "14px", lineHeight: 1.6 }}>{t.columnsNote}</p>
-              <p style={{ fontSize: "12px", color: "var(--gray-400)", marginTop: "4px", lineHeight: 1.6 }}>{t.formatNote}</p>
+              <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "14px", lineHeight: 1.5 }}>{t.columnsNote}</p>
+              <p style={{ fontSize: "12px", color: "var(--gray-400)", marginTop: "4px", lineHeight: 1.5 }}>{t.formatNote}</p>
               <button onClick={downloadTemplate}
                 style={{ marginTop: "10px", border: "none", background: "none", padding: 0, cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "var(--gray-900)" }}>
                 {t.downloadTemplate}

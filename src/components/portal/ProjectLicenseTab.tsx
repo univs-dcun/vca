@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Gem, Layers, Sprout } from "lucide-react";
+import { Check, FileUp, Gem, Layers, Sprout } from "lucide-react";
 import { useVcaStore, UNLIMITED_EXPIRY, PRICE_PER_CHANNEL_PER_YEAR } from "@/lib/vcaStore";
-import { BORDER, CARD_BORDER, CONTROL_HEIGHT, PANEL_SHADOW, TYPE_META, useTypeLabel, usePortalEditAccess } from "./PortalShared";
+import { BORDER, CARD_BORDER, CONTROL_HEIGHT, PANEL_SHADOW, TYPE_META, useTypeLabel, usePortalPolicyAccess, MEASURE } from "./PortalShared";
 import { usePortalLanguage } from "@/lib/i18n";
 import { useToast } from "../Toast";
 import {
@@ -102,7 +102,6 @@ const T = {
     expiredOn: "expired",
     atLimit: "Every licensed channel is in use — no further camera can be connected until the limit is raised.",
     nearLimit: (n: number) => `${n} channel(s) left before this project reaches its licensed limit.`,
-    contractNote: "Channels and term are changed by contract, not here.",
     clauseChannels: "Licensed channels",
     // Not "Term": a term is a range, and Project carries licenseExpiresAt and no start date, so
     // this clause has one date to show — the day the licence stops.
@@ -120,7 +119,6 @@ const T = {
     fileLead: "Channels, term and plan above come from a file Univs.ai signs and issues. Install a new one here when your contract changes.",
     fileOnRecord: (id: string) => `Installed: ${id}`,
     fileNoneOnRecord: "No licence file has been installed on this site.",
-    fileNoneHint: "The figures above were configured before licence files existed. Installing a file replaces them with what the file says.",
     fileInstall: "Install a licence file",
     fileCancel: "Cancel",
     fileDropLabel: "Drop the .lic file here, or paste its text",
@@ -168,7 +166,6 @@ const T = {
     expiredOn: "만료됨",
     atLimit: "라이선스 채널을 모두 쓰고 있습니다 — 한도를 올리기 전까지 카메라를 더 연결할 수 없습니다.",
     nearLimit: (n: number) => `라이선스 한도까지 ${n}채널 남았습니다.`,
-    contractNote: "채널과 기간은 계약으로 변경되며 이 화면에서는 바꿀 수 없습니다.",
     clauseChannels: "계약 채널",
     clauseTerm: "만료일",
     clauseScope: "포함 범위",
@@ -184,7 +181,6 @@ const T = {
     fileLead: "위의 채널 수와 기간, 플랜은 Univs.ai가 서명해 발급한 파일에서 나옵니다. 계약이 바뀌면 새 파일을 여기서 설치합니다.",
     fileOnRecord: (id: string) => `설치됨: ${id}`,
     fileNoneOnRecord: "이 사이트에 설치된 라이선스 파일이 없습니다.",
-    fileNoneHint: "위 값들은 라이선스 파일이 생기기 전에 설정된 것입니다. 파일을 설치하면 파일에 적힌 값으로 대체됩니다.",
     fileInstall: "라이선스 파일 설치",
     fileCancel: "취소",
     fileDropLabel: ".lic 파일을 여기에 놓거나, 내용을 붙여넣으세요",
@@ -397,7 +393,7 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
         <p style={{
           display: "block", padding: "10px 14px", borderRadius: "10px", marginBottom: "12px",
           maxWidth: "820px", marginInline: "auto",
-          backgroundColor: overLimit ? "var(--danger-100)" : "var(--warning-100)", lineHeight: 1.6,
+          backgroundColor: overLimit ? "var(--danger-100)" : "var(--warning-100)", lineHeight: 1.5,
           fontSize: "12px", fontWeight: 700,
           color: overLimit ? "var(--danger-500)" : "var(--warning-500)",
         }}>
@@ -424,7 +420,7 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
         <p style={{
           display: "block", padding: "10px 14px", borderRadius: "10px", marginBottom: "12px",
           maxWidth: "820px", marginInline: "auto",
-          backgroundColor: expiringUrgently ? "var(--danger-100)" : "var(--warning-100)", lineHeight: 1.6,
+          backgroundColor: expiringUrgently ? "var(--danger-100)" : "var(--warning-100)", lineHeight: 1.5,
           fontSize: "12px", fontWeight: 700,
           color: expiringUrgently ? "var(--danger-500)" : "var(--warning-500)",
         }}>
@@ -575,7 +571,7 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
           {/* What the agreement does NOT cover, named rather than listed with padlocks. A reader
               asking "does this cover plates" needs the answer, and the answer is one line. */}
           {pendingRows.length > 0 && (
-            <p style={{ fontSize: "12px", lineHeight: 1.7, color: "var(--gray-400)", marginTop: "10px" }}>
+            <p style={{ fontSize: "12px", lineHeight: 1.5, color: "var(--gray-400)", marginTop: "10px" }}>
               <span style={{ fontWeight: 700, color: "var(--gray-500)" }}>{t.scopeExcluded}</span>
               {"  "}{pendingRows.map(r => r.label).join(" · ")}
             </p>
@@ -584,7 +580,7 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
 
         <Clause n={4} label={t.clauseFees} last>
           <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-900)" }}>
-            {limit ? t.channelsCostPerYear(subscriptionYearlyCost.toLocaleString()) : "—"}
+            {limit ? t.channelsCostPerYear(subscriptionYearlyCost.toLocaleString("en-US")) : "—"}
           </p>
           <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "3px" }}>{t.perChannelPerYear(PRICE_PER_CHANNEL_PER_YEAR)}</p>
         </Clause>
@@ -608,7 +604,6 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
               <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--gray-400)", marginTop: "5px" }}>—</p>
             )}
           </div>
-          <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, maxWidth: "300px", textAlign: "right" }}>{t.contractNote}</p>
         </div>
       </div>
 
@@ -635,11 +630,32 @@ export default function ProjectLicenseTab({ projectId }: { projectId: string }) 
  * needs the before and after side by side at the moment they decide — a step-by-step flow puts the
  * old values on a screen they have already left.
  */
+/**
+ * The bordered look of an outline button, written out.
+ *
+ * `.portal-btn-outline` only carries the hover transition — the border, the fill and the text
+ * colour are the caller's, everywhere else in Portal. The two buttons in this section were passing
+ * the class and no border, so they rendered as bare bold text: the install action read as a label
+ * sitting in the corner rather than something to press.
+ */
+const OUTLINE_BTN: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: "6px",
+  height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px",
+  border: BORDER, backgroundColor: "white", color: "var(--gray-700)",
+  fontSize: "12px", fontWeight: 700, fontFamily: "inherit", flexShrink: 0,
+};
+
 function LicenseFileSection({ projectId, t }: {
   projectId: string;
   t: (typeof T)["en"] | (typeof T)["ko"];
 }) {
-  const { mayEdit, reason: readOnlyReason } = usePortalEditAccess();
+  /* Owner only (decided 2026-09-14), not canEditPortal like the rest of this console.
+     The channel limit and the expiry date come out of this file, and those are CONTRACT terms.
+     Under the edit gate, replacing what a site is entitled to sat in the same tray as renaming a
+     camera — and an administrator who installs a smaller file takes cameras off the wall without
+     anyone agreeing to it. Same reasoning as the VIP-category and search-purpose lists: a power
+     whose use changes the limits on the person using it. */
+  const { maySetPolicy: mayInstall, reason: refusalReason } = usePortalPolicyAccess();
   const project = useVcaStore(s => s.projects.find(p => p.id === projectId));
   const installLicenseFile = useVcaStore(s => s.installLicenseFile);
   const { showToast } = useToast();
@@ -723,23 +739,32 @@ function LicenseFileSection({ projectId, t }: {
       marginTop: "16px", padding: "24px 32px", maxWidth: "820px", marginInline: "auto",
     }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "20px", flexWrap: "wrap" }}>
-        <div style={{ minWidth: 0 }}>
+        {/* No measure on this column, unlike the paragraphs inside the panel below. The button
+            beside it already sets a right edge, and a second, narrower limit on top of that broke
+            one paragraph two lines early while the one under it ran past — two ragged edges in a
+            block four lines tall. `text-wrap: pretty` instead, which evens the break rather than
+            moving it. */}
+        <div style={{ flex: "1 1 320px", minWidth: 0 }}>
           <h3 style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", margin: 0 }}>{t.fileHeading}</h3>
-          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.7, margin: "6px 0 0", maxWidth: "62ch" }}>{t.fileLead}</p>
-          {/* What is on record today. A site configured before licence files existed has numbers
-              with no file behind them, and saying so is more useful than an empty line — it tells
-              the reader why installing a file will change figures they thought were settled. */}
-          <p style={{ fontSize: "12px", color: "var(--gray-400)", lineHeight: 1.7, margin: "10px 0 0" }}>
-            {project.licenseChannelLimit === undefined ? t.fileNoneOnRecord : t.fileNoneHint}
-          </p>
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5, margin: "6px 0 0", textWrap: "pretty" }}>{t.fileLead}</p>
+          {/* Only the empty case. "Installing a file replaces these figures" is what the install
+              button says by existing; the sentence that was here restated it. What a reader cannot
+              see is that this site has NO file at all — an empty box does not say whether it is
+              broken or simply not filled in yet. */}
+          {project.licenseChannelLimit === undefined && (
+            <p style={{ fontSize: "12px", color: "var(--gray-400)", lineHeight: 1.5, margin: "10px 0 0", textWrap: "pretty" }}>
+              {t.fileNoneOnRecord}
+            </p>
+          )}
         </div>
         {!open && (
           <button
             className="portal-btn-outline"
             onClick={() => setOpen(true)}
-            disabled={!mayEdit}
-            style={{ height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, fontFamily: "inherit", flexShrink: 0, cursor: mayEdit ? "pointer" : "not-allowed" }}
+            disabled={!mayInstall}
+            style={{ ...OUTLINE_BTN, color: mayInstall ? "var(--gray-700)" : "var(--gray-300)", cursor: mayInstall ? "pointer" : "not-allowed" }}
           >
+            <FileUp size={14} strokeWidth={2.4} />
             {t.fileInstall}
           </button>
         )}
@@ -748,8 +773,8 @@ function LicenseFileSection({ projectId, t }: {
       {/* Refusal as readable text, not a tooltip on a disabled control — the same call the row
           menus make, for the same reason: a tooltip on a disabled control is unreliable across
           browsers and this sentence has to be read. */}
-      {!mayEdit && !open && (
-        <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, margin: "12px 0 0" }}>{readOnlyReason}</p>
+      {!mayInstall && !open && (
+        <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, margin: "12px 0 0" }}>{refusalReason}</p>
       )}
 
       {open && (
@@ -799,13 +824,13 @@ function LicenseFileSection({ projectId, t }: {
                 width: "100%", boxSizing: "border-box", minHeight: "96px", resize: "vertical",
                 border: BORDER, borderRadius: "8px", padding: "10px 12px",
                 fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "11px",
-                lineHeight: 1.6, color: "var(--gray-700)", backgroundColor: "white",
+                lineHeight: 1.45, color: "var(--gray-700)", backgroundColor: "white",
               }}
             />
           </div>
 
           {error && (
-            <p style={{ fontSize: "12px", color: "var(--danger-500)", lineHeight: 1.7, margin: "12px 0 0", maxWidth: "70ch" }}>{error}</p>
+            <p style={{ fontSize: "12px", color: "var(--danger-500)", lineHeight: 1.5, margin: "12px 0 0", maxWidth: MEASURE }}>{error}</p>
           )}
 
           {parsed && diff && (
@@ -844,13 +869,13 @@ function LicenseFileSection({ projectId, t }: {
               </div>
 
               {expiredOnArrival && (
-                <p style={{ fontSize: "12px", color: "var(--warning-500)", lineHeight: 1.7, margin: "12px 0 0", maxWidth: "70ch" }}>{t.fileWarnExpired}</p>
+                <p style={{ fontSize: "12px", color: "var(--warning-500)", lineHeight: 1.5, margin: "12px 0 0", maxWidth: MEASURE }}>{t.fileWarnExpired}</p>
               )}
 
               {Object.keys(parsed.header).length > 0 && (
-                <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, margin: "12px 0 0", maxWidth: "70ch" }}>{t.fileHeaderNote}</p>
+                <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, margin: "12px 0 0", maxWidth: MEASURE }}>{t.fileHeaderNote}</p>
               )}
-              <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, margin: "6px 0 0", maxWidth: "70ch" }}>{t.fileServerVerifies}</p>
+              <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, margin: "6px 0 0", maxWidth: MEASURE }}>{t.fileServerVerifies}</p>
             </div>
           )}
 
@@ -858,7 +883,7 @@ function LicenseFileSection({ projectId, t }: {
             <button
               className="portal-btn-outline"
               onClick={close}
-              style={{ height: CONTROL_HEIGHT, padding: "0 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+              style={{ ...OUTLINE_BTN, color: "var(--gray-600)", cursor: "pointer" }}
             >
               {t.fileCancel}
             </button>

@@ -9,7 +9,8 @@ import AuthTrailList from "@/components/AuthTrailList";
 import { getAuthConfig } from "@/lib/authConfig";
 import { EyeIcon, EyeOffIcon, ErrorCircleIcon } from "@/components/AuthIcons";
 import { LOGIN_NOTICES, parseLoginNotice, type LoginFailure } from "@/lib/authErrors";
-import { canEnterPortal, useVcaStore } from "@/lib/vcaStore";
+import { canEnterPortal, canUseAppNow, useVcaStore } from "@/lib/vcaStore";
+import { readGateChoice } from "@/components/AccessGate";
 import { useLanguage } from "@/lib/i18n";
 
 // See the per-file pattern note in lib/i18n.ts. The failure notices are not in here — they live in
@@ -217,8 +218,17 @@ function LoginForm() {
       router.push(`/password-setup?token=${matchedUser.id}&reason=temp`);
       return;
     }
-    // Every console role lands in Portal — owner, admin and the read-only auditor. "operator"
-    // means no console at all, so it goes to the monitoring app.
+    // An account holding BOTH doors is asked which one, at /gate. This line used to answer for
+    // them — every console role landed in Portal, including the administrators who spend the
+    // shift watching cameras and reached the app by noticing a menu item in a console they never
+    // wanted. A remembered choice (the gate's checkbox) skips the question.
+    if (matchedUser && canEnterPortal(matchedUser.permission) && canUseAppNow(matchedUser)) {
+      const remembered = readGateChoice();
+      router.push(remembered === "app" ? "/" : remembered === "portal" ? "/portal" : "/gate");
+      return;
+    }
+    // One door, so there is nothing to ask. A console role with no app goes to Portal; anyone
+    // else goes to the app, which turns them away with the same gate if that door is shut too.
     router.push(matchedUser && canEnterPortal(matchedUser.permission) ? "/portal" : "/");
   };
 
@@ -297,7 +307,7 @@ function LoginForm() {
                     <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "var(--gray-800)", letterSpacing: "-0.26px" }}>
                       {LOGIN_NOTICES[notice].title[lang]}
                     </p>
-                    <p style={{ margin: "3px 0 0", fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px", lineHeight: 1.6 }}>
+                    <p style={{ margin: "3px 0 0", fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px", lineHeight: 1.5 }}>
                       {LOGIN_NOTICES[notice].detail[lang]}
                     </p>
                     {/* A dead end otherwise: this person has a code and nowhere on the screen tells
@@ -344,20 +354,13 @@ function LoginForm() {
               </div>
               {/* Password */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
-                {/* "Forgot password?" sits on the label row, not down beside "Remember me". It
-                    belongs where the problem occurs — you discover you have forgotten it while
-                    looking at this field — and moving it up leaves the row below carrying one
-                    thing instead of two competing ones. Stripe and Lyssna both place it here. */}
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", width: "100%" }}>
-                  <label style={FIELD_LABEL}>{t.password}</label>
-                  <button
-                    type="button"
-                    onClick={() => router.push("/forgot-password")}
-                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "12px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.24px" }}
-                  >
-                    {t.forgot}
-                  </button>
-                </div>
+                {/* Just the label. "Forgot password?" used to sit out to the right of it on the
+                    argument that the link belongs where the problem occurs — but counted against
+                    real forms that is the minority placement: of eight web sign-ins, six put it
+                    below the field and three of those put it on the remember-me row exactly as
+                    it is now (Teachable, SavvyCal, Productboard); only Lyssna and Elicit keep it
+                    up here. Below is what a returning user's eye already expects. */}
+                <label style={FIELD_LABEL}>{t.password}</label>
                 <div className="vca-auth-field" style={{ display: "flex", alignItems: "center", height: "52px", padding: "0 18px", border: FIELD_BORDER, borderRadius: "8px" }}>
                   <input
                     type={showPassword ? "text" : "password"}
@@ -385,20 +388,31 @@ function LoginForm() {
             {/* 52 was arbitrary — it pushed the primary action most of a field-height away from
                 the form it completes. Every reference form keeps this to one step of the scale. */}
             <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%" }}>
-              {/* One item, so no space-between row around it any more — "Forgot password?" moved
-                  up to the password label. The box is 16, not 20: at 20 it outweighed the 12px
-                  label beside it and read as the most important control on the row. */}
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={rememberId}
-                  onChange={e => setRememberId(e.target.checked)}
-                  style={{ width: "16px", height: "16px", accentColor: "var(--primary-400)", cursor: "pointer" }}
-                />
-                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}>
-                  {authConfig.employeeIdLogin ? t.rememberId : t.rememberEmail}
-                </span>
-              </label>
+              {/* The two things you do INSTEAD of typing a password, on one row under the field:
+                  remember me on the left, forgot it on the right. The box is 16, not 20: at 20 it
+                  outweighed the 12px label beside it and read as the most important control on
+                  the row. The link stays grey for the same reason — the only purple on this form
+                  is the button that signs you in. */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", width: "100%" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={rememberId}
+                    onChange={e => setRememberId(e.target.checked)}
+                    style={{ width: "16px", height: "16px", accentColor: "var(--primary-400)", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-600)", letterSpacing: "-0.24px" }}>
+                    {authConfig.employeeIdLogin ? t.rememberId : t.rememberEmail}
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => router.push("/forgot-password")}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "12px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.24px", whiteSpace: "nowrap" }}
+                >
+                  {t.forgot}
+                </button>
+              </div>
 
               <button
                 type="submit"
@@ -418,7 +432,7 @@ function LoginForm() {
                   lib/authConfig.ts. Deliberately not called "Sign up": /register does nothing
                   without a code the administrator issued, so it is an activation step, not open
                   registration, and labelling it as sign-up invites people who cannot proceed. */}
-              <p style={{ textAlign: "center", fontSize: "12px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.24px", lineHeight: 1.6 }}>
+              <p style={{ textAlign: "center", fontSize: "12px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.24px", lineHeight: 1.5 }}>
                 {authConfig.registrationCode ? (
                   <>
                     {t.haveCode}{" "}
@@ -440,7 +454,7 @@ function LoginForm() {
                   to read who to call without hunting for it — on a closed network that phone number
                   is the entire account-recovery path. */}
               <div style={{ borderTop: "1px solid var(--gray-200)", paddingTop: "16px", marginTop: "4px" }}>
-                <p style={{ margin: 0, textAlign: "center", fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", letterSpacing: "-0.24px", lineHeight: 1.7 }}>
+                <p style={{ margin: 0, textAlign: "center", fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", letterSpacing: "-0.24px", lineHeight: 1.5 }}>
                   {t.restrictedNetwork}<br />
                   {authConfig.supportContact
                     ? t.contactNamed(authConfig.supportContact)
@@ -481,7 +495,7 @@ function LoginForm() {
                   the whole point of the drawing, and copy in the same colour would take it. */}
               {/* 1.55, not 1.8. At two short lines the wider leading pulled them apart and they
                   stopped reading as one sentence. */}
-              <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.26px", lineHeight: 1.55 }}>
+              <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", letterSpacing: "-0.26px", lineHeight: 1.5 }}>
                 {t.panelBody}
               </p>
 

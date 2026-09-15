@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ShieldAlert } from "lucide-react";
 import PortalProjectDetailPage from "./PortalProjectDetailPage";
 import PortalEmptyState from "./PortalEmptyState";
 import { NewTeamModal } from "./TeamSwitcher";
@@ -14,7 +15,8 @@ import PortalSettingsPage from "./PortalSettingsPage";
 import PortalAccountMenu from "./PortalAccountMenu";
 import { ToastProvider } from "../Toast";
 import { getComplianceConfig } from "@/lib/complianceConfig";
-import { useVcaStore, canEnterApp, canEnterPortal, currentPortalUser, SIGNED_IN_USER, type ProjectType, type Team } from "@/lib/vcaStore";
+import { useVcaStore, canEnterApp, currentPortalUser, SIGNED_IN_USER, type ProjectType, type Team } from "@/lib/vcaStore";
+import AccessGate, { denialFor } from "@/components/AccessGate";
 import { usePortalLanguage } from "@/lib/i18n";
 import { BORDER, BREADCRUMB_TEAM_MAX_WIDTH } from "./PortalShared";
 
@@ -27,6 +29,7 @@ const T = {
     requestManager: "Account manager",
     requestNoManager: "No account manager is recorded for this team. Contact whoever handled your installation.",
     fleetTitle: (online: number, offline: number) => `${online} cameras online, ${offline} offline — open Input Sources`,
+    recoveredOwner: "This account was made an owner by the recovery path, not by anyone granting it. Name a real owner and this notice goes away on its own.",
   },
   ko: {
     noTeam: "팀 없음", expand: "사이드바 펼치기", collapse: "사이드바 접기",
@@ -36,6 +39,7 @@ const T = {
     requestManager: "담당자",
     requestNoManager: "이 팀에 등록된 담당자가 없습니다. 설치를 담당한 곳으로 문의하세요.",
     fleetTitle: (online: number, offline: number) => `카메라 ${online}대 온라인, ${offline}대 오프라인 — 입력 소스 열기`,
+    recoveredOwner: "이 계정은 누가 권한을 준 것이 아니라 복구 경로로 최고관리자가 되었습니다. 정식 최고관리자를 지정하면 이 안내는 저절로 사라집니다.",
   },
 } as const;
 
@@ -65,11 +69,11 @@ function RequestProjectModal({ team, onClose }: { team: Team; onClose: () => voi
   const m = team.accountManager;
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, zIndex: 400, backgroundColor: "rgba(14,22,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "440px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, zIndex: 400, backgroundColor: "var(--scrim)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "440px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "20px 20px 0" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.requestTitle}</p>
-          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.55, marginTop: "8px" }}>{t.requestBody}</p>
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5, marginTop: "8px" }}>{t.requestBody}</p>
         </div>
         <div style={{ padding: "16px 20px" }}>
           <div style={{ padding: "14px 16px", backgroundColor: "var(--gray-50)", border: BORDER, borderRadius: "10px" }}>
@@ -78,7 +82,7 @@ function RequestProjectModal({ team, onClose }: { team: Team; onClose: () => voi
               <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", marginTop: "4px" }}>{m.name}</p>
               <p style={{ fontSize: "12px", color: "var(--gray-500)" }}>{m.email}</p>
             </>) : (
-              <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.7 }}>{t.requestNoManager}</p>
+              <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5 }}>{t.requestNoManager}</p>
             )}
           </div>
         </div>
@@ -150,10 +154,17 @@ export default function PortalShell() {
   // default (its address is in no account list) — and a footer meant to say who you are showed
   // nothing at all. Name and address only; the account's role and doors still come from `me`.
   const me = useVcaStore(s => currentPortalUser(s.portalUsers));
-  const locked = !!me && !canEnterPortal(me.permission);
-  useEffect(() => {
-    if (locked) router.replace("/");
-  }, [locked, router]);
+  // Draws the gate rather than redirecting to the app — and rather than what this did before,
+  // which was to fire a redirect and keep rendering Portal underneath it: the roster, the license
+  // and the audit log were all on screen for as long as the navigation took. An account with no
+  // console role is told that, shown what it does hold, and handed the app as a button.
+  //
+  // denialFor, the same function the app door and /gate ask. What was here read the role and never
+  // the status, which is a different bug from the one it was written to avoid: a suspended
+  // administrator was turned away from the app and handed the roster, the license and the audit
+  // log — and could lift their own suspension from the Users screen. An administrator who pauses
+  // an account mid-shift expects both halves to go.
+  const portalDenial = denialFor(me, "portal");
   // Resolve ?teamId= against the real list rather than trusting it: an id that matches nothing used
   // to flow straight into the New Project wizard, which would have filed the project under an
   // team that does not exist. Falling back to the first team keeps the header and
@@ -169,27 +180,80 @@ export default function PortalShell() {
     setShowWizard(false);
     if (teamProjects.length > 0) setSwitcherReopen(n => n + 1);
   };
-  // The selection is *derived*, not stored: hold the id the user picked, but fall back to this
-  // team's first project whenever that id is not one of them. Keeping it in plain state instead
-  // meant a team switch left the previous team's project selected until an effect caught up, and
-  // for one render the detail page rendered a project the breadcrumb no longer claimed.
-  const [pickedProjectId, setPickedProjectId] = useState("");
-  const currentProjectId = teamProjects.some(p => p.id === pickedProjectId)
-    ? pickedProjectId
+  /**
+   * Which site is open — and there is only one answer to that in the product, so it lives in the
+   * store rather than here.
+   *
+   * It was local state (`pickedProjectId`), and the store's `activeProjectId` — the value every
+   * app screen reads through useActiveProjectId — had no writer at all. So Portal switched site
+   * and the app did not: it fell through resolveActiveProject's `visible[0]` and went on showing
+   * the first project's cameras, watchlist and map. Nothing threw, because both halves had a
+   * perfectly good project to render; they just had different ones. Navbar's own comment already
+   * said what was supposed to happen ("Portal sets activeProjectId; the app reads it"), so this
+   * was missing wiring rather than a decision.
+   *
+   * Still *derived* on the way out: hold the stored id, but fall back to this team's first
+   * project whenever that id is not one of them. A team switch would otherwise leave the previous
+   * team's project selected until an effect caught up, and for one render the detail page drew a
+   * project the breadcrumb no longer claimed.
+   */
+  const activeProjectId = useVcaStore(s => s.activeProjectId);
+  const setActiveProjectId = useVcaStore(s => s.setActiveProjectId);
+  const currentProjectId = teamProjects.some(p => p.id === activeProjectId)
+    ? activeProjectId
     : (teamProjects[0]?.id ?? "");
+  /**
+   * And on the way back in, whenever the fallback above had to fire.
+   *
+   * The derivation fixes what THIS screen shows; the app is reading the store directly, so a
+   * fallback that only lived in this component would put the two halves back out of step — which
+   * is the whole bug. Switching team is exactly that case: the stored id still names the team you
+   * left.
+   *
+   * A value comparison, not a mount guard: it is idempotent, so StrictMode's double invocation
+   * costs nothing and the first pass is the one that matters (the store starts at "").
+   */
+  useEffect(() => {
+    if (currentProjectId && currentProjectId !== activeProjectId) setActiveProjectId(currentProjectId);
+  }, [currentProjectId, activeProjectId, setActiveProjectId]);
   // This project's cameras, counted once for the rail's badge and the bar's fleet figure.
   const projectCameras = cameras.filter(c => c.projectId === currentProjectId);
   const fleetOnline = projectCameras.filter(c => c.status === "online").length;
   const fleetOffline = projectCameras.length - fleetOnline;
+  /* The badge is for a stand-in, so it stops the moment somebody else is holding the role for
+     real — counted over active accounts, because a suspended owner is not standing by to help.
+     `me` is the binding already read above. */
+  const realRecoveredOwner = useVcaStore(s =>
+    !!me?.recoveredAt
+    && !s.portalUsers.some(u => u.id !== me.id && u.permission === "owner" && u.status === "active"));
+  /*
+   * ?demo=recovered draws the banner without a recovered account, the way /gate?demo= draws each
+   * refusal without arranging the account that earns it.
+   *
+   * It needs a switch because the honest answer is that nothing here can show it: no seeded
+   * account carries `recoveredAt`, and seeding one would make every demo of this product say the
+   * installation had been recovered — which is a claim, not a fixture. So the state stayed real
+   * and invisible, and a screen nobody can look at is a screen nobody reviews.
+   *
+   * Reads the URL, never the store: a demo that could set `recoveredAt` would be the very thing
+   * the field's own comment forbids.
+   */
+  const recoveredOwner = realRecoveredOwner || searchParams.get("demo") === "recovered";
+
   const [tab, setTabState] = useState<DetailTab>(
-    // A tab the rail does not offer is not a tab you can land on. searchlog is filtered out of
-    // the rail and gated in the body while requireSearchPurpose is off, so ?tab=searchlog used
-    // to draw a "Search log" breadcrumb over an empty column — a link somebody bookmarked
-    // before the feature was scoped out of v1, answered with a blank page.
+    // A tab the rail does not offer is not a tab you can land on, so a bookmarked ?tab= for one
+    // the release does not have lands on the overview rather than drawing a breadcrumb over an
+    // empty column.
+    //
+    // Which flag decides that has to be the flag the rail and the body read. This asked
+    // requireSearchPurpose while ProjectSidebar and PortalProjectDetailPage both ask
+    // searchAccessLog, and the two parted company on 2026-09-14 when the log was switched on and
+    // the purpose gate deliberately left off: the rail then offered Search log, clicking it
+    // worked, and only a LINK to the same screen bounced to the overview.
     () => {
       const named = PROJECT_TABS.find(t => t.id === tabParam)?.id;
       if (!named) return "overview";
-      if (named === "searchlog" && !getComplianceConfig().requireSearchPurpose) return "overview";
+      if (named === "searchlog" && !getComplianceConfig().searchAccessLog) return "overview";
       return named as DetailTab;
     },
   );
@@ -228,7 +292,7 @@ export default function PortalShell() {
   }, []);
 
   const selectFromSwitcher = (projectId: string) => {
-    setPickedProjectId(projectId);
+    setActiveProjectId(projectId);
     // Leave Settings too. setTab writes the address bar without `view=account`, so staying on
     // Settings left the URL claiming Overview — and a refresh then silently moved you there.
     setShowAccount(false);
@@ -239,7 +303,7 @@ export default function PortalShell() {
   const deployedFromWizard = (projectId: string) => {
     setShowWizard(false);
     if (projectId) {
-      setPickedProjectId(projectId);
+      setActiveProjectId(projectId);
       setTab("overview");
     }
   };
@@ -272,6 +336,8 @@ export default function PortalShell() {
     setTab("overview");
     router.push(`/portal?teamId=${teamId}`);
   };
+
+  if (me && portalDenial) return <AccessGate user={me} denial={portalDenial} inPortal />;
 
   return (
     <ToastProvider>
@@ -344,12 +410,45 @@ export default function PortalShell() {
         The wizard is the exception: it renders without a rail, so the trail it needs (which team,
         and that you are creating rather than browsing) has nowhere else to go and stays here.
       */}
+      {/*
+        Standing in, and said so.
+
+        A recovered owner looks exactly like a granted one — same role, same buttons — and the two
+        are not the same thing: one was decided by a person, the other by a machine noticing nobody
+        was left. Without this line the installation quietly keeps running on a stand-in and nobody
+        remembers to name a real owner.
+
+        Above the bar rather than inside a page, because it is about the ACCOUNT, not about
+        whichever screen is open. It goes away by itself the moment another active owner exists —
+        there is no dismiss button, since dismissing it would be the whole failure mode.
+      */}
+      {recoveredOwner && (
+        <div style={{
+          flexShrink: 0, display: "flex", alignItems: "flex-start", gap: "10px",
+          padding: "10px 32px", backgroundColor: "var(--warning-100)", color: "var(--warning-500)",
+          fontSize: "12px", fontWeight: 600, lineHeight: 1.5,
+        }}>
+          <span style={{ display: "flex", flexShrink: 0, marginTop: "2px" }}><ShieldAlert size={14} strokeWidth={2.4} /></span>
+          <span>{T[lang].recoveredOwner}</span>
+        </div>
+      )}
       {/* No rule under it, and 10px shorter than it was. The bar and the page are the same
           primary-50 ground, so a hairline between them was drawing a box around chrome that has
           nothing to separate — the crumb and the account button read as the top of the page, which
           is what they are. With the line gone the leftover height read as a gap, so it went too. */}
       <div style={{
         height: "52px",
+        // The gap below this bar belongs to the BAR, not to the scroller underneath it.
+        //
+        // It used to be the scroller's own padding-top, and a scroll container's top padding is
+        // inside the scrollport: content scrolls up through it. Every sticky table header in
+        // Portal sticks at the scrollport's CONTENT edge, which left a 12px strip above the
+        // header where scrolled-past rows kept showing — half a line of an old row floating over
+        // the table. Input Sources hit this first and worked around it per-table by dropping
+        // sticky for a JS-measured fixed header (see useStickyHeader in ProjectCamerasTab); the
+        // other five tables had no such guard. Moving the 12px out here removes the strip itself,
+        // so plain `position: sticky; top: 0` is correct again everywhere.
+        marginBottom: "12px",
         display: "flex", alignItems: "center", padding: "0 32px", flexShrink: 0, gap: "10px",
         // The same column as the page below it, and for the reason written just above: with no
         // rule between them the crumb reads as the page's first line. It was not sitting on the
@@ -503,7 +602,7 @@ export default function PortalShell() {
          * Input Sources' sticky header measures this container to position its fixed copy — an
          * inner box would leave the header wider than the content it covers.
          */
-        <div style={{ flex: 1, overflow: "auto", padding: "12px 32px 32px", width: "100%", maxWidth: "1600px", marginInline: "auto" }}>
+        <div style={{ flex: 1, overflow: "auto", padding: "0 32px 32px", width: "100%", maxWidth: "1600px", marginInline: "auto" }}>
             {showAccount
               ? <PortalSettingsPage projectId={currentProjectId} />
               : teamProjects.length === 0

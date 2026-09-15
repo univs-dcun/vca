@@ -121,7 +121,7 @@
   /* Category hues. Two families that mean nothing.
    *
    * Every other ramp in this palette is spoken for — danger, warning and success carry
-   * severity, primary is the accent, info is "here is a fact". A watchlist category is none of
+   * severity, primary is the accent, info is "here is a fact". A VIP registry category is none of
    * those: "Wanted", "Visiting delegation", "Ex-employee" are a taxonomy, and a taxonomy drawn
    * in a severity ramp stops being tellable apart from severity. On the VIP screen that is not
    * theoretical — warning-500 there means a face the model could not read.
@@ -146,7 +146,63 @@
   --type-tracking: #6d9300;
   --type-tracking-100: #f3f6eb;
   --type-vehicle: #38bdf8;
+  /* NO READERS as of 2026-09-14. Best Frame's Unknown dot/legend/HUD moved to --gray-600: this
+     was a dark gold that read as a smudge at 10px, and "unknown" is the absence of an
+     identification — the majority of what a camera sees — so it should not carry a saturated
+     colour at all. Kept here only so the Figma library and this file can be reconciled in one
+     pass; drop it from both. */
   --type-unknown: #976400;
+
+  /* Elevation, scrim and label plates.
+   *
+   * ── Why these are tokens ─────────────────────────────────────────────────────────────────────
+   *
+   * `rgba(24, 17, 39,…)` appeared 166 times across 34 files at 42 different alphas. Two things were
+   * wrong with that, and only one of them was tidiness.
+   *
+   * The hue. #0e162a is 218° — the slate this ramp ABANDONED on 2026-09-08, for the reason written
+   * above the greys. Under a 0.18 shadow nobody can see it. Under a 0.65 overlay they can: the dim
+   * goes cold against surfaces that are now 258°. These derive from --gray-900 (#181127 →
+   * 24,17,39), so the darkest thing on screen and the shadow it casts share a hue.
+   *
+   * The count. 42 alphas were never 42 decisions. Read by role there were four, and each one had
+   * drifted into a spread:
+   *
+   *   a modal's backdrop, over a page       0.4                       34 places, already one value
+   *   an overlay over a camera frame        0.55 / 0.6                app side only
+   *   a label's plate, over imagery         0.5 / .65 / .7 / .72 /.75 timestamp pills, corner badges
+   *   a modal's lift                        0 20px 60px / 0.18        33 places, already one value
+   *
+   * The middle two look like the same token and are not. A scrim pushes a whole surface back so a
+   * panel in front of it reads; a label plate is the opposite move — a small opaque-ish shape that
+   * carries white text over a frame whose brightness we do not control. One needs to stay subtle
+   * enough to see the video through; the other needs to stop being video. Collapsing them makes
+   * timestamps unreadable on a bright frame, which is where those six values came from in the
+   * first place — each was somebody fixing one tile.
+   *
+   * ── How to use them ──────────────────────────────────────────────────────────────────────────
+   *
+   *   backgroundColor: "var(--scrim)"          // a modal over a page
+   *   backgroundColor: "var(--scrim-media)"    // an overlay over a camera feed or a still
+   *   backgroundColor: "var(--label-plate)"    // the plate under a label drawn on imagery
+   *   boxShadow: "var(--shadow-modal)"         // a dialog
+   *   boxShadow: "var(--shadow-popover)"       // a dropdown, a tooltip, a map card
+   *   boxShadow: "var(--shadow-raised)"        // a chip or toggle sitting just off the surface
+   *
+   * The shadows carry their offsets, not only a colour, because the offset is what actually drifted
+   * (20/60 vs 8/24 vs 1/3 was the decision; the alpha followed it). Directional shadows — a panel
+   * sliding in from the right throws its shadow left — stay written out; there are four and they
+   * are not a scale.
+   *
+   * FIGMA: these belong in the library as effect and colour styles under these names, the way
+   * --line's note asks for the hairline. Until they are there this file is the draft.
+   */
+  --scrim: rgba(24, 17, 39, 0.4);
+  --scrim-media: rgba(24, 17, 39, 0.55);
+  --label-plate: rgba(24, 17, 39, 0.7);
+  --shadow-modal: 0 20px 60px rgba(24, 17, 39, 0.18);
+  --shadow-popover: 0 8px 24px rgba(24, 17, 39, 0.12);
+  --shadow-raised: 0 1px 3px rgba(24, 17, 39, 0.12);
 }
 
 * {
@@ -185,6 +241,31 @@
    Every colour here is a defined token. One is missing and it shows: primary-400 is the darkest
    step of the primary ramp, so a filled primary button has nothing to darken TO — hence the
    brightness filter below. A primary-500 belongs in the palette. */
+/* Placeholders, everywhere in the product.
+   Nothing styled these before, so every one of them was the browser's default grey at the field's
+   own weight — near enough to a typed value that a reader has to look twice to tell an empty field
+   from a filled one. Lighter so it cannot be mistaken for an answer, heavier so it still reads as
+   a specimen of one ("192.168.0.36", "FR 2") rather than as prose.
+
+   An element selector rather than a class: roughly half the fields in Portal are bare <input>s that
+   never went through TextField, and a per-field opt-in is a rule that is true until the next form
+   forgets it. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--gray-400);
+  font-weight: 600;
+  opacity: 1; /* Firefox dims placeholders by default, which would undo the weight. */
+  transition: color .12s ease;
+}
+/* Gone the moment the field is yours. The placeholder answers "what goes here?", and clicking in is
+   the reader saying they know — after that it is a caret sitting on top of text that is not theirs
+   and will not survive the first keystroke. Left to the browser it lingers until that keystroke,
+   which is the half-second this reads wrong in. */
+input:focus::placeholder,
+textarea:focus::placeholder {
+  color: transparent;
+}
+
 .portal-btn-primary { transition: filter .12s ease; }
 /* brightness, not opacity. Nine of these buttons already set opacity inline to grey themselves out
    while their form is incomplete, and two of them (the signup wizard's) deliberately stay ENABLED
@@ -279,15 +360,18 @@
    Container width, not viewport: Portal's sidebar collapses, so the same viewport width means
    two different card widths and a viewport breakpoint guesses wrong at one of them. 620px is
    where the 240px rail stops leaving the controls a usable column. */
-.portal-settings-card { container-type: inline-size; }
+/* Heading above its controls, one column.
+   It was a 240px title rail beside a 520px column, which was right while the card was the whole
+   page. With the section titles now listed in a rail of their own on the left, that inner rail
+   put a second column of headings directly beside the first — two parallel lists of the same
+   words, and the eye cannot tell which one it is meant to be reading. The nav is the index; the
+   section says its own name once, on top of what it controls. */
 .portal-settings-section {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 16px 40px;
-  align-items: start;
-}
-@container (max-width: 620px) {
-  .portal-settings-section { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  display: flex;
+  flex-direction: column;
+  /* The heading needs air under it, not the 14px that read as the first label belonging to the
+     title rather than to the row beneath it. 22px is a clear break without becoming a gap. */
+  gap: 22px;
 }
 
 :where(input, textarea, select, button, [contenteditable], [tabindex]):focus-visible {
@@ -330,7 +414,7 @@ body {
 
 .leaflet-control-zoom {
   border: none !important;
-  box-shadow: 4px 4px 3px rgba(14, 22, 42, 0.05) !important;
+  box-shadow: 4px 4px 3px rgba(24, 17, 39, 0.05) !important;
 }
 
 .leaflet-control-zoom-in,
@@ -365,7 +449,7 @@ body {
 .vca-custom-popup .leaflet-popup-content-wrapper {
   padding: 0 !important;
   border-radius: 16px !important;
-  box-shadow: 0 8px 32px rgba(14, 22, 42, 0.18) !important;
+  box-shadow: var(--shadow-popover) !important;
   border: 1px solid var(--gray-200) !important;
   overflow: hidden;
 }
@@ -510,7 +594,7 @@ body {
    lifts a dot off a light basemap, which is the only job that hairline had. */
 .vca-map-dot {
   border: 2px solid #ffffff;
-  box-shadow: 0 1px 3px rgba(14, 22, 42, 0.35);
+  box-shadow: 0 1px 3px rgba(24, 17, 39, 0.35);
 }
 
 /* A camera with nothing to report. Quieter than the ping in three ways at once — thinner casing,
@@ -519,7 +603,7 @@ body {
    just saw somebody, and it cannot stand out if every other dot is drawn as loudly. */
 .vca-map-dot-quiet {
   border: 1.5px solid #ffffff;
-  box-shadow: 0 1px 2px rgba(14, 22, 42, 0.22);
+  box-shadow: 0 1px 2px rgba(24, 17, 39, 0.22);
 }
 
 /* Dashboard map, zoomed-in camera dots — hover grows the visible dot inside its (larger,
@@ -533,7 +617,7 @@ body {
   background: white;
   border: none;
   border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(14,22,42,0.16);
+  box-shadow: var(--shadow-popover);
   padding: 0;
 }
 .leaflet-tooltip.vca-camera-tooltip::before {

@@ -49,11 +49,43 @@ export const DISTRICTS: District[] = [
 // Shared by MapView.tsx (aggregating the cluster-pill counts) and Sidebar.tsx (filtering the
 // events list to just one district's pins when a pill is clicked) — both need to bucket a given
 // lat/lng into the SAME district, or a pill's count and what clicking it shows would disagree.
+/**
+ * Which district a coordinate belongs to — by NEAREST CENTRE, not by containment.
+ *
+ * Every district figure in this product stands on this function: the map's district pills, the
+ * sidebar's district filter, the counts a customer takes upstairs to argue for more cameras. So
+ * the approximation it still makes is worth stating rather than discovering.
+ *
+ * NEAREST CENTRE IS NOT INSIDE. A camera a street inside Novena but closer to Kallang's centre is
+ * counted as Kallang's. There are no boundaries here to test against — DISTRICTS holds one point
+ * per district — so "inside" is not a question this data can answer. The server is expected to
+ * resolve it with real GIS (confirmed as the expectation 2026-09-11; the backend's own answer is
+ * still outstanding, see HANDOFF.md beside contract 4). When a detection arrives carrying a
+ * district id, that id wins and this function stops being load-bearing — it is replaced, not
+ * cross-checked against. Two answers to one question is how the map and the list come to disagree.
+ *
+ * Boundary data is per city, not per product: an on-premise Seoul install cannot use Singapore's.
+ *
+ * The second approximation this carried until 2026-09-11 is gone. It compared raw degrees, which
+ * treats a degree of longitude as the same length as a degree of latitude — true enough at
+ * Singapore's ~1.35°N (they differ by 0.03%), and that was a fact about the LATITUDE rather than
+ * about the code. At Seoul's 37.5°N a degree of longitude is 79% of a degree of latitude, so the
+ * same call pulled attribution east–west, and it would have done so silently: the pills would
+ * still have shown confident numbers, in the wrong districts, for the customer deciding where to
+ * install cameras next. The cosine factor below costs one multiplication and removes the trap.
+ */
 export function nearestDistrict(lat: number, lng: number): District {
+  // Longitude degrees shrink toward the poles; latitude degrees do not. Scaling Δlng by cos(lat)
+  // makes the two comparable, which is what turns this from a coordinate difference into a
+  // distance. Using the query point's own latitude is exact enough at city scale — the districts
+  // are kilometres apart, not degrees.
+  const lngScale = Math.cos((lat * Math.PI) / 180);
   let best = DISTRICTS[0];
   let bestDist = Infinity;
   for (const d of DISTRICTS) {
-    const dist = (d.lat - lat) ** 2 + (d.lng - lng) ** 2;
+    const dLat = d.lat - lat;
+    const dLng = (d.lng - lng) * lngScale;
+    const dist = dLat ** 2 + dLng ** 2;
     if (dist < bestDist) { bestDist = dist; best = d; }
   }
   return best;
@@ -353,7 +385,7 @@ export const liveEvents: LiveEvent[] = deriveLiveEvents(RAW_VIP_HITS);
 // is what keeps "Events today" here, the Data tab's list length and RedFace associate counts all
 // reporting the same number for the same underlying data.
 const eventsTodayCount = liveEvents.length;
-const watchlistMatchCount = liveEvents.filter((e) => e.type === "VIP").length;
+const vipMatchCount = liveEvents.filter((e) => e.type === "VIP").length;
 const trackingCount = liveEvents.filter((e) => e.type === "Tracking").length;
 
 // delta/deltaPct/down are all compared against the same time yesterday.
@@ -364,7 +396,7 @@ export const dashboardStats = {
   // the two figures summed to 76, which matched neither the camera list nor the device list. They
   // were the camera run state all along, which `linkedCams`/`offlineCams` below already hold, so
   // the header reads those instead of a second pair that could disagree with them.
-  watchlistMatch:  { count: watchlistMatchCount, delta: 4,  deltaPct: 1.5, down: true },
+  vipMatch:  { count: vipMatchCount, delta: 4,  deltaPct: 1.5, down: true },
   tracking:        { count: trackingCount,       delta: 4,  deltaPct: 1.5, down: true },
   eventsToday:     { count: eventsTodayCount,    delta: 3,  deltaPct: 2.1, down: false },
   // count is overwritten by getDashboardStats() from the actual device list — the 48/48 that used

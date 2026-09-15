@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatTimeAgo, LiveEvent } from "@/lib/mockData";
 import {
-  SIGNED_IN_USER, projectsVisibleInApp, resolveActiveProject, useVcaStore,
+  SIGNED_IN_USER, resolveActiveProject, useVcaStore, canEnterPortal, currentPortalUser,
   vcaEventsToLiveEvents, useActiveProjectId, useProjectEvents,
 } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
@@ -12,6 +12,7 @@ import { useApiData } from "@/hooks/useApiData";
 import { getDashboardStats } from "@/lib/api/dashboard";
 import { sgtClockTime, sgtDateKey } from "@/lib/time";
 import { useLanguage } from "@/lib/i18n";
+import { updateGateChoice } from "@/components/AccessGate";
 
 // The console's one hairline value — see --line in globals.css, which was defined for exactly
 // this and then never reached the app: eight files each declared their own gray-200 rule instead,
@@ -64,7 +65,7 @@ const T = {
     showingOf: (shown: number, total: number, window: string) => `${total}건 중 ${shown}건 표시 · ${window}`,
     allOf: (total: number, window: string) => `전체 ${total}건 · ${window}`,
     settings: "설정",
-    portal: "포털",
+    portal: "Portal",
     myPage: "마이페이지",
     sidebar: "사이드바",
     left: "왼쪽",
@@ -102,19 +103,21 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
   const scopedProjectId = useActiveProjectId();
   const { data: dashboardStats, error: dashboardStatsError } = useApiData(() => getDashboardStats(scopedProjectId), [scopedProjectId]);
   // Which site this wall is showing. Only the account's own projects are offered — a team's
-  // cameras have no business on another team's screen — so a one-project account sees a plain
-  // label with nothing to open.
+  // cameras have no business on another team's screen. The header names that site and does not
+  // offer to change it — see the label below.
   const projects = useVcaStore(s => s.projects);
   const portalUsers = useVcaStore(s => s.portalUsers);
+  // Portal's own menu hides the way to the app for an account without it, and this side offered the
+  // way to Portal to everybody. The door refuses them either way — but an advertised door that
+  // answers "you cannot come in" is a fault the menu could have spared them, and crossing over is
+  // also what updates the remembered half, so an account that cannot enter was writing "Portal"
+  // as the half it was last in. Fail-open on an unresolved identity, like every other gate here.
+  const meForPortal = currentPortalUser(portalUsers);
+  const canGoToPortal = !meForPortal || canEnterPortal(meForPortal.permission);
   const activeProjectId = useVcaStore(s => s.activeProjectId);
-  const setActiveProjectId = useVcaStore(s => s.setActiveProjectId);
-  const myProjects = projectsVisibleInApp(portalUsers, projects);
   // Same resolution every scoped screen uses, so the name in the header and the data underneath
   // can never point at different sites.
   const activeProject = resolveActiveProject(activeProjectId, portalUsers, projects);
-  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
-  const canSwitchProject = myProjects.length > 1;
-  useEscapeKey(() => setProjectMenuOpen(false), projectMenuOpen);
 
   // The camera run state, and the same figures the Dashboard sidebar's SYSTEM panel shows under
   // "연결된 카메라 / 중단된 카메라". This used to read `aiRunning`/`aiStopped` — a fixed 42 and 34
@@ -259,60 +262,26 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
             names are cut rather than wrapped: the header is one line and the full name is a
             hover away. */}
         {activeProject && (
-          <div style={{ position: "relative", flexShrink: 1, minWidth: 0 }}>
-            {/* One project is the common case, and then this is a label, not a control: no
-                chevron, no button element, no hover cursor. A caret over a menu holding the one
-                thing already on screen promises a choice that does not exist. */}
-            {canSwitchProject ? (
-              <button
-                onClick={() => setProjectMenuOpen(o => !o)}
-                title={activeProject.name}
-                aria-haspopup="menu"
-                aria-expanded={projectMenuOpen}
-                style={{
-                  display: "flex", alignItems: "center", gap: "6px", maxWidth: "260px",
-                  background: "none", border: "none", padding: 0, cursor: "pointer",
-                }}
-              >
-                <span style={PROJECT_NAME_STYLE}>{activeProject.name}</span>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
-                  <path d="M3 4.5L6 7.5L9 4.5" stroke="var(--gray-500)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-            ) : (
-              <span title={activeProject.name} style={{ display: "flex", maxWidth: "260px" }}>
-                <span style={PROJECT_NAME_STYLE}>{activeProject.name}</span>
-              </span>
-            )}
-
-            {projectMenuOpen && (
-              <div style={{
-                position: "absolute", top: "calc(100% + 8px)", left: 0, minWidth: "240px",
-                backgroundColor: "white", border: BORDER, borderRadius: "12px",
-                boxShadow: "0 12px 32px rgba(14,22,42,0.14)", padding: "6px", zIndex: 6000,
-              }}>
-                {myProjects.map(p => (
-                  <button
-                    key={p.id}
-                    className="navbar-dropdown-item"
-                    onClick={() => { setActiveProjectId(p.id); setProjectMenuOpen(false); }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "8px", width: "100%", textAlign: "left",
-                      padding: "9px 10px", border: "none", borderRadius: "8px", cursor: "pointer",
-                      fontSize: "13px", fontWeight: p.id === activeProject.id ? 800 : 600,
-                    }}
-                  >
-                    <span style={{ display: "flex", width: "12px", flexShrink: 0 }}>
-                      {p.id === activeProject.id && (
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      )}
-                    </span>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          /* A LABEL, NOT A SWITCHER.
+           *
+           * This was a caret over a menu of the sites this account can see. The code already
+           * dropped the caret when there was only one — "a caret over a menu holding the one thing
+           * already on screen promises a choice that does not exist" — and the same objection
+           * turns out to hold with several: the app is where you watch one site, not where you
+           * pick which. Switching sites from here changes what every figure on the screen beneath
+           * it counts, mid-watch, from a control that sits next to those figures.
+           *
+           * Choosing a site belongs to Portal, which is the half of this product that manages
+           * them (and has its own switcher). Portal sets activeProjectId; the app reads it and
+           * says which one it is. That is also the line the permission model already draws —
+           * console role versus app access.
+           *
+           * The scoped screens still react to activeProjectId changing, and they have to: Portal
+           * can be open in another tab.
+           */
+          <span title={activeProject.name} style={{ display: "flex", maxWidth: "260px", flexShrink: 1, minWidth: 0 }}>
+            <span style={PROJECT_NAME_STYLE}>{activeProject.name}</span>
+          </span>
         )}
 
         {/* Camera run state — folded away under 1400px so the site name keeps its room. The same
@@ -486,7 +455,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 position: "absolute", top: "calc(100% + 8px)", right: 0,
                 width: "300px", backgroundColor: "white",
                 border: "1px solid var(--gray-200)", borderRadius: "12px",
-                boxShadow: "0 8px 24px rgba(14,22,42,0.12)",
+                boxShadow: "var(--shadow-popover)",
                 animation: "dropdown-in 0.16s cubic-bezier(0.16, 1, 0.3, 1)",
                 transformOrigin: "top right",
                 zIndex: 200,
@@ -575,7 +544,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                 position: "absolute", top: "calc(100% + 8px)", right: 0,
                 width: "200px", backgroundColor: "white",
                 border: "1px solid var(--gray-200)", borderRadius: "12px",
-                boxShadow: "0 8px 24px rgba(14,22,42,0.12)",
+                boxShadow: "var(--shadow-popover)",
                 animation: "dropdown-in 0.16s cubic-bezier(0.16, 1, 0.3, 1)",
                 transformOrigin: "top right",
                 zIndex: 200,
@@ -586,9 +555,10 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                   <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--gray-400)", marginTop: "2px" }}>{SIGNED_IN_USER.email}</div>
                 </div>
                 <div style={{ height: "1px", backgroundColor: "var(--gray-200)", margin: "0 4px 6px" }} />
+                {canGoToPortal && (
                 <button
                   className="navbar-dropdown-item"
-                  onClick={() => { setSettingsOpen(false); router.push("/portal"); }}
+                  onClick={() => { setSettingsOpen(false); updateGateChoice("portal"); router.push("/portal"); }}
                   style={{
                     display: "flex", alignItems: "center", gap: "10px", width: "100%",
                     padding: "9px 8px", borderRadius: "10px", border: "none",
@@ -602,6 +572,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                   </svg>
                   <span style={{ fontSize: "13px", fontWeight: 600 }}>{t.portal}</span>
                 </button>
+                )}
                 <button
                   className="navbar-dropdown-item"
                   onClick={() => { setSettingsOpen(false); router.push("/mypage"); }}
@@ -631,7 +602,7 @@ export default function Navbar({ activeTab: externalTab, onTabChange, onNotifica
                               style={{
                                 padding: "3px 9px", borderRadius: "5px", border: "none", cursor: "pointer",
                                 backgroundColor: active ? "white" : "transparent",
-                                boxShadow: active ? "0 1px 2px rgba(14,22,42,0.1)" : "none",
+                                boxShadow: active ? "var(--shadow-raised)" : "none",
                                 color: active ? "var(--gray-600)" : "var(--gray-400)",
                                 fontSize: "10px", fontWeight: 600, letterSpacing: "-0.1px",
                                 transition: "background-color 0.15s",

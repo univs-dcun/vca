@@ -3,9 +3,9 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpRight, ChevronRight, FileText, LogOut, Plus, Settings, Shield, UserPlus, Users, Video, X, Zap } from "lucide-react";
-import { canEnterApp, canEnterPortal, canManageAccess, currentPortalUser, resolveMailConfig, SIGNED_IN_USER, useVcaStore, projectChannelLimit, UNLIMITED_EXPIRY, dailyDetections, unstableCameras } from "@/lib/vcaStore";
+import { canEnterApp, canEnterPortal, canManageAccess, currentPortalUser, isAwaitingFirstContact, resolveMailConfig, SIGNED_IN_USER, useVcaStore, projectChannelLimit, UNLIMITED_EXPIRY, dailyDetections, unstableCameras } from "@/lib/vcaStore";
 import { PROJECT_TIME_ZONE, clockMinutesIn, dateKeyIn, formatElapsed, zoneHour } from "@/lib/time";
-import { BORDER, CARD_BORDER, PANEL_SHADOW, CARD_GAP, OVERVIEW_PANEL_MAX_HEIGHT, TABLE_HEADER_COLOR, MetricCard, usePortalEditAccess } from "./PortalShared";
+import { BORDER, CARD_BORDER, PANEL_SHADOW, CARD_GAP, OVERVIEW_PANEL_MAX_HEIGHT, TABLE_HEADER_COLOR, MetricCard, FacePhoto, usePortalEditAccess } from "./PortalShared";
 import { useToast } from "../Toast";
 import { usePortalLanguage } from "@/lib/i18n";
 import { getAuthConfig } from "@/lib/authConfig";
@@ -58,19 +58,20 @@ const T = {
     attentionTitle: "Attention needed",
     dismissBanner: "Dismiss",
     attnOffline: (n: number) => `${n} camera${n === 1 ? " is" : "s are"} offline`,
+    attnAwaiting: (n: number) => `${n} camera${n === 1 ? " has" : "s have"} never reported in`,
     attnCameraError: (n: number) => `${n} camera${n === 1 ? "" : "s"} refusing the connection`,
     attnInvites: (n: number) => `${n} invitation${n === 1 ? "" : "s"} not yet accepted`,
     attnRequests: (n: number) => `${n} access request${n === 1 ? "" : "s"} waiting`,
     attnOverLimit: (used: number, limit: number) => `Over the licensed channels — ${used} of ${limit}`,
-    attnListingsExpired: (n: number) => `${n} watchlist listing(s) have expired`,
-    attnListingsExpiring: (n: number) => `${n} watchlist listing(s) expire within 30 days`,
+    attnListingsExpired: (n: number) => `${n} vipRegistry listing(s) have expired`,
+    attnListingsExpiring: (n: number) => `${n} vipRegistry listing(s) expire within 30 days`,
     attnExpiringSoon: (d: number) => `License expires in ${d} day${d === 1 ? "" : "s"}`,
     attnExpired: "License has expired",
     attnNoMail: "No mail server configured — nobody can be invited",
-    attnSoleOwner: "Only one owner account — no way back if it is lost",
+    attnSoleOwner: "Only one owner account — getting back in would need server access",
     attnNoTimeZone: "Time zone never set — every date on this project is a guess",
     attnNoCameras: "No source connected yet",
-    attnNoVips: "No one registered in the watchlist yet",
+    attnNoVips: "No VIP registered yet",
     accessSplitLabel: (portal: number, app: number) => `Portal: ${portal} | App: ${app}`,
     cameraStatusTitle: "Camera status",
     seeAllActivity: (n: number) => `All ${n} ${n === 1 ? "entry" : "entries"}`,
@@ -126,7 +127,7 @@ const T = {
     chipHealthy: "정상",
     chipAttention: (n: number) => `오프라인 ${n}`,
     chipNewThisMonth: (n: number) => `이번 달 +${n}`,
-    chipAccessSplit: (portal: number, app: number) => `포털 ${portal} · 앱 ${app}`,
+    chipAccessSplit: (portal: number, app: number) => `Portal ${portal} · 앱 ${app}`,
     statAvailable: (n: number) => `${n} 여유`,
     statOnlineShare: (pct: number) => `온라인 ${pct}%`,
     approveAccessRequests: "접근 요청 승인",
@@ -138,10 +139,10 @@ const T = {
     statusError: "오류",
     licenseSubscription: "라이선스 구독",
     channelsUsedSuffix: (limit: number | string) => `/ ${limit}채널 사용`,
-    vipTargetDb: "VIP / 관심대상 DB",
+    vipTargetDb: "VIP DB",
     todayBadge: (n: number) => `오늘 ${n}건`,
     yesterdayCompare: (n: number) => `어제 ${n}건`,
-    portalAccounts: "포털 계정",
+    portalAccounts: "Portal 계정",
     accountsSuffix: "명",
     recordsSuffix: "건",
     cardVipBreakdown: (groups: number, high: number) => `그룹 ${groups}개 · 높음 이상 ${high}명`,
@@ -152,20 +153,21 @@ const T = {
     attentionTitle: "확인 필요",
     dismissBanner: "닫기",
     attnOffline: (n: number) => `오프라인 카메라 ${n}대`,
+    attnAwaiting: (n: number) => `한 번도 응답한 적 없는 카메라 ${n}대`,
     attnCameraError: (n: number) => `연결이 거부된 카메라 ${n}대`,
     attnInvites: (n: number) => `수락하지 않은 초대 ${n}건`,
     attnRequests: (n: number) => `대기 중인 접근 요청 ${n}건`,
     attnOverLimit: (used: number, limit: number) => `라이선스 채널 초과 — ${limit}개 중 ${used}개`,
-    attnListingsExpired: (n: number) => `등록 만료된 관심인물 ${n}명`,
+    attnListingsExpired: (n: number) => `등록 만료된 VIP ${n}명`,
     attnListingsExpiring: (n: number) => `30일 내 등록 만료 ${n}명`,
     attnExpiringSoon: (d: number) => `라이선스 ${d}일 후 만료`,
     attnExpired: "라이선스가 만료되었습니다",
     attnNoMail: "메일 서버가 설정되지 않았습니다 — 아무도 초대할 수 없습니다",
-    attnSoleOwner: "최고관리자가 한 명뿐입니다 — 잃으면 돌아올 길이 없습니다",
+    attnSoleOwner: "최고관리자가 한 명뿐입니다 — 되돌리려면 서버 접근 권한이 필요합니다",
     attnNoTimeZone: "시간대를 정한 적이 없습니다 — 이 프로젝트의 모든 날짜가 추측입니다",
     attnNoCameras: "연결된 소스가 없습니다",
-    attnNoVips: "등록된 관심대상이 없습니다",
-    accessSplitLabel: (portal: number, app: number) => `포털: ${portal} | 앱: ${app}`,
+    attnNoVips: "등록된 VIP가 없습니다",
+    accessSplitLabel: (portal: number, app: number) => `Portal: ${portal} | 앱: ${app}`,
     cameraStatusTitle: "카메라 상태",
     seeAllActivity: (n: number) => `전체 ${n}건 보기`,
     activityLogTitle: "관리자 활동",
@@ -190,7 +192,7 @@ const T = {
     dropNth: (n: number) => `이번 주 ${n}번째`,
     dropNoteFull: (n: number) => `지난 7일 동안 ${n}회 끊겼습니다`,
     viewAllCameras: (n: number) => `카메라 ${n}대 전체 보기`,
-    viewAllVips: "명단 열기",
+    viewAllVips: "VIP 목록 열기",
     recentVipsTitle: "최근 등록된 VIP",
     registerVipLink: "VIP 등록",
     noVipsYet: "등록된 VIP가 아직 없습니다.",
@@ -492,7 +494,12 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
    * "51 / 59 connected" (either way it is not sending video), but the strip names them separately
    * so the fixable one is not filed under the other.
    */
-  const offlineCount = projectCameras.filter(c => c.status === "offline").length;
+  /* Cameras nothing has ever reached are not filed as faults. Registering fifty on installation
+     day used to put "50 cameras are offline" in red at the top of the Overview, on a day when
+     nothing was wrong — see isAwaitingFirstContact(). They are still counted as not connected in
+     the ratio below, because they are not sending video either. */
+  const awaitingCount = projectCameras.filter(isAwaitingFirstContact).length;
+  const offlineCount = projectCameras.filter(c => c.status === "offline" && !isAwaitingFirstContact(c)).length;
   const errorCount = projectCameras.filter(c => c.status === "error").length;
   const projectUsers = portalUsers.filter(u => u.projectIds.includes(projectId));
   // Counted by door, not by role. "Admin: n | Operator: n" filed owners and read-only admins under
@@ -525,7 +532,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
    * and who among the accounts is not yet in.
    */
 
-  // This project's entries, plus the institution's own policy changes — a watchlist category or a
+  // This project's entries, plus the institution's own policy changes — a VIP registry category or a
   // search purpose governs every site the team runs, so filing it under one of them would misplace
   // it and filtering it out would hide it everywhere. See AuditEvent.teamId.
   const projectActivity = auditLog
@@ -632,7 +639,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
    * of line this screen has been shedding.
    */
   /**
-   * Watchlist listings that have run out, and ones about to.
+   * VIP registry listings that have run out, and ones about to.
    *
    * Released rows are excluded from both — somebody has already dealt with those, and the point of
    * these two figures is the ones nobody has.
@@ -686,6 +693,9 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
 
   const attentionItems: { key: string; text: string; color: string; tab: DetailTab }[] = [
     ...(offlineCount > 0 ? [{ key: "offline", text: t.attnOffline(offlineCount), color: "var(--danger-400)", tab: "cameras" as DetailTab }] : []),
+    // Grey, and below the faults: worth seeing that fifty cameras are still waiting on their first
+    // report, not worth the colour that means somebody has to go and fix something.
+    ...(awaitingCount > 0 ? [{ key: "awaiting", text: t.attnAwaiting(awaitingCount), color: "var(--gray-400)", tab: "cameras" as DetailTab }] : []),
     ...(errorCount > 0 ? [{ key: "cameraError", text: t.attnCameraError(errorCount), color: "var(--danger-400)", tab: "cameras" as DetailTab }] : []),
     ...(licenseExpired ? [{ key: "expired", text: t.attnExpired, color: "var(--danger-400)", tab: "license" as DetailTab }] : []),
     ...(overChannelLimit && channelLimit ? [{ key: "overlimit", text: t.attnOverLimit(projectCameras.length, channelLimit), color: "var(--danger-400)", tab: "license" as DetailTab }] : []),
@@ -696,13 +706,16 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
     ...(licenseExpiringSoon && daysUntilExpiry !== null ? [{ key: "expiring", text: t.attnExpiringSoon(daysUntilExpiry), color: "var(--warning-500)", tab: "license" as DetailTab }] : []),
     ...(showAccessRequests && projectAccessRequests.length > 0 ? [{ key: "requests", text: t.attnRequests(projectAccessRequests.length), color: "var(--warning-500)", tab: "users" as DetailTab }] : []),
     // Expiring, in the reminders. The whole point of putting it here is that nobody remembers a
-    // date — a watchlist cleared by human memory is a watchlist that never gets cleared.
+    // date — a VIP registry cleared by human memory is a VIP registry that never gets cleared.
     ...(expiringListings > 0 ? [{ key: "listingsExpiring", text: t.attnListingsExpiring(expiringListings), color: "var(--warning-500)", tab: "vip" as DetailTab }] : []),
     ...(pendingInviteCount > 0 ? [{ key: "invites", text: t.attnInvites(pendingInviteCount), color: "var(--warning-500)", tab: "users" as DetailTab }] : []),
     // Setup, between the reminders and the "nothing here yet" notes. Amber rather than grey:
     // each of these means a capability is dead, not that a list is empty.
     ...(mailMissing ? [{ key: "nomail", text: t.attnNoMail, color: "var(--warning-500)", tab: "server" as DetailTab }] : []),
     ...(teamOwners <= 1 ? [{ key: "soleowner", text: t.attnSoleOwner, color: "var(--warning-500)", tab: "users" as DetailTab }] : []),
+    // Above the setup notes, below the licence: a door opened from outside the product's rules is
+    // not a "nothing here yet" note. Shows only while the recovered account is the only owner —
+    // once a normally-granted one exists, the recovery served its purpose.
     ...(timeZoneUnset ? [{ key: "notz", text: t.attnNoTimeZone, color: "var(--warning-500)", tab: "overview" as DetailTab }] : []),
     ...(projectCameras.length === 0 ? [{ key: "nocams", text: t.attnNoCameras, color: "var(--gray-400)", tab: "cameras" as DetailTab }] : []),
     ...(projectPersons.length === 0 ? [{ key: "novips", text: t.attnNoVips, color: "var(--gray-400)", tab: "vip" as DetailTab }] : []),
@@ -838,26 +851,37 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
             a reload brings it back, because none of these errands go away by being closed.
           */}
           {attentionItems.length > 0 && !attentionDismissed && (
+            /* The colour lives in the mark, not in the band.
+               It was primary-100 filled with a primary-200 border and a primary-400 label, which
+               is a full-width purple field at the top of the page the reader opens first — the
+               Overview then reads as a purple screen with some cards on it, and the one thing on
+               it that is genuinely urgent has nothing left to be louder than. Purple is for what
+               needs attention, so it has to stay scarce enough to mean that.
+               Now: a whisper of tint to say this is not another card, and the whole of the colour
+               spent on a 28px square. */
             <div style={{
               display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap",
-              backgroundColor: "var(--primary-100)", border: "1px solid var(--primary-200)",
-              borderRadius: "12px", padding: "14px 16px", marginBottom: CARD_GAP,
+              backgroundColor: "var(--primary-50)", border: BORDER,
+              // 10px, not 14. The band holds one line of text beside a 28px square, so the
+              // padding was setting its height rather than breathing around content — 56px of
+              // strip for 28px of thing. Horizontal stays wider than vertical, which is what
+              // keeps a single-line bar reading as a bar.
+              borderRadius: "12px", padding: "10px 16px", marginBottom: CARD_GAP,
             }}>
               <span style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 width: "28px", height: "28px", borderRadius: "8px", flexShrink: 0,
-                // White, not primary-200. primary-200 is a mid-lilac and the icon on it is a
-                // strong violet — two neighbouring purples with little between them, which turned
-                // the square into a smudge. On the band's primary-100 the white square is the one
-                // clean edge in it and the mark reads at full strength.
-                backgroundColor: "white", color: "var(--primary-400)",
+                // primary-100 now, not white: on the old primary-100 band a white square was the
+                // clean edge, but on primary-50 white has nothing to separate from. The square is
+                // the only saturated thing left here, so it carries the tint and the mark.
+                backgroundColor: "var(--primary-100)", color: "var(--primary-400)",
               }}>
                 <Zap size={14} strokeWidth={2.4} />
               </span>
-              {/* primary-400, with the errands themselves left in gray-900. The label names the
-                  band and the mark beside it is already that colour; the things you can click are
-                  what should read as text you act on. */}
-              <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--primary-400)", flexShrink: 0 }}>{t.attentionTitle}</p>
+              {/* gray-900. The mark beside it is already the colour, and a purple label next to a
+                  purple mark spends the accent twice on the same word. The errands stay gray-900
+                  too — what you can click is what should read as text you act on. */}
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", flexShrink: 0 }}>{t.attentionTitle}</p>
               {/*
                 Each errand is its own link, and there is no "Review issues" button any more.
 
@@ -1019,7 +1043,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
               {/* One row, no bar and no footer rule.
                   A bar needs a denominator that means something. The two cards to the left have
                   one — cameras installed, channels licensed — and these two do not: nobody manages
-                  "half the watchlist is high priority" or "60% of accounts are active". A
+                  "half the vipRegistry is high priority" or "60% of accounts are active". A
                   proportion invented to fill a slot is worse than an empty slot, so with the bar
                   gone the detail that was under the rule moved up beside the figure instead: the
                   right of this row was empty and the rule was separating a number from its own
@@ -1066,7 +1090,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
               {/* One row, no bar and no footer rule.
                   A bar needs a denominator that means something. The two cards to the left have
                   one — cameras installed, channels licensed — and these two do not: nobody manages
-                  "half the watchlist is high priority" or "60% of accounts are active". A
+                  "half the vipRegistry is high priority" or "60% of accounts are active". A
                   proportion invented to fill a slot is worse than an empty slot, so with the bar
                   gone the detail that was under the rule moved up beside the figure instead: the
                   right of this row was empty and the rule was separating a number from its own
@@ -1270,7 +1294,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                         backgroundColor: "var(--gray-900)", color: "white",
                         borderRadius: "8px", padding: "6px 8px", whiteSpace: "nowrap",
                         fontSize: "11px", lineHeight: 1.5,
-                        boxShadow: "0 8px 24px rgba(14,22,42,0.18)",
+                        boxShadow: "var(--shadow-popover)",
                       }}
                     >
                       <span style={{ display: "block", fontWeight: 700 }}>
@@ -1511,7 +1535,7 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
                       <button key={p.id} onClick={() => onTabChange("vip")}
                         className="portal-attention-row"
                         style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", border: BORDER, borderRadius: "12px", padding: "10px", background: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-                        <img src={p.photoUrl} alt="" style={{ width: "36px", height: "36px", borderRadius: "8px", objectFit: "cover", flexShrink: 0 }} />
+                        <FacePhoto src={p.photoUrl} size={36} radius="8px" style={{ flexShrink: 0 }} />
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</p>
                           {/* Date and hour, where the record has an hour. Seeded rows written as
@@ -1643,8 +1667,11 @@ export default function PortalProjectDetailPage({ projectId, tab, onTabChange }:
       {/* Gated as well as hidden from the rail: the tab lives in the URL, and a link to
           ?tab=searchlog saved before the requirement was switched off should land somewhere
           honest rather than on a screen the release does not have. */}
-      {tab === "searchlog" && getComplianceConfig().requireSearchPurpose && <ProjectSearchLogTab projectId={projectId} />}
-      {tab === "requests" && <ProjectRequestsTab projectId={projectId} />}
+      {tab === "searchlog" && getComplianceConfig().searchAccessLog && <ProjectSearchLogTab projectId={projectId} />}
+      {/* Gated as well as hidden from the rail, for the same reason as searchlog above: the tab
+          lives in the URL, and a bookmarked ?tab=requests should land somewhere honest rather
+          than on a screen this release does not have. */}
+      {tab === "requests" && getComplianceConfig().externalRequests && <ProjectRequestsTab projectId={projectId} />}
     </div>
   );
 }

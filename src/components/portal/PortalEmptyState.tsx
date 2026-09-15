@@ -18,7 +18,7 @@ const T = {
     noManager: "Contact whoever handled your installation.",
     prepTitle: "What you can set up before the site arrives",
     prepBody: "These belong to the team, not to a project, so none of them are waiting on hardware.",
-    prepCategories: "Watchlist categories",
+    prepCategories: "VIP categories",
     prepCategoriesWhy: "What a listing means here, how long it lasts by default, and whether it needs a written basis.",
     prepPurposes: "Search purposes",
     prepPurposesWhy: "The reasons an operator may give for looking somebody up.",
@@ -41,7 +41,7 @@ const T = {
     noManager: "설치를 담당한 곳으로 문의하세요.",
     prepTitle: "현장이 들어오기 전에 해둘 수 있는 것",
     prepBody: "전부 프로젝트가 아니라 팀에 걸린 설정이라, 장비를 기다릴 필요가 없습니다.",
-    prepCategories: "관심인물 분류",
+    prepCategories: "VIP 분류",
     prepCategoriesWhy: "여기서 '등록'이 무엇을 뜻하는지, 기본 유효기간은 얼마인지, 근거를 필수로 할지.",
     prepPurposes: "조회 목적",
     prepPurposesWhy: "관제요원이 인물을 조회할 때 밝힐 수 있는 사유 목록.",
@@ -109,7 +109,7 @@ export default function PortalEmptyState({ accountManager, onOpenSettings, noTea
           </span>
           {/* States the situation before the action — "No teams yet", not a product headline. */}
           <p style={{ fontSize: "24px", fontWeight: 800, color: "var(--gray-900)", marginTop: "20px" }}>{t.noTeamTitle}</p>
-          <p style={{ fontSize: "14px", color: "var(--gray-500)", marginTop: "8px", textAlign: "center", lineHeight: 1.6 }}>
+          <p style={{ fontSize: "14px", color: "var(--gray-500)", marginTop: "8px", textAlign: "center", lineHeight: 1.5 }}>
             {t.noTeamSubtitle}
           </p>
 
@@ -165,7 +165,7 @@ export default function PortalEmptyState({ accountManager, onOpenSettings, noTea
             treatment the Licence screen's party block uses. */}
         <div style={{ marginTop: "24px", padding: "16px 18px", backgroundColor: "white", border: BORDER, borderRadius: "12px", maxWidth: "440px" }}>
           <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{t.notProvisionedTitle}</p>
-          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.55, marginTop: "6px" }}>{t.notProvisionedBody}</p>
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5, marginTop: "6px" }}>{t.notProvisionedBody}</p>
           <div style={{ borderTop: BORDER, marginTop: "12px", paddingTop: "12px" }}>
             {accountManager ? (<>
               <p style={{ fontSize: "10px", fontWeight: 700, color: "var(--gray-400)", letterSpacing: "0.4px" }}>{t.contactManager.toUpperCase()}</p>
@@ -186,7 +186,7 @@ export default function PortalEmptyState({ accountManager, onOpenSettings, noTea
           first month's registrations going in unclassified. */}
       <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "14px", padding: "20px 22px" }}>
         <p style={{ fontSize: "14px", fontWeight: 800, color: "var(--gray-900)" }}>{t.prepTitle}</p>
-        <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.55, marginTop: "6px" }}>{t.prepBody}</p>
+        <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5, marginTop: "6px" }}>{t.prepBody}</p>
         <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "18px" }}>
           {[
             { label: t.prepCategories, why: t.prepCategoriesWhy },
@@ -198,7 +198,7 @@ export default function PortalEmptyState({ accountManager, onOpenSettings, noTea
               </span>
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{item.label}</p>
-                <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.6, marginTop: "2px" }}>{item.why}</p>
+                <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5, marginTop: "2px" }}>{item.why}</p>
               </div>
             </div>
           ))}

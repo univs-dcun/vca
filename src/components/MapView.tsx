@@ -42,6 +42,37 @@ const T = {
     camerasDown: "all down",
     spotSummary: (people: number, hits: number) =>
       `Here today: ${people} ${people === 1 ? "person" : "people"} · ${hits} detection${hits === 1 ? "" : "s"}`,
+    /**
+     * Heading for the other people caught at this camera, listed under the newest one's card.
+     *
+     * The pin stacks their faces, so the map already promises more than one person. The popup
+     * used to answer that with a single summary line — a count, and a card about one of them,
+     * which reads as "here is the person" over a pin that had just said there were four.
+     */
+    alsoHere: (n: number) => `${n} more here today`,
+    /**
+     * The headcount beside a camera dot, when more than one person was caught there.
+     *
+     * Carries its noun. The figure sat on a portrait before and was read as being about that
+     * face ("caught 3 times"); beside a dot it is about the dot, and the word removes the last
+     * bit of guessing about what is being counted.
+     */
+    peopleAt: (n: number) => `${n} people`,
+    /**
+     * The picked district's own line: who was seen, and on how many of its cameras.
+     *
+     * Spelt out in words rather than compressed the way the collapsed pill's figures are. This
+     * one is read once, deliberately, after a click — not scanned across seventeen pills — so
+     * the constraint that forced "VIP ×12 · 5 cams" into single characters does not apply, and
+     * the two figures here are exactly the pair that gets misread when unlabelled.
+     *
+     * `cameras` is how many of this district's cameras actually caught somebody, NOT how many
+     * are installed — the opposite of the figure above it, which is why both carry their nouns.
+     */
+    districtSummary: (people: number, cameras: number) =>
+      // "on 1 of its cameras", not "camera" — the "N of its X" construction takes the plural
+      // whatever N is, because X is the set being drawn from, not the thing being counted.
+      `${people} ${people === 1 ? "person" : "people"} on ${cameras} of its cameras`,
     live: "LIVE",
     out: "OUT",
     offline: "OFFLINE",
@@ -62,6 +93,9 @@ const T = {
     noCamera: "카메라 없음",
     camerasDown: "전부 중단",
     spotSummary: (people: number, hits: number) => `이 지점 오늘 ${people}명 · ${hits}건`,
+    alsoHere: (n: number) => `이 지점의 다른 ${n}명`,
+    peopleAt: (n: number) => `${n}명`,
+    districtSummary: (people: number, cameras: number) => `카메라 ${cameras}대에서 ${people}명`,
     live: "정상",
     out: "중단",
     offline: "중단",
@@ -228,12 +262,29 @@ function districtPillHtml(
       // not touching. Set flush it collided with the number: a 10px × has almost no side bearing
       // and the 14px 800-weight digit starts immediately, so the two glyphs ran together. 2px is
       // the smallest gap that separates them without turning the mark into its own token.
+      //
+      // cameraCount IS THE INSTALLED COUNT, DELIBERATELY. It was nearly changed to "cameras that
+      // actually caught someone", which is a different and much worse pill. Two reasons, both
+      // load-bearing: 29 hits from 3 cameras and 29 from 40 are opposite findings, and this
+      // figure is what a customer takes upstairs to argue for more cameras (see
+      // project_vca_district_vip_count) — that comparison only holds if the denominator is what
+      // is installed. And `isUncovered` is `cameraCount === 0`: fed a detecting count, a district
+      // with six working cameras and a quiet morning would draw itself as "no camera", turning a
+      // coverage gap into something indistinguishable from silence. The people-and-cameras figure
+      // the operator asked for lives on the line below, in the picked-district pill, where there
+      // is room to label both.
       : `<span style="font-size:10px;font-weight:700;opacity:0.82;letter-spacing:0.2px;margin-right:3px">VIP</span>` +
         (t.hitsMark() ? `<span style="font-size:10px;font-weight:600;opacity:0.62;margin-right:2px">${t.hitsMark()}</span>` : "") +
         `<span style="font-size:14px;font-weight:800;letter-spacing:-0.3px">${count}</span>` +
-        `<span style="font-size:11px;font-weight:500;opacity:0.62">${t.hitsUnit()}&nbsp;·&nbsp;${t.camerasShort(cameraCount)}</span>`;
+        // The unit gets its own 2px, for the same reason the mark in front of the figure does: a
+        // 14px 800-weight digit carrying -0.3px tracking runs straight into an 11px glyph set
+        // flush against it, and "3건" came out as one crowded shape. Split from the separator so
+        // only the languages that HAVE a unit pay for it — English's is empty, and a margin there
+        // would push the middot instead.
+        (t.hitsUnit() ? `<span style="font-size:11px;font-weight:500;opacity:0.62;margin-left:2px">${t.hitsUnit()}</span>` : "") +
+        `<span style="font-size:11px;font-weight:500;opacity:0.62">&nbsp;·&nbsp;${t.camerasShort(cameraCount)}</span>`;
 
-  const shadow = isDark || isAlert ? "0 2px 10px rgba(14, 22, 42,0.2)" : "0 2px 6px rgba(14, 22, 42,0.08)";
+  const shadow = isDark || isAlert ? "0 2px 10px rgba(24, 17, 39,0.2)" : "0 2px 6px rgba(24, 17, 39,0.08)";
   return `<div style="transform:translateX(-50%) translateY(-50%);display:inline-flex;flex-direction:column;
       align-items:center;gap:1px;background:${bg};${border}border-radius:10px;padding:5px 10px;
       font-family:'SUIT',system-ui,sans-serif;color:${textColor};box-shadow:${shadow};
@@ -307,7 +358,7 @@ function getPopupHTML(event: LiveEvent, lang: AppLanguage): string {
 
       <div style="background:var(--gray-900);border-radius:8px;height:96px;overflow:hidden;position:relative">
         <img src="${photoUrl}" style="width:100%;height:100%;object-fit:cover;display:block" alt="" />
-        <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(14,22,42,0.8), rgba(14,22,42,0) 55%)"></div>
+        <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(24, 17, 39,0.8), rgba(24, 17, 39,0) 55%)"></div>
         <span style="position:absolute;bottom:8px;left:10px;font-size:9px;color:rgba(255,255,255,0.85);font-weight:700;letter-spacing:0.5px">${t.capturedFrame}</span>
       </div>
 
@@ -385,7 +436,7 @@ function getDeviceMarkerHTML(name: string, isLive: boolean): string {
   const color = isLive ? "var(--success-400)" : "var(--danger-400)";
   return `
     <div style="display:flex;flex-direction:column;align-items:center">
-      <div style="display:flex;align-items:center;gap:5px;background:var(--gray-900);border-radius:999px;padding:5px 10px;box-shadow:0 2px 10px rgba(14, 22, 42,0.2);white-space:nowrap">
+      <div style="display:flex;align-items:center;gap:5px;background:var(--gray-900);border-radius:999px;padding:5px 10px;box-shadow:0 2px 10px rgba(24, 17, 39,0.2);white-space:nowrap">
         <div style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0"></div>
         <span style="font-family:'SUIT',system-ui,sans-serif;font-size:11px;font-weight:800;color:white;letter-spacing:-0.2px">${name}</span>
       </div>
@@ -461,12 +512,25 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
   const [alertThreshold, setAlertThreshold] = useState(DEFAULT_DISTRICT_ALERT_THRESHOLD);
   const [moderateThreshold, setModerateThreshold] = useState(DEFAULT_DISTRICT_MODERATE_THRESHOLD);
   useEffect(() => {
-    queueMicrotask(() => {
-      const savedAlert = Number(localStorage.getItem(DISTRICT_ALERT_THRESHOLD_KEY));
-      const savedModerate = Number(localStorage.getItem(DISTRICT_MODERATE_THRESHOLD_KEY));
-      if (Number.isFinite(savedAlert) && savedAlert > 0) setAlertThreshold(savedAlert);
-      if (Number.isFinite(savedModerate) && savedModerate > 0) setModerateThreshold(savedModerate);
-    });
+    const saved = (key: string, fallback: number) => {
+      const v = Number(localStorage.getItem(key));
+      // Also the path back to the default when the value is cleared, not just when it's absent.
+      return Number.isFinite(v) && v > 0 ? v : fallback;
+    };
+    const apply = () => {
+      setAlertThreshold(saved(DISTRICT_ALERT_THRESHOLD_KEY, DEFAULT_DISTRICT_ALERT_THRESHOLD));
+      setModerateThreshold(saved(DISTRICT_MODERATE_THRESHOLD_KEY, DEFAULT_DISTRICT_MODERATE_THRESHOLD));
+    };
+    queueMicrotask(apply);
+    // Saving on My Page in one tab used to leave a dashboard open in another tab drawing its
+    // pills against the old numbers until someone reloaded it — two windows disagreeing about
+    // what counts as an alert. `storage` fires in every OTHER tab of this origin, which is
+    // exactly the set that needs telling; the saving tab comes back through the route change.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === null || e.key === DISTRICT_ALERT_THRESHOLD_KEY || e.key === DISTRICT_MODERATE_THRESHOLD_KEY) apply();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   // Bridge for clicks inside Leaflet's raw-HTML popups (they aren't React, so they can't call
@@ -594,8 +658,40 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
       if (cancelled || !mapInstanceRef.current) return;
       const group = L.layerGroup();
 
-      if (districtFilter) {
-        // ── A district was picked: only what was found there ──
+      if (districtFilter && zoom <= CLUSTER_ZOOM_BREAKPOINT) {
+        // ── A district is picked, but the map is pulled back out ──
+        //
+        // The filtered branch used to ignore zoom entirely and draw camera dots at every
+        // distance. Pull back to the whole island and you got three 12px dots on it and no label
+        // anywhere — nothing saying which district you were in or what it held. The unfiltered
+        // map already answers this: boxes when far, dots when close, at the same breakpoint. The
+        // filter had simply opted out of that rule.
+        //
+        // So at this distance the picked district gets its box back, and only its own. Clicking
+        // it clears the filter, the way the collapsed pills work — the sidebar chip does that too,
+        // but a map you are looking at should not require looking away to undo.
+        const home = districts?.find(d => d.id === districtFilter);
+        if (home) {
+          const camerasHere = cameras.filter(c => nearestDistrict(c.lat, c.lng).id === home.id);
+          const count = todaysHits.filter(h =>
+            h.lat !== undefined && h.lng !== undefined && nearestDistrict(h.lat, h.lng).id === home.id
+          ).length;
+          const icon = L.divIcon({
+            html: districtPillHtml(
+              home.label, count, camerasHere.length,
+              camerasHere.some(c => cameraStatus.byId(c.id) === "running"),
+              alertThreshold, moderateThreshold, t,
+            ),
+            iconSize: [1, 1],
+            iconAnchor: [0, 0],
+            className: "vca-zone-icon",
+          });
+          L.marker([home.lat, home.lng], { icon })
+            .addTo(group)
+            .on("click", () => onDistrictSelectRef.current?.(home.id));
+        }
+      } else if (districtFilter) {
+        // ── A district was picked, close enough to see its cameras ──
         // Not the camera layer with a filter on it. That layer marks camera POSITIONS and pings
         // the ones whose coordinates match a recent hit exactly — which the hand-authored seed
         // hits never do, so filtering it would fly you into an empty district. These are the hits
@@ -604,11 +700,45 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
         // Today, matching what the pill counted. An hour would be the honest window for "recent",
         // but the number that was just clicked says today, and a pill reading 7 that opens onto
         // two pins is a pill that lied.
+        // A TRACKING ROW IS A VIP WHO MOVED, and this used to drop every one of them.
+        //
+        // The filter was `ev.type === "VIP"`, which is the same mistake the zoomed-out pill was
+        // fixed for this morning: once someone is matched across two cameras their sightings
+        // collapse into one "Tracking" row (see addEvent), so `type === "VIP"` keeps only the
+        // people who never moved. Multi-camera sightings — the thing a district pill exists to
+        // surface — were exactly what it excluded. Clicking a pill that counted them opened onto
+        // pins that did not.
+        //
+        // So each hop becomes its own sighting, at its own camera: the same rule
+        // todaysDetectionHits applies, against the same events. A trail through three cameras in
+        // this district is three pins here, not none.
         const now = new Date();
-        const hits = recentEvents
-          .filter(ev => ev.type === "VIP"
-            && isTodaySgt(new Date(ev.timestamp), now)
-            && nearestDistrict(ev.lat, ev.lng).id === districtFilter)
+        const inDistrictToday = (lat: number, lng: number, timestamp: string) =>
+          isTodaySgt(new Date(timestamp), now) && nearestDistrict(lat, lng).id === districtFilter;
+        const hits: LiveEvent[] = recentEvents
+          .flatMap(ev => {
+            if (ev.type === "Tracking" && ev.path?.length) {
+              // The hop's own coordinate (carried since 57b7282). Falling back to the event's
+              // would put an earlier stop at the newest sighting's camera, which is the bug that
+              // fix was for.
+              return ev.path
+                .filter(hop => inDistrictToday(hop.lat ?? ev.lat, hop.lng ?? ev.lng, hop.timestamp))
+                .map(hop => ({
+                  ...ev,
+                  lat: hop.lat ?? ev.lat,
+                  lng: hop.lng ?? ev.lng,
+                  timestamp: hop.timestamp,
+                  location: hop.location,
+                  cameraLabel: hop.cameraLabel,
+                  confidence: hop.confidence ?? ev.confidence,
+                  // The trail is dropped from the per-hop copy on purpose: this pin is ONE
+                  // sighting, and a popup offering "the whole trail" from a single stop is the
+                  // trail view's job, not this one's.
+                  path: undefined,
+                }));
+            }
+            return inDistrictToday(ev.lat, ev.lng, ev.timestamp) ? [ev] : [];
+          })
           .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
         // Several hits at one camera would stack into an unreadable pile of identical pins, so
@@ -621,33 +751,79 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
           if (at) at.push(ev); else bySpot.set(key, [ev]);
         });
 
+        // ── What a picked district draws: CAMERAS, not portraits ──
+        //
+        // This drew a face pin per spot, with a second portrait tucked behind it and a "+2" for
+        // the rest. Every question this screen produced came from that: "does the badge mean this
+        // person was caught several times?", "it says 4 people but shows two", "I clicked a pin
+        // with several people and the popup shows one". A portrait is a claim about a PERSON, and
+        // what a picked district has to answer is about PLACES — which of its cameras caught
+        // anybody, and how many. Two different questions were riding one marker.
+        //
+        // So the marker is the camera dot this map already uses when zoomed in (recentPingHtml /
+        // quietCameraDotHtml), with the headcount beside it. Faces belong to picking a person —
+        // a row in the sidebar list, or this dot's own popup — where the answer really is "this
+        // person".
+        //
+        // The gain is not only fewer questions. Drawing the district's QUIET cameras too makes
+        // the coverage claim checkable: eight dots, three of them ringed, is "3 of its 8 cameras
+        // caught somebody" in a form the eye can count. The old view drew only the three, so
+        // "how many of how many" was not on the map at all.
         bySpot.forEach(spot => {
           const newest = spot[0];
-          // The badge counts PEOPLE, not detections.
+          // PEOPLE, not detections. `new Set(ev.id)` would count sightings — LiveEvent.id is
+          // `personId ?? id` and personId holds the SIGHTING's id (see DetectionHit.person), so
+          // "one person seen 13 times" and "13 people seen once" came out identical. A name is a
+          // weaker identity than an id and the only one an event carries; the server contract for
+          // fixing that is in HANDOFF.md.
+          const people = new Set(spot.map(ev => ev.name)).size;
+          // FIRST occurrence per name, not `new Map(spot.map(...))`.
           //
-          // It used to count detections, and next to a single face that reads as "this person was
-          // caught 13 times" — when 13 people caught once each looks identical, because the face
-          // shown is only the newest hit's. Those are opposite findings: one is about a person who
-          // keeps passing here, the other about a place a lot of people pass. They point at
-          // different decisions, so the map must not render them the same.
+          // `new Map(entries)` lets a repeated key overwrite the value while keeping the position
+          // of its FIRST appearance. Fed a newest-first list, every person ended up sitting where
+          // their newest sighting was and displaying their OLDEST — so this popup listed
+          // "11분 전 / 20분 전 / 01:47:00 / 29분 전", with a 13-hour-old time wedged between two
+          // recent ones. The times were each real; the row they were attached to was not.
           //
-          // LiveEvent.id is the person id (vcaEventsToLiveEvents resolves personId into it), so
-          // repeat sightings of one person collapse here the way they should.
-          const people = new Set(spot.map(ev => ev.id)).size;
-          const badge = people > 1
-            ? `<div style="position:absolute;top:-2px;right:-2px;z-index:3;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;
-                  border-radius:999px;background:var(--gray-900);border:1.5px solid white;display:flex;align-items:center;justify-content:center;
-                  font-family:'SUIT',sans-serif;font-size:10px;font-weight:800;color:white">${people}</div>`
+          // The name is the identity here, and a weak one — see DetectionHit.person and the
+          // server contract in HANDOFF.md.
+          const newestPerPerson = [...spot
+            .reduce((m, ev) => (m.has(ev.name) ? m : m.set(ev.name, ev)), new Map<string, typeof spot[number]>())
+            .values()];
+          // The count rides beside the dot, not on it. It is a number about a place now, so there
+          // is no portrait for it to be misread as being about.
+          const countPill = people > 1
+            ? `<div style="position:absolute;left:13px;top:-11px;padding:1px 6px;border-radius:999px;
+                  background:var(--gray-900);border:1.5px solid white;font-family:'SUIT',sans-serif;
+                  font-size:10px;font-weight:800;color:white;letter-spacing:-0.2px;white-space:nowrap">
+                 ${t.peopleAt(people)}
+               </div>`
             : "";
           const icon = L.divIcon({
-            html: `<div style="position:relative;width:42px;height:56px">${getMarkerHTML("VIP", getFacePhoto(newest.id))}${badge}</div>`,
-            iconSize: [42, 56],
-            iconAnchor: [21, 50],
-            className: "",
+            html: `<div style="position:relative">${recentPingHtml(VIP_PING_COLOR)}${countPill}</div>`,
+            iconSize: [1, 1],
+            iconAnchor: [0, 0],
+            className: "vca-zone-icon",
           });
-          // Both figures in the popup, where there is room for words. The pin can carry one number
-          // and no label; a person reading "3명 · 13건" cannot mistake which is which. Only shown
-          // when there is more than one of anything — a single sighting needs no summary.
+          // The others, by name and face — the popup is where "who" is a fair question.
+          const others = newestPerPerson.slice(1);
+          const othersHtml = others.length > 0
+            ? `<div style="padding:8px 12px 10px;border-top:1px solid var(--line);font-family:'SUIT',system-ui,sans-serif">
+                 <div style="font-size:10px;font-weight:700;color:var(--gray-400);letter-spacing:-0.2px;margin-bottom:6px">
+                   ${t.alsoHere(others.length)}
+                 </div>
+                 ${others.map(ev => `
+                   <div style="display:flex;align-items:center;gap:8px;padding:3px 0">
+                     <div style="width:26px;height:26px;border-radius:50%;overflow:hidden;background:var(--gray-100);flex-shrink:0">
+                       <img src="${getFacePhoto(ev.id)}" style="width:100%;height:100%;object-fit:cover;display:block" alt="" />
+                     </div>
+                     <span style="font-size:12px;font-weight:700;color:var(--gray-900);letter-spacing:-0.24px;
+                                  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0">${ev.name}</span>
+                     <span style="font-size:11px;font-weight:600;color:var(--gray-500);flex-shrink:0">${ev.confidence}%</span>
+                     <span style="font-size:10px;color:var(--gray-400);flex-shrink:0;white-space:nowrap">${formatTimeAgo(ev.timestamp, lang)}</span>
+                   </div>`).join("")}
+               </div>`
+            : "";
           const spotSummary = spot.length > 1
             ? `<div style="padding:8px 12px;border-top:1px solid var(--line);font-family:'SUIT',system-ui,sans-serif;
                   font-size:11px;font-weight:600;color:var(--gray-500);letter-spacing:-0.2px">
@@ -656,32 +832,50 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
             : "";
           L.marker([newest.lat, newest.lng], { icon })
             .addTo(group)
-            .bindPopup(getPopupHTML(newest, lang) + spotSummary, {
-              offset: [0, -50], className: "vca-custom-popup", closeButton: true, autoPan: false, maxWidth: 280,
+            .bindPopup(getPopupHTML(newest, lang) + spotSummary + othersHtml, {
+              offset: [0, -14], className: "vca-custom-popup", closeButton: true, autoPan: false, maxWidth: 280,
             });
         });
 
-        // The district's own pill stays, at its centre, and clicking it again clears the filter.
-        // Without it the way back out lives only on the sidebar chip: the pill you pressed has
-        // vanished, and pressing something to make it disappear and then hunting elsewhere to
-        // undo it is the one move a map should never ask for.
-        const home = districts?.find(d => d.id === districtFilter);
-        if (home) {
-          const camerasHere = cameras.filter(c => nearestDistrict(c.lat, c.lng).id === home.id);
-          const icon = L.divIcon({
-            html: districtPillHtml(
-              home.label, hits.length, camerasHere.length,
-              camerasHere.some(c => cameraStatus.byId(c.id) === "running"),
-              alertThreshold, moderateThreshold, t,
-            ),
-            iconSize: [1, 1],
-            iconAnchor: [0, 0],
-            className: "vca-zone-icon",
+        // The district's cameras with nothing to report today — the denominator, drawn.
+        //
+        // Skipped where a hit is already drawn, and the test is DISTANCE, not identity. That
+        // looks like the "nearest camera" shortcut this file bans, and it is not: it decides only
+        // whether to add a second marker on top of one already there, never which camera a
+        // sighting belongs to. It has to be a distance because a hand-authored seed hit does not
+        // land exactly on a register camera (the live ticker's do — it writes camera.lat/lng), so
+        // matching by coordinate equality would draw a grey "nothing here" dot on top of a ping.
+        //
+        // And where it is unsure it stays quiet in the other direction: a camera near a hit is
+        // left undrawn rather than asserted to have caught nobody.
+        const SAME_SPOT_DEGREES = 0.0006; // ~65m at this latitude
+        const hitSpots = [...bySpot.values()].map(spot => spot[0]);
+        cameras
+          .filter(c => nearestDistrict(c.lat, c.lng).id === districtFilter)
+          .filter(c => !hitSpots.some(h =>
+            Math.abs(h.lat - c.lat) < SAME_SPOT_DEGREES && Math.abs(h.lng - c.lng) < SAME_SPOT_DEGREES))
+          .forEach(cam => {
+            const icon = L.divIcon({
+              html: quietCameraDotHtml(),
+              iconSize: [1, 1],
+              iconAnchor: [0, 0],
+              className: "vca-zone-icon",
+            });
+            L.marker([cam.lat, cam.lng], { icon })
+              .addTo(group)
+              .bindTooltip(cameraDotTooltipHtml(cam, lang), {
+                direction: "top", offset: [0, -10], className: "vca-camera-tooltip", opacity: 1,
+              });
           });
-          L.marker([home.lat, home.lng], { icon })
-            .addTo(group)
-            .on("click", () => onDistrictSelectRef.current?.(home.id));
-        }
+
+        // The district's own pill used to stay here, at the district's centre, so the thing you
+        // had just pressed was still sitting on the map looking pressable. It was justified as the
+        // way back out — but the sidebar's chip ("Angmokio · VIP only ✕") is right there and does
+        // that job, so the pill was a leftover, and it read as one.
+        //
+        // Its two figures moved to that chip, where they sit beside the list they describe
+        // (see Sidebar's EventsList). Same derivation — districtTally in vcaStore — so the map and
+        // the list cannot come to disagree about one district.
       } else if (zoom <= CLUSTER_ZOOM_BREAKPOINT) {
         // ── Zoomed out: one pill per district ──
         districts.forEach((district) => {
@@ -724,9 +918,25 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
           // reads as a broken element. Detections-per-camera is worth showing, but not badly, and
           // this map has no tooltip component to host a sentence. The pill's two figures stand on
           // their own until there is one.
-          L.marker([district.lat, district.lng], { icon })
-            .addTo(group)
-            .on("click", () => onDistrictSelectRef.current?.(district.id));
+          const marker = L.marker([district.lat, district.lng], { icon }).addTo(group);
+          // Seventeen of these on one island overlap, and until now which one covered which was
+          // decided by latitude — Leaflet's default marker stacking. So a southern district's
+          // pill sat on top of a northern one's for no reason connected to the map's job, and the
+          // covered pill was as likely to be the one worth reading as not. Measured on the
+          // overview: each pill paints about 103x51px while its own marker box is 1x1 (the icon
+          // is content-sized by transform), and two of the seven had their centre covered by a
+          // neighbour.
+          //
+          // Stacking by count instead. It does not stop the overlap — that needs the pills to be
+          // placed apart, which is a layout decision, not a z-index — but it settles WHICH pill
+          // loses: the quiet district goes under the busy one, never the reverse. The number a
+          // coverage decision hangs on is then always the readable one.
+          // Scaled, because Leaflet's base z-index for a marker is its PIXEL Y — a few hundred —
+          // and zIndexOffset is added to it. A bare `count` of 15 or 31 is lost in that, which is
+          // how the first attempt at this changed nothing: Geylang (15) still covered Novena (31).
+          // The factor only has to exceed the map's pixel height for the count to be what decides.
+          marker.setZIndexOffset(count * 2000);
+          marker.on("click", () => onDistrictSelectRef.current?.(district.id));
         });
       } else {
         // ── Zoomed in: one dot per camera ──
@@ -744,17 +954,62 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
         // coordinates line up here without a second pool to match against.
         const RECENT_VIP_WINDOW_MS = 60 * 60 * 1000;
         const nowMs = Date.now();
+        const coordKey = (lat: number, lng: number) => `${lat.toFixed(4)},${lng.toFixed(4)}`;
+        // A TRACKING ROW IS A VIP WHO MOVED, and `ev.type !== "VIP"` dropped every one of them —
+        // the third place in this file to have had that filter. A camera that only ever saw people
+        // who went on to another camera never pinged at all. Each hop is its own sighting, at its
+        // own coordinate, which is the rule todaysDetectionHits already applies.
         const recentVipKeys = new Set<string>();
         recentEvents.forEach(ev => {
-          if (ev.type !== "VIP") return;
-          if (nowMs - new Date(ev.timestamp).getTime() > RECENT_VIP_WINDOW_MS) return;
-          recentVipKeys.add(`${ev.lat.toFixed(4)},${ev.lng.toFixed(4)}`);
+          const stamps = ev.type === "Tracking" && ev.path?.length
+            ? ev.path.map(hop => ({ t: hop.timestamp, lat: hop.lat ?? ev.lat, lng: hop.lng ?? ev.lng }))
+            : [{ t: ev.timestamp, lat: ev.lat, lng: ev.lng }];
+          stamps.forEach(({ t: at, lat, lng }) => {
+            if (nowMs - new Date(at).getTime() > RECENT_VIP_WINDOW_MS) return;
+            recentVipKeys.add(coordKey(lat, lng));
+          });
+        });
+
+        /**
+         * Today's headcount per camera — the same figure the picked-district view puts beside its
+         * dots, so one number means one thing on every layer of this map.
+         *
+         * The number is TODAY while the ping is the LAST HOUR, and those do not collide because
+         * they are different channels: the ping is a moving thing and says "just now", the figure
+         * is a written thing and says "today". A second number would collide; an animation does
+         * not. So a camera that was busy this morning and quiet since keeps its figure on a quiet
+         * dot, which is the state the old view could not express at all — it drew that camera
+         * exactly like one that has seen nobody all day.
+         *
+         * Attached by the camera's own label, or by an exact coordinate, and by nothing else. A
+         * seeded hit that carries neither attaches to no camera and is left out of every figure
+         * rather than credited to the nearest one — the live ticker writes both (camera.code and
+         * camera.lat/lng), so real detections attach; the hand-authored seeds are the gap, and a
+         * gap is the honest shape for "we cannot say which camera this was".
+         */
+        const peopleByCamera = new Map<string, Set<string>>();
+        todaysHits.forEach(h => {
+          const keys = [h.camera, h.lat !== undefined && h.lng !== undefined ? coordKey(h.lat, h.lng) : undefined];
+          keys.forEach(k => {
+            if (!k) return;
+            const at = peopleByCamera.get(k) ?? new Set<string>();
+            at.add(h.person ?? h.id);
+            peopleByCamera.set(k, at);
+          });
         });
 
         cameras.forEach(cam => {
-          const key = `${cam.lat.toFixed(4)},${cam.lng.toFixed(4)}`;
+          const key = coordKey(cam.lat, cam.lng);
+          const people = (peopleByCamera.get(cam.code) ?? peopleByCamera.get(key) ?? new Set()).size;
+          const countPill = people > 0
+            ? `<div style="position:absolute;left:13px;top:-11px;padding:1px 6px;border-radius:999px;
+                  background:var(--gray-900);border:1.5px solid white;font-family:'SUIT',sans-serif;
+                  font-size:10px;font-weight:800;color:white;letter-spacing:-0.2px;white-space:nowrap">
+                 ${t.peopleAt(people)}
+               </div>`
+            : "";
           const icon = L.divIcon({
-            html: recentVipKeys.has(key) ? recentPingHtml(VIP_PING_COLOR) : quietCameraDotHtml(),
+            html: `<div style="position:relative">${recentVipKeys.has(key) ? recentPingHtml(VIP_PING_COLOR) : quietCameraDotHtml()}${countPill}</div>`,
             iconSize: [1, 1],
             iconAnchor: [0, 0],
             className: "vca-zone-icon",
@@ -793,14 +1048,47 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
 
     if (districtFilter) {
       const district = districts?.find(d => d.id === districtFilter);
-      if (district) map.flyTo([district.lat, district.lng], DISTRICT_FOCUS_ZOOM, { duration: 0.8, easeLinearity: 0.5 });
+      if (!district) return;
+      // FIT TO THE SIGHTINGS, NOT TO THE DISTRICT'S CENTRE.
+      //
+      // This flew to the centre at a fixed zoom, which framed the district and not what was found
+      // in it. Those are different rectangles, and the difference was visible: pressing Angmokio
+      // listed three sightings in the sidebar and showed ONE pin, because the other camera (Yishun
+      // MRT) sits well north of Ang Mo Kio's centre and fell outside a zoom-15 window. A district
+      // here is a nearest-CENTRE bucket, not a boundary (see nearestDistrict), so its members can
+      // be much further from the centre than any real boundary would allow — the mismatch is built
+      // into the attribution, not an occasional accident.
+      //
+      // So the bounds come from the hits themselves. maxZoom keeps a single sighting from filling
+      // the screen at street level, and the padding leaves room for the pin's own height (the
+      // marker is anchored at its tip, so its face and chip extend above and below the point).
+      const spots = todaysHits.filter(h =>
+        h.lat !== undefined && h.lng !== undefined && nearestDistrict(h.lat, h.lng).id === districtFilter
+      );
+      if (spots.length > 0) {
+        map.flyToBounds(spots.map(h => [h.lat as number, h.lng as number]), {
+          maxZoom: DISTRICT_FOCUS_ZOOM,
+          // Asymmetric, because the map has furniture on three sides: the zoom control top-right,
+          // and the "Today's VIP detections" button bottom-left. A marker fitted flush to the
+          // bounds landed under that button — the count pill sits above-right of its dot, so the
+          // bottom needs the most room of all.
+          paddingTopLeft: [48, 90],
+          paddingBottomRight: [48, 120],
+          duration: 0.8,
+          easeLinearity: 0.5,
+        });
+      } else {
+        // Nothing to frame — the district was pinned for a coverage reason (all cameras down), so
+        // the centre at the usual zoom is the only honest answer.
+        map.flyTo([district.lat, district.lng], DISTRICT_FOCUS_ZOOM, { duration: 0.8, easeLinearity: 0.5 });
+      }
     } else {
       // Cleared — back to the island. Returning to a remembered pre-click view sounds kinder but
       // reads as arbitrary: by then the operator may have panned and zoomed several times, and
       // "back out" landing somewhere they never chose is worse than landing where the map starts.
       map.flyTo(OVERVIEW_CENTER, OVERVIEW_ZOOM, { duration: 0.8, easeLinearity: 0.5 });
     }
-  }, [districtFilter, districts, mapReady]);
+  }, [districtFilter, districts, mapReady, todaysHits]);
 
   // ── Keep the map's internal canvas in sync with its container ───
   // Leaflet only measures its container once on init, so collapsing/expanding the sidebar
@@ -880,7 +1168,7 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
             ? `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--type-tracking);display:flex;align-items:center;justify-content:center;
                           font-family:'SUIT',sans-serif;font-size:14px;font-weight:700;color:white;box-shadow:0 0 0 10px rgba(109,147,0,0.15)">${num}</div>`
             : `<div style="width:${size}px;height:${size}px;border-radius:50%;background:white;border:2px solid var(--type-tracking);display:flex;align-items:center;justify-content:center;
-                          font-family:'SUIT',sans-serif;font-size:13px;font-weight:700;color:var(--type-tracking);box-shadow:0 2px 6px rgba(14, 22, 42,0.12)">${num}</div>`;
+                          font-family:'SUIT',sans-serif;font-size:13px;font-weight:700;color:var(--type-tracking);box-shadow:0 2px 6px rgba(24, 17, 39,0.12)">${num}</div>`;
 
           const tailCenterY = size / 2;
           const tailHtml = isLast
@@ -908,7 +1196,7 @@ export default function MapView({ selectedEvent, onCameraSelect, onDistrictSelec
                  </div>
                </div>`
             : `<div style="position:relative;background:white;border:1px solid var(--gray-200);border-radius:16px;padding:10px 14px;white-space:nowrap;
-                          font-family:'SUIT',sans-serif;box-shadow:0 4px 10px rgba(14, 22, 42,0.08)">
+                          font-family:'SUIT',sans-serif;box-shadow:0 4px 10px rgba(24, 17, 39,0.08)">
                  ${tailHtml}
                  <div style="font-size:15px;font-weight:800;color:var(--gray-900)">${node.label}</div>
                  <div style="font-size:13px;color:var(--gray-500);margin-top:2px">${node.time}</div>

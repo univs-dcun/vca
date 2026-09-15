@@ -147,10 +147,15 @@ function FilterIcon({ type, color, active, size = 14 }: { type: DetType; color: 
     </svg>
   );
   // type === "Unknown"
+  //
+  // The active fill is white, like VIP's and Vehicle's. It was --warning-200 (#fef3c7) — a pale
+  // warm cream — so of the three active chips this one alone had a brown cast and the glyph
+  // inside it went muddy against the chip. Nothing about "unknown" is a warning, either: the
+  // chip's own background already carries the state, and the icon on it is just an icon.
   return active ? (
     <svg width={size} height={size} viewBox="0 0 14 14" fill="none" style={{ flexShrink:0 }}>
       <g clipPath="url(#filterIconUnknownClipActive)">
-        <path d="M2.24583 5.02833C2.16069 4.64481 2.17376 4.24599 2.28384 3.86886C2.39392 3.49174 2.59744 3.14851 2.87552 2.871C3.15361 2.5935 3.49726 2.3907 3.87462 2.28141C4.25198 2.17213 4.65082 2.15989 5.03417 2.24583C5.24516 1.91584 5.53584 1.64428 5.87939 1.45617C6.22294 1.26806 6.60832 1.16946 7 1.16946C7.39168 1.16946 7.77706 1.26806 8.12061 1.45617C8.46416 1.64428 8.75484 1.91584 8.96583 2.24583C9.34976 2.15951 9.74929 2.1717 10.1272 2.28125C10.5052 2.3908 10.8493 2.59417 11.1276 2.87242C11.4058 3.15068 11.6092 3.49479 11.7188 3.87275C11.8283 4.25071 11.8405 4.65024 11.7542 5.03417C12.0842 5.24516 12.3557 5.53583 12.5438 5.87939C12.7319 6.22294 12.8305 6.60832 12.8305 7C12.8305 7.39168 12.7319 7.77706 12.5438 8.12061C12.3557 8.46416 12.0842 8.75484 11.7542 8.96583C11.8401 9.34918 11.8279 9.74802 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4026 10.5083 11.6061 10.1311 11.7162C9.75401 11.8262 9.35519 11.8393 8.97167 11.7542C8.76094 12.0854 8.47005 12.3582 8.12591 12.5471C7.78177 12.7361 7.39552 12.8351 7.00292 12.8351C6.61032 12.8351 6.22407 12.7361 5.87993 12.5471C5.53579 12.3582 5.24489 12.0854 5.03417 11.7542C4.65082 11.8401 4.25198 11.8279 3.87462 11.7186C3.49726 11.6093 3.15361 11.4065 2.87552 11.129C2.59744 10.8515 2.39392 10.5083 2.28384 10.1311C2.17376 9.75401 2.16069 9.35519 2.24583 8.97167C1.91331 8.76122 1.63941 8.4701 1.44961 8.12537C1.25982 7.78065 1.16029 7.39352 1.16029 7C1.16029 6.60648 1.25982 6.21935 1.44961 5.87462C1.63941 5.5299 1.91331 5.23877 2.24583 5.02833Z" fill="var(--warning-200)" stroke="var(--warning-200)" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M2.24583 5.02833C2.16069 4.64481 2.17376 4.24599 2.28384 3.86886C2.39392 3.49174 2.59744 3.14851 2.87552 2.871C3.15361 2.5935 3.49726 2.3907 3.87462 2.28141C4.25198 2.17213 4.65082 2.15989 5.03417 2.24583C5.24516 1.91584 5.53584 1.64428 5.87939 1.45617C6.22294 1.26806 6.60832 1.16946 7 1.16946C7.39168 1.16946 7.77706 1.26806 8.12061 1.45617C8.46416 1.64428 8.75484 1.91584 8.96583 2.24583C9.34976 2.15951 9.74929 2.1717 10.1272 2.28125C10.5052 2.3908 10.8493 2.59417 11.1276 2.87242C11.4058 3.15068 11.6092 3.49479 11.7188 3.87275C11.8283 4.25071 11.8405 4.65024 11.7542 5.03417C12.0842 5.24516 12.3557 5.53583 12.5438 5.87939C12.7319 6.22294 12.8305 6.60832 12.8305 7C12.8305 7.39168 12.7319 7.77706 12.5438 8.12061C12.3557 8.46416 12.0842 8.75484 11.7542 8.96583C11.8401 9.34918 11.8279 9.74802 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4026 10.5083 11.6061 10.1311 11.7162C9.75401 11.8262 9.35519 11.8393 8.97167 11.7542C8.76094 12.0854 8.47005 12.3582 8.12591 12.5471C7.78177 12.7361 7.39552 12.8351 7.00292 12.8351C6.61032 12.8351 6.22407 12.7361 5.87993 12.5471C5.53579 12.3582 5.24489 12.0854 5.03417 11.7542C4.65082 11.8401 4.25198 11.8279 3.87462 11.7186C3.49726 11.6093 3.15361 11.4065 2.87552 11.129C2.59744 10.8515 2.39392 10.5083 2.28384 10.1311C2.17376 9.75401 2.16069 9.35519 2.24583 8.97167C1.91331 8.76122 1.63941 8.4701 1.44961 8.12537C1.25982 7.78065 1.16029 7.39352 1.16029 7C1.16029 6.60648 1.25982 6.21935 1.44961 5.87462C1.63941 5.5299 1.91331 5.23877 2.24583 5.02833Z" fill="white" stroke="white" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M5.3025 5.25C5.43964 4.86014 5.71034 4.5314 6.06664 4.32199C6.42294 4.11259 6.84186 4.03605 7.24919 4.10592C7.65652 4.17578 8.02598 4.38756 8.29213 4.70372C8.55828 5.01989 8.70395 5.42005 8.70333 5.83333C8.70333 7 6.95333 7.58333 6.95333 7.58333" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M7 9.91667H7.00583" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
       </g>
@@ -173,9 +178,24 @@ function FilterIcon({ type, color, active, size = 14 }: { type: DetType; color: 
 }
 
 /* ── Colors ────────────────────────────────────────────────────── */
-// VIP is brand purple everywhere else in the app (Sidebar's VIP badges, watchlist icons) —
+// VIP is brand purple everywhere else in the app (Sidebar's VIP badges, VIP icons) —
 // matches that instead of the sky-blue this page used to use on its own.
-const DET_COLOR: Record<DetType, string> = { VIP: "var(--primary-400)", Vehicle: "var(--type-vehicle)", Unknown: "var(--type-unknown)" };
+/**
+ * The dot, the legend swatch and the HUD accent for a detection's type.
+ *
+ * UNKNOWN IS GREY, AND THAT IS THE POINT. It was --type-unknown (#976400), a dark gold: on a 10px
+ * dot ringed in white it read as a smudge rather than a category, and beside a vivid purple and a
+ * vivid sky it was the one colour that looked like a mistake.
+ *
+ * Grey is also the honest answer. "Unknown" is the ABSENCE of an identification, and it is the
+ * majority of what a camera sees — a saturated colour on the common case spends the map's loudest
+ * signal on "nothing was established here". Purple marks a person the register knows, sky marks a
+ * thing that is not a person, and grey marks neither. Same rule the map's quiet camera dots follow.
+ *
+ * FIGMA: --type-unknown now has no reader. Drop it from the library rather than leaving a variable
+ * nothing points at.
+ */
+const DET_COLOR: Record<DetType, string> = { VIP: "var(--primary-400)", Vehicle: "var(--type-vehicle)", Unknown: "var(--gray-600)" };
 
 // How long the sidebar's "VIP detected now" pulsing dot stays lit after a hit — long enough not
 // to be missed on a glance, short enough that it still means "just now" rather than "at some
@@ -226,6 +246,12 @@ const CAR_IMG = "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?au
 // same relative spacing/story it always had, just re-anchored to "now" — and each entry is
 // listed newest-first within its camera, matching how CameraCard renders the list (also enforced
 // defensively by a sort in CameraCard itself, in case this ordering ever drifts).
+//
+// ONE CAMERA'S DETECTIONS SHARE ONE STAMP, because they are one frame. The reel calls them
+// "objects captured in current frame" and the detail screen draws all of them at once over a
+// single still — but they used to be written a minute apart, so the same image claimed nine
+// different capture times depending on which box you focused, and the timeline could only ever
+// find one VIP in a frame that plainly holds four.
 /**
  * The curated feeds, as an ordered list rather than a map keyed by camera id.
  *
@@ -243,18 +269,18 @@ const CAR_IMG = "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?au
 const CAMERA_FEEDS: CamData[] = [
   { camLabel: "CAM_WestGate_BS1", location: "Main Intake Road", bgUrl: BG[0], detections: [
     { id:"d3", type:"VIP",          name:"Dr. Alex Wong",          group:"VIP group",       confidence:98.4, ...recentSgtStamp(86), top:"18%", left:"68%", width:"12%", height:"36%" },
-    { id:"d1", type:"VIP",          name:"Sarah Lin",              group:"Staff (Finance)", confidence:98.4, ...recentSgtStamp(87), top:"15%", left:"10%", width:"12%", height:"38%" },
-    { id:"d4", type:"Unknown", name:"Blue shirts • Man • Bag",group:"Unknown",    confidence:0,    ...recentSgtStamp(88), top:"25%", left:"32%", width:"11%", height:"35%" },
-    { id:"d2", type:"Vehicle",      name:"Vehicle SGX411",         group:"Navy",            confidence:92.8, ...recentSgtStamp(89), top:"20%", left:"48%", width:"18%", height:"28%" },
-    { id:"d21", type:"VIP",     name:"Michelle Tan",       group:"VIP group",     confidence:95.7, ...recentSgtStamp(90), top:"17%", left:"22%", width:"12%", height:"37%" },
-    { id:"d22", type:"Unknown", name:"Red cap • Male",     group:"Unknown",       confidence:0,    ...recentSgtStamp(91), top:"24%", left:"58%", width:"11%", height:"34%" },
-    { id:"d23", type:"Vehicle", name:"Vehicle YW2281",     group:"Logistics",     confidence:87.4, ...recentSgtStamp(92), top:"19%", left:"5%",  width:"17%", height:"27%" },
-    { id:"d24", type:"VIP",     name:"James Kwek",         group:"Staff (Security)", confidence:90.1, ...recentSgtStamp(93), top:"16%", left:"78%", width:"12%", height:"37%" },
-    { id:"d25", type:"Unknown", name:"Grey hoodie • Female", group:"Unknown",     confidence:0,    ...recentSgtStamp(94), top:"23%", left:"42%", width:"11%", height:"34%" },
+    { id:"d1", type:"VIP",          name:"Sarah Lin",              group:"Staff (Finance)", confidence:98.4, ...recentSgtStamp(86), top:"15%", left:"10%", width:"12%", height:"38%" },
+    { id:"d4", type:"Unknown", name:"Blue shirts • Man • Bag",group:"Unknown",    confidence:0,    ...recentSgtStamp(86), top:"25%", left:"32%", width:"11%", height:"35%" },
+    { id:"d2", type:"Vehicle",      name:"Vehicle SGX411",         group:"Navy",            confidence:92.8, ...recentSgtStamp(86), top:"20%", left:"48%", width:"18%", height:"28%" },
+    { id:"d21", type:"VIP",     name:"Michelle Tan",       group:"VIP group",     confidence:95.7, ...recentSgtStamp(86), top:"17%", left:"22%", width:"12%", height:"37%" },
+    { id:"d22", type:"Unknown", name:"Red cap • Male",     group:"Unknown",       confidence:0,    ...recentSgtStamp(86), top:"24%", left:"58%", width:"11%", height:"34%" },
+    { id:"d23", type:"Vehicle", name:"Vehicle YW2281",     group:"Logistics",     confidence:87.4, ...recentSgtStamp(86), top:"19%", left:"5%",  width:"17%", height:"27%" },
+    { id:"d24", type:"VIP",     name:"James Kwek",         group:"Staff (Security)", confidence:90.1, ...recentSgtStamp(86), top:"16%", left:"78%", width:"12%", height:"37%" },
+    { id:"d25", type:"Unknown", name:"Grey hoodie • Female", group:"Unknown",     confidence:0,    ...recentSgtStamp(86), top:"23%", left:"42%", width:"11%", height:"34%" },
   ]},
   { camLabel: "CAM_EastGate_BS3", location: "Annex 2F Hall", bgUrl: BG[1], detections: [
-    { id:"d6", type:"Unknown", name:"Unknown Person",group:"Unknown", confidence:0,    ...recentSgtStamp(0), top:"24%", left:"55%", width:"11%", height:"34%" },
-    { id:"d5", type:"VIP",          name:"hong gildong", group:"VIP group",    confidence:72.6, ...recentSgtStamp(1), top:"22%", left:"25%", width:"13%", height:"37%" },
+    { id:"d6", type:"Unknown", name:"Beige coat • Female",group:"Unknown", confidence:0,    ...recentSgtStamp(0), top:"24%", left:"55%", width:"11%", height:"34%" },
+    { id:"d5", type:"VIP",          name:"hong gildong", group:"VIP group",    confidence:72.6, ...recentSgtStamp(0), top:"22%", left:"25%", width:"13%", height:"37%" },
   ]},
   { camLabel: "CAM_NorthGate_BS2", location: "Orchard MRT Gate", bgUrl: BG[0], detections: [
     { id:"d7", type:"Vehicle", name:"Vehicle XB3291", group:"Logistics", confidence:81.3, ...recentSgtStamp(1), top:"20%", left:"40%", width:"18%", height:"28%" },
@@ -264,7 +290,7 @@ const CAMERA_FEEDS: CamData[] = [
   ]},
   { camLabel: "CAM_WestGate_BS1B", location: "Bugis MRT", bgUrl: BG[0], detections: [
     { id:"d9",  type:"VIP",     name:"hong gildong", group:"VIP group",  confidence:76.9, ...recentSgtStamp(1), top:"20%", left:"18%", width:"13%", height:"36%" },
-    { id:"d10", type:"Vehicle", name:"Vehicle XC112", group:"Security",  confidence:64.2, ...recentSgtStamp(4), top:"22%", left:"60%", width:"16%", height:"26%" },
+    { id:"d10", type:"Vehicle", name:"Vehicle XC112", group:"Security",  confidence:64.2, ...recentSgtStamp(1), top:"22%", left:"60%", width:"16%", height:"26%" },
   ]},
   { camLabel: "CAM_HarbourB_HB4", location: "HB4 Terminal",  bgUrl: BG[1], detections: [
     { id:"d11", type:"Unknown", name:"Blue cap • Male", group:"Unknown", confidence:0, ...recentSgtStamp(5), top:"22%", left:"36%", width:"12%", height:"36%" },
@@ -288,7 +314,7 @@ const CAMERA_FEEDS: CamData[] = [
     { id:"d17", type:"Vehicle", name:"Vehicle CQ4471", group:"Navy", confidence:79.6, ...recentSgtStamp(16), top:"20%", left:"40%", width:"17%", height:"27%" },
   ]},
   { camLabel: "CAM_WoodlandsCP_WD1", location: "Woodlands Checkpoint",  bgUrl: BG[1], detections: [
-    { id:"d18", type:"Unknown", name:"Unknown", group:"Unknown", confidence:0, ...recentSgtStamp(17), top:"23%", left:"50%", width:"12%", height:"35%" },
+    { id:"d18", type:"Unknown", name:"Navy jacket • Male • Backpack", group:"Unknown", confidence:0, ...recentSgtStamp(17), top:"23%", left:"50%", width:"12%", height:"35%" },
   ]},
   { camLabel: "CAM_AngMoKioH_AK1",   location: "Ang Mo Kio Hub",        bgUrl: BG[0], detections: [
     { id:"d19", type:"VIP", name:"hong gildong", group:"Staff (HR)", confidence:68.9, ...recentSgtStamp(18), top:"19%", left:"33%", width:"13%", height:"38%" },
@@ -524,9 +550,9 @@ function CameraCard({
               position:"absolute", top:"50%", left:"50%", transform:"translate(-50%, -50%)", zIndex:20,
               display:"flex", alignItems:"center", gap:"6px",
               padding:"10px 20px", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.15)",
-              backgroundColor:"rgba(14,22,42,0.55)", backdropFilter:"blur(6px)", WebkitBackdropFilter:"blur(6px)",
+              backgroundColor:"var(--scrim-media)", backdropFilter:"blur(6px)", WebkitBackdropFilter:"blur(6px)",
               color:"white", fontSize:"13px", fontWeight:700,
-              cursor:"pointer", boxShadow:"0 4px 12px rgba(14, 22, 42,0.25)",
+              cursor:"pointer", boxShadow:"0 4px 12px rgba(24, 17, 39,0.25)",
             }}
           >
             <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
@@ -542,10 +568,10 @@ function CameraCard({
             {t.analyzeFrame}
           </button>
         )}
-        <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(14, 22, 42,0) 50%,rgba(14, 22, 42,0.04) 50%)", backgroundSize:"100% 4px" }} />
+        <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(24, 17, 39,0) 50%,rgba(24, 17, 39,0.04) 50%)", backgroundSize:"100% 4px" }} />
         <div
           className={hasVip ? "vca-cam-label-glow" : undefined}
-          style={{ position:"absolute", top:10, left:10, display:"flex", alignItems:"center", gap:"5px", zIndex:10, backgroundColor:"rgba(14,22,42,0.55)", padding:"4px 8px", border:"1.5px solid transparent" }}
+          style={{ position:"absolute", top:10, left:10, display:"flex", alignItems:"center", gap:"5px", zIndex:10, backgroundColor:"var(--scrim-media)", padding:"4px 8px", border:"1.5px solid transparent" }}
         >
           <div style={{ width:"6px", height:"6px", borderRadius:"50%", backgroundColor:"var(--success-400)", flexShrink:0 }} />
           <span style={{ fontSize:"10px", fontWeight:600, color:"white", letterSpacing:"-0.2px" }}>
@@ -560,7 +586,7 @@ function CameraCard({
       <div style={sidePanelOnHover ? {
         position:"absolute", right:0, top:0, width:"50%", maxHeight:"100%",
         display:"flex", flexDirection:"column", overflow:"hidden", backgroundColor:"white",
-        boxShadow: panelRevealed ? "-4px 4px 16px rgba(14, 22, 42,0.12)" : "none",
+        boxShadow: panelRevealed ? "-4px 4px 16px rgba(24, 17, 39,0.12)" : "none",
         transform: panelRevealed ? "translateX(0)" : "translateX(100%)",
         transition:"transform 0.15s ease",
       } : { flex:"0 0 240px", display:"flex", flexDirection:"column", overflow:"hidden", backgroundColor:"white" }}>
@@ -672,14 +698,22 @@ function DetectionHUD({ hud, onClose, onAnalyze, onTrackOnMap }: { hud: HUDState
     <div onClick={e => e.stopPropagation()} style={{
       position:"fixed", zIndex:200, left:hud.x, top:hud.y,
       width:"320px", backgroundColor:"white", borderRadius:"24px",
-      boxShadow:"-3px 3px 8px rgba(14, 22, 42,0.12)", padding:"20px",
+      boxShadow:"-3px 3px 8px rgba(24, 17, 39,0.12)", padding:"20px",
       display:"flex", flexDirection:"column", gap:"16px",
     }}>
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+          {/* The icon takes the colour of the label it sits with, which is how the reel row draws
+              the same pair. It was the type colour against grey text, so one badge was coloured
+              here and grey three lines away in the list it was opened from — the same icon for
+              the same fact, twice, in two colours.
+
+              The type is not un-signalled by this: the avatar's dot carries it in the reel, and
+              the detail headline below keeps the coloured icon. One coloured moment per surface,
+              spent where the subject is named. */}
           <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-            <FilterIcon type={det.type} color={c} size={16} />
+            <FilterIcon type={det.type} color="var(--gray-700)" size={16} />
             <span style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-700)" }}>{det.type}</span>
           </div>
           {det.type === "VIP" && (
@@ -804,7 +838,7 @@ function CameraItem({ cam, onToggle, type = "camera", disabled = false, activity
   /**
    * Selection is grey here, not purple.
    *
-   * Purple means ONE thing in this product: a person on the watchlist. This row used to spend it
+   * Purple means ONE thing in this product: a person on the VIP registry. This row used to spend it
    * on "you ticked this camera" — in four places at once (fill, label, icon, monitor glyph) — and
    * the grid takes sixteen cameras, so a full grid painted sixty-four purple signals. The row's
    * own VIP dot, the one thing here that means "somebody is being detected right now", was the

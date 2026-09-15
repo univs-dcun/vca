@@ -5,10 +5,11 @@ import { createPortal } from "react-dom";
 import { Search, Crown } from "lucide-react";
 import { Device, DeviceStatus, FilterType, SidebarTab, LiveEvent, TrackingHop, getFacePhoto, formatTimeAgo, nearestDistrict } from "@/lib/mockData";
 import {
-  useVcaStore, vcaEventsToLiveEvents, todaysDetectionHits,
+  useVcaStore, vcaEventsToLiveEvents, todaysDetectionHits, districtTally,
   useActiveProjectId, useProjectEvents, useProjectPersons, useProjectCameras,
 } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { useOnValueChange } from "@/hooks/useOnValueChange";
 import { useApiData } from "@/hooks/useApiData";
 import { getDashboardStats, getDevices, getDistricts } from "@/lib/api/dashboard";
 
@@ -32,6 +33,17 @@ const T = {
     liveAnalytics: "Live analytics",
     all: "All",
     vipOnly: "VIP only",
+    /**
+     * The picked district's figures, beside the list they describe.
+     *
+     * Spelt out with both nouns. They are the pair a reader mixes up when unlabelled — a bare
+     * "2 · 2" next to a district name gets read as whichever order the reader expects — and they
+     * are not the same kind of thing: one counts people, the other counts cameras that caught
+     * one (NOT cameras installed there; that figure is on the map's collapsed pill, and the two
+     * are opposite claims).
+     */
+    districtTally: (people: number, cameras: number) =>
+      `${people} ${people === 1 ? "person" : "people"} · ${cameras} camera${cameras === 1 ? "" : "s"}`,
     seenAtCameras: (n: number) => `Seen at ${n} different camera${n === 1 ? "" : "s"}`,
     stopsOnTrail: (n: number) => `${n} stops on this trail`,
     stops: (n: number) => `${n} stops`,
@@ -78,6 +90,7 @@ const T = {
     liveAnalytics: "실시간 분석",
     all: "전체",
     vipOnly: "VIP만",
+    districtTally: (people: number, cameras: number) => `${people}명 · 카메라 ${cameras}대`,
     seenAtCameras: (n: number) => `서로 다른 카메라 ${n}대에서 검출`,
     stopsOnTrail: (n: number) => `이 이동 경로에서 ${n}곳 경유`,
     stops: (n: number) => `${n}곳 경유`,
@@ -186,7 +199,7 @@ function StatCol({ icon, label, labelColor = "var(--gray-600)", labelFontSize = 
   );
 }
 
-function WatchlistStatIcon() {
+function VipStatIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
       <path d="M1 10.5C0.999958 9.73016 1.22207 8.97667 1.63967 8.32994C2.05728 7.68322 2.65264 7.17074 3.3543 6.85401C4.05596 6.53728 4.83412 6.42975 5.59538 6.54434C6.35664 6.65893 7.06866 6.99075 7.646 7.5" stroke="var(--gray-600)" strokeLinecap="round" strokeLinejoin="round"/>
@@ -218,7 +231,7 @@ function LocationPinIcon({ color = "var(--gray-700)" }: { color?: string }) {
 }
 
 /**
- * The faces of up to three people actually on this site's watchlist.
+ * The faces of up to three people actually on this site's VIP registry.
  *
  * It used to draw three photos from a stock pool with no connection to the registry at all, so a
  * site with nobody enrolled showed three faces beside the number 0. A face is not decoration:
@@ -422,7 +435,7 @@ function useEventCounts() {
   const todaysHitCount = todaysDetectionHits(storeEvents).length;
   return {
     vipTargets: persons.filter(p => p.type === "VIP").length,
-    watchlistMatch: { ...(dashboardStats?.watchlistMatch ?? flatDelta), count: detections.filter(e => e.type === "VIP").length },
+    vipMatch: { ...(dashboardStats?.vipMatch ?? flatDelta), count: detections.filter(e => e.type === "VIP").length },
     tracking: { ...(dashboardStats?.tracking ?? flatDelta), count: detections.filter(e => e.type === "Tracking").length },
     eventsToday: { ...(dashboardStats?.eventsToday ?? flatDelta), count: todaysHitCount },
   };
@@ -437,8 +450,8 @@ function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPers
 
   return createPortal(
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.4)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
-      <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"360px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"80vh", overflow:"hidden", boxShadow:"0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position:"fixed", inset:0, backgroundColor:"var(--scrim)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
+      <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"360px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"80vh", overflow:"hidden", boxShadow:"var(--shadow-modal)" }}>
         <div style={{ padding:"14px 16px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
             <Crown size={16} color="var(--primary-400)" />
@@ -488,7 +501,7 @@ function VipListModal({ onClose, onPersonSelect }: { onClose: () => void; onPers
 function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSelect: (name: string) => void; onToggleDetectionChart?: () => void }) {
   const [lang] = useLanguage();
   const t = T[lang];
-  const { vipTargets, watchlistMatch, eventsToday } = useEventCounts();
+  const { vipTargets, vipMatch, eventsToday } = useEventCounts();
   // Real enrolled faces from this site's registry — see AvatarStack. A person imported from a CSV
   // has no photo, so they contribute no avatar rather than a placeholder one.
   const vipFaces = useProjectPersons()
@@ -536,7 +549,7 @@ function EventsSummary({ onPersonSelect, onToggleDetectionChart }: { onPersonSel
             borderRadius:"8px", padding:"4px", margin:"-4px", transition:"background-color 0.15s",
           }}
         >
-          <StatCol icon={<WatchlistStatIcon />} label={t.vipDetections} labelColor="var(--gray-700)" labelFontSize={13} count={watchlistMatch.count} delta={watchlistMatch.delta} deltaPct={watchlistMatch.deltaPct} down={watchlistMatch.down} />
+          <StatCol icon={<VipStatIcon />} label={t.vipDetections} labelColor="var(--gray-700)" labelFontSize={13} count={vipMatch.count} delta={vipMatch.delta} deltaPct={vipMatch.deltaPct} down={vipMatch.down} />
         </div>
         <div style={{ width:"1px", backgroundColor:"var(--gray-200)", alignSelf:"stretch", flexShrink:0 }} />
         <div style={{ flex:1, minWidth:0 }}>
@@ -556,8 +569,8 @@ function LocationPickerModal({ current, onSelect, onClose }: { current: string |
   useEscapeKey(onClose);
   return createPortal(
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.4)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
-      <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"320px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"70vh", overflow:"hidden", boxShadow:"0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position:"fixed", inset:0, backgroundColor:"var(--scrim)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
+      <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"320px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"70vh", overflow:"hidden", boxShadow:"var(--shadow-modal)" }}>
         <div style={{ padding:"14px 16px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
           <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)" }}>{t.selectLocation}</p>
           <button onClick={onClose} aria-label={t.close} style={{ padding:"4px", border:"none", background:"none", cursor:"pointer", color:"var(--gray-400)", display:"flex" }}>
@@ -645,14 +658,33 @@ function hopCameraKey(hop: TrackingHop): string {
   return `${hop.location}::${hop.cameraLabel ?? ""}`;
 }
 
-function TrackingEventRow({ event, isSelected, onClick }: { event: LiveEvent; isSelected: boolean; onClick: () => void }) {
+/**
+ * `districtHopFilter` — the district this list is filtered to, or null.
+ *
+ * A trail is in this list if ANY of its hops is in that district, so the newest hop can easily be
+ * somewhere else: "Michael Tan · Jurong East" appeared under a Novena filter, because his trail
+ * passed through Novena and ended in Jurong East. The map draws a pin at the Novena hop, so the
+ * row and the map were describing different sightings of the same person — the mismatch this
+ * list's district filter was just fixed to avoid, coming back as a line of text.
+ *
+ * So while a district is picked, the collapsed line names the newest hop THAT IS IN IT. The
+ * expanded timeline below is unchanged and still shows the whole trail, which is where "he
+ * carried on to Jurong East" belongs.
+ */
+function TrackingEventRow({ event, isSelected, onClick, districtHopFilter = null }: { event: LiveEvent; isSelected: boolean; onClick: () => void; districtHopFilter?: string | null }) {
   const photoUrl = getFacePhoto(event.id);
   // event.path is stored oldest-first, but the most-recently-seen camera is what an operator
   // cares about first — reverse once here so both the collapsed route line and the expanded
   // timeline read newest-first (leftmost / topmost = just now), and everything downstream can
   // just take hops[0] as "the latest hop".
   const hops = [...(event.path ?? [])].reverse();
-  const lastHop = hops[0];
+  // Newest-first already, so the first hop inside the picked district IS the newest one there.
+  // Falls back to the trail's own newest when nothing matches — that can happen for a row that
+  // got here by its event coordinate rather than by a hop (a Tracking row whose path is empty),
+  // and a row with no location line at all would be worse than one naming the wrong district.
+  const lastHop = (districtHopFilter
+    ? hops.find(h => nearestDistrict(h.lat ?? event.lat, h.lng ?? event.lng).id === districtHopFilter)
+    : undefined) ?? hops[0];
   // "N cameras" must count DISTINCT cameras, not raw hits — a person re-visiting their same
   // regular camera many times over the day is still a single camera in that count.
   const distinctCameraCount = new Set(hops.map(hopCameraKey)).size;
@@ -877,12 +909,14 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
   const [page, setPage] = useState(1);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const FILTERS: FilterType[] = ["All", "VIP Detection", "Tracking"];
-  const liveEvents = vcaEventsToLiveEvents(useProjectEvents());
+  const districtEvents = useProjectEvents();
+  const liveEvents = vcaEventsToLiveEvents(districtEvents);
   // Routed through the future-backend stub instead of importing the mock array directly — see
   // lib/api/dashboard.ts. Falls back to the raw district id (still a valid, if less pretty,
   // label) for the brief pre-fetch window.
   const { data: districts } = useApiData(() => getDistricts(), []);
   const districtLabel = districtFilter ? districts?.find(d => d.id === districtFilter)?.label ?? districtFilter : null;
+  const districtTallyHere = districtTally(todaysDetectionHits(districtEvents), districtFilter ?? "");
 
   const byType = filter === "All" ? liveEvents
     : liveEvents.filter(e => {
@@ -892,8 +926,16 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
   // A district groups several sites by geographic proximity (map-pill click), so it filters by
   // nearest-district-to-lat/lng rather than locationFilter's plain name-substring match — the
   // two are mutually exclusive (ClientLayout clears one whenever the other is set).
+  // `e.type === "VIP"` used to be part of this and dropped every trail: a VIP matched across two
+  // cameras collapses into one "Tracking" row (see addEvent), so the filter kept only the people
+  // who never moved — and a district pill is largely there to surface the ones who did. A trail
+  // counts if ANY of its hops is in this district, not just its newest: the map draws a pin at
+  // every hop inside the district, and a list that only tested the last one disagreed with it for
+  // anyone who left.
   const byLocation = districtFilter
-    ? byType.filter(e => e.type === "VIP" && nearestDistrict(e.lat, e.lng).id === districtFilter)
+    ? byType.filter(e =>
+        nearestDistrict(e.lat, e.lng).id === districtFilter
+        || !!e.path?.some(hop => nearestDistrict(hop.lat ?? e.lat, hop.lng ?? e.lng).id === districtFilter))
     : locationFilter
       ? byType.filter(e => e.location.toLowerCase().includes(locationFilter.toLowerCase()))
       : byType;
@@ -951,6 +993,13 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
           >
             <LocationPinIcon color="var(--gray-600)" />
             <span style={{ fontSize:"12px", fontWeight:700, color:"var(--gray-800)" }}>{districtLabel} · {t.vipOnly}</span>
+            {/* The two figures that used to sit on a pill left behind on the map after the click.
+                Here they are beside the list they describe, and they come from districtTally in
+                vcaStore — the same derivation the map uses, so the panel and the map cannot come
+                to disagree about one district. */}
+            <span style={{ fontSize:"11px", fontWeight:600, color:"var(--gray-500)" }}>
+              {t.districtTally(districtTallyHere.people, districtTallyHere.cameras)}
+            </span>
             <span style={{ fontSize:"12px", color:"var(--gray-600)", fontWeight:700 }}>✕</span>
           </button>
         )}
@@ -991,7 +1040,8 @@ function EventsList({ onEventSelect, selectedEventId, locationFilter, onLocation
           return (
             <div key={`${event.type}-${event.id}-${i}`}>
               {event.type === "Tracking" ? (
-                <TrackingEventRow event={event} isSelected={isSelected} onClick={() => onEventSelect?.(isSelected ? null : event)} />
+                <TrackingEventRow event={event} isSelected={isSelected} onClick={() => onEventSelect?.(isSelected ? null : event)}
+                  districtHopFilter={districtFilter} />
               ) : (
                 <VipEventRow event={event} isSelected={isSelected} photoUrl={photoUrl} onClick={() => onEventSelect?.(isSelected ? null : event)} locationFilter={locationFilter} />
               )}
@@ -1416,7 +1466,7 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
           const event = hovered.item as LiveEvent;
           const photoUrl = getFacePhoto(event.id);
           return (
-            <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"210px", backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(14, 22, 42,0.12)", pointerEvents:"none" }}>
+            <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"210px", backgroundColor:"white", border:BORDER, borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(24, 17, 39,0.12)", pointerEvents:"none" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:"8px", marginBottom:"8px", borderBottom:"1px solid var(--gray-100)" }}>
                 <span style={{ fontSize:"10px", fontWeight:800, color: event.type==="VIP" ? "var(--primary-400)" : "var(--type-tracking)", backgroundColor: event.type==="VIP" ? "var(--primary-100)" : "var(--type-tracking-100)", padding:"2px 6px", borderRadius:"4px" }}>
                   {event.type==="VIP" ? `VIP · ${event.confidence}%` : "TRACKING"}
@@ -1437,7 +1487,7 @@ function CollapsedSidebar({ position = "left", onEventSelect, selectedEventId, o
           const isLive = device.status === "Live";
           const zone = nearestZoneName(device.lat, device.lng, cameras, t.unknownZone);
           return (
-            <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"180px", backgroundColor:"var(--gray-900)", border:"1px solid var(--gray-700)", borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(14, 22, 42,0.2)", pointerEvents:"none" }}>
+            <div style={{ position:"fixed", ...(position === "right" ? { right:"64px" } : { left:"64px" }), top: clampedTop, zIndex:1000, width:"180px", backgroundColor:"var(--gray-900)", border:"1px solid var(--gray-700)", borderRadius:"12px", padding:"10px", boxShadow:"0 4px 20px rgba(24, 17, 39,0.2)", pointerEvents:"none" }}>
               <div style={{ fontSize:"10px", color:"var(--gray-400)", marginBottom:"3px" }}>{zone}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span style={{ fontSize:"12px", fontWeight:800, color:"white" }}>{device.name}</span>
@@ -1479,11 +1529,7 @@ export default function Sidebar({ onEventSelect, selectedEventId, locationFilter
   // this site's list by a name that is not in it, so the list read as empty with a purple chip on
   // top explaining why in terms of somebody who was never here.
   const sidebarProjectId = useActiveProjectId();
-  const firstSidebarSiteRef = useRef(true);
-  useEffect(() => {
-    if (firstSidebarSiteRef.current) { firstSidebarSiteRef.current = false; return; }
-    setPersonFilter(null);
-  }, [sidebarProjectId]);
+  useOnValueChange(sidebarProjectId, () => setPersonFilter(null));
 
   if (isCollapsed) return (
     <CollapsedSidebar

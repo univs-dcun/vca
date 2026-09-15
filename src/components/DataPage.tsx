@@ -4,12 +4,16 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MatchItem, ReIDStatus } from "@/types/reid";
 import {
   CAMERA_CODES, canSearchInApp, judgementFor, type DetectionVerdict,
-  useActiveProjectId, useProjectCameras, useVcaStore, type Camera,
+  useActiveProjectId, useProjectCameras, useVcaStore, getActiveProjectId, personsInProject,
+  VIP_SESSION_WINDOW_MS,
+  type Camera, type Person,
 } from "@/lib/vcaStore";
 import { useCameraStatus, getCameraStatus, runStateOf } from "@/lib/realtime/cameraStatus";
 import { formatElapsed, parseSgtStamp, recentSgtStamp, sgtClockTime, sgtDateKey } from "@/lib/time";
+import { getComplianceConfig } from "@/lib/complianceConfig";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { usePopoverDismiss } from "@/hooks/usePopoverDismiss";
+import { useOnValueChange } from "@/hooks/useOnValueChange";
 import RemoveImageButton from "./RemoveImageButton";
 
 import { useLanguage, type AppLanguage } from "@/lib/i18n";
@@ -57,6 +61,8 @@ const T = {
     reset: "Reset",
     search: "Search",
     noSearchPermission: "You do not have permission to search people — ask an administrator",
+    /** What goes in the look-up log as the target, by which tab the search ran on. */
+    logTarget: { Photo: "Photo", Filter: "Attributes", VIP: "VIP registry", Car: "Vehicle" } as Record<string, string>,
     allCameras: "All cameras",
     labelType: "Type",
     confirmed: "Confirmed",
@@ -134,6 +140,16 @@ const T = {
     noCandidatesMatch: "No candidates match the current filters",
     chooseTargetOrFilter: "Choose a target or set a filter to see candidates",
     close: "Close",
+    /**
+     * A burst of captures folded into one card.
+     *
+     * "3 frames" was the first wording and nobody could tell what it meant on a card that is
+     * itself one capture — the reader has no reason to know a detector fires per frame. So the
+     * label says what was COUNTED and what DID it: this camera caught this person three times on
+     * one pass. Short form on the card (136px of room), the sentence on hover.
+     */
+    framesShort: (n: number) => `caught ${n}\u00d7`,
+    framesFolded: (n: number) => `This camera caught the same person ${n} times going past. One card, ${n} captures.`,
     prevPage: "Previous page",
     nextPage: "Next page",
     sharedFramesTitle: "Every frame holding both the primary target and this associate",
@@ -153,7 +169,11 @@ const T = {
     colAction: "Action",
     fullBody: "Full-body",
     selectPrimaryTarget: "Select primary target",
-    selectPrimarySub: "Search and select a new target to rebuild RedFace relationship graph",
+    // Shown only when switching, never on the first open: "rebuild" is a promise about a graph
+    // that already exists, and on first entry there is nothing to rebuild. It stays for the
+    // switch case because that IS worth saying — confirming here replaces the view you are
+    // looking at.
+    selectPrimarySub: "Picking a new target rebuilds the association graph",
     searchByImage: "Search by image",
     clickToUpload: "Click to upload",
     labelApparel: "Apparel",
@@ -215,6 +235,7 @@ const T = {
     reset: "초기화",
     search: "검색",
     noSearchPermission: "인물 검색 권한이 없습니다 — 관리자에게 요청하세요",
+    logTarget: { Photo: "사진", Filter: "속성", VIP: "VIP 명단", Car: "차량" } as Record<string, string>,
     allCameras: "전체 카메라",
     labelType: "종류",
     confirmed: "확인됨",
@@ -265,9 +286,9 @@ const T = {
     noFeedTitle: "표시할 화면이 없습니다",
     noFeedBody: "이 카메라는 가동 중이 아니라 촬영되는 것이 없습니다. 마지막 신호 시각은 장비 목록에서 볼 수 있습니다.",
     noReidTitle: "인물 검색 권한이 필요합니다",
-    noReidBody: "Re-ID 분석은 한 사람이 이 현장의 카메라들에서 언제 어디서 보였는지를 답하는 화면입니다. 인물 검색에 해당하므로 권한이 필요합니다. 관리자에게 요청하면 포털의 사용자 및 권한에서 열어 줄 수 있습니다.",
+    noReidBody: "Re-ID 분석은 한 사람이 이 현장의 카메라들에서 언제 어디서 보였는지를 답하는 화면입니다. 인물 검색에 해당하므로 권한이 필요합니다. 관리자에게 요청하면 Portal의 사용자 및 권한에서 열어 줄 수 있습니다.",
     noRedFaceTitle: "인물 검색 권한이 필요합니다",
-    noRedFaceBody: "RedFace는 얼굴을 등록부와 대조해 동행 관계를 만드는 화면이라, 검색 권한 없이는 보여줄 것이 없습니다. 관리자에게 요청하면 포털의 사용자 및 권한에서 열어 줄 수 있습니다.",
+    noRedFaceBody: "RedFace는 얼굴을 등록부와 대조해 동행 관계를 만드는 화면이라, 검색 권한 없이는 보여줄 것이 없습니다. 관리자에게 요청하면 Portal의 사용자 및 권한에서 열어 줄 수 있습니다.",
     searchVips: "VIP 검색",
     clearSearch: "검색어 지우기",
     sortRegistered: "등록순",
@@ -292,6 +313,8 @@ const T = {
     noCandidatesMatch: "현재 조건에 맞는 후보가 없습니다",
     chooseTargetOrFilter: "대상을 고르거나 조건을 설정하면 후보가 나타납니다",
     close: "닫기",
+    framesShort: (n: number) => `${n}회 포착`,
+    framesFolded: (n: number) => `이 카메라가 지나가는 같은 사람을 ${n}번 잡았습니다. 카드 한 장, 포착 ${n}회.`,
     prevPage: "이전 페이지",
     nextPage: "다음 페이지",
     sharedFramesTitle: "기준 대상과 이 동행자가 함께 잡힌 모든 프레임",
@@ -311,7 +334,7 @@ const T = {
     colAction: "동작",
     fullBody: "전신",
     selectPrimaryTarget: "기준 대상 선택",
-    selectPrimarySub: "새 대상을 검색해 선택하면 RedFace 관계도를 다시 만듭니다",
+    selectPrimarySub: "새 대상을 고르면 관계도를 다시 만듭니다",
     searchByImage: "이미지로 검색",
     clickToUpload: "눌러서 업로드",
     labelApparel: "옷차림",
@@ -448,8 +471,8 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
   useEscapeKey(onClose);
   return (
     <div onClick={e => { if (e.target===e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.4)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
-      <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"560px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"90vh", overflow:"hidden", boxShadow:"0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position:"fixed", inset:0, backgroundColor:"var(--scrim)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
+      <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, maxWidth:"560px", width:"100%", display:"flex", flexDirection:"column", maxHeight:"90vh", overflow:"hidden", boxShadow:"var(--shadow-modal)" }}>
 
         {/* Header */}
         <div style={{ padding:"14px 16px", borderBottom:BORDER, backgroundColor:"var(--gray-50)", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -505,7 +528,7 @@ function DetailModal({ item, onClose, onGoRedmap, onGoAnalyzeFrame }: { item:Mat
 
         </div>
 
-        {/* Footer — Watchlist registration is a Portal(admin) function, not a VCA operator
+        {/* Footer — VIP registration is a Portal(admin) function, not a VCA operator
             screen action, so it doesn't live here; Analyze Frame (same wording as Best Frame's
             own popup button) deep-links to that camera's Inspection Detail instead. */}
         <div style={{ padding:"12px 16px", borderTop:BORDER, backgroundColor:"var(--gray-50)", display:"flex", justifyContent:"flex-end", gap:"8px", flexShrink:0 }}>
@@ -577,7 +600,7 @@ function HoverActionBtn({ label, icon, color, onClick }:
       width:"108px", height:"28px", borderRadius:"999px", cursor:"pointer",
       backgroundColor: hovered ? color : "white", border:`1.5px solid ${color}`, color: hovered ? "white" : color,
       fontSize:"12px", fontWeight:700, letterSpacing:"-0.22px",
-      boxShadow: hovered ? "0 2px 8px rgba(14,22,42,0.28)" : "0 2px 6px rgba(14,22,42,0.18)",
+      boxShadow: hovered ? "0 2px 8px rgba(24, 17, 39,0.28)" : "0 2px 6px rgba(24, 17, 39,0.18)",
       transform: hovered ? "scale(1.04)" : "scale(1)",
       transition:"background-color 0.12s, color 0.12s, transform 0.12s, box-shadow 0.12s",
     }}>
@@ -586,8 +609,9 @@ function HoverActionBtn({ label, icon, color, onClick }:
   );
 }
 
-function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab, onGoRedmap, onGoRedmapFrame }: { p: (typeof REID_DATA)[number]; onClick: () => void; showCam?: boolean; fill?: boolean; onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void; onGoRedmapFrame?: (url: string, label: string) => void }) {
+function MonitorCard({ p, onClick, showCam = false, fill = false, frameCount = 1, onNavigateTab, onGoRedmap, onGoRedmapFrame }: { p: (typeof REID_DATA)[number]; onClick: () => void; showCam?: boolean; fill?: boolean; frameCount?: number; onNavigateTab?: (tab: DataTab, card: (typeof REID_DATA)[number]) => void; onGoRedmap?: () => void; onGoRedmapFrame?: (url: string, label: string) => void }) {
   const [lang] = useLanguage();
+  const t = T[lang];
   const status = REID_STATUS_STYLE[p.status];
   // Shown on hover AND on keyboard focus. The three actions on this card were the only way to
   // send a detection to Re-ID, RedFace or Redmap, and they were rendered only while the pointer
@@ -610,17 +634,17 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
       ...(fill ? { flex:"1 1 136px", maxWidth:"160px" } : { width:"136px", flexShrink:0 }),
       borderRadius:"8px", overflow:"hidden", backgroundColor:"white", cursor:"pointer",
       border:"none", borderBottom:0,
-      boxShadow:"0 3px 8px -2px rgba(14, 22, 42, 0.12)",
+      boxShadow:"0 3px 8px -2px rgba(24, 17, 39, 0.12)",
       transform:"translateZ(0)",
     }}>
       <img src={p.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
       <div style={{ position:"absolute", left:0, right:0, bottom:"46px", height:"72px",
-        background:"linear-gradient(to top, rgba(14,22,42,0.72), rgba(14,22,42,0))", pointerEvents:"none" }} />
+        background:"linear-gradient(to top, rgba(24, 17, 39,0.72), rgba(24, 17, 39,0))", pointerEvents:"none" }} />
       {/* Only shown in the flat "All Cameras" view — grouped-by-camera carousels already
           show the camera name in their section header, so this would be a duplicate there. */}
       {showCam && (
         <div style={{ position:"absolute", top:7, left:8, fontSize:"10px", fontWeight:800, color:"white",
-          backgroundColor:"rgba(14,22,42,0.7)", padding:"4px 6px", borderRadius:"12px", letterSpacing:"-0.2px" }}>
+          backgroundColor:"var(--label-plate)", padding:"4px 6px", borderRadius:"12px", letterSpacing:"-0.2px" }}>
           {p.cam}
         </div>
       )}
@@ -631,7 +655,7 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
         </div>
       )}
       {showActions && (
-        <div style={{ position:"absolute", inset:0, backgroundColor:"rgba(14,22,42,0.6)",
+        <div style={{ position:"absolute", inset:0, backgroundColor:"var(--scrim-media)",
           display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", zIndex:20 }}>
           <HoverActionBtn label="Re-ID" icon={<ReidIconSm />} color="var(--primary-400)" onClick={e => { e.stopPropagation(); onNavigateTab?.("Re-ID Analysis", p); }} />
           <HoverActionBtn label="RedFace" icon={<RedFaceIconSm />} color="var(--warning-500)" onClick={e => { e.stopPropagation(); onNavigateTab?.("RedFace", p); }} />
@@ -647,28 +671,62 @@ function MonitorCard({ p, onClick, showCam = false, fill = false, onNavigateTab,
             }} />
         </div>
       )}
-      <div style={{ position:"absolute", left:"-1px", right:"-1px", bottom:"-2px", height:"72px", backgroundColor:"white",
+      {/* 76px with 7/10 padding, not 72 with 7/24. The old box left 41px of content room for three
+          lines that need 55, and flex resolved that by crushing the middle one to zero height —
+          the identity line, the one the name goes in. A card can lose its name to a padding value
+          and still look deliberate, which is why this is measured rather than eyeballed. */}
+      <div style={{ position:"absolute", left:"-1px", right:"-1px", bottom:"-2px", height:"76px", backgroundColor:"white",
         border:"none", borderTop:"none", boxShadow:"none", margin:0, marginBottom:0,
-        padding:"7px 11px 24px", boxSizing:"border-box", display:"flex", flexDirection:"column", gap:"2px" }}>
+        padding:"7px 11px 10px", boxSizing:"border-box", display:"flex", flexDirection:"column", gap:"2px" }}>
         <div style={{ display:"flex", alignItems:"baseline", gap:"3px" }}>
           <span style={{ fontSize:"12px", fontWeight:800, color:status.text, letterSpacing:"-0.2px" }}>{attr(p.status, lang)}</span>
           {p.status === "VIP" && p.score !== null && <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-600)" }}>{p.score}%</span>}
         </div>
-        <div style={{ display:"flex", gap:"4px", fontSize:"12px", fontWeight:600, color:"var(--gray-900)" }}>
-          <span>{p.gender}</span><span>{p.age}</span>
+        {/* The identity line. A name when the register knows one, and the best available
+            description when it does not — those are answers to the same question, so they share
+            the line rather than sitting on top of each other.
+
+            It used to be gender+age always, which meant a card badged VIP said "M 45yo" where its
+            name belonged: the most important card on the wall omitted the one thing that made it
+            important, while the register had the name all along. */}
+        <div style={{ display:"flex", gap:"4px", fontSize:"12px", fontWeight:600, color:"var(--gray-900)",
+          overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flexShrink:0 }}>
+          {p.personName
+            ? <span style={{ fontWeight:700 }}>{p.personName}</span>
+            : <><span>{p.gender}</span><span>{p.age}</span></>}
         </div>
-        <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-600)", letterSpacing:"-0.2px", marginBottom:"6px" }}>{cardTimestamp(p.date, p.time)}</span>
+        {/* Anchored to the bottom of the block rather than following the line above it, so the
+            timestamp sits on the same baseline on every card whether or not the identity line
+            wraps — and so it reads as the card's footer instead of a third sentence. */}
+        <div style={{ display:"flex", alignItems:"baseline", gap:"4px", marginTop:"auto", minWidth:0 }}>
+          <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-600)", letterSpacing:"-0.2px" }}>{cardTimestamp(p.date, p.time)}</span>
+          {/* Says that frames were folded together, so a collapsed burst cannot be mistaken for a
+              single capture — and so the count the wall shows still adds up to what the camera
+              recorded. Only when there is something to say: one frame needs no number. */}
+          {frameCount > 1 && (
+            <span title={t.framesFolded(frameCount)} style={{ fontSize:"10px", fontWeight:700, color:"var(--gray-500)",
+              backgroundColor:"var(--gray-100)", borderRadius:"999px", padding:"0 5px", letterSpacing:"-0.2px", flexShrink:0 }}>
+              {t.framesShort(frameCount)}
+            </span>
+          )}
+        </div>
       </div>
       <div style={{ position:"absolute", right:"6px", bottom:"40px", width:"60px", height:"60px",
         borderRadius:"8px", overflow:"hidden", transform:"translateZ(0)",
         // Only VIP gets a ring (brand purple) — Unknown has nothing to call out, and RedFace
         // already gets its own dedicated "REDFACE" badge on this card (below).
         boxShadow: p.status === "VIP" ? "0 0 0 2px var(--primary-400)" : "none" }}>
-        {/* Zoomed-in crop of the same big photo's face area, not a separate unrelated image —
-            anchored a bit below the very top edge (most head-and-shoulders stock photos frame
-            the face around 15-25% down, not flush at 0%) and zoomed less aggressively than a
-            tight face-only crop so a slightly-off guess still leaves the face in frame. */}
-        <img src={p.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"50% 20%", display:"block", transform:"scale(1.8)", transformOrigin:"50% 20%" }} />
+        {/* THE FACE FIELD, NOT A ZOOM OF THE CAPTURE.
+            This used to take the big photo and blow up its top 20% at 1.8x, on the reasoning that
+            "most head-and-shoulders stock photos frame the face around 15-25% down". That is a
+            fact about stock photos, and the captures are not stock photos. On a real surveillance
+            crop — a whole body somewhere in a street scene, at CCTV resolution — the top 20% is
+            sky, or the person behind them, and enlarging a low-resolution region 1.8x magnifies
+            information that is not there. Rendered against the live server's own snapshots the
+            insets came out as smudges: every card carried what looked like a smear of dirt.
+            `face` is a separate image the data already had (the enrolled photo when the register
+            has one), so there is nothing to guess. */}
+        <img src={p.face} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
       </div>
     </div>
   );
@@ -724,7 +782,7 @@ function ScrollToTopButton({ containerRef }: { containerRef: React.RefObject<HTM
       title={T[lang].scrollToTop}
       style={{ position:"absolute", right:"20px", bottom:"20px", width:"40px", height:"40px", borderRadius:"50%",
         backgroundColor:"var(--gray-900)", color:"white", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
-        boxShadow:"0 4px 14px rgba(14,22,42,0.3)", zIndex:20 }}
+        boxShadow:"0 4px 14px rgba(24, 17, 39,0.3)", zIndex:20 }}
     >
       <ScrollUpIconSm />
     </button>
@@ -771,7 +829,7 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
           </button>
           {pickerOpen && (
             <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, width:"100%", backgroundColor:"white",
-              border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden",
+              border:BORDER, borderRadius:"8px", boxShadow:"var(--shadow-popover)", zIndex:10, overflow:"hidden",
               maxHeight:"320px", display:"flex", flexDirection:"column" }}>
               <button className="vca-picker-option" data-on={isAll}
                 onClick={() => { onSwitchCam(ALL_CAMERAS_ID); setPickerOpen(false); }} style={{
@@ -822,7 +880,9 @@ function CameraDetailView({ camId, items, onSwitchCam, onCardClick, onNavigateTa
         </div>
       ) : (
       <div style={{ display:"flex", flexWrap:"wrap", gap:"12px" }}>
-        {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} showCam={isAll} fill onNavigateTab={onNavigateTab} onGoRedmap={onGoRedmap} onGoRedmapFrame={onGoRedmapFrame} />)}
+        {items.map(p => <MonitorCard key={p.id} p={p} onClick={() => onCardClick(p.id)} showCam={isAll} fill
+          frameCount={(p as { frameCount?: number }).frameCount ?? 1}
+          onNavigateTab={onNavigateTab} onGoRedmap={onGoRedmap} onGoRedmapFrame={onGoRedmapFrame} />)}
       </div>
       )}
     </div>
@@ -880,32 +940,132 @@ function cardTimestamp(isoDate: string, time: string): string {
   return isoDate === sgtDateKey(new Date()) ? time : `${shortDate(isoDate)} ${time}`;
 }
 const LIVE_FEED_CAPTURE_INTERVAL_MS = 45_000;
+/**
+ * How many consecutive frames one passage produces, and how far apart they are.
+ *
+ * The mock used to space every capture 45s apart, so no two cards on the wall were ever the same
+ * person — and that hid the shape real data actually has. Run against the live server, the wall
+ * filled with near-identical cards seconds apart: 16:24:04, 16:24:04, 16:24:04 is one person
+ * walking past, not three arrivals. A detector fires per frame; a wall that draws per frame shows
+ * one passage as a row of duplicates and pushes the other people off the screen.
+ *
+ * So the seed produces bursts, and collapseBursts below is what the screen does about it. Faking
+ * an interval that never repeats would have kept the screen looking fine and wrong.
+ */
+const BURST_FRAMES = 3;
+const BURST_GAP_MS = 2_000;
 
-function makeLiveItem(seed: number, camId: string, index: number): (typeof REID_DATA)[number] {
-  const person = PERSONS[seed % PERSONS.length];
-  const status = LIVE_FEED_STATUS_CYCLE[seed % LIVE_FEED_STATUS_CYCLE.length];
+/**
+ * One capture on the wall.
+ *
+ * `vipRegistry` is this site's registered people, and it decides two things the mock used to decide
+ * on its own.
+ *
+ * WHO. A card badged VIP now carries the name of somebody actually on this site's VIP registry. It
+ * used to badge "VIP · 87.8%" with no identity at all — the same rule the four search screens
+ * already follow (the mock writes what was found, the register answers who and where), missing
+ * here. The screen was asserting a match against nobody.
+ *
+ * AND WHETHER. A site with an empty VIP registry cannot produce a VIP card, because there is nobody
+ * to have matched. That was a real defect left as minor in the 2026-09-10 review: a site with zero
+ * registered people still badged a third of its wall VIP.
+ */
+/**
+ * One card per passage, not per frame.
+ *
+ * A detector fires on every frame it sees somebody in, so one person walking past a camera
+ * arrives as several captures seconds apart. Drawn one-per-card that reads as several arrivals,
+ * and it pushes the other people off the screen — the wall spends its space repeating its most
+ * recent subject.
+ *
+ * The window is the one the sidebar already uses for the same question (VIP_SESSION_WINDOW_MS,
+ * 2 minutes): same subject, same camera, inside the window is one visit.
+ *
+ * WHAT COUNTS AS "SAME SUBJECT" IS THE LIMIT HERE. A named match can be collapsed, because the
+ * register says who it is. An unidentified capture cannot — two strangers at one camera a second
+ * apart are two people, and merging them on the strength of "both unidentified" would erase one.
+ * So those are left alone, and the wall still shows bursts of Unknown. That is not a gap in this
+ * function; it is what the data can support, and the honest version of it. It closes when a
+ * detection carries a stable per-subject id (HANDOFF contract 7) rather than only a name.
+ */
+function collapseBursts<T extends { subjectKey?: string; personName?: string; cam: string; date: string; time: string }>(
+  items: T[],
+): (T & { frameCount: number })[] {
+  const out: (T & { frameCount: number })[] = [];
+  const lastOf = new Map<string, T & { frameCount: number }>();
+  items.forEach(item => {
+    // The tracker's subject when there is one, the register's name otherwise. A capture with
+    // neither stays its own card: two strangers at one camera a second apart are two people, and
+    // folding them on the strength of "both unidentified" would erase one of them.
+    const subject = item.subjectKey ?? (item.personName ? `name::${item.personName}` : null);
+    if (!subject) { out.push({ ...item, frameCount: 1 }); return; }
+    const key = `${item.cam}::${subject}`;
+    const prev = lastOf.get(key);
+    const at = new Date(`${item.date}T${item.time}`).getTime();
+    const prevAt = prev ? new Date(`${prev.date}T${prev.time}`).getTime() : NaN;
+    if (prev && Math.abs(prevAt - at) <= VIP_SESSION_WINDOW_MS) { prev.frameCount += 1; return; }
+    const kept = { ...item, frameCount: 1 };
+    lastOf.set(key, kept);
+    out.push(kept);
+  });
+  return out;
+}
+
+function makeLiveItem(seed: number, camId: string, index: number, vipRegistry: Person[]): (typeof REID_DATA)[number] {
+  // Everything identifying is keyed to the PASSAGE, not the frame, so a burst is one person seen
+  // three times rather than three strangers who happened to arrive two seconds apart. `seed`
+  // advances per frame; only `id` and the timestamp may use it.
+  const frameInPassage = index % BURST_FRAMES;
+  const passageSeed = seed - frameInPassage;
+  const person = PERSONS[passageSeed % PERSONS.length];
+  const cycled = LIVE_FEED_STATUS_CYCLE[passageSeed % LIVE_FEED_STATUS_CYCLE.length];
+  // Nobody enrolled here, so nothing here can be a match.
+  const matched = cycled === "VIP" && vipRegistry.length > 0 ? vipRegistry[passageSeed % vipRegistry.length] : null;
+  const status = cycled === "VIP" && !matched ? "Unknown" : cycled;
   // Leftmost card in the feed is the most recent capture — later positions step further back in
   // time. date/time both come from this SAME instant now, instead of date cycling independently.
-  const capturedAt = new Date(Date.now() - index * LIVE_FEED_CAPTURE_INTERVAL_MS);
+  // `index` walks frames, not arrivals: every BURST_FRAMES of them are one passage, seconds apart.
+  const passage = Math.floor(index / BURST_FRAMES);
+  const capturedAt = new Date(
+    Date.now() - passage * LIVE_FEED_CAPTURE_INTERVAL_MS - frameInPassage * BURST_GAP_MS,
+  );
   return {
     ...person,
     id: 100000 + seed,
+    /**
+     * Which passage this frame belongs to — the same value for every frame of one person walking
+     * past, and different for the next person.
+     *
+     * STANDS IN FOR A TRACK ID THE API DOES NOT YET HAVE. A detector fires per frame and a
+     * tracker is what says "these frames are one subject"; without it the wall cannot tell three
+     * frames of one person from three strangers a second apart, and must draw all three. The mock
+     * knows because it generated them, so the screen can show what the collapsed wall is supposed
+     * to look like — but the behaviour is only reachable in a real deployment once a detection
+     * carries a per-subject id (see HANDOFF, contract 7).
+     */
+    subjectKey: `${camId}::${passageSeed}`,
     date: formatCapturedDate(capturedAt),
     time: formatCapturedTime(capturedAt),
     status,
-    gender: REID_GENDER_CYCLE[seed % REID_GENDER_CYCLE.length],
-    age: REID_AGE_CYCLE[seed % REID_AGE_CYCLE.length],
+    gender: REID_GENDER_CYCLE[passageSeed % REID_GENDER_CYCLE.length],
+    age: REID_AGE_CYCLE[passageSeed % REID_AGE_CYCLE.length],
     score: status === "VIP" ? 87.8 : null,
     cam: camId,
-    face: REID_FACE_POOL[seed % REID_FACE_POOL.length],
-    apparel: REID_APPAREL_CYCLE[seed % REID_APPAREL_CYCLE.length],
-    prop: REID_PROP_CYCLE[seed % REID_PROP_CYCLE.length],
-    similarity: REID_SIMILARITY_CYCLE[seed % REID_SIMILARITY_CYCLE.length],
-    topColor: REID_TOP_COLOR_CYCLE[seed % REID_TOP_COLOR_CYCLE.length],
-    bottomColor: REID_BOTTOM_COLOR_CYCLE[seed % REID_BOTTOM_COLOR_CYCLE.length],
-    shoesColor: REID_SHOES_COLOR_CYCLE[seed % REID_SHOES_COLOR_CYCLE.length],
-    emotion: REID_EMOTION_CYCLE[seed % REID_EMOTION_CYCLE.length],
-    ethnicGroup: REID_ETHNIC_GROUP_CYCLE[seed % REID_ETHNIC_GROUP_CYCLE.length],
+    personName: matched?.name,
+    // The ENROLLED face when the register has one, never a crop of the capture — the card's inset
+    // used to zoom the capture itself and guess where a face would be. A registry row can have no
+    // photo (a CSV import carries names, not faces), and then this falls back to the pool so the
+    // card still renders; the honest version of that case is an inset that does not draw at all,
+    // which needs `face` to be optional through REID_DATA and its three other readers.
+    face: matched?.photoUrl ?? REID_FACE_POOL[passageSeed % REID_FACE_POOL.length],
+    apparel: REID_APPAREL_CYCLE[passageSeed % REID_APPAREL_CYCLE.length],
+    prop: REID_PROP_CYCLE[passageSeed % REID_PROP_CYCLE.length],
+    similarity: REID_SIMILARITY_CYCLE[passageSeed % REID_SIMILARITY_CYCLE.length],
+    topColor: REID_TOP_COLOR_CYCLE[passageSeed % REID_TOP_COLOR_CYCLE.length],
+    bottomColor: REID_BOTTOM_COLOR_CYCLE[passageSeed % REID_BOTTOM_COLOR_CYCLE.length],
+    shoesColor: REID_SHOES_COLOR_CYCLE[passageSeed % REID_SHOES_COLOR_CYCLE.length],
+    emotion: REID_EMOTION_CYCLE[passageSeed % REID_EMOTION_CYCLE.length],
+    ethnicGroup: REID_ETHNIC_GROUP_CYCLE[passageSeed % REID_ETHNIC_GROUP_CYCLE.length],
     plate: null as string | null,
   };
 }
@@ -918,8 +1078,11 @@ function seedLiveFeed(): Record<string, (typeof REID_DATA)> {
   // them badged "VIP · 87.8%". The picker offers stopped cameras (with an OFF badge), so that
   // wall was one click away, while the "All Cameras" view already excluded them: the two views
   // of the same site disagreed. A camera that is not running captured nothing.
+  // Read at call time, not at module load — this stands in for a request, the same way
+  // lib/api/dashboard.ts reads the store rather than importing the mock array.
+  const vipRegistry = personsInProject(useVcaStore.getState().persons, getActiveProjectId());
   getCameraStatus().running.forEach((cam, camIndex) => {
-    feed[cam.code] = Array.from({ length: 120 }, (_, i) => makeLiveItem(500000 + camIndex * 1000 + i, cam.code, i));
+    feed[cam.code] = Array.from({ length: 120 }, (_, i) => makeLiveItem(500000 + camIndex * 1000 + i, cam.code, i, vipRegistry));
   });
   return feed;
 }
@@ -981,7 +1144,7 @@ function SimpleSelect({ value, options, onChange }: { value:string; options:stri
       </button>
       {open && (
         <div className="vca-hide-scrollbar" style={{ position:"absolute", top:"100%", left:0, marginTop:"4px", width:"100%", maxHeight:"220px", overflowY:"auto",
-          backgroundColor:"white", border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10 }}>
+          backgroundColor:"white", border:BORDER, borderRadius:"8px", boxShadow:"var(--shadow-popover)", zIndex:10 }}>
           {["", ...options].map(o => {
             const active = value === o;
             return (
@@ -1355,15 +1518,14 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
   const seedRef = useRef(1);
   // Re-seed when the header switches site. Without this the wall keeps the previous site's cards
   // — the seed runs once at mount, and nothing else would clear them.
+  const [lang] = useLanguage();
+  const t = T[lang];
+  const recordSearchAccess = useVcaStore(state => state.recordSearchAccess);
   const scopedProjectId = useActiveProjectId();
   // Every search on this screen is answerable only from this site's cameras — see
   // useSiteCameraCodes.
   const siteCameras = useSiteCameraCodes();
-  const firstFeedRef = useRef(true);
-  useEffect(() => {
-    if (firstFeedRef.current) { firstFeedRef.current = false; return; }
-    setFeed(seedLiveFeed());
-  }, [scopedProjectId]);
+  useOnValueChange(scopedProjectId, () => setFeed(seedLiveFeed()));
 
   // Smart Search used to be its own top-level Data tab, disconnected from the camera view it was
   // actually meant to search from. Every other Data tab keeps its search filters in a collapsible
@@ -1403,19 +1565,17 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
   // The search outcome goes when the header switches site, for the same reason the wall is
   // re-seeded above — declared here rather than beside that effect only because these states are
   // declared below it.
-  const firstSearchSiteRef = useRef(true);
-  useEffect(() => {
-    if (firstSearchSiteRef.current) { firstSearchSiteRef.current = false; return; }
-    // The results too, not just the wall. Results are derived from the target and this site's
-    // cameras, so leaving the screen in its searched state re-answered the previous site's
-    // question with this site's cameras: the same person, suddenly "seen" twenty times at a
-    // school he has never been to. The query itself (target, attributes, dates) is the
-    // operator's own and survives, ready to be run again here — same rule as Redmap.
+  // The results too, not just the wall. Results are derived from the target and this site's
+  // cameras, so leaving the screen in its searched state re-answered the previous site's
+  // question with this site's cameras: the same person, suddenly "seen" twenty times at a
+  // school he has never been to. The query itself (target, attributes, dates) is the
+  // operator's own and survives, ready to be run again here — same rule as Redmap.
+  useOnValueChange(scopedProjectId, () => {
     setSearched(false);
     setSearchDetailId(null);
     // A camera code belongs to one site, so this one cannot mean anything here.
     setSearchCamera("");
-  }, [scopedProjectId]);
+  });
 
   const toggleTopColor    = (c: string) => setTopColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
   const toggleBottomColor = (c: string) => setBottomColors(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
@@ -1546,7 +1706,8 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
       if (onlineCams.length === 0) return;
       const batchSize = Math.max(1, Math.round(onlineCams.length / 4));
       const batch = [...onlineCams].sort(() => Math.random() - 0.5).slice(0, batchSize);
-      const newItems = batch.map(cam => ({ cam, item: makeLiveItem(seedRef.current++, cam.code, 0) }));
+      const liveVipRegistry = personsInProject(useVcaStore.getState().persons, getActiveProjectId());
+      const newItems = batch.map(cam => ({ cam, item: makeLiveItem(seedRef.current++, cam.code, 0, liveVipRegistry) }));
 
       setFeed(prev => {
         const next = { ...prev };
@@ -1562,9 +1723,9 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
   const allItems = Object.values(feed).flat();
   const detailItem = detailId !== null ? allItems.find(p => p.id===detailId) ?? null : null;
   const onlineCameraCodes = useCameraStatus().running.map(c => c.code);
-  const camDetailItems = openCam === ALL_CAMERAS_ID
+  const camDetailItems = collapseBursts(openCam === ALL_CAMERAS_ID
     ? onlineCameraCodes.flatMap(code => feed[code] ?? [])
-    : feed[openCam] ?? [];
+    : feed[openCam] ?? []);
 
   return (
     <div style={{ flex:1, display:"flex", gap:"12px", overflow:"hidden", padding:"20px 24px 12px", backgroundColor:"var(--gray-100)", boxSizing:"border-box" }}>
@@ -1581,7 +1742,13 @@ function LiveMonitoringTab({ openCam, onOpenCamChange, onNavigateTab, onGoRedmap
             backpackFilter={backpackFilter} onBackpackChange={setBackpackFilter}
             emotion={emotion} onEmotionChange={setEmotion}
             ethnicGroup={ethnicGroup} onEthnicGroupChange={setEthnicGroup}
-            onSearch={() => setSearched(true)} onCollapse={() => setSearchExpanded(false)}
+            onSearch={() => {
+              setSearched(true);
+              // Recorded even though Live Monitoring was never the screen the purpose gate
+              // stopped: recording costs the operator nothing, which is the whole argument for
+              // keeping the log while leaving the gate off. No purpose — nobody was asked.
+              recordSearchAccess({ projectId: scopedProjectId, target: t.logTarget[searchTab], surface: "live" });
+            }} onCollapse={() => setSearchExpanded(false)}
           />
         }
       />
@@ -1755,7 +1922,7 @@ function DateRangePopover({ anchorRef, value, onApply, onClose }: {
     <>
       <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:999 }} />
       <div style={{ position:"fixed", top:pos.top, left:pos.left, zIndex:1000, backgroundColor:"white",
-        border:BORDER, borderRadius:"12px", boxShadow:"0 8px 24px rgba(14,22,42,0.16)",
+        border:BORDER, borderRadius:"12px", boxShadow:"0 8px 24px rgba(24, 17, 39,0.16)",
         padding:"12px", display:"flex", gap:"16px" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:"4px", width:"140px", borderRight:BORDER, paddingRight:"12px" }}>
           {/* Shared by every date filter in the app (Live Monitoring, Re-ID Analysis, RedFace) —
@@ -1886,7 +2053,7 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
     // version of this list offers both orders behind a toggle, but this row has no room for one
     // and scanning for a name is the only thing it is used for.
     const compactOrder = VIP_QUICK.map((v, i) => ({ v, i }))
-      .sort((a, b) => a.v.name.localeCompare(b.v.name));
+      .sort((a, b) => NAME_COLLATOR.compare(a.v.name, b.v.name));
     const activeAt = compactOrder.findIndex(o => o.i === activeVIP);
     if (activeAt > 0) compactOrder.unshift(...compactOrder.splice(activeAt, 1));
     return (
@@ -1910,7 +2077,7 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
 
   const indexed = VIP_QUICK.map((v, i) => ({ v, i }))
     .filter(({ v }) => v.name.toLowerCase().includes(query.toLowerCase()));
-  if (sortMode === "abc") indexed.sort((a, b) => a.v.name.localeCompare(b.v.name));
+  if (sortMode === "abc") indexed.sort((a, b) => NAME_COLLATOR.compare(a.v.name, b.v.name));
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
@@ -1942,7 +2109,7 @@ function VipQuickSelectRow({ activeVIP, onSelect, compact = false }: { activeVIP
                 padding:"4px 8px", borderRadius:"999px", border:"none", cursor:"pointer",
                 backgroundColor: active ? "white" : "transparent",
                 color: active ? "var(--gray-900)" : "var(--gray-400)", fontWeight: active ? 700 : 600, fontSize:"10px",
-                boxShadow: active ? "0 1px 3px rgba(14,22,42,0.12)" : "none",
+                boxShadow: active ? "var(--shadow-raised)" : "none",
               }}>{label}</button>
             );
           })}
@@ -2161,9 +2328,9 @@ function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_D
     }}>
       <img src={p.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
       <div style={{ position:"absolute", left:0, right:0, bottom:"64px", height:"80px",
-        background:"linear-gradient(to top, rgba(14,22,42,0.72), rgba(14,22,42,0))", pointerEvents:"none" }} />
+        background:"linear-gradient(to top, rgba(24, 17, 39,0.72), rgba(24, 17, 39,0))", pointerEvents:"none" }} />
       <div style={{ position:"absolute", top:8, left:8, fontSize:"10px", fontWeight:800, color:"white",
-        backgroundColor:"rgba(14,22,42,0.7)", padding:"4px 8px", borderRadius:"12px", letterSpacing:"-0.2px" }}>
+        backgroundColor:"var(--label-plate)", padding:"4px 8px", borderRadius:"12px", letterSpacing:"-0.2px" }}>
         {p.cam}
       </div>
       {/* Similarity is a property of the match itself (how well this result answers the search),
@@ -2172,7 +2339,7 @@ function SearchResultCard({ p, onClick, matchReasons = [] }: { p: (typeof REID_D
           onto the photo, matching the badge ClusterMatchCard/CandidateCard already use for this
           same number. */}
       <div style={{ position:"absolute", top:8, right:8, fontSize:"10px", fontWeight:800, color:"white",
-        backgroundColor:"rgba(14,22,42,0.7)", padding:"4px 8px", borderRadius:"12px", letterSpacing:"-0.2px" }}>
+        backgroundColor:"var(--label-plate)", padding:"4px 8px", borderRadius:"12px", letterSpacing:"-0.2px" }}>
         {p.similarity}%
       </div>
       {/* Same REDFACE badge Live Monitoring's MonitorCard uses — a search shouldn't quietly hide
@@ -2400,6 +2567,16 @@ const REID_ETHNIC_GROUP_CYCLE = [...ETHNIC_GROUP_OPTIONS.slice(1), ...ETHNIC_GRO
 
 export const REID_DATA = PERSONS.map((p, i) => ({
   ...p,
+  /**
+   * Who this is, when the register says so — otherwise absent.
+   *
+   * PERSONS is an anonymous photo pool: it has no names and should not. A name belongs to the
+   * site's VIP registry, and the live wall fills this in from there (see makeLiveItem). Absent here
+   * so an unidentified capture stays unidentified instead of borrowing somebody's name.
+   */
+  personName:  undefined as string | undefined,
+  /** See makeLiveItem — a passage identifier standing in for a track id. Absent outside the wall. */
+  subjectKey:  undefined as string | undefined,
   status:      REID_STATUS_CYCLE[i % REID_STATUS_CYCLE.length] as ReIDStatus,
   gender:      REID_GENDER_CYCLE[i % REID_GENDER_CYCLE.length],
   age:         REID_AGE_CYCLE[i % REID_AGE_CYCLE.length],
@@ -2447,6 +2624,9 @@ export const VEHICLE_DATA = VEHICLE_PLATES.map((plate, i) => {
   const img = carSvgDataUri(color);
   return {
     id: 900000 + i,
+    // A vehicle is not a person; there is no name slot to fill, and no passage to fold.
+    personName: undefined as string | undefined,
+    subjectKey: undefined as string | undefined,
     url: img, face: img,
     time: TIMES_P[i % TIMES_P.length],
     badge: null as number | null,
@@ -2596,6 +2776,10 @@ function buildTargetResultRows(face: string, body: string, genderAbbrev: "M" | "
   const step = count > 1 ? 65 / (count - 1) : 0;
   return Array.from({ length: count }, (_, i) => ({
     id: 700000 + i,
+    // A similarity match is a candidate, not an identification — it has no name by definition,
+    // and no tracker subject either: these are separate sightings, not frames of one passage.
+    personName: undefined as string | undefined,
+    subjectKey: undefined as string | undefined,
     url: withMatchVariation(body, i),
     face: withMatchVariation(face, i),
     time: TIMES_P[i % TIMES_P.length],
@@ -2730,6 +2914,22 @@ function ClusterCard({ cluster, onNavigateTab, onMatchClick }: { cluster: ReidCl
     </div>
   );
 }
+
+/**
+ * One collator for every name sort on this screen.
+ *
+ * `localeCompare()` with no locale asks the runtime for its default, and the two runtimes that
+ * render this page do not agree: Node takes it from its ICU build, the browser from the OS. So the
+ * server and the client can order the same list differently — a hydration mismatch, and a visible
+ * re-sort on first paint. Pinning the locale makes both sides answer the same question.
+ *
+ * Quiet until now only because these names are all romanised. The roster and bulk camera import
+ * added today are the path by which Korean names arrive, so this is no longer hypothetical.
+ *
+ * Same collator options as the Portal tables' TABLE_COLLATOR (PortalShared.tsx) on purpose — two
+ * lists of the same people should not be in two different orders.
+ */
+const NAME_COLLATOR = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
 
 export const VIP_QUICK = [
   { name:"Mina", face: MATCH_DATA[0].face, body: MATCH_DATA[0].body, gender:"Female" },
@@ -3016,7 +3216,7 @@ function ReidCameraPicker({ value, onChange }: { value: string; onChange: (v: st
       </button>
       {open && (
         <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, width:"100%", backgroundColor:"white",
-          border:BORDER, borderRadius:"8px", boxShadow:"0 8px 20px rgba(14,22,42,0.12)", zIndex:10, overflow:"hidden",
+          border:BORDER, borderRadius:"8px", boxShadow:"var(--shadow-popover)", zIndex:10, overflow:"hidden",
           maxHeight:"320px", display:"flex", flexDirection:"column" }}>
           <button className="vca-picker-option" data-on={!value} onClick={() => { onChange(""); setOpen(false); }} style={{
             display:"flex", alignItems:"center", width:"100%", textAlign:"left", padding:"8px 12px", border:"none", cursor:"pointer", flexShrink:0,
@@ -3064,6 +3264,7 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
   // without the Search button ever being pressed. One door was locked and the other stood open.
   const portalUsers = useVcaStore(state => state.portalUsers);
   const searchAllowed = canSearchInApp(portalUsers);
+  const recordSearchAccess = useVcaStore(state => state.recordSearchAccess);
   const siteProjectId = useActiveProjectId();
   const siteCameras = useSiteCameraCodes();
   // Same collapsible tabbed sidebar as Live Monitoring's Photo/Filter/VIP/Car search (see
@@ -3102,19 +3303,13 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
   // Re-seed when the header switches site. Every match in a cluster names a camera, so the
   // clusters left over from the previous site are sightings that did not happen here — the same
   // reason Live Monitoring re-seeds its wall.
-  const firstClusterRef = useRef(true);
-  useEffect(() => {
-    if (firstClusterRef.current) { firstClusterRef.current = false; return; }
-    setLiveClusters(buildSeedClusters(siteCameras));
-  }, [siteCameras]);
+  useOnValueChange(siteCameras, () => setLiveClusters(buildSeedClusters(siteCameras)));
   // And the search outcome, for the reason given in Live Monitoring's effect above: a completed
   // search left on screen through a site switch gets re-answered with the new site's cameras.
-  const firstReidSiteRef = useRef(true);
-  useEffect(() => {
-    if (firstReidSiteRef.current) { firstReidSiteRef.current = false; return; }
+  useOnValueChange(siteProjectId, () => {
     setHasSearched(false);
     setDetailId(null);
-  }, [siteProjectId]);
+  });
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const scheduleNext = () => {
@@ -3333,7 +3528,7 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
           <p style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--gray-800)", letterSpacing: "-0.36px" }}>
             {t.noReidTitle}
           </p>
-          <p style={{ margin: "10px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", lineHeight: 1.7 }}>
+          <p style={{ margin: "10px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", lineHeight: 1.5 }}>
             {t.noReidBody}
           </p>
         </div>
@@ -3356,7 +3551,10 @@ function ReIDContent({ camera, onCameraChange, seedCard, onSeedConsumed, onNavig
             backpackFilter={backpackFilter} onBackpackChange={setBackpackFilter}
             emotion={emotion} onEmotionChange={setEmotion}
             ethnicGroup={ethnicGroup} onEthnicGroupChange={setEthnicGroup}
-            onSearch={() => setHasSearched(true)} onCollapse={() => setExpanded(false)}
+            onSearch={() => {
+              setHasSearched(true);
+              recordSearchAccess({ projectId: siteProjectId, target: t.logTarget[searchTab], surface: "reid" });
+            }} onCollapse={() => setExpanded(false)}
           />
         }
       />
@@ -3456,7 +3654,7 @@ function CandidateCard({ c, selected, onClick }:
           backgroundColor:"rgba(255,255,255,0.8)", padding:"2px 6px", borderRadius:"4px" }}>{c.similarity}%</span>
         <span style={{ position:"absolute", bottom:6, left:6, fontSize:"10px", fontWeight:600, color:"white",
           fontFamily: c.plate ? "monospace" : undefined,
-          backgroundColor:"rgba(14,22,42,0.5)", border:"1px solid white", padding:"2px 6px", borderRadius:"4px" }}>{c.plate ?? c.cam}</span>
+          backgroundColor:"var(--label-plate)", border:"1px solid white", padding:"2px 6px", borderRadius:"4px" }}>{c.plate ?? c.cam}</span>
         {selected && (
           <span style={{ position:"absolute", top:6, left:6, display:"flex", alignItems:"center", gap:"3px",
             backgroundColor:"var(--primary-400)", color:"white", fontSize:"10px", fontWeight:800, padding:"2px 6px", borderRadius:"4px" }}>
@@ -3494,10 +3692,21 @@ function TableIconSm() {
 }
 
 function PrimaryTargetPickerModal({ onConfirm, onCancel }:
-  { onConfirm:(c:RedfaceCandidate)=>void; onCancel:()=>void }) {
+  // onCancel is absent on the very first open, when RedFace has no target yet. That is not a
+  // style choice — the landing state behind this picker renders no "switch target" button (that
+  // control lives in the primary-target header, which only exists once there IS one), so closing
+  // with nothing picked would strand the user on empty tier bands with no way back in. The tab bar
+  // above stays clickable, so leaving is still possible; what is not possible is dismissing this.
+  //
+  // It used to be gated the other way round: all three dismiss paths were wrapped in
+  // `primaryTarget && …` while the × was drawn unconditionally, so on first entry the button was
+  // visible, hoverable, clickable — and did nothing. A control that renders and refuses is worse
+  // than no control: the first press reads as a broken screen, and the second as a stuck one.
+  // Absence of the prop now means absence of the button, so the two cannot disagree again.
+  { onConfirm:(c:RedfaceCandidate)=>void; onCancel?:()=>void }) {
   const [lang] = useLanguage();
   const t = T[lang];
-  useEscapeKey(onCancel);
+  useEscapeKey(onCancel ?? (() => {}), !!onCancel);
   const siteCameras = useSiteCameraCodes();
   const [searchType, setSearchType]         = useState<"PERSON"|"VEHICLE">("PERSON");
   const [selectedTarget, setSelectedTarget] = useState(-1);
@@ -3652,7 +3861,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
     || !!dateRange.start || !!dateRange.end || licensePlate.trim() !== "" || threshold !== 70;
 
   return (
-    <div style={{ backgroundColor:"white", border:BORDER, borderRadius:"16px", boxShadow:"0 12px 24px rgba(14, 22, 42,0.1)",
+    <div style={{ backgroundColor:"white", border:BORDER, borderRadius:"16px", boxShadow:"var(--shadow-modal)",
       width:"1092px", maxWidth:"100%", display:"flex", flexDirection:"column", maxHeight:"92vh", overflow:"hidden" }}>
 
       <div style={{ padding:"16px 24px", borderBottom:BORDER, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
@@ -3663,12 +3872,17 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
           </div>
           <div>
             <p style={{ fontSize:"16px", fontWeight:800, color:"var(--gray-800)", margin:0, letterSpacing:"-0.32px" }}>{t.selectPrimaryTarget}</p>
-            <p style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-500)", margin:0 }}>{t.selectPrimarySub}</p>
+            {/* onCancel is present exactly when a target already exists (see the note on the
+                props), which is also exactly when "rebuilds" is a true statement. */}
+            {onCancel && <p style={{ fontSize:"13px", fontWeight:600, color:"var(--gray-500)", margin:0 }}>{t.selectPrimarySub}</p>}
           </div>
         </div>
-        <button onClick={onCancel} style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex", flexShrink:0 }}>
-          <XCircleIconSm />
-        </button>
+        {onCancel && (
+          <button onClick={onCancel} aria-label={t.close} title={t.close}
+            style={{ background:"none", border:"none", padding:0, cursor:"pointer", display:"flex", flexShrink:0 }}>
+            <XCircleIconSm />
+          </button>
+        )}
       </div>
 
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
@@ -3765,7 +3979,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                         <img src={faceSrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
                         {!uploadedFace && <div style={{ position:"absolute", inset:0, backgroundColor:"rgba(90,61,251,0.15)" }} />}
                         <div className="vca-dropzone-hint" style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center",
-                          backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
+                          backgroundColor:"var(--scrim-media)", opacity:0 }}>
                           <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>{t.clickToChange}</span>
                         </div>
                         {hoverImageBox === "face" && (
@@ -3795,7 +4009,7 @@ function PrimaryTargetPickerModal({ onConfirm, onCancel }:
                         <img src={bodySrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
                         {!uploadedBody && <div style={{ position:"absolute", inset:0, backgroundColor:"rgba(90,61,251,0.15)" }} />}
                         <div className="vca-dropzone-hint" style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center",
-                          backgroundColor:"rgba(14,22,42,0.55)", opacity:0 }}>
+                          backgroundColor:"var(--scrim-media)", opacity:0 }}>
                           <span style={{ fontSize:"11px", fontWeight:700, color:"white" }}>{t.clickToChange}</span>
                         </div>
                         {hoverImageBox === "body" && (
@@ -3984,7 +4198,7 @@ function buildRedfaceTiers(seed: number) {
     .sort((a, b) => b - a);
   const tier3Counts = Array.from({ length: 15 }, (_, i) => Math.round(1 + redfaceSeededRandom(seed * 3.1 + i) * 9))
     .sort((a, b) => b - a);
-  // Status is a coarse mock watchlist read: mostly Unknown, a handful of VIP/Suspect, matching how
+  // Status is a coarse mock VIP registry read: mostly Unknown, a handful of VIP/Suspect, matching how
   // registered/flagged people are actually a minority of any associate list.
   const statusAt = (r: number): RedfaceNode["status"] => r > 0.88 ? "VIP" : r > 0.7 ? "Suspect" : "Unknown";
   const tier1 = tier1Counts.map((count, i) => ({ id: i, face: faceAt(Math.floor(redfaceSeededRandom(seed * 4 + i) * REDFACE_FACES.length)), count, status: statusAt(redfaceSeededRandom(seed * 10 + i)) }));
@@ -4068,7 +4282,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId, dateR
              are placed from those pure weight percentages, so they were drawing up to 30px above
              the band they belong to. Zeroing the basis makes one calculation govern both. */
           <div key={r.key} style={{ flexGrow:r.weight, flexShrink:0, flexBasis:0, position:"relative",
-            backgroundColor: r.meta?.bg ?? ZONE_TINT("--primary-200"), borderBottom: r.key !== tierRows[tierRows.length-1]?.key ? "1px solid rgba(14, 22, 42,0.05)" : "none",
+            backgroundColor: r.meta?.bg ?? ZONE_TINT("--primary-200"), borderBottom: r.key !== tierRows[tierRows.length-1]?.key ? "1px solid rgba(24, 17, 39,0.05)" : "none",
             display:"flex", alignItems:"flex-start", justifyContent:"space-between", padding:"24px 24px 0", boxSizing:"border-box" }}>
             <span style={{ fontSize:"10px", fontWeight:800, letterSpacing:"0.4px",
               backgroundColor: r.meta?.labelBg ?? "rgba(255,255,255,0.85)", color: r.meta?.labelColor ?? "var(--primary-400)",
@@ -4134,7 +4348,7 @@ function PyramidCanvas({ primaryTarget, rows, onNodeClick, selectedNodeId, dateR
             opacity: verdictOf(n.id) === "false_positive" ? 0.4 : 1 }}>
             <div className="redface-avatar-hover" onClick={() => onNodeClick(r.key, n)} style={{ position:"relative", width:r.meta!.nodeSize, height:r.meta!.nodeSize, borderRadius:"10px",
               border:`${r.meta!.nodeBorder}px solid ${r.meta!.nodeColor}`, backgroundColor:"white", boxSizing:"border-box",
-              boxShadow: n.id === selectedNodeId ? "0 0 0 3px rgba(90,61,251,0.45), 0 2px 8px rgba(14, 22, 42,0.15)" : "0 2px 8px rgba(14, 22, 42,0.15)" }}>
+              boxShadow: n.id === selectedNodeId ? "0 0 0 3px rgba(90,61,251,0.45), 0 2px 8px rgba(24, 17, 39,0.15)" : "0 2px 8px rgba(24, 17, 39,0.15)" }}>
               <img src={n.face} alt="" style={{ width:"100%", height:"100%", borderRadius:`${10 - r.meta!.nodeBorder}px`, objectFit:"cover", display:"block" }} />
             </div>
             {/* The co-captures in the range on screen — the same rows the Joint Evidence panel
@@ -4508,7 +4722,7 @@ function SharedFrameLightbox({ event, assocLabel, index, total, onStep, onClose,
   );
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, backgroundColor:"rgba(14,22,42,0.55)", zIndex:200,
+      style={{ position:"fixed", inset:0, backgroundColor:"var(--scrim-media)", zIndex:200,
         display:"flex", alignItems:"center", justifyContent:"center", padding:"24px" }}>
       <div style={{ backgroundColor:"white", borderRadius:"16px", border:BORDER, width:"100%", maxWidth:"920px",
         display:"flex", flexDirection:"column", overflow:"hidden" }}>
@@ -4589,6 +4803,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame, date
    * across searches. Redmap writes the same record for its sightings — see DetectionJudgement.
    */
   const judgements = useVcaStore(state => state.detectionJudgements);
+  const judgementEnabled = getComplianceConfig().detectionJudgement;
   const recordJudgement = useVcaStore(state => state.recordJudgement);
   const clearJudgement = useVcaStore(state => state.clearJudgement);
   const judgement = judgementFor(judgements, "redface", String(node.id));
@@ -4739,7 +4954,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame, date
                   {t.undoJudgement}
                 </button>
               </>
-            ) : (
+            ) : judgementEnabled ? (
               <>
                 <button
                   onClick={() => recordJudgement({ surface:"redface", subjectId:String(node.id), targetLabel:primary.name, verdict:"confirmed" })}
@@ -4758,7 +4973,7 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame, date
                   <XCircleIconSm /> {t.excluded}
                 </button>
               </>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -4906,14 +5121,14 @@ function JointEvidencePanel({ primary, tier, node, onClose, onAnalyzeFrame, date
                   an operator reads. Date is trimmed to MM-DD for the same reason. */}
               <span style={{ position:"absolute", top:4, left:4, display:"flex", alignItems:"center", gap:"4px",
                 maxWidth:"calc(100% - 8px)", fontSize:"9px", fontWeight:700, color:"white",
-                backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px",
+                backgroundColor:"var(--label-plate)", padding:"2px 5px", borderRadius:"3px",
                 overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
                 <CameraGlyph size={10} /> {e.location}
               </span>
               {/* Bottom-LEFT now that the legend has moved out to the section heading — the two
                   chips read as one column down the frame's left edge instead of straddling it. */}
               <span style={{ position:"absolute", bottom:4, left:4, fontSize:"9px", fontWeight:700, color:"white",
-                backgroundColor:"rgba(14,22,42,0.65)", padding:"2px 5px", borderRadius:"3px", whiteSpace:"nowrap" }}>
+                backgroundColor:"var(--label-plate)", padding:"2px 5px", borderRadius:"3px", whiteSpace:"nowrap" }}>
                 {e.date.slice(5)} {e.time.slice(0, 5)}
               </span>
               {[
@@ -5006,7 +5221,7 @@ function DataGridView({ rows, onInspect, selectedNodeId, sortDir, onToggleSort, 
             <ChevronDownIconSm />
           </span>
         </button>
-        {/* The associate's own watchlist standing. It decides which row an operator opens first,
+        {/* The associate's own vipRegistry standing. It decides which row an operator opens first,
             and it was only visible after opening one. */}
         <span style={{ width:"76px", flexShrink:0 }}>{t.colStatus}</span>
         {/* How many distinct cameras the pair was ever framed at. The most discriminating fact
@@ -5361,7 +5576,7 @@ function RedFaceContent({ seedCard, seedLabel, onSeedConsumed, onGoAnalyzeFrame 
           <p style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--gray-800)", letterSpacing: "-0.36px" }}>
             {t.noRedFaceTitle}
           </p>
-          <p style={{ margin: "10px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", lineHeight: 1.7 }}>
+          <p style={{ margin: "10px 0 0", fontSize: "13px", fontWeight: 600, color: "var(--gray-500)", lineHeight: 1.5 }}>
             {t.noRedFaceBody}
           </p>
         </div>
@@ -5387,10 +5602,11 @@ function RedFaceContent({ seedCard, seedLabel, onSeedConsumed, onGoAnalyzeFrame 
         <div
           onClick={e => { if (e.target === e.currentTarget && primaryTarget) setPickerOpen(false); }}
           style={{ position:"absolute", inset:0, zIndex:50, overflow:"auto",
-            backdropFilter:"blur(9px)", backgroundColor:"rgba(14, 22, 42,0.4)" }}
+            backdropFilter:"blur(9px)", backgroundColor:"var(--scrim)" }}
         >
           <div style={{ minHeight:"100%", boxSizing:"border-box", display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"24px", paddingTop:"6vh" }}>
-            <PrimaryTargetPickerModal onConfirm={handleConfirm} onCancel={() => primaryTarget && setPickerOpen(false)} />
+            <PrimaryTargetPickerModal onConfirm={handleConfirm}
+              onCancel={primaryTarget ? () => setPickerOpen(false) : undefined} />
           </div>
         </div>
       )}
@@ -5501,12 +5717,10 @@ export default function DataPage({ onGoRedmap, onGoRedmapFrame, onGoAnalyzeFrame
   // the open feed while the ONLINE badge, the IP line and every card were gone, with nothing on
   // screen to say why.
   const siteProjectId = useActiveProjectId();
-  const firstCamSiteRef = useRef(true);
-  useEffect(() => {
-    if (firstCamSiteRef.current) { firstCamSiteRef.current = false; return; }
+  useOnValueChange(siteProjectId, () => {
     setLiveCamRaw(ALL_CAMERAS_ID);
     setReidCamRaw("");
-  }, [siteProjectId]);
+  });
 
 
 

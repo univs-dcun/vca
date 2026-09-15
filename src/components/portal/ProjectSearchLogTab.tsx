@@ -6,9 +6,8 @@ import { PROJECT_TIME_ZONE, clockMinutesIn, dateKeyIn } from "@/lib/time";
 import { usePortalLanguage } from "@/lib/i18n";
 import {
   BORDER, CARD_BORDER, CONTROL_HEIGHT, PANEL_SHADOW, TABLE_COLUMN_GAP, TABLE_HEADER_COLOR,
-  ActiveFilterCount, FilterSelect, SortableHeader, SummaryStrip, sortRows, useTableSort,
-} from "./PortalShared";
-import { Eye, FileDown, ShieldAlert } from "lucide-react";
+  ActiveFilterCount, FilterSelect, SortableHeader, SummaryStrip, sortRows, useTableSort, MEASURE } from "./PortalShared";
+import { Eye, FileOutput, ShieldAlert } from "lucide-react";
 
 /**
  * Who looked up whom, and why they said they were doing it.
@@ -69,7 +68,7 @@ const T = {
     statTotal: "건", statTotalLabel: "기록된 조회",
     statNoRef: "참조번호 없음", statNoRefUnit: "건",
     statOperators: "명", statOperatorsLabel: "조회한 사람",
-    ownerOnly: "이 기록은 최고관리자와 감사자가 읽습니다.",
+    ownerOnly: "이 기록은 최고관리자와 읽기 전용 관리자가 읽습니다.",
     csvAt: "시각", csvActor: "조회자", csvPurpose: "목적", csvReference: "참조번호",
     csvTarget: "조회 대상", csvSurface: "화면", csvResults: "결과", csvIp: "위치",
     none: "—",
@@ -98,9 +97,11 @@ export default function ProjectSearchLogTab({ projectId }: { projectId: string }
 
   /* Built from what is in the log rather than from the purpose list: a retired purpose still has
      records under it, and an auditor filtering for it must be able to find them. */
+  /* Records with no purpose do not appear here — an installation that never asked has nothing to
+     filter by, and the control disappears rather than offering one empty choice. */
   const purposeOptions = useMemo(() => {
     const seen = new Map<string, string>();
-    projectRecords.forEach(r => seen.set(r.purposeId, r.purposeLabel));
+    projectRecords.forEach(r => { if (r.purposeId && r.purposeLabel) seen.set(r.purposeId, r.purposeLabel); });
     return [...seen].map(([value, label]) => ({ value, label }));
   }, [projectRecords]);
   const actorOptions = useMemo(
@@ -115,7 +116,7 @@ export default function ProjectSearchLogTab({ projectId }: { projectId: string }
     switch (key) {
       case "at": return r.at;
       case "actor": return r.actor.toLowerCase();
-      case "purpose": return r.purposeLabel.toLowerCase();
+      case "purpose": return (r.purposeLabel ?? "").toLowerCase();
       case "target": return r.target.toLowerCase();
     }
   });
@@ -131,7 +132,7 @@ export default function ProjectSearchLogTab({ projectId }: { projectId: string }
   const exportCsv = () => {
     const header = [t.csvAt, t.csvActor, t.csvPurpose, t.csvReference, t.csvTarget, t.csvSurface, t.csvResults, t.csvIp];
     const body = visible.map(r => [
-      r.at, r.actor, r.purposeLabel, r.reference ?? "", r.target, r.surface,
+      r.at, r.actor, r.purposeLabel ?? "", r.reference ?? "", r.target, r.surface,
       r.resultCount === undefined ? "" : String(r.resultCount), r.ip ?? "",
     ]);
     const csv = [header, ...body].map(row => row.map(csvEscape).join(",")).join("\n");
@@ -151,8 +152,6 @@ export default function ProjectSearchLogTab({ projectId }: { projectId: string }
 
   return (
     <div>
-      <p style={{ fontSize: "13px", color: "var(--gray-500)", lineHeight: 1.7, marginBottom: "12px", maxWidth: "64ch" }}>{t.intro}</p>
-
       {/* The gap between collecting a purpose and keeping it, said where somebody would otherwise
           conclude the log is broken. It goes away when the app calls recordSearchAccess. */}
       {projectRecords.length === 0 && (
@@ -160,7 +159,7 @@ export default function ProjectSearchLogTab({ projectId }: { projectId: string }
           display: "flex", alignItems: "flex-start", gap: "8px", maxWidth: "fit-content",
           padding: "10px 14px", borderRadius: "10px", marginBottom: "12px",
           backgroundColor: "var(--warning-100)", color: "var(--warning-500)",
-          fontSize: "12px", fontWeight: 700, lineHeight: 1.6,
+          fontSize: "12px", fontWeight: 700, lineHeight: 1.5,
         }}>
           <span style={{ display: "flex", flexShrink: 0, marginTop: "2px" }}><ShieldAlert size={14} strokeWidth={2.4} /></span>
           {t.notWired}
@@ -192,7 +191,7 @@ export default function ProjectSearchLogTab({ projectId }: { projectId: string }
             color: visible.length === 0 ? "var(--gray-300)" : "var(--gray-600)",
             fontSize: "12px", fontWeight: 600, cursor: visible.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit",
           }}>
-          <FileDown size={14} strokeWidth={2.4} />
+          <FileOutput size={14} strokeWidth={2.4} />
           {t.export}
         </button>
       </div>
@@ -221,7 +220,7 @@ export default function ProjectSearchLogTab({ projectId }: { projectId: string }
         {visible.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center" }}>
             <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-500)" }}>{t.empty}</p>
-            <p style={{ fontSize: "12px", color: "var(--gray-400)", lineHeight: 1.7, marginTop: "6px" }}>{t.emptyHint}</p>
+            <p style={{ fontSize: "12px", color: "var(--gray-400)", lineHeight: 1.5, marginTop: "6px" }}>{t.emptyHint}</p>
           </div>
         ) : visible.map((r: SearchAccessRecord, i) => (
           <div key={r.id} style={{
@@ -241,7 +240,8 @@ export default function ProjectSearchLogTab({ projectId }: { projectId: string }
             <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {r.actor}
             </span>
-            {cell(r.purposeLabel)}
+            {/* Absent because nobody was asked — see SearchAccessRecord.purposeId. */}
+            {cell(r.purposeLabel ?? t.none, !r.purposeLabel)}
             {/* Absent, not blank: a reference that was never required reads differently from one
                 that is missing, and only the purpose knows which. */}
             {cell(r.reference ?? t.none, !r.reference)}
@@ -253,10 +253,21 @@ export default function ProjectSearchLogTab({ projectId }: { projectId: string }
         ))}
       </div>
 
-      {/* Who this log is for, stated once. It is not a permission notice — an auditor reading it
-          has every right to be here — it is the answer to "is anybody actually looking at this",
-          which is the question that decides whether the purpose field does any work at all. */}
-      <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, marginTop: "12px" }}>{t.ownerOnly}</p>
+      {/* Both notes at the foot, in one register — the same move the activity log already made.
+
+          The first of them opened the screen, a 13px paragraph in the position a title would hold,
+          with no title above it to be subordinate to. Nobody arrives at a search log needing to be
+          told it is a search log; they arrive looking for one look-up, and three of the sentence's
+          nouns are column headings six inches below it. The half worth keeping is the half the rows
+          cannot show — that these are look-ups run in the MONITORING APP, so an auditor who finds
+          nothing here knows to try the activity log rather than conclude nobody did anything.
+          That is something you check after reading, not before.
+
+          The second is not a permission notice — an auditor reading it has every right to be here —
+          it is the answer to "is anybody actually looking at this", which is the question that
+          decides whether the purpose field does any work at all. */}
+      <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, marginTop: "12px", maxWidth: MEASURE }}>{t.intro}</p>
+      <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, marginTop: "4px" }}>{t.ownerOnly}</p>
     </div>
   );
 }

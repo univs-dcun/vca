@@ -6,21 +6,20 @@ import { PROJECT_TIME_ZONE, clockMinutesIn, dateKeyIn } from "@/lib/time";
 import { usePortalLanguage } from "@/lib/i18n";
 import {
   BORDER, CARD_BORDER, CONTROL_HEIGHT, PANEL_SHADOW, TABLE_COLUMN_GAP, TABLE_HEADER_COLOR,
-  ActiveFilterCount, FilterSelect, SortableHeader, SummaryStrip, TextField, sortRows, useTableSort,
-} from "./PortalShared";
-import { FileDown, History, UserCog, CalendarClock } from "lucide-react";
+  ActiveFilterCount, FilterSelect, SortableHeader, SummaryStrip, TextField, sortRows, useTableSort, MEASURE } from "./PortalShared";
+import { FileOutput, History, UserCog, CalendarClock } from "lucide-react";
 
 /**
  * What was changed on this project, by whom, and when.
  *
  * This existed as five rows on the Overview and a modal behind them that listed everything with
  * no date range, no actor filter, no search and no export. The Auditor role exists to read this
- * and nothing else, and a police station asked "who deleted that watchlist entry in March" had a
+ * and nothing else, and a police station asked "who deleted that VIP registry entry in March" had a
  * scrolling box. Meanwhile the search log — a feature switched off for v1 — already had filters
  * and a CSV. The one that ships was the worse-equipped of the two.
  *
  * Scope matches the Overview card exactly: this project's own entries plus the institution's
- * policy changes, because a watchlist category governs every site the team runs and filing it
+ * policy changes, because a VIP registry category governs every site the team runs and filing it
  * under one of them would misplace it. See AuditEvent.teamId.
  *
  * HANDOFF NOTE: the console holds the most recent AUDIT_LOG_LIMIT entries in memory. The screen
@@ -48,7 +47,7 @@ const T = {
   en: {
     intro: "Every change made to this project from the console, newest first. Policy changes made for the whole institution appear here too.",
     empty: "No activity recorded yet.",
-    emptyHint: "A row appears here each time somebody changes something on this project — a camera, a watchlist entry, a role, a setting.",
+    emptyHint: "A row appears here each time somebody changes something on this project — a camera, a VIP entry, a role, a setting.",
     noMatch: "No activity matches these filters.",
     noMatchHint: "Widen the date range, or clear the operator and search filters.",
     colAt: "When", colActor: "Who", colMessage: "What changed",
@@ -66,7 +65,7 @@ const T = {
   ko: {
     intro: "콘솔에서 이 프로젝트에 가해진 모든 변경입니다. 기관 전체에 적용되는 정책 변경도 함께 나옵니다.",
     empty: "기록된 변경이 없습니다.",
-    emptyHint: "누군가 이 프로젝트에서 무언가를 바꿀 때마다 한 줄씩 쌓입니다 — 카메라, 명단, 역할, 설정.",
+    emptyHint: "누군가 이 프로젝트에서 무언가를 바꿀 때마다 한 줄씩 쌓입니다 — 카메라, VIP, 역할, 설정.",
     noMatch: "조건에 맞는 기록이 없습니다.",
     noMatchHint: "기간을 넓히거나 담당자·검색 조건을 해제해 보세요.",
     colAt: "시각", colActor: "담당자", colMessage: "변경 내용",
@@ -200,7 +199,7 @@ export default function ProjectActivityTab({ projectId }: { projectId: string })
             color: visible.length === 0 ? "var(--gray-300)" : "var(--gray-600)",
             fontSize: "12px", fontWeight: 600, cursor: visible.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit",
           }}>
-          <FileDown size={14} strokeWidth={2.4} />
+          <FileOutput size={14} strokeWidth={2.4} />
           {t.export}
         </button>
       </div>
@@ -229,7 +228,7 @@ export default function ProjectActivityTab({ projectId }: { projectId: string })
             <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-500)" }}>
               {projectEntries.length === 0 ? t.empty : t.noMatch}
             </p>
-            <p style={{ fontSize: "12px", color: "var(--gray-400)", lineHeight: 1.7, marginTop: "6px" }}>
+            <p style={{ fontSize: "12px", color: "var(--gray-400)", lineHeight: 1.5, marginTop: "6px" }}>
               {projectEntries.length === 0 ? t.emptyHint : t.noMatchHint}
             </p>
           </div>
@@ -247,7 +246,7 @@ export default function ProjectActivityTab({ projectId }: { projectId: string })
             </span>
             {/* The message wraps rather than truncating. It is the column the screen exists for,
                 and an entry cut off at the ellipsis is an entry nobody can act on. */}
-            <span style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.6 }}>
+            <span style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.5 }}>
               {a.message}
             </span>
           </div>
@@ -262,7 +261,7 @@ export default function ProjectActivityTab({ projectId }: { projectId: string })
           entry. What the sentence says is worth keeping (the log carries institution-wide policy
           changes too, which is not guessable from the rows), but it is something you check after
           reading, not before — the same job as the note beside it. */}
-      <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.6, marginTop: "12px", maxWidth: "80ch" }}>
+      <p style={{ fontSize: "11px", color: "var(--gray-400)", lineHeight: 1.45, marginTop: "12px", maxWidth: MEASURE }}>
         {t.intro}
       </p>
     </div>

@@ -51,7 +51,7 @@ function CamerasIcon({ color }: IconProps) {
 /**
  * The crown the app already uses for VIP — Sidebar, the map pins and the detection chips all draw
  * lucide's Crown at this size. This was a hand-drawn five-pointed star, which matched neither the
- * app's icon nor the idea: a star is a favourite or a rating, and the registry is a watchlist of
+ * app's icon nor the idea: a star is a favourite or a rating, and the registry is a VIP registry of
  * specific people.
  *
  * 1.8, which renders 1.2px at this size — the rail's exception to the console-wide 1.4.
@@ -145,11 +145,23 @@ function UsersIcon({ color }: IconProps) {
  * English in caps, Korean not: caps do nothing to Hangul, and CSS text-transform would leave the
  * two languages drawing different headings — the same reason MetricCard's label dropped it.
  */
-export type NavGroup = "workspace" | "manage" | "records";
+/**
+ * Two groups, not three.
+ *
+ * There was a RECORDS group, and it held three tabs until two of them were scoped out of the
+ * first release — the external-request register with
+ * externalRequests. A heading over a single row is not a group, it is a label with extra spacing,
+ * and it made the rail look like it was missing something rather than like it was complete.
+ *
+ * The activity log moved to MANAGE, which is where it was being read from anyway: an access
+ * review runs on users and permissions and finishes on what actually changed. When either flag
+ * turns on, its tab joins the same group — this is not a placeholder arrangement waiting for the
+ * third group to come back.
+ */
+export type NavGroup = "workspace" | "manage";
 export const NAV_GROUPS: { id: NavGroup; label: { en: string; ko: string } }[] = [
   { id: "workspace", label: { en: "WORKSPACE", ko: "작업 공간" } },
   { id: "manage", label: { en: "MANAGE", ko: "관리" } },
-  { id: "records", label: { en: "RECORDS", ko: "기록" } },
 ];
 
 export const PROJECT_TABS: { id: DetailTab; group: NavGroup; label: { en: string; ko: string }; icon: ComponentType<IconProps> }[] = [
@@ -160,23 +172,37 @@ export const PROJECT_TABS: { id: DetailTab; group: NavGroup; label: { en: string
   // The id stays "cameras" — it is a route key, and renaming it would only churn every call site.
   // The label changed because the tab now lists uploaded footage alongside cameras.
   { id: "cameras", group: "workspace", label: { en: "Input Sources", ko: "입력 소스" }, icon: CamerasIcon },
+  // Servers sit with the cameras (moved out of MANAGE 2026-09-15), one step further down the same
+  // plumbing: a camera is assigned to a server, so setting the fleet up needs both and they were
+  // in different groups. The Overview had already stopped keeping them apart — its attention band
+  // lists a missing mail server beside offline cameras, in one row, as the same kind of errand.
+  //
+  // It makes both halves say something truer than before. WORKSPACE is now everything that
+  // belongs to THIS SITE — who it watches for, what it watches with, what processes that — and
+  // MANAGE is everything that belongs to the INSTALLATION: people, the contract, the records.
+  // Before this, MANAGE was equipment and people and paperwork in one list.
+  //
+  // The tab carries mail settings and API docs too, and neither is site equipment. They ride
+  // along because the tab's first and default panel is the server list; if those two ever grow
+  // enough to need their own home, that is the split to make rather than sending the servers back.
+  { id: "server", group: "workspace", label: { en: "Server & API", ko: "서버 및 API" }, icon: ServerIcon },
 
-  // MANAGE, most-touched to least: servers change when the site changes, people are added and
-  // removed all year, and a licence is signed once and opened when somebody asks about the bill
-  // or runs out of channels.
-  { id: "server", group: "manage", label: { en: "Server & API", ko: "서버 및 API" }, icon: ServerIcon },
+  // MANAGE, most-touched to least: people are added and removed all year, and a licence is signed
+  // once and opened when somebody asks about the bill or runs out of channels.
   { id: "users", group: "manage", label: { en: "Users & Permissions", ko: "사용자 및 권한" }, icon: UsersIcon },
   { id: "license", group: "manage", label: { en: "License", ko: "라이선스" }, icon: LicenseIcon },
 
-  // RECORDS, in the order the four questions get asked. "What changed" and "who looked" are the
-  // two an access review runs on, and they are read together — it starts on one and finishes on
-  // the other. Then the one register of what the outside world asked for. It holds both kinds —
-  // somebody wanting footage of a person, and that person wanting it all gone — because they are
-  // the same errand from opposite directions, and the person handling them arrives asking "what
-  // is open", not "is anything open under each of two tabs".
-  { id: "activity", group: "records", label: { en: "Activity log", ko: "변경 기록" }, icon: ActivityIcon },
-  { id: "searchlog", group: "records", label: { en: "Search log", ko: "조회 기록" }, icon: SearchLogIcon },
-  { id: "requests", group: "records", label: { en: "Requests", ko: "외부 요청" }, icon: RequestsIcon },
+  // The records, after the things that change: you act, then you read what the acting left behind.
+  // "What changed" and "who looked" are the two an access review runs on and they are read
+  // together, so they stay adjacent. Then the one register of what the outside world asked for —
+  // it holds both kinds, somebody wanting footage of a person and that person wanting it all
+  // gone, because they are the same errand from opposite directions and whoever handles them
+  // arrives asking "what is open", not "is anything open under each of two tabs".
+  //
+  // The last two are off in the first release; see complianceConfig.
+  { id: "activity", group: "manage", label: { en: "Activity log", ko: "변경 기록" }, icon: ActivityIcon },
+  { id: "searchlog", group: "manage", label: { en: "Search log", ko: "조회 기록" }, icon: SearchLogIcon },
+  { id: "requests", group: "manage", label: { en: "Requests", ko: "외부 요청" }, icon: RequestsIcon },
 ];
 
 interface ProjectSidebarProps {
@@ -211,7 +237,8 @@ export default function ProjectSidebar({ brand, team, project, onToggleCollapse,
   const [lang] = usePortalLanguage();
   /* The search log only exists where the purpose requirement does — it is the read half of the
      same feature, and a log that can never fill is a rail entry leading to an empty room. */
-  const searchLogEnabled = getComplianceConfig().requireSearchPurpose;
+  const searchLogEnabled = getComplianceConfig().searchAccessLog;
+  const requestsEnabled = getComplianceConfig().externalRequests;
   return (
     <div
       style={{
@@ -356,7 +383,7 @@ export default function ProjectSidebar({ brand, team, project, onToggleCollapse,
                   color: "var(--gray-500)", padding: "0 14px", marginBottom: "2px",
                 }}>{group.label[lang]}</p>
               )}
-            {PROJECT_TABS.filter(t => t.group === group.id).filter(t => t.id !== "searchlog" || searchLogEnabled).map(t => {
+            {PROJECT_TABS.filter(t => t.group === group.id).filter(t => t.id !== "searchlog" || searchLogEnabled).filter(t => t.id !== "requests" || requestsEnabled).map(t => {
               const Icon = t.icon;
               const active = tab === t.id && !settingsOpen;
               return (

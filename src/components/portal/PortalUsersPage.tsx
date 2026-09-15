@@ -118,6 +118,7 @@ const T = {
     accessAppOnlyDesc: "Signs straight into the monitoring app. No Portal.",
     accessPortalOnlyDesc: "Settings console only — no monitoring app.",
     accessGainsRoleNote: (role: string) => `Given the ${role} role, which changes nothing until you raise it.`,
+    reasonNoApp: "This account has no app access — person search has no screen to run on.",
     reasonNotOwner: "Only an owner can change access.",
     appSearchOn: "On",
     appSearchGrant: "Allow person search in the app",
@@ -220,7 +221,13 @@ const T = {
     viewSetupCode: "View setup code",
     setupExpires: (days: number) => `Expires in ${days} days`,
     soleAdminTitle: "Only one administrator can sign in",
-    soleAdminBody: "Granting permissions is an administrator-only power, and there is no supplier account behind this installation. If this one account is locked out, nobody can grant anything and there is no way back in. Make a second person an administrator.",
+    /* Was "there is no way back in", which is no longer true and was arguably never quite true:
+       the server promotes its seed account to owner on boot when no active owner is left. What IS
+       true is that the way back is not in Portal — it needs somebody with access to the machine,
+       which on an isolated site may be a different company and a scheduled visit. The named
+       recovery command is deliberately absent until it exists; naming it now would be a promise
+       this console cannot keep. */
+    soleAdminBody: "Granting permissions is an administrator-only power, and there is no supplier account behind this installation. If this one account is locked out, nobody here can grant anything — recovering it takes someone with access to the server itself, not Portal. Make a second person an administrator.",
     // Two sentences, because this renders as a footnote inside a dropdown. The reasoning behind the
     // rule — with nobody in this role no one can grant permissions and there is no way back in —
     // belongs in isLastActiveAdmin's comment, not in a 280px menu.
@@ -283,8 +290,8 @@ const T = {
     countAppOnly: "앱 전용",
     whatRolesMean: "권한 안내",
     guideTitle: "접근과 역할",
-    guideLead: "접근은 계정에 열리는 문을 정하고, 역할은 포털 안에서 할 수 있는 일을 정합니다.",
-    guideRolesHeading: "포털 역할 — 서로 다른 것만",
+    guideLead: "접근은 계정에 열리는 문을 정하고, 역할은 Portal 안에서 할 수 있는 일을 정합니다.",
+    guideRolesHeading: "Portal 역할 — 서로 다른 것만",
     guideRowGrant: "사용자 · 권한 부여",
     guideRowSettings: "카메라 · VIP · 명부 · 라이선스 · 서버",
     guideRowAudit: "감사 로그",
@@ -292,9 +299,9 @@ const T = {
     guideViewOnly: "보기만",
     guideView: "보기",
     guideNone: "접근 없음",
-    guideSameNote: "나머지 포털 화면은 모두 설정 행과 똑같이 동작합니다 — 소유자와 관리자의 차이는 하나뿐이고, 그게 첫 줄입니다.",
+    guideSameNote: "나머지 Portal 화면은 모두 설정 행과 똑같이 동작합니다 — 소유자와 관리자의 차이는 하나뿐이고, 그게 첫 줄입니다.",
     guideAppHeading: "앱 안에서",
-    guideAppSearchNote: "인물 검색은 계정마다 따로 부여하며 포털 역할과 무관합니다 — 앱 전용 운영자가 가질 수도 있고, 포털 관리자가 없을 수도 있습니다.",
+    guideAppSearchNote: "인물 검색은 계정마다 따로 부여하며 Portal 역할과 무관합니다 — 앱 전용 운영자가 가질 수도 있고, Portal 관리자가 없을 수도 있습니다.",
     guideClose: "닫기",
     peopleTabAccounts: "계정",
     peopleTabRoster: "명부 대기",
@@ -315,16 +322,16 @@ const T = {
     toastRosterExported: (n: number) => `명부 ${n}개 행을 내보냈습니다`,
     rosterEmpty: "명부에서 기다리는 사람이 없습니다.",
     toastBulkIssued: (n: number) => `등록 코드 ${n}개를 발급했습니다`,
-    countPortalOnly: "포털 전용",
+    countPortalOnly: "Portal 전용",
     countInvited: "초대됨",
     countSuspended: "정지됨",
     countTotal: "이 프로젝트 인원",
     countPeopleUnit: "명",
     invitedHint: "초대는 됐지만 아직 비밀번호를 설정하지 않았습니다 — 설정 전까지 로그인할 수 없습니다.",
-    suspendedHint: "명단에는 남아 있지만 로그인이 차단된 상태입니다.",
+    suspendedHint: "목록에는 남아 있지만 로그인이 차단된 상태입니다.",
     countDormant: "미접속",
     bulkSuspendTitle: (n: number) => `계정 ${n}개를 정지할까요?`,
-    bulkSuspendBody: "즉시 로그인이 막히고 명단에는 그대로 남습니다. 그래서 다시 필요해지면 새로 초대하지 않고 되돌릴 수 있습니다. 삭제되는 것은 없습니다.",
+    bulkSuspendBody: "즉시 로그인이 막히고 목록에는 그대로 남습니다. 그래서 다시 필요해지면 새로 초대하지 않고 되돌릴 수 있습니다. 삭제되는 것은 없습니다.",
     bulkSuspendCta: (n: number) => `${n}개 정지`,
     bulkSuspendBar: (n: number) => `표시된 계정 ${n}개`,
     bulkSuspendAction: "표시된 계정 모두 정지",
@@ -352,18 +359,19 @@ const T = {
     permOwner: "최고관리자",
     permAdmin: "관리자",
     permAuditor: "읽기 전용 관리자",
-    permNone: "포털 역할 없음",
+    permNone: "Portal 역할 없음",
     permOwnerDesc: "권한을 주고 회수하고, 사람을 지웁니다. 이걸 할 수 있는 유일한 역할입니다.",
     permAdminDesc: "카메라·VIP 등록·명부·라이선스를 바꿉니다. 누가 접근하는지는 못 바꿉니다.",
     permAuditorDesc: "Portal의 모든 화면과 감사 로그를 봅니다. 아무것도 바꾸지 않습니다.",
     permNoneDesc: "Portal에는 들어오지 않습니다.",
-    accessBoth: "포털 + 앱",
+    accessBoth: "Portal + 앱",
     accessAppOnly: "앱만",
-    accessPortalOnly: "포털만",
+    accessPortalOnly: "Portal만",
     accessBothDesc: "설정 콘솔과 관제 앱 둘 다.",
     accessAppOnlyDesc: "로그인하면 바로 관제 앱. Portal은 못 봅니다.",
     accessPortalOnlyDesc: "설정 콘솔만 — 관제 앱은 못 씁니다.",
     accessGainsRoleNote: (role: string) => `${role} 역할로 들어갑니다. 올리기 전까지는 바꾸는 게 없습니다.`,
+    reasonNoApp: "앱 접근이 없는 계정입니다 — 인물 검색을 쓸 화면이 없습니다.",
     reasonNotOwner: "권한 변경은 최고관리자만 할 수 있습니다.",
     appSearchOn: "허용",
     appSearchGrant: "앱에서 인물 검색 허용",
@@ -410,7 +418,7 @@ const T = {
     viewSetupCode: "설치 코드 보기",
     setupExpires: (days: number) => `${days}일 후 만료`,
     soleAdminTitle: "로그인 가능한 관리자가 한 명입니다",
-    soleAdminBody: "권한 부여는 관리자만 할 수 있고, 이 설치에는 공급사 계정이 없습니다. 이 한 계정이 잠기면 아무도 권한을 부여할 수 없고 되돌릴 방법도 없습니다. 두 번째 관리자를 지정하세요.",
+    soleAdminBody: "권한 부여는 관리자만 할 수 있고, 이 설치에는 공급사 계정이 없습니다. 이 한 계정이 잠기면 여기서는 아무도 권한을 부여할 수 없습니다 — 되돌리는 일은 포털이 아니라 서버에 접근할 수 있는 사람의 몫입니다. 두 번째 관리자를 지정하세요.",
     lastAdminReason: "로그인할 수 있는 유일한 관리자입니다. 다른 사람을 먼저 관리자로 지정하세요.",
     lastAdminRoleFixed: "유일한 소유자입니다 — 다른 소유자가 생기기 전까지 역할을 바꿀 수 없습니다.",
     reactivateUser: "재활성화",
@@ -481,7 +489,7 @@ const T = {
     emailLabel: "이메일",
     teamLabel: "팀",
     accessLabel: "어디로 로그인하나",
-    permissionLabel: "포털 역할",
+    permissionLabel: "Portal 역할",
     projectsLabel: "프로젝트",
     mailNoteBoth: "인터넷에 연결된 프로젝트에는 외부 이메일로, 인터넷이 차단된 프로젝트에는 내부 메일함으로 초대장이 발송됩니다.",
     mailNoteIsolated: "이 프로젝트의 사이트는 인터넷이 차단되어 있습니다 — 초대장은 외부 이메일이 아닌 내부 메일함으로 발송됩니다.",
@@ -602,10 +610,10 @@ function InviteUserModal({ defaultProjectId, onClose }: { defaultProjectId: stri
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", overflowY: "auto" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", overflowY: "auto" }}>
       {/* margin auto, not just centring: with the scroll on the backdrop, a form taller than the
           window has its top cut off under plain align-items centre. */}
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", margin: "auto", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", margin: "auto", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "16px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.modalTitle}</p>
           <button className="portal-icon-btn" onClick={onClose} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex" }}>
@@ -836,14 +844,14 @@ function TempPasswordModal({ user, mailAvailable, initialCode, onClose }: { user
         aria-hidden
         style={{ flexShrink: 0, marginTop: "2px", color: "var(--gray-400)" }}
       />
-      <span style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.6 }}>{text}</span>
+      <span style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.5 }}>{text}</span>
     </li>
   );
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "16px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>
             {password ? c.resultTitle : c.modalTitle}
@@ -862,7 +870,7 @@ function TempPasswordModal({ user, mailAvailable, initialCode, onClose }: { user
                 <p style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "2px" }}>{user.email}</p>
               </div>
               {c.intro && (
-                <p style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.7 }}>{c.intro}</p>
+                <p style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.5 }}>{c.intro}</p>
               )}
 
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -901,7 +909,7 @@ function TempPasswordModal({ user, mailAvailable, initialCode, onClose }: { user
                         {/* What happens if you pick this, on the card itself. Deciding then finding
                             out is how an administrator ends up reading a password down a phone line
                             they meant to avoid. */}
-                        <p style={{ fontSize: "12px", color: opt.unavailable ? "var(--gray-400)" : "var(--gray-700)", marginTop: "5px", lineHeight: 1.6 }}>
+                        <p style={{ fontSize: "12px", color: opt.unavailable ? "var(--gray-400)" : "var(--gray-700)", marginTop: "5px", lineHeight: 1.5 }}>
                           {opt.unavailable ? opt.why : opt.result}
                         </p>
                       </div>
@@ -957,7 +965,7 @@ function TempPasswordModal({ user, mailAvailable, initialCode, onClose }: { user
 
               <div style={{ padding: "12px 14px", borderRadius: "10px", backgroundColor: c.showExpiry ? "var(--warning-100)" : "var(--info-100)" }}>
                 <p style={{ fontSize: "10px", fontWeight: 700, color: c.showExpiry ? "var(--warning-500)" : "var(--info-500)", letterSpacing: "0.4px" }}>{c.handoverTitle}</p>
-                <p style={{ fontSize: "12px", color: "var(--gray-700)", lineHeight: 1.7, marginTop: "4px" }}>{c.handover}</p>
+                <p style={{ fontSize: "12px", color: "var(--gray-700)", lineHeight: 1.5, marginTop: "4px" }}>{c.handover}</p>
               </div>
             </div>
             <div style={{ padding: "16px 20px", display: "flex", justifyContent: "flex-end" }}>
@@ -1150,7 +1158,7 @@ function TempPasswordBadge({ issuedAt }: { issuedAt: string }) {
 
   return (
     <span
-      title={t.tempBadgeTitle(new Date(issuedAt).toLocaleString())}
+      title={t.tempBadgeTitle(new Date(issuedAt).toLocaleString(lang === "ko" ? "ko-KR" : "en-US"))}
       style={{
         display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: "999px",
         backgroundColor: tone.bg, color: tone.color, fontSize: "10px", fontWeight: 700, whiteSpace: "nowrap",
@@ -1176,7 +1184,7 @@ function RecoveryModeNotice({ supportContact }: { supportContact: string | null 
       </span>
       <div>
         <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)" }}>{t.recoveryNoticeTitle}</p>
-        <p style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.7, marginTop: "4px" }}>{t.recoveryNoticeBody}</p>
+        <p style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.5, marginTop: "4px" }}>{t.recoveryNoticeBody}</p>
         <p style={{ fontSize: "10px", fontWeight: 700, color: "var(--gray-400)", letterSpacing: "0.4px", marginTop: "10px" }}>{t.recoveryNoticeContactLabel}</p>
         <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-800)", marginTop: "2px" }}>
           {supportContact ?? t.recoveryNoticeContactFallback}
@@ -1363,11 +1371,11 @@ function UserProjectsModal({ user, teamProjects, onClose, onSave }: {
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 320, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 320, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "20px 20px 0" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.projectsModalTitle}</p>
-          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.6, marginTop: "6px" }}>{t.projectsModalIntro(user.name)}</p>
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5, marginTop: "6px" }}>{t.projectsModalIntro(user.name)}</p>
         </div>
         <div style={{ padding: "16px 20px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
           {teamProjects.map(p => {
@@ -1387,7 +1395,7 @@ function UserProjectsModal({ user, teamProjects, onClose, onSave }: {
           })}
         </div>
         {!canSave && (
-          <p style={{ padding: "0 20px", fontSize: "12px", color: "var(--warning-500)", lineHeight: 1.6 }}>{t.projectsModalNoneWarning}</p>
+          <p style={{ padding: "0 20px", fontSize: "12px", color: "var(--warning-500)", lineHeight: 1.5 }}>{t.projectsModalNoneWarning}</p>
         )}
         <div style={{ padding: "16px 20px 20px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
           <button className="portal-btn-outline" onClick={onClose}
@@ -1447,11 +1455,11 @@ function AccessGuideModal({ t, onClose }: { t: (typeof T)["en"] | (typeof T)["ko
   const GUIDE_GRID = "1.6fr repeat(3, 1fr)";
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "560px", width: "100%", maxHeight: "86vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "560px", width: "100%", maxHeight: "86vh", overflowY: "auto", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "20px 20px 0" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.guideTitle}</p>
-          <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "6px", lineHeight: 1.6 }}>{t.guideLead}</p>
+          <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "6px", lineHeight: 1.5 }}>{t.guideLead}</p>
         </div>
 
         {/* The doors. This is the half people actually get wrong — the roles read fine on their own,
@@ -1490,12 +1498,12 @@ function AccessGuideModal({ t, onClose }: { t: (typeof T)["en"] | (typeof T)["ko
               </div>
             ))}
           </div>
-          <p style={{ fontSize: "12px", color: "var(--gray-400)", marginTop: "8px", lineHeight: 1.6 }}>{t.guideSameNote}</p>
+          <p style={{ fontSize: "12px", color: "var(--gray-400)", marginTop: "8px", lineHeight: 1.5 }}>{t.guideSameNote}</p>
         </div>
 
         <div style={{ padding: "20px 20px 0" }}>
           <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-600)", marginBottom: "6px" }}>{t.guideAppHeading}</p>
-          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.6 }}>{t.guideAppSearchNote}</p>
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5 }}>{t.guideAppSearchNote}</p>
         </div>
 
         <div style={{ padding: "20px", display: "flex", justifyContent: "flex-end" }}>
@@ -1931,7 +1939,7 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
           </span>
           <div>
             <p style={{ fontSize: "13px", fontWeight: 800, color: "var(--gray-900)" }}>{t.soleAdminTitle}</p>
-            <p style={{ fontSize: "12px", color: "var(--gray-700)", lineHeight: 1.7, marginTop: "3px" }}>
+            <p style={{ fontSize: "12px", color: "var(--gray-700)", lineHeight: 1.5, marginTop: "3px" }}>
               {t.soleAdminBody}
             </p>
           </div>
@@ -2351,9 +2359,15 @@ export default function PortalUsersPage({ projectId }: PortalUsersPageProps) {
                 reason: manageAccess ? undefined : t.reasonNotOwner,
               }] : []),
               {
+                // Granting needs the app: person search is a grant on a surface, and an account
+                // with no app cannot reach it. Revoking stays available whatever the app state —
+                // taking a grant away is never the thing to block. (The other direction is
+                // already handled: updatePortalUserAccess drops appSearch when the app goes.)
                 label: u.appSearch ? t.appSearchRevoke : t.appSearchGrant,
-                disabled: !manageAccess,
-                reason: manageAccess ? undefined : t.reasonNotOwner,
+                disabled: !manageAccess || (!u.appSearch && !u.appAccess),
+                reason: !manageAccess ? t.reasonNotOwner
+                  : (!u.appSearch && !u.appAccess) ? t.reasonNoApp
+                  : undefined,
                 onClick: () => {
                   const next = !u.appSearch;
                   setConfirming({

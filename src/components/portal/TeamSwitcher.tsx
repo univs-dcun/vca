@@ -33,7 +33,7 @@ const T = {
     deleteHint: "Only a team with no projects can be deleted. Delete each project from its own Settings screen first, where what goes with it is listed.",
     deleteBlocked: (n: number) => `${n} project(s) still belong to this team.`,
     deleteConfirmTitle: (name: string) => `Delete ${name}?`,
-    deleteConfirmBody: "The team, its accounts, its watchlist categories and its search purposes. This cannot be undone.",
+    deleteConfirmBody: "The team, its accounts, its VIP categories and its search purposes. This cannot be undone.",
     deleteConfirm: "Delete team",
     deletedToast: "Team deleted",
     ownerOnly: "Only the owner renames or deletes a team.",
@@ -62,7 +62,7 @@ const T = {
     deleteHint: "프로젝트가 없는 팀만 삭제할 수 있습니다. 각 프로젝트는 자기 설정 화면에서 먼저 지우세요 — 무엇이 함께 지워지는지 거기 적혀 있습니다.",
     deleteBlocked: (n: number) => `아직 이 팀에 프로젝트가 ${n}개 있습니다.`,
     deleteConfirmTitle: (name: string) => `${name}을(를) 삭제할까요?`,
-    deleteConfirmBody: "팀과 그 계정, 명단 분류, 조회 목적이 함께 지워집니다. 되돌릴 수 없습니다.",
+    deleteConfirmBody: "팀과 그 계정, VIP 분류, 조회 목적이 함께 지워집니다. 되돌릴 수 없습니다.",
     deleteConfirm: "팀 삭제",
     deletedToast: "팀이 삭제되었습니다",
     ownerOnly: "팀 이름 변경과 삭제는 최고관리자만 할 수 있습니다.",
@@ -242,7 +242,7 @@ export default function TeamSwitcher({ dark, compact, currentTeamId, onSelect }:
           <div style={{
             position: "absolute", left: 0, zIndex: 200,
             ...(dropUp ? { bottom: "100%", marginBottom: "6px" } : { top: "100%", marginTop: "4px" }),
-            backgroundColor: "white", border: BORDER, borderRadius: "10px", boxShadow: "0 8px 20px rgba(14,22,42,0.12)",
+            backgroundColor: "white", border: BORDER, borderRadius: "10px", boxShadow: "var(--shadow-popover)",
             minWidth: "280px", maxWidth: "360px", padding: "4px",
           }}>
             <p style={{ fontSize: "10px", fontWeight: 700, color: "var(--gray-400)", letterSpacing: "0.4px", padding: "8px 10px 4px" }}>
@@ -396,8 +396,8 @@ function ManageTeamModal({ team, onClose, onDeleted }: {
   return (
     <>
       <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-        style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-        <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+        style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+        <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
           <div style={{ padding: "16px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.manageTitle}</p>
             <button className="portal-icon-btn" onClick={onClose} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex" }}>
@@ -426,7 +426,7 @@ function ManageTeamModal({ team, onClose, onDeleted }: {
               </div>
               {/* The blocker names the number, then the hint says where to go. "Cannot delete"
                   on its own is a wall; this is a direction. */}
-              <p style={{ fontSize: "11px", color: canDelete ? "var(--gray-400)" : "var(--warning-500)", lineHeight: 1.6, marginTop: "4px" }}>
+              <p style={{ fontSize: "11px", color: canDelete ? "var(--gray-400)" : "var(--warning-500)", lineHeight: 1.45, marginTop: "4px" }}>
                 {canDelete ? t.deleteHint : t.deleteBlocked(projectCount)}
               </p>
             </div>
@@ -495,8 +495,8 @@ export function NewTeamModal({ onClose, onCreated }: { onClose: () => void; onCr
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "440px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "16px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.modalTitle}</p>
           <button className="portal-icon-btn" onClick={onClose} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex" }}>

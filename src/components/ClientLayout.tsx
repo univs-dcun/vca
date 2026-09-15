@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
+import AccessGate, { denialFor } from "@/components/AccessGate";
+import { useOnValueChange } from "@/hooks/useOnValueChange";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
 import MapWrapper from "./MapWrapper";
@@ -17,7 +19,7 @@ import SidebarToggleIcon from "./SidebarToggleIcon";
 import { ToastProvider, useToast } from "./Toast";
 import { LiveEvent, Device, getFacePhoto } from "@/lib/mockData";
 import {
-  useVcaStore, canUseAppNow, canEnterPortal, currentPortalUser,
+  useVcaStore, currentPortalUser,
   camerasInProject, getActiveProjectId, useActiveProjectId, watchedPersonsInProject,
   type Camera,
 } from "@/lib/vcaStore";
@@ -188,20 +190,21 @@ export default function ClientLayout() {
   // straight in — Portal had a guard and this side had none, so the two halves of one permission
   // model were enforced on one half.
   //
-  // Sends a console-only account to Portal rather than to login: they have somewhere to be, and
-  // bouncing them to a sign-in screen they are already past reads as a fault. The store refuses an
-  // account with neither door (see hasSomeAccess), but this checks anyway — if that invariant ever
-  // broke, redirecting to Portal would bounce back here and the two guards would loop forever.
+  // Draws the gate rather than redirecting. The redirect that used to be here carried a
+  // console-only account to Portal and everybody else to login, and in both cases the person saw
+  // a screen they had not asked for with nothing saying why — which reads as a fault, not as a
+  // decision. The gate names the closed door, states the grants this account does hold, and offers
+  // the open one as a button, so going to Portal stays one click away instead of being automatic.
   //
   // HANDOFF NOTE: fail-open on purpose, same as Portal's. `currentPortalUser` answers undefined
   // for an address in no account list, and then nothing is locked. The real door is the server.
   const me = useVcaStore(s => currentPortalUser(s.portalUsers));
-  const locked = !!me && !canUseAppNow(me);
-  const canGoToPortal = !!me && canEnterPortal(me.permission);
-  useEffect(() => {
-    if (!locked) return;
-    router.replace(canGoToPortal ? "/portal" : "/login");
-  }, [locked, canGoToPortal, router]);
+  // Which sentence the gate should say, not merely that it should appear: a paused account is a
+  // pause, an unactivated one has a code to use, and an ungranted one is a grant somebody has to
+  // make. The three need different actions from the person reading it — and the answer comes from
+  // denialFor, the same function the Portal door and /gate ask, because this used to be derived
+  // here in its own order and told an invited account it was "suspended".
+  const appDenial = denialFor(me, "app");
   const [selectedEvent, setSelectedEvent] = useState<LiveEvent | null>(null);
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
   // Clicking a district cluster pill (zoomed-out map view) filters the sidebar to just that
@@ -216,14 +219,12 @@ export default function ClientLayout() {
   // because the only way to unpin is to click the same row again and that row is not in this
   // site's device list.
   const layoutProjectId = useActiveProjectId();
-  const firstLayoutSiteRef = useRef(true);
-  useEffect(() => {
-    if (firstLayoutSiteRef.current) { firstLayoutSiteRef.current = false; return; }
+  useOnValueChange(layoutProjectId, () => {
     setSelectedEvent(null);
     setLocationFilter(null);
     setDistrictFilter(null);
     setPinnedDevice(null);
-  }, [layoutProjectId]);
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // Default "left" on the server-rendered pass so hydration never mismatches; a client-only
   // effect then applies whatever the user last chose on this browser.
@@ -277,7 +278,24 @@ export default function ClientLayout() {
     setRedmapSeedFace({ url, label });
     setActivePage("REDMAP");
   };
+  /**
+   * Acting on an alert — the toast's "View on map", or a row in the notification list.
+   *
+   * Clears the place filters, and that is the point of this function rather than a side effect of
+   * it. Alerts are site-wide on purpose: a district filter narrows the list and the map, never the
+   * toast or the bell, so an operator investigating one district still hears about a VIP anywhere
+   * on the site. But pressing "View on map" while filtered used to leave the filter on, and then
+   * the screen could not show what the press had asked for — the map flew to the detection while
+   * the list beside it still held the old district, so the row for the thing being looked at was
+   * missing from it.
+   *
+   * Whoever presses this has chosen this detection over whatever they were narrowing down to. The
+   * filter is theirs to set again; a view that cannot display what it was just told to show is
+   * not.
+   */
   const handleNotificationNavigate = (event: LiveEvent) => {
+    setLocationFilter(null);
+    setDistrictFilter(null);
     setSelectedEvent(event);
     setActivePage("DASHBOARD");
   };
@@ -287,12 +305,11 @@ export default function ClientLayout() {
     setActivePage("BEST FRAME");
   };
 
-  // Locked means this account has no app door, and the redirect above is already on its way. Draw
-  // nothing while it goes: the redirect alone decided where to send them and left the whole app
-  // mounted in the meantime — the map, the sidebar's VIP list with names and faces, and the alert
-  // ticker, which does not merely display but writes detections into the shared store on a timer.
-  // A door that is closed cannot also serve the room behind it for a second first.
-  if (locked) return null;
+  // A denial means this account has no app door, so the gate replaces the app entirely rather than
+  // covering it: what sits below this line is the map, the sidebar's VIP list with names and
+  // faces, and the alert ticker, which does not merely display but writes detections into the
+  // shared store on a timer. A door that is closed cannot also serve the room behind it.
+  if (me && appDenial) return <AccessGate user={me} denial={appDenial} />;
 
   return (
     <ToastProvider>
@@ -388,7 +405,7 @@ export default function ClientLayout() {
                     display: "flex", alignItems: "center", gap: "8px",
                     backgroundColor: "rgba(255,255,255,0.74)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
                     border: "1px solid rgba(226,232,240,0.6)", borderRadius: "999px", padding: "8px 14px",
-                    boxShadow: "0 8px 32px rgba(14,22,42,0.12)", cursor: "pointer",
+                    boxShadow: "var(--shadow-popover)", cursor: "pointer",
                   }}
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none">

@@ -106,7 +106,22 @@ export interface DetailProps {
   autoOpenDetail?: boolean;
 }
 
-const DET_COLOR: Record<DetType, string> = { VIP: "var(--primary-400)", Vehicle: "var(--type-vehicle)", Unknown: "var(--type-unknown)" };
+/**
+ * The dot, the legend swatch and the HUD accent for a detection's type.
+ *
+ * UNKNOWN IS GREY, AND THAT IS THE POINT. It was --type-unknown (#976400), a dark gold: on a 10px
+ * dot ringed in white it read as a smudge rather than a category, and beside a vivid purple and a
+ * vivid sky it was the one colour that looked like a mistake.
+ *
+ * Grey is also the honest answer. "Unknown" is the ABSENCE of an identification, and it is the
+ * majority of what a camera sees — a saturated colour on the common case spends the map's loudest
+ * signal on "nothing was established here". Purple marks a person the register knows, sky marks a
+ * thing that is not a person, and grey marks neither. Same rule the map's quiet camera dots follow.
+ *
+ * FIGMA: --type-unknown now has no reader. Drop it from the library rather than leaving a variable
+ * nothing points at.
+ */
+const DET_COLOR: Record<DetType, string> = { VIP: "var(--primary-400)", Vehicle: "var(--type-vehicle)", Unknown: "var(--gray-600)" };
 
 const AVATAR = [
   "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
@@ -166,7 +181,10 @@ const REGISTERED: Record<DetType, string | null> = {
 // instead of a Zoom preset toggle — you pick an hour, then a minute within it, rather than
 // zooming a single axis in and out. The thumbnail strip below always shows a fixed, tight
 // 2-second-per-frame span around wherever that lands, for precise second-level scrubbing.
-const THUMB_COUNT = 60; // more than fits on screen at once — the strip scrolls to reveal the rest
+// Odd, so the window's centre — the instant you are inspecting — is itself one of the samples.
+// With an even count the samples straddle the centre (…c-1, c+1…) and the frame you selected had
+// no thumbnail of its own: its detections landed a second either side of every sample.
+const THUMB_COUNT = 61; // more than fits on screen at once — the strip scrolls to reveal the rest
 const THUMB_STEP_SEC = 2;
 // (COUNT - 1), not COUNT — the thumbnails sit edge-to-edge at fractions i/(COUNT-1), so there
 // are only COUNT-1 gaps between them. Using COUNT here made 40/19 the real gap size, which
@@ -174,9 +192,6 @@ const THUMB_STEP_SEC = 2;
 const AXIS_SPAN_SEC = THUMB_STEP_SEC * (THUMB_COUNT - 1);
 const HOURS_IN_DAY = 24;
 const MINUTES_IN_HOUR = 60;
-// Shared by the thumbnail strip and the guide-line's height so the line stops exactly at the
-// strip's top edge instead of running down through the thumbnail images themselves.
-const THUMB_STRIP_HEIGHT = 126;
 
 function pad2(n: number) { return String(Math.floor(n)).padStart(2, "0"); }
 function secToHHMMSS(sec: number): string {
@@ -189,42 +204,28 @@ function hhmmssToSec(time: string): number {
   const [h, m, s] = time.split(":").map(Number);
   return h * 3600 + m * 60 + (s || 0);
 }
-// Deterministic pseudo-random in [0,1) — same shape as the seeded-mock-data helpers used
-// elsewhere in the app (e.g. RedFace's associate graph). There's no real per-second detection
-// feed in this mock data model, so the timeline's "AI detection" window is a stable, camera-
-// dependent pattern rather than a fabricated-but-changing-on-every-render one.
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed * 12.9898) * 43758.5453;
-  return x - Math.floor(x);
-}
-function seedFromLabel(label: string): number {
-  let h = 0;
-  for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) % 100000;
-  return h + 1;
-}
-// How many people are visible in a given thumbnail's frame — there's no real per-frame headcount
-// in this mock data model, so this is a deterministic, camera+time-seeded stand-in, in a
-// plausible 4–28 range.
-function personCountFor(seed: number): number {
-  // Squared so the distribution skews toward the low end — most frames are ordinary foot
-  // traffic, with only occasional crowded spikes. A flat 4–28 range put ~75% of frames over the
-  // 10-person "crowded" alert threshold, which made the alert dot fire on almost every thumbnail
-  // and stop meaning anything.
-  return Math.round(3 + seededRandom(seed) ** 2 * 27);
-}
+// How many VIPs a frame is worth flagging for. Two known faces in one frame is a different
+// event from one — it is the thing an operator wants pulled out of a 60-frame strip.
+const VIP_CROWD_THRESHOLD = 2;
 
 /* ── Solid type icon ───────────────────────────────────────── */
-function TypeIcon({ type, color, size = 11, active = false }: { type: DetType; color: string; size?: number; active?: boolean }) {
+// `active` fills with white, for an icon sitting on its own colour (a selected filter chip).
+// `solid` fills with the colour itself, for an icon on a light plate — at 10-11px the hollow
+// outline is a few hairlines and stops reading as a shape at all.
+function TypeIcon({ type, color, size = 11, active = false, solid = false }: { type: DetType; color: string; size?: number; active?: boolean; solid?: boolean }) {
   if (type === "VIP") return (
     <svg width={size} height={size} viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
-      <path d="M5.78072 1.63333C5.80231 1.59413 5.83401 1.56145 5.87253 1.53868C5.91105 1.51592 5.95498 1.50391 5.99972 1.50391C6.04447 1.50391 6.0884 1.51592 6.12692 1.53868C6.16544 1.56145 6.19714 1.59413 6.21872 1.63333L7.69472 4.43533C7.72992 4.50021 7.77905 4.55649 7.83858 4.60014C7.89811 4.64378 7.96656 4.67371 8.03902 4.68776C8.11149 4.70181 8.18616 4.69965 8.25769 4.68142C8.32922 4.66319 8.39583 4.62935 8.45272 4.58233L10.5912 2.75033C10.6323 2.71694 10.6829 2.69744 10.7357 2.69463C10.7885 2.69182 10.8409 2.70585 10.8853 2.7347C10.9296 2.76355 10.9637 2.80573 10.9826 2.85517C11.0014 2.90461 11.0041 2.95876 10.9902 3.00983L9.57322 8.13283C9.5443 8.23766 9.48199 8.33021 9.39573 8.39644C9.30947 8.46266 9.20397 8.49896 9.09522 8.49983H2.90472C2.79589 8.49907 2.69028 8.46282 2.60392 8.39658C2.51756 8.33035 2.45517 8.23774 2.42622 8.13283L1.00972 3.01033C0.995849 2.95926 0.998535 2.90511 1.01739 2.85567C1.03625 2.80623 1.07032 2.76405 1.11467 2.7352C1.15903 2.70635 1.2114 2.69232 1.26424 2.69513C1.31708 2.69794 1.36767 2.71744 1.40872 2.75083L3.54672 4.58283C3.60362 4.62985 3.67023 4.66369 3.74176 4.68192C3.81328 4.70015 3.88796 4.70231 3.96042 4.68826C4.03289 4.67421 4.10134 4.64428 4.16087 4.60064C4.2204 4.55699 4.26953 4.50071 4.30472 4.43583L5.78072 1.63333Z" fill={active ? "white" : "none"} stroke={active ? "white" : color} strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5.78072 1.63333C5.80231 1.59413 5.83401 1.56145 5.87253 1.53868C5.91105 1.51592 5.95498 1.50391 5.99972 1.50391C6.04447 1.50391 6.0884 1.51592 6.12692 1.53868C6.16544 1.56145 6.19714 1.59413 6.21872 1.63333L7.69472 4.43533C7.72992 4.50021 7.77905 4.55649 7.83858 4.60014C7.89811 4.64378 7.96656 4.67371 8.03902 4.68776C8.11149 4.70181 8.18616 4.69965 8.25769 4.68142C8.32922 4.66319 8.39583 4.62935 8.45272 4.58233L10.5912 2.75033C10.6323 2.71694 10.6829 2.69744 10.7357 2.69463C10.7885 2.69182 10.8409 2.70585 10.8853 2.7347C10.9296 2.76355 10.9637 2.80573 10.9826 2.85517C11.0014 2.90461 11.0041 2.95876 10.9902 3.00983L9.57322 8.13283C9.5443 8.23766 9.48199 8.33021 9.39573 8.39644C9.30947 8.46266 9.20397 8.49896 9.09522 8.49983H2.90472C2.79589 8.49907 2.69028 8.46282 2.60392 8.39658C2.51756 8.33035 2.45517 8.23774 2.42622 8.13283L1.00972 3.01033C0.995849 2.95926 0.998535 2.90511 1.01739 2.85567C1.03625 2.80623 1.07032 2.76405 1.11467 2.7352C1.15903 2.70635 1.2114 2.69232 1.26424 2.69513C1.31708 2.69794 1.36767 2.71744 1.40872 2.75083L3.54672 4.58283C3.60362 4.62985 3.67023 4.66369 3.74176 4.68192C3.81328 4.70015 3.88796 4.70231 3.96042 4.68826C4.03289 4.67421 4.10134 4.64428 4.16087 4.60064C4.2204 4.55699 4.26953 4.50071 4.30472 4.43583L5.78072 1.63333Z" fill={solid ? color : active ? "white" : "none"} stroke={active ? "white" : color} strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M2.5 10.5H9.5" stroke={active ? "white" : color} strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
+  // Active fill is white, like VIP's and Vehicle's. It was --warning-200 (#fef3c7), a pale cream,
+  // so this chip alone had a warm cast while the other two went white — and nothing about
+  // "unknown" is a warning. Same fix as BestFramePage's filter icon.
   if (type === "Unknown") return (
     <svg width={size} height={size} viewBox="0 0 14 14" fill="none" style={{ flexShrink:0 }}>
       <g clipPath="url(#typeIconUnknownClip)">
-        <path d="M2.24582 5.02831C2.16068 4.64478 2.17375 4.24597 2.28383 3.86884C2.39391 3.49171 2.59743 3.14849 2.87551 2.87098C3.1536 2.59347 3.49725 2.39068 3.87461 2.28139C4.25197 2.1721 4.65081 2.15986 5.03416 2.24581C5.24515 1.91582 5.53583 1.64425 5.87938 1.45614C6.22293 1.26803 6.60831 1.16943 6.99999 1.16943C7.39167 1.16943 7.77705 1.26803 8.1206 1.45614C8.46415 1.64425 8.75483 1.91582 8.96582 2.24581C9.34975 2.15949 9.74928 2.17167 10.1272 2.28123C10.5052 2.39078 10.8493 2.59414 11.1276 2.8724C11.4058 3.15066 11.6092 3.49477 11.7187 3.87273C11.8283 4.25068 11.8405 4.65021 11.7542 5.03414C12.0841 5.24514 12.3557 5.53581 12.5438 5.87936C12.7319 6.22292 12.8305 6.60829 12.8305 6.99998C12.8305 7.39166 12.7319 7.77703 12.5438 8.12059C12.3557 8.46414 12.0841 8.75481 11.7542 8.96581C11.8401 9.34916 11.8279 9.748 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4025 10.5083 11.6061 10.1311 11.7161C9.754 11.8262 9.35518 11.8393 8.97166 11.7541C8.76093 12.0854 8.47004 12.3581 8.1259 12.5471C7.78176 12.736 7.39551 12.8351 7.00291 12.8351C6.61031 12.8351 6.22406 12.736 5.87992 12.5471C5.53578 12.3581 5.24488 12.0854 5.03416 11.7541C4.65081 11.8401 4.25197 11.8278 3.87461 11.7186C3.49725 11.6093 3.1536 11.4065 2.87551 11.129C2.59743 10.8515 2.39391 10.5082 2.28383 10.1311C2.17375 9.75398 2.16068 9.35517 2.24582 8.97164C1.9133 8.7612 1.6394 8.47008 1.4496 8.12535C1.25981 7.78062 1.16028 7.3935 1.16028 6.99998C1.16028 6.60645 1.25981 6.21933 1.4496 5.8746C1.6394 5.52987 1.9133 5.23875 2.24582 5.02831Z" fill={active ? "var(--warning-200)" : "none"} stroke={active ? "var(--warning-200)" : color} strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M2.24582 5.02831C2.16068 4.64478 2.17375 4.24597 2.28383 3.86884C2.39391 3.49171 2.59743 3.14849 2.87551 2.87098C3.1536 2.59347 3.49725 2.39068 3.87461 2.28139C4.25197 2.1721 4.65081 2.15986 5.03416 2.24581C5.24515 1.91582 5.53583 1.64425 5.87938 1.45614C6.22293 1.26803 6.60831 1.16943 6.99999 1.16943C7.39167 1.16943 7.77705 1.26803 8.1206 1.45614C8.46415 1.64425 8.75483 1.91582 8.96582 2.24581C9.34975 2.15949 9.74928 2.17167 10.1272 2.28123C10.5052 2.39078 10.8493 2.59414 11.1276 2.8724C11.4058 3.15066 11.6092 3.49477 11.7187 3.87273C11.8283 4.25068 11.8405 4.65021 11.7542 5.03414C12.0841 5.24514 12.3557 5.53581 12.5438 5.87936C12.7319 6.22292 12.8305 6.60829 12.8305 6.99998C12.8305 7.39166 12.7319 7.77703 12.5438 8.12059C12.3557 8.46414 12.0841 8.75481 11.7542 8.96581C11.8401 9.34916 11.8279 9.748 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4025 10.5083 11.6061 10.1311 11.7161C9.754 11.8262 9.35518 11.8393 8.97166 11.7541C8.76093 12.0854 8.47004 12.3581 8.1259 12.5471C7.78176 12.736 7.39551 12.8351 7.00291 12.8351C6.61031 12.8351 6.22406 12.736 5.87992 12.5471C5.53578 12.3581 5.24488 12.0854 5.03416 11.7541C4.65081 11.8401 4.25197 11.8278 3.87461 11.7186C3.49725 11.6093 3.1536 11.4065 2.87551 11.129C2.59743 10.8515 2.39391 10.5082 2.28383 10.1311C2.17375 9.75398 2.16068 9.35517 2.24582 8.97164C1.9133 8.7612 1.6394 8.47008 1.4496 8.12535C1.25981 7.78062 1.16028 7.3935 1.16028 6.99998C1.16028 6.60645 1.25981 6.21933 1.4496 5.8746C1.6394 5.52987 1.9133 5.23875 2.24582 5.02831Z" fill={solid ? color : active ? "white" : "none"} stroke={active ? "white" : color} strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M5.30249 5.25009C5.43963 4.86023 5.71033 4.53148 6.06663 4.32208C6.42293 4.11268 6.84185 4.03614 7.24918 4.106C7.65651 4.17587 8.02597 4.38764 8.29212 4.70381C8.55827 5.01998 8.70394 5.42014 8.70332 5.83342C8.70332 7.00009 6.95332 7.58342 6.95332 7.58342" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M7 9.91675H7.00583" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
       </g>
@@ -238,24 +239,14 @@ function TypeIcon({ type, color, size = 11, active = false }: { type: DetType; c
       <path d="M14 5.33336L12.6667 6.66669L11.6667 4.20003C11.5724 3.94758 11.4038 3.72964 11.1831 3.57493C10.9625 3.42022 10.7001 3.33599 10.4307 3.33336H5.6C5.32834 3.32712 5.06125 3.40403 4.83451 3.5538C4.60778 3.70357 4.43221 3.91904 4.33133 4.17136L3.33333 6.66669L2 5.33336" stroke={active ? "white" : color} strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M4.66663 9.33325H4.67413" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M11.3334 9.33325H11.3409" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M12.6667 6.66675H3.33333C2.59695 6.66675 2 7.2637 2 8.00008V10.6667C2 11.4031 2.59695 12.0001 3.33333 12.0001H12.6667C13.403 12.0001 14 11.4031 14 10.6667V8.00008C14 7.2637 13.403 6.66675 12.6667 6.66675Z" fill={active ? "white" : "none"} stroke={active ? "white" : color} strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12.6667 6.66675H3.33333C2.59695 6.66675 2 7.2637 2 8.00008V10.6667C2 11.4031 2.59695 12.0001 3.33333 12.0001H12.6667C13.403 12.0001 14 11.4031 14 10.6667V8.00008C14 7.2637 13.403 6.66675 12.6667 6.66675Z" fill={solid ? color : active ? "white" : "none"} stroke={active ? "white" : color} strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M3.33337 12V13.3333" stroke={active ? "white" : color} strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M12.6666 12V13.3333" stroke={active ? "white" : color} strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
 
-/* ── Person-count glyph, for the thumbnail headcount chip ─────── */
-function PersonCountIcon({ size = 10, color = "white" }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" style={{ flexShrink:0 }}>
-      <circle cx="6" cy="4" r="2.25" stroke={color} strokeWidth="1.1"/>
-      <path d="M1.75 10.5C1.75 8.15279 3.65279 6.25 6 6.25C8.34721 6.25 10.25 8.15279 10.25 10.5" stroke={color} strokeWidth="1.1" strokeLinecap="round"/>
-    </svg>
-  );
-}
-
-/* ── Small alert badge — a crowded frame (10+ people) worth flagging at a glance ─ */
+/* ── Crowded-with-VIPs badge, for a frame over VIP_CROWD_THRESHOLD ─ */
 function AlertDot({ size = 15 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -276,7 +267,7 @@ function ReelFilterIcon({ type, color, active = false }: { type: DetType; color:
     return (
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink:0 }}>
         <g clipPath="url(#reelUnknownClip)">
-          <path d="M2.24582 5.02831C2.16068 4.64478 2.17375 4.24597 2.28383 3.86884C2.39391 3.49171 2.59743 3.14849 2.87551 2.87098C3.1536 2.59347 3.49725 2.39068 3.87461 2.28139C4.25197 2.1721 4.65081 2.15986 5.03416 2.24581C5.24515 1.91582 5.53583 1.64425 5.87938 1.45614C6.22293 1.26803 6.60831 1.16943 6.99999 1.16943C7.39167 1.16943 7.77705 1.26803 8.1206 1.45614C8.46415 1.64425 8.75483 1.91582 8.96582 2.24581C9.34975 2.15949 9.74928 2.17167 10.1272 2.28123C10.5052 2.39078 10.8493 2.59414 11.1276 2.8724C11.4058 3.15066 11.6092 3.49477 11.7187 3.87273C11.8283 4.25068 11.8405 4.65021 11.7542 5.03414C12.0841 5.24514 12.3557 5.53581 12.5438 5.87936C12.7319 6.22292 12.8305 6.60829 12.8305 6.99998C12.8305 7.39166 12.7319 7.77703 12.5438 8.12059C12.3557 8.46414 12.0841 8.75481 11.7542 8.96581C11.8401 9.34916 11.8279 9.748 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4025 10.5083 11.6061 10.1311 11.7161C9.754 11.8262 9.35518 11.8393 8.97166 11.7541C8.76093 12.0854 8.47004 12.3581 8.1259 12.5471C7.78176 12.736 7.39551 12.8351 7.00291 12.8351C6.61031 12.8351 6.22406 12.736 5.87992 12.5471C5.53578 12.3581 5.24488 12.0854 5.03416 11.7541C4.65081 11.8401 4.25197 11.8278 3.87461 11.7186C3.49725 11.6093 3.1536 11.4065 2.87551 11.129C2.59743 10.8515 2.39391 10.5082 2.28383 10.1311C2.17375 9.75398 2.16068 9.35517 2.24582 8.97164C1.9133 8.7612 1.6394 8.47008 1.4496 8.12535C1.25981 7.78062 1.16028 7.3935 1.16028 6.99998C1.16028 6.60645 1.25981 6.21933 1.4496 5.8746C1.6394 5.52987 1.9133 5.23875 2.24582 5.02831Z" fill={active ? "var(--warning-200)" : "none"} stroke={active ? "var(--warning-200)" : color} strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2.24582 5.02831C2.16068 4.64478 2.17375 4.24597 2.28383 3.86884C2.39391 3.49171 2.59743 3.14849 2.87551 2.87098C3.1536 2.59347 3.49725 2.39068 3.87461 2.28139C4.25197 2.1721 4.65081 2.15986 5.03416 2.24581C5.24515 1.91582 5.53583 1.64425 5.87938 1.45614C6.22293 1.26803 6.60831 1.16943 6.99999 1.16943C7.39167 1.16943 7.77705 1.26803 8.1206 1.45614C8.46415 1.64425 8.75483 1.91582 8.96582 2.24581C9.34975 2.15949 9.74928 2.17167 10.1272 2.28123C10.5052 2.39078 10.8493 2.59414 11.1276 2.8724C11.4058 3.15066 11.6092 3.49477 11.7187 3.87273C11.8283 4.25068 11.8405 4.65021 11.7542 5.03414C12.0841 5.24514 12.3557 5.53581 12.5438 5.87936C12.7319 6.22292 12.8305 6.60829 12.8305 6.99998C12.8305 7.39166 12.7319 7.77703 12.5438 8.12059C12.3557 8.46414 12.0841 8.75481 11.7542 8.96581C11.8401 9.34916 11.8279 9.748 11.7186 10.1254C11.6093 10.5027 11.4065 10.8464 11.129 11.1245C10.8515 11.4025 10.5083 11.6061 10.1311 11.7161C9.754 11.8262 9.35518 11.8393 8.97166 11.7541C8.76093 12.0854 8.47004 12.3581 8.1259 12.5471C7.78176 12.736 7.39551 12.8351 7.00291 12.8351C6.61031 12.8351 6.22406 12.736 5.87992 12.5471C5.53578 12.3581 5.24488 12.0854 5.03416 11.7541C4.65081 11.8401 4.25197 11.8278 3.87461 11.7186C3.49725 11.6093 3.1536 11.4065 2.87551 11.129C2.59743 10.8515 2.39391 10.5082 2.28383 10.1311C2.17375 9.75398 2.16068 9.35517 2.24582 8.97164C1.9133 8.7612 1.6394 8.47008 1.4496 8.12535C1.25981 7.78062 1.16028 7.3935 1.16028 6.99998C1.16028 6.60645 1.25981 6.21933 1.4496 5.8746C1.6394 5.52987 1.9133 5.23875 2.24582 5.02831Z" fill={active ? "white" : "none"} stroke={active ? "white" : color} strokeLinecap="round" strokeLinejoin="round"/>
           <path d="M5.30249 5.25009C5.43963 4.86023 5.71033 4.53148 6.06663 4.32208C6.42293 4.11268 6.84185 4.03614 7.24918 4.106C7.65651 4.17587 8.02597 4.38764 8.29212 4.70381C8.55827 5.01998 8.70394 5.42014 8.70332 5.83342C8.70332 7.00009 6.95332 7.58342 6.95332 7.58342" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
           <path d="M7 9.91675H7.00583" stroke={color} strokeLinecap="round" strokeLinejoin="round"/>
         </g>
@@ -289,7 +280,16 @@ function ReelFilterIcon({ type, color, active = false }: { type: DetType; color:
   return <TypeIcon type={type} color={color} size={14} active={active} />;
 }
 
-function ReelFilterBar({ filter, onChange }: { filter: ReelFilter; onChange: (f: ReelFilter) => void }) {
+// The count beside each label — what the frame holds, without having to click each filter to
+// find out. Tabular figures so the chips don't jitter in width as the numbers change.
+function FilterCount({ n, active }: { n: number; active: boolean }) {
+  return (
+    <span style={{ fontSize:"11px", fontWeight:700, fontVariantNumeric:"tabular-nums",
+      color: active ? "rgba(255,255,255,0.75)" : "var(--gray-400)" }}>{n}</span>
+  );
+}
+
+function ReelFilterBar({ filter, onChange, counts }: { filter: ReelFilter; onChange: (f: ReelFilter) => void; counts: Record<ReelFilter, number> }) {
   const [lang] = useLanguage();
   const t = T[lang];
   // "VIP" is the same word in both languages; the other three get translated.
@@ -303,27 +303,38 @@ function ReelFilterBar({ filter, onChange }: { filter: ReelFilter; onChange: (f:
     <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
       {REEL_FILTER_CFG.map(f => {
         const active = filter === f.id;
+        // A zero chip still shows its count — "no vehicles in this frame" is the answer, not a
+        // missing one — but there's nothing behind it to filter to, so it doesn't take a click.
+        const n = counts[f.id];
+        const empty = n === 0;
         if (f.id === "All") {
           return (
-            <button key="All" onClick={() => onChange("All")} style={{
-              padding:"6px 14px", borderRadius:"999px", cursor:"pointer",
+            <button key="All" onClick={() => onChange("All")} disabled={empty} style={{
+              display:"flex", alignItems:"center", gap:"5px",
+              padding:"6px 14px", borderRadius:"999px", cursor: empty ? "default" : "pointer",
               border: active ? "1px solid var(--gray-900)" : "1px solid var(--gray-300)",
               backgroundColor: active ? "var(--gray-900)" : "white",
               color: active ? "white" : "var(--gray-700)", fontSize:"12px", fontWeight: active ? 700 : 600,
-            }}>{f.label}</button>
+              opacity: empty ? 0.45 : 1,
+            }}>
+              {f.label}
+              <FilterCount n={n} active={active} />
+            </button>
           );
         }
         const c = f.color!;
         return (
-          <button key={f.id} onClick={() => onChange(f.id)} style={{
+          <button key={f.id} onClick={() => onChange(f.id)} disabled={empty} style={{
             display:"flex", alignItems:"center", gap:"5px",
-            padding:"6px 10px", borderRadius:"999px", cursor:"pointer",
+            padding:"6px 10px", borderRadius:"999px", cursor: empty ? "default" : "pointer",
             border: active ? `1px solid ${c}` : "1px solid var(--gray-300)",
             backgroundColor: active ? c : "white",
             color: active ? "white" : "var(--gray-700)", fontSize:"12px", fontWeight: active ? 700 : 600,
+            opacity: empty ? 0.45 : 1,
           }}>
             <ReelFilterIcon type={f.id as DetType} color={c} active={active} />
             {f.label}
+            <FilterCount n={n} active={active} />
           </button>
         );
       })}
@@ -399,7 +410,7 @@ function ReelCard({ det, index, isFocused, onClick }: { det: Detection; index: n
           issue at any card width. */}
       <div style={{ position:"relative", width:"100%", aspectRatio:"1/1", borderRadius:"10px", overflow:"hidden", backgroundColor:"var(--gray-900)" }}>
         <img src={photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"50% 20%", display:"block", transform:"scale(1.8)", transformOrigin:"50% 20%" }} />
-        <div style={{ position:"absolute", top:6, left:6, backgroundColor:"rgba(14,22,42,0.75)", borderRadius:"4px", padding:"2px 6px", fontSize:"10px", fontWeight:600, color:"white" }}>
+        <div style={{ position:"absolute", top:6, left:6, backgroundColor:"var(--label-plate)", borderRadius:"4px", padding:"2px 6px", fontSize:"10px", fontWeight:600, color:"white" }}>
           P-0{index + 1}
         </div>
       </div>
@@ -444,6 +455,12 @@ function BestFrameReel({ data, focusedId, onFocus, onSelect, filter, onFilterCha
   const [lang] = useLanguage();
   const t = T[lang];
   const dets = filter === "All" ? data.detections : data.detections.filter(d => d.type === filter);
+  const counts: Record<ReelFilter, number> = {
+    All:     data.detections.length,
+    VIP:     data.detections.filter(d => d.type === "VIP").length,
+    Vehicle: data.detections.filter(d => d.type === "Vehicle").length,
+    Unknown: data.detections.filter(d => d.type === "Unknown").length,
+  };
   return (
     <div style={{ width:"380px", flexShrink:0, backgroundColor:"white", borderLeft:BORDER, display:"flex", flexDirection:"column", overflow:"hidden" }}>
       <div style={{ padding:"16px 16px 12px", flexShrink:0, display:"flex", flexDirection:"column", gap:"12px" }}>
@@ -451,7 +468,7 @@ function BestFrameReel({ data, focusedId, onFocus, onSelect, filter, onFilterCha
           <p style={{ fontSize:"14px", fontWeight:800, color:"var(--gray-900)", letterSpacing:"-0.28px" }}>{t.reelTitle}</p>
           <p style={{ fontSize:"11px", color:"var(--gray-400)", marginTop:"2px" }}>{t.reelSub}</p>
         </div>
-        <ReelFilterBar filter={filter} onChange={onFilterChange} />
+        <ReelFilterBar filter={filter} onChange={onFilterChange} counts={counts} />
       </div>
       {/* alignItems:"start" — grid's default "stretch" was forcing every card to match the
           tallest card in its row, which showed up as a huge blank gap inside whichever card
@@ -683,8 +700,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
     }
     // The moment being inspected. This used to seed from the clock — first the machine's, then
     // the site's — which opened the strip wherever "now" happened to be rather than on the frame
-    // the operator clicked, and left the VIP crown (a ±1s test against the detection times) to
-    // match whatever was near now instead of the detection itself.
+    // the operator clicked.
     return hhmmssToSec(initialDet.time);
   });
   // The thumbnail strip's own center — deliberately separate from selectedSec. Clicking a
@@ -694,7 +710,6 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
   // Only explicit navigation (step/arrow keys, Jump to, the hour/minute bars) re-centers the
   // window — see jumpTo() below.
   const [windowCenterSec, setWindowCenterSec] = useState(selectedSec);
-  const [hoveredThumbIdx, setHoveredThumbIdx] = useState<number | null>(null);
   const [hoveredHour, setHoveredHour] = useState<number | null>(null);
   const [hoveredMinute, setHoveredMinute] = useState<number | null>(null);
   const dateDropdownRef = useRef<HTMLDivElement>(null);
@@ -705,7 +720,6 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
   const axisStartSec = windowCenterSec - axisSpanSec / 2;
   const currentHour = Math.floor(selectedSec / 3600) % HOURS_IN_DAY;
   const currentMinute = Math.floor((selectedSec % 3600) / 60);
-  const camSeed = seedFromLabel(data.camLabel);
   // Sample frame points evenly spread across the visible span — the thumbnails ARE these points
   // (each one is "the frame at this instant"). Real per-second timestamps don't exist for every
   // visible span (a camera might have zero real hits in the current window), so this is a
@@ -716,6 +730,16 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
     const frac = i / (THUMB_COUNT - 1);
     return Math.round(axisStartSec + frac * axisSpanSec);
   });
+  // Each VIP detection marks exactly one thumbnail — the nearest sample. A per-thumbnail
+  // "within half a step" test double-counted: one detection at :00 is a second from both the
+  // :59 and the :01 thumbnail, so the same person was drawn as two sightings.
+  const vipByThumb = new Map<number, number>();
+  for (const d of data.detections) {
+    if (d.type !== "VIP") continue;
+    const i = Math.round((hhmmssToSec(d.time) - axisStartSec) / THUMB_STEP_SEC);
+    if (i < 0 || i >= THUMB_COUNT) continue;
+    vipByThumb.set(i, (vipByThumb.get(i) ?? 0) + 1);
+  }
   const centerThumbIdx = thumbFrames.reduce(
     (bestI, t, i) => (Math.abs(t - selectedSec) < Math.abs(thumbFrames[bestI] - selectedSec) ? i : bestI), 0,
   );
@@ -835,8 +859,8 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
             }}
           >
             <img src={data.bgUrl ?? ""} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:0.9 }} />
-            <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(14, 22, 42,0) 50%,rgba(14, 22, 42,0.04) 50%)", backgroundSize:"100% 4px" }} />
-            <div style={{ position:"absolute", top:12, right:14, backgroundColor:"rgba(14,22,42,0.65)", padding:"3px 8px", fontSize:"10px", fontWeight:600, color:"rgba(255,255,255,0.8)", letterSpacing:"0.5px" }}>
+            <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"linear-gradient(to bottom,rgba(24, 17, 39,0) 50%,rgba(24, 17, 39,0.04) 50%)", backgroundSize:"100% 4px" }} />
+            <div style={{ position:"absolute", top:12, right:14, backgroundColor:"var(--label-plate)", padding:"3px 8px", fontSize:"10px", fontWeight:600, color:"rgba(255,255,255,0.8)", letterSpacing:"0.5px" }}>
               {focusedDet.date.split("-").reverse().join("-")} {focusedDet.time}
             </div>
 
@@ -874,11 +898,11 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                     position:"absolute", bottom:"calc(100% + 4px)", left:0,
                     backgroundColor:"white", padding:"3px 8px",
                     display:"flex", alignItems:"center", gap:"5px", whiteSpace:"nowrap",
-                    boxShadow:"0 1px 6px rgba(14,22,42,0.12)",
+                    boxShadow:"0 1px 6px rgba(24, 17, 39,0.12)",
                     opacity: isFocused ? 1 : 0.85,
                   }}>
                     <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-500)" }}>P-0{i + 1}</span>
-                    {det.type === "VIP" && <TypeIcon type="VIP" color="var(--primary-400)" size={10} />}
+                    {det.type === "VIP" && <TypeIcon type="VIP" color="var(--primary-400)" size={11} solid />}
                     <span style={{ fontSize:"10px", fontWeight:600, color:"var(--gray-900)" }}>{det.name}</span>
                   </div>
                 </div>
@@ -964,7 +988,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                   </svg>
                 </button>
                 {dateOpen && (
-                  <div style={{ position:"absolute", right:0, top:"calc(100% + 4px)", backgroundColor:"white", borderRadius:"8px", boxShadow:"0 4px 16px rgba(14, 22, 42,0.12)", border:"1px solid var(--gray-200)", overflow:"hidden", zIndex:50 }}>
+                  <div style={{ position:"absolute", right:0, top:"calc(100% + 4px)", backgroundColor:"white", borderRadius:"8px", boxShadow:"var(--shadow-popover)", border:"1px solid var(--gray-200)", overflow:"hidden", zIndex:50 }}>
                     <TrackDateCalendar selected={trackDate} onPick={(d) => { setTrackDate(d); setDateOpen(false); }} />
                   </div>
                 )}
@@ -1022,7 +1046,7 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                 {timeOpen && (
                   <div style={{ position:"absolute", right:0, top:"calc(100% + 4px)", zIndex:20, display:"flex",
                     backgroundColor:"white", borderRadius:"8px", border:"1px solid var(--gray-200)",
-                    boxShadow:"0 4px 16px rgba(14, 22, 42,0.12)", overflow:"hidden" }}>
+                    boxShadow:"var(--shadow-popover)", overflow:"hidden" }}>
                     {([
                       { label: t.hour, values: Array.from({ length: HOURS_IN_DAY }, (_, h) => h), current: currentHour,
                         pick: (h: number) => jumpTo(h * 3600 + currentMinute * 60) },
@@ -1057,44 +1081,22 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                 flex:1 cell, so the row overflows and scrolls instead of shrinking every
                 thumbnail to cram them all in — lets you look forward/back along the strip by
                 scrolling instead of only through the step/jump controls. */}
-            <div className="vca-thin-scrollbar" style={{ position:"relative", height:`${THUMB_STRIP_HEIGHT}px`, zIndex:2, display:"flex", alignItems:"flex-end", gap:"4px", overflowX:"auto" }}>
+            {/* No fixed height: the cells set it. A pinned height has to be at least as tall as a
+                cell renders, and when it isn't, alignItems:flex-end pushes the overflow out the
+                TOP of the box, where overflow:auto clips it and no scroll can reach it — the
+                thumbnails simply come out with their tops shaved off.
+                paddingBottom clears the 6px horizontal scrollbar (.vca-thin-scrollbar), which
+                otherwise sits on top of the time labels. */}
+            <div className="vca-thin-scrollbar" style={{ position:"relative", paddingBottom:"10px", zIndex:2, display:"flex", alignItems:"flex-end", gap:"4px", overflowX:"auto" }}>
               {thumbFrames.map((sec, i) => {
                 const isSelected = i === centerThumbIdx;
-                const personCount = personCountFor(camSeed + sec);
-                const crowded = personCount >= 10;
-                // Real per-thumbnail VIP presence — each Detection already carries its own real
-                // time, so "did a VIP detection fall within this thumbnail's slice of the axis"
-                // is genuine data, not a fabricated pattern. One crown per hit, not confined to
-                // a single flagged window.
-                // Rounded up so a detection sitting exactly at a slice boundary (a common case,
-                // since sec is itself rounded) isn't dropped by float rounding on the raw half.
-                const halfWindow = Math.ceil(axisSpanSec / THUMB_COUNT / 2);
-                const hasVip = data.detections.some(d => d.type === "VIP" && Math.abs(hhmmssToSec(d.time) - sec) <= halfWindow);
+                const vipCount = vipByThumb.get(i) ?? 0;
                 return (
                   <div key={i} ref={el => { thumbRefs.current[i] = el; }} onClick={() => setSelectedSec(sec)}
-                    onMouseEnter={() => setHoveredThumbIdx(i)}
-                    onMouseLeave={() => setHoveredThumbIdx(prev => (prev === i ? null : prev))}
                     style={{
                     position:"relative", width:"128px", flexShrink:0,
                     display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", cursor:"pointer",
                   }}>
-                    {isSelected && (
-                      // Positioned out of the flex flow (not conditionally mounted) so toggling
-                      // visibility on hover doesn't shift the thumbnail below it up and down.
-                      // Shows selectedSec (the precise scrub position), not this thumbnail's own
-                      // grid time — otherwise this badge and the step-controls readout could
-                      // disagree by up to half a sample interval.
-                      <div style={{
-                        position:"absolute", bottom:"calc(100% + 6px)", left:"50%", transform:"translateX(-50%)",
-                        display:"flex", flexDirection:"column", alignItems:"center",
-                        opacity: hoveredThumbIdx === i ? 1 : 0, pointerEvents:"none", transition:"opacity 0.12s", zIndex:5,
-                      }}>
-                        <span style={{ fontSize:"12px", fontWeight:800, color:"white", backgroundColor:"var(--primary-400)", padding:"4px 10px", borderRadius:"999px", fontFamily:"monospace", whiteSpace:"nowrap" }}>
-                          {secToHHMMSS(selectedSec)}
-                        </span>
-                        <span style={{ width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderTop:"6px solid var(--primary-400)", marginTop:"-2px" }} />
-                      </div>
-                    )}
                     <div style={{
                       width:"100%", aspectRatio:"8/5", boxSizing:"border-box",
                       border: isSelected ? "3px solid var(--primary-400)" : "1.5px solid var(--gray-200)",
@@ -1103,15 +1105,19 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                       <div style={{ width:"100%", height:"100%", overflow:"hidden", borderRadius: isSelected ? "6px" : "7px", position:"relative", backgroundColor:"var(--gray-800)" }}>
                         <img src={data.bgUrl ?? ""} alt=""
                           style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", filter: isSelected ? "none" : "grayscale(100%)", opacity: isSelected ? 1 : 0.75 }} />
-                        {/* Headcount chip — see personCountFor()'s comment: a deterministic mock
-                            stand-in, not a real per-frame count. 10+ people gets a red alert dot
-                            (top-right) so a crowded frame is spottable without reading every
-                            number in the strip. */}
-                        <div style={{ position:"absolute", left:4, bottom:3, display:"flex", alignItems:"center", gap:"3px", backgroundColor:"rgba(14,22,42,0.72)", padding:"1px 6px", borderRadius:"999px" }}>
-                          <PersonCountIcon size={9} />
-                          <span style={{ fontSize:"10px", fontWeight:700, color:"white", fontFamily:"monospace" }}>{personCount}</span>
-                        </div>
-                        {crowded && (
+                        {/* How many VIPs this frame caught — the detections' own timestamps, not
+                            a stand-in. This chip used to be a headcount from a seeded mock, which
+                            is a number no camera reported and not a VIP hit either way. Absent at
+                            zero: a strip of "0" chips is 58 marks saying nothing. */}
+                        {vipCount > 0 && (
+                          <div style={{ position:"absolute", left:4, bottom:3, display:"flex", alignItems:"center", gap:"3px", backgroundColor:"var(--label-plate)", padding:"1px 6px", borderRadius:"999px" }}>
+                            {/* Solid (active), not the outline the legend uses — at 10px on a
+                                photo the hollow crown was a few hairlines and read as noise. */}
+                            <TypeIcon type="VIP" color="white" size={10} solid />
+                            <span style={{ fontSize:"10px", fontWeight:700, color:"white", fontFamily:"monospace" }}>{vipCount}</span>
+                          </div>
+                        )}
+                        {vipCount >= VIP_CROWD_THRESHOLD && (
                           <div style={{ position:"absolute", top:3, right:3 }}>
                             <AlertDot size={15} />
                           </div>
@@ -1123,12 +1129,6 @@ export default function BestFrameDetailPage({ data, initialDet, onBack, onGoRedm
                     <span style={{ fontSize:"10px", fontWeight:600, color: isSelected ? "var(--primary-400)" : "var(--gray-500)", fontFamily:"monospace" }}>
                       {secToHHMMSS(sec)}
                     </span>
-                    {/* Crown — present/absent only, one per frame that actually had a real VIP
-                        hit. Reserves its height even when absent so the label row above doesn't
-                        jump around from frame to frame. */}
-                    <div style={{ height:"12px" }}>
-                      {hasVip && <TypeIcon type="VIP" color="var(--primary-400)" size={12} />}
-                    </div>
                   </div>
                 );
               })}

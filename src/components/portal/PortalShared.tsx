@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Check } from "lucide-react";
-import { SUPPORT_CONTACT, canEditPortal, currentPortalUser, useVcaStore, type ProjectType } from "@/lib/vcaStore";
+import { ArrowDown, ArrowUp, Check, EyeOff } from "lucide-react";
+import { SUPPORT_CONTACT, canEditPortal, canSetPolicy, canViewFaces, currentPortalUser, useVcaStore, type ProjectType } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { usePortalLanguage } from "@/lib/i18n";
 
@@ -33,6 +33,25 @@ export function usePortalEditAccess(): { mayEdit: boolean; reason: string | unde
 }
 
 /**
+ * The narrower gate: the handful of things an administrator may look at but not change.
+ *
+ * Separate hook rather than a flag on the one above, because the refusal is a different sentence.
+ * "Read-only admins are view-only" is wrong on a screen an ADMIN is being turned away from, and a
+ * control that greys out with no reason, or with the wrong one, reads as a bug.
+ */
+export function usePortalPolicyAccess(): { maySetPolicy: boolean; reason: string | undefined } {
+  const portalUsers = useVcaStore(s => s.portalUsers);
+  const [lang] = usePortalLanguage();
+  const me = currentPortalUser(portalUsers);
+  const maySetPolicy = me ? canSetPolicy(me.permission) : true;
+  if (maySetPolicy) return { maySetPolicy, reason: undefined };
+  // An auditor cannot change anything at all, and hearing "owner only" invites them to go and ask
+  // for the owner's help with something they would still not be allowed to do.
+  const auditor = me ? !canEditPortal(me.permission) : false;
+  return { maySetPolicy, reason: auditor ? READ_ONLY_REASON[lang] : OWNER_ONLY_REASON[lang] };
+}
+
+/**
  * The handful of strings the shared components own.
  *
  * They had none: the kebab menu's only label was a hardcoded `title="More actions"` — untranslated
@@ -47,8 +66,14 @@ const SHARED_LABELS = {
 
 /** Why a control is disabled, said in the role's own words rather than "no permission". */
 const READ_ONLY_REASON = {
-  en: "Auditor accounts have view-only access to this console.",
-  ko: "감사자 계정은 이 콘솔을 보기만 할 수 있습니다.",
+  en: "Read-only admin accounts have view-only access to this console.",
+  ko: "읽기 전용 관리자 계정은 이 콘솔을 보기만 할 수 있습니다.",
+} as const;
+
+/** Why an ADMINISTRATOR — who may change almost everything here — is refused this one. */
+const OWNER_ONLY_REASON = {
+  en: "Only the owner can do this. It changes what this installation is contracted to, not how it is configured.",
+  ko: "최고관리자만 할 수 있습니다. 설정이 아니라 이 설치본의 계약 내용을 바꾸는 일입니다.",
 } as const;
 
 /**
@@ -243,7 +268,26 @@ export const BREADCRUMB_PROJECT_MAX_WIDTH = "min(320px, 22vw)";
  * Also picked up by the small raised pills that use this constant — the active segment of the
  * table/grid toggle and of the language switcher, which is exactly the lift those wanted.
  */
-export const PANEL_SHADOW = "0 1px 2px rgba(14,22,42,0.03), 0 1px 3px rgba(14,22,42,0.03)";
+/**
+ * How wide a paragraph is allowed to get before the eye loses the line.
+ *
+ * In `em`, not `ch`, and that is the whole point. `ch` is the width of "0" — a Latin measure —
+ * so `maxWidth: MEASURE` asks for 62 Latin characters and gets about 31 Korean ones, because a
+ * Hangul syllable is roughly twice that box. Every capped paragraph in Portal was therefore half
+ * as long in Korean as it was meant to be, wrapping early and leaving the space beside it empty.
+ *
+ * `em` lands near the right answer in both: one em is about one Hangul syllable and about 1.8
+ * Latin characters, so 38em reads as ~38 Korean characters or ~68 Latin ones. It also tracks the
+ * element's own font size, which `ch` does too but a px cap would not — an 11px hint and a 13px
+ * lead get the same number of characters rather than the same number of pixels.
+ *
+ * Two values, not seven. The caps in place ranged 46–80ch, and that spread was drift rather than
+ * seven decisions: they are all either a paragraph somebody reads or a note somebody glances at.
+ */
+export const MEASURE = "38em";
+export const MEASURE_TIGHT = "30em";
+
+export const PANEL_SHADOW = "0 1px 2px rgba(24,17,39,0.03), 0 1px 3px rgba(24,17,39,0.03)";
 
 /**
  * What kind of project it is, as a chip.
@@ -293,7 +337,7 @@ interface SelectOption {
   label: string;
   /**
    * One line under the label, shown only in the open list. Roles are the case this exists for:
-   * an administrator does not memorise what "Auditor" means, they read the sentence at the moment
+   * an administrator does not memorise what "Read-only admin" grants, they read the sentence at the moment
    * they pick it. Jira, StackAI and Vanta all put the sentence in the dropdown for the same reason.
    */
   description?: string;
@@ -420,7 +464,7 @@ export function FilterSelect({ value, onChange, options, fitContent, footerActio
           ...(dropUp ? { bottom: "100%", marginBottom: "4px" } : { top: "100%", marginTop: "4px" }),
           // Same radius and shadow as RowActionsMenu's dropdown — Portal has two menus and they
           // should not be two designs.
-          backgroundColor: "white", border: BORDER, borderRadius: "10px", boxShadow: "0 8px 20px rgba(14,22,42,0.12)",
+          backgroundColor: "white", border: BORDER, borderRadius: "10px", boxShadow: "var(--shadow-popover)",
           // The trigger's width is the FLOOR, not the width. It was a flat 160px plus whatever the
           // widest option needed, so a full-width field in a form got a list narrower than itself
           // and a narrow filter in a toolbar got one wider — every select in Portal drew a
@@ -528,7 +572,7 @@ export function RowActionsMenu({ actions }: { actions: RowAction[] }) {
       {open && (
         <div style={{
           position: "absolute", top: "100%", right: 0, marginTop: "4px", zIndex: 50,
-          backgroundColor: "white", border: BORDER, borderRadius: "10px", boxShadow: "0 8px 20px rgba(14,22,42,0.12)",
+          backgroundColor: "white", border: BORDER, borderRadius: "10px", boxShadow: "var(--shadow-popover)",
           // Sized to the longest label rather than to a guess. At 140px every label of more than
           // two words wrapped, and the menu came out as a column of stacked half-sentences that
           // looked like nothing else in the app. maxWidth only bounds the footnote below, which is
@@ -573,7 +617,7 @@ export function RowActionsMenu({ actions }: { actions: RowAction[] }) {
                   <span style={{ flexShrink: 0, display: "flex", color: "var(--gray-400)", marginTop: "1px" }}>
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.87"/><path d="M8 4.6v4.2M8 10.9v.9" stroke="currentColor" strokeWidth="1.87" strokeLinecap="round"/></svg>
                   </span>
-                  <p style={{ margin: 0, fontSize: "11px", color: "var(--gray-500)", lineHeight: 1.6 }}>{reason}</p>
+                  <p style={{ margin: 0, fontSize: "11px", color: "var(--gray-500)", lineHeight: 1.45 }}>{reason}</p>
                 </div>
               ))}
             </div>
@@ -785,55 +829,83 @@ export function SummaryStrip({ cells }: { cells: SummaryCell[] }) {
  * job: they mark where a section starts, which is what the eye looks for when it comes back to a
  * settings page for one thing. One rank carries a mark, and it is the rank that leads.
  */
-export function CardSection({ heading, icon, subheading, desc, first, children }: { heading: string; icon?: React.ReactNode; subheading?: string; desc?: string; first?: boolean; children: React.ReactNode }) {
+export function CardSection({ heading, icon, subheading, desc, hint, children }: { heading: string; icon?: React.ReactNode; subheading?: string; desc?: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="portal-settings-section" style={{ padding: "22px 24px", borderTop: first ? "none" : BORDER }}>
+    <div className="portal-settings-section" style={{ padding: "26px 28px 28px" }}>
       <div>
         {/* <p>, not <h2>: nothing in Portal uses heading elements yet, and one lone h2 under no h1
-            is not an outline. Giving Portal a real heading order is its own pass. */}
-        <p style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "15px", fontWeight: 800, color: "var(--gray-900)", lineHeight: "20px" }}>
-          {icon && <span style={{ display: "flex", flexShrink: 0, color: "var(--gray-400)" }}>{icon}</span>}
+            is not an outline. Giving Portal a real heading order is its own pass.
+        
+            18px against the 15px values under it. It was 15/800 over 15/600 — two weights of the
+            same size, which is not a rank, and the page read as one long even list with no idea
+            where it began. The heading is now the only thing on the card at this size, which is
+            what makes the rest of it settle into place under it.
+        
+            The icon sits in a tinted square rather than loose beside the words: a 15px glyph next
+            to 18px text is a speck, and the square gives the section a mark the eye can find from
+            the rail it was clicked in. */}
+        <p style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "18px", fontWeight: 800, color: "var(--gray-900)", lineHeight: "24px", letterSpacing: "-0.2px" }}>
+          {icon && (
+            <span style={{
+              display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              width: "28px", height: "28px", borderRadius: "9px",
+              backgroundColor: "var(--gray-50)", border: BORDER, color: "var(--gray-600)",
+            }}>{icon}</span>
+          )}
           {heading}
+          {/* `hint` rather than `desc` for the explanatory half — the sentence worth having but
+              not worth a line of the page on every visit. `desc` stays for what has to be read
+              without asking: a warning, or a sentence about what the screen does NOT do. */}
+          {hint && <HelpTip text={hint} />}
         </p>
-        {/* Whose settings these are, when that is not the same answer as the project on screen.
-            Part of the title block rather than the sentence below it — a reader who mistakes the
-            owner of a setting will not be saved by prose — but on its own line, because a 240px
-            rail turns a 50-character institution name into three lines of 15px/800. */}
-        {subheading && (
-          <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--gray-900)", lineHeight: 1.45, marginTop: "4px" }}>{subheading}</p>
-        )}
-        {desc && (
-          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.65, marginTop: "6px" }}>{desc}</p>
+        {/* Indented to the heading's own text, past the icon. Flush left, these ran under the
+            icon square and the three lines had no shared edge — a title, a name and a sentence
+            all starting in different places, which is what made the block read as crowded rather
+            than as one heading with two lines under it. The square now marks the whole block.
+
+            The steps matter as much as the space: 18 / 13 / 12 with 8px and 10px between them.
+            It was 15 / 12 / 12 at 4px and 6px, where the second and third lines were the same
+            size and the two gaps were the same gap, so all three collapsed into one paragraph. */}
+        {(subheading || desc) && (
+          <div style={{ paddingLeft: icon ? "38px" : 0 }}>
+            {/* Whose settings these are, when that is not the same answer as the project on
+                screen. Part of the title block rather than the sentence below it — a reader who
+                mistakes the owner of a setting will not be saved by prose — but on its own line,
+                because a 50-character institution name beside an 18px/800 heading wraps. */}
+            {subheading && (
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--gray-900)", lineHeight: 1.45, marginTop: "8px" }}>{subheading}</p>
+            )}
+            {desc && (
+              <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5, marginTop: subheading ? "10px" : "8px" }}>{desc}</p>
+            )}
+          </div>
         )}
       </div>
-      {/* 520px, not 1fr. The rail alone would still let a four-column grid of pairs open up on a
-          wide screen — the cap is the half of this that holds at 1600px. */}
-      <div style={{ minWidth: 0, maxWidth: "520px" }}>{children}</div>
+      <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );
 }
 
 /**
- * Two columns of label-above-value pairs, the shape the camera sheet uses.
+ * A column of label-above-value pairs, the shape the camera sheet uses.
  *
  * It was one ruled row per fact, label left and value right — five rules in the first card alone,
  * and on a 720px column the value ended up a hand's width from the word naming it. Stacking the
- * pair puts the two together, and two columns halve the height, so the rules have nothing left to
- * separate: whitespace does it.
+ * pair puts the two together, so the rules have nothing left to separate: whitespace does it.
  */
 export function PairGrid({ children }: { children: React.ReactNode }) {
   return (
-    /* Two columns, at 250px tracks.
+    /* One column (2026-09-11).
    
-       It went to one column when the page felt dense, and that was treating the symptom: the
-       density was nine icons and a wall of 700-weight values, both now gone. What one column
-       cost was height — six facts became six rows, and the page turned into a scroll for
-       content that fits on a screen.
+       It was two 250px tracks, which was the right call while the card was the page and height
+       was the scarce thing. It is not any more: the section titles moved to a rail of their own,
+       so the card is narrower and a section is arrived at deliberately rather than scrolled past.
+       Two tracks in that column put the second pair where the eye does not go, and a settings
+       page with six facts was never short of room — it was short of a reading order.
    
-       250px rather than the old 220px, so the tracks are wider than the values that used to
-       wrap into two lines at 240. A long team name still wraps; that is one pair wrapping, not
-       a reason to halve the page's density. */
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "18px 20px" }}>
+       One column gives it one: label, value, next. Height it costs is height the rail already
+       made navigable. */
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "16px" }}>
       {children}
     </div>
   );
@@ -857,12 +929,25 @@ export function PairGrid({ children }: { children: React.ReactNode }) {
  * None of the settings pages this was checked against (Later, Airtable, Lindy, Flodesk,
  * Time2book) puts an icon on a field label.
  */
-export function PairItem({ label, children }: { label: string; children: React.ReactNode }) {
+export function PairItem({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <p style={{ fontSize: "12px", lineHeight: "16px", color: "var(--gray-500)" }}>{label}</p>
+      {/* Three tones down the pair, not two: gray-500 name, gray-900 value, gray-400 note.
+          The label and the note were both 11px gray-400, sitting above and below the same control
+          — the same size and the same colour doing two different jobs, so neither said which it
+          was. The name of a field is something you read to find the control; the sentence under
+          it is something you read once. Now the name is the darker of the two and carries the
+          weight, and the note is the lightest thing in the pair. */}
+      <p style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.2px", lineHeight: "15px", color: "var(--gray-500)" }}>
+        {label}
+        {/* The sentence about this field, on the mark rather than under the control. It was a
+            line of 11px grey below the input, which put a second caption in the pair — the name
+            above and an explanation below, the same size, doing different jobs. The mark keeps
+            the sentence reachable without letting it take a line of the page on every visit. */}
+        {hint && <HelpTip text={hint} size={13} />}
+      </p>
       {typeof children === "string"
-        ? <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--gray-900)", marginTop: "3px", wordBreak: "break-word" }}>{children}</p>
+        ? <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--gray-900)", marginTop: "4px", wordBreak: "break-word" }}>{children}</p>
         : (
           /* flex, not a plain block: FilterSelect's trigger is inline-grid, so in a block it sits
              on a text baseline and inherits this column's 24px line height — about twenty pixels
@@ -935,7 +1020,7 @@ export function Switch({ checked, onChange, label, disabled }: {
       <span style={{
         position: "absolute", top: "3px", left: checked ? "19px" : "3px",
         width: "16px", height: "16px", borderRadius: "999px", backgroundColor: "white",
-        boxShadow: "0 1px 3px rgba(14,22,42,0.3)", transition: "left 0.15s",
+        boxShadow: "0 1px 3px rgba(24,17,39,0.3)", transition: "left 0.15s",
       }} />
     </button>
   );
@@ -1095,8 +1180,24 @@ export function useTableSort<K extends string>(initial: SortState<K>) {
 }
 
 /**
- * Sorts by the value `valueOf` returns for each row. Strings compare with localeCompare so Korean
- * and English names both land where a reader expects; everything else compares numerically.
+ * One collator for every sorted table in Portal.
+ *
+ * `"ko"` is pinned, and the locale matters less than the pinning. `localeCompare()` with no
+ * locale asks the runtime for its default — Node takes it from its ICU build, a browser takes it
+ * from the operating system — so the server and the machine that hydrates it can disagree about
+ * the order of the same rows, and React then reconciles a list it rendered in one order against
+ * a list it is being told is in another. The names are what make it real: ASCII dates sort the
+ * same under every locale, which is why this has been quiet, and it activates the first time a
+ * Korean name lands in a table. The roster and camera imports built today are exactly that path.
+ *
+ * `numeric` so CAM-2 comes before CAM-10, which is the order a person reading a camera register
+ * means. `sensitivity: "base"` so case and accents do not split a name away from its neighbours.
+ */
+const TABLE_COLLATOR = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
+
+/**
+ * Sorts by the value `valueOf` returns for each row. Strings compare through TABLE_COLLATOR so
+ * Korean and English names both land where a reader expects; everything else compares numerically.
  * Undefined always sinks to the bottom regardless of direction — a camera with no last-seen time is
  * missing data, not the oldest one, and letting it win "oldest first" would be a wrong answer.
  */
@@ -1112,7 +1213,7 @@ export function sortRows<T, K extends string>(
     if (av === undefined && bv === undefined) return 0;
     if (av === undefined) return 1;
     if (bv === undefined) return -1;
-    if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * factor;
+    if (typeof av === "string" && typeof bv === "string") return TABLE_COLLATOR.compare(av, bv) * factor;
     return (Number(av) - Number(bv)) * factor;
   });
 }
@@ -1185,7 +1286,7 @@ export function ConfirmModal({ title, body, confirmLabel, cancelLabel, danger, c
   /**
    * One field the confirmation needs, under the body.
    *
-   * For the confirmations that are not purely yes/no — releasing somebody from the watchlist has to
+   * For the confirmations that are not purely yes/no — releasing somebody from the VIP registry has to
    * record why, and a second dialog stacked on this one to ask a single question is a stack nobody
    * wants to be two deep in.
    */
@@ -1198,7 +1299,7 @@ export function ConfirmModal({ title, body, confirmLabel, cancelLabel, danger, c
    * Holds the confirm button shut until the `children` field says otherwise.
    *
    * For the one class of dialog where "are you sure" is not enough: deleting a project takes a
-   * city's cameras and a watchlist of named people at once, and a red button is still one click.
+   * city's cameras and a VIP registry of named people at once, and a red button is still one click.
    * The caller decides what unlocks it — typing the name back, in that case.
    */
   confirmDisabled?: boolean;
@@ -1217,11 +1318,11 @@ export function ConfirmModal({ title, body, confirmLabel, cancelLabel, danger, c
   useEscapeKey(onClose);
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "400px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "400px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "20px" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{title}</p>
-          <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "8px", lineHeight: 1.6 }}>{body}</p>
+          <p style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "8px", lineHeight: 1.5 }}>{body}</p>
           {children}
         </div>
         {/* No rule above the buttons.
@@ -1263,6 +1364,49 @@ export function ConfirmModal({ title, body, confirmLabel, cancelLabel, danger, c
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The question mark that carries a sentence the screen does not need to keep saying.
+ *
+ * For the intro paragraph a tab wants available but not permanently in the way — the kind that is
+ * read once, on the first visit, and then costs a line of vertical space and a line of attention
+ * on every visit after. Hiding it behind a mark keeps it reachable without letting it compete with
+ * the controls beside it.
+ *
+ * Not for anything a reader has to see: a warning, or a sentence about what the screen does NOT
+ * do, has to be on the screen. This is for the explanatory half.
+ *
+ * A <button>, not a span with a cursor — it takes keyboard focus, which is what makes Tooltip's
+ * onFocus path reachable at all.
+ */
+export function HelpTip({ text, placement = "bottom", size = 18 }: { text: string; placement?: "top" | "bottom"; size?: number }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <Tooltip text={text} placement={placement}>
+      <button
+        type="button"
+        aria-label={text}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onClick={e => e.preventDefault()}
+        style={{
+          // Sized to what it sits beside. 18 beside an 18px heading, 13 beside an 11px field
+          // label — a mark bigger than the words it belongs to stops being a mark and becomes a
+          // control, and the eye goes to it before the label it is annotating.
+          width: `${size}px`, height: `${size}px`, borderRadius: "999px", flexShrink: 0,
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          border: `1px solid ${hover ? "var(--gray-400)" : "var(--gray-300)"}`,
+          backgroundColor: "transparent",
+          color: hover ? "var(--gray-600)" : "var(--gray-400)",
+          fontSize: `${Math.round(size * 0.62)}px`, fontWeight: 700, fontFamily: "inherit", lineHeight: 1,
+          cursor: "help", padding: 0,
+        }}
+      >
+        ?
+      </button>
+    </Tooltip>
   );
 }
 
@@ -1319,7 +1463,7 @@ export function Tooltip({ text, children, placement = "bottom" }: {
             backgroundColor: "var(--gray-900)", color: "white",
             fontSize: "12px", fontWeight: 400, lineHeight: 1.55, textAlign: "left",
             padding: "8px 10px", borderRadius: "8px",
-            boxShadow: "0 8px 24px rgba(14,22,42,0.18)",
+            boxShadow: "var(--shadow-popover)",
             pointerEvents: "none", whiteSpace: "normal",
           }}
         >
@@ -1332,6 +1476,84 @@ export function Tooltip({ text, children, placement = "bottom" }: {
 
 
 /**
+ * The line under a field that says why what is in it will not do.
+ *
+ * Its own component because the alternative is what was here: the same eleven-pixel red paragraph
+ * written inline in each form that grew one, already at two weights and two reds. A disabled save
+ * button with no line under any field is a form that has stopped talking to you, so wherever a
+ * check can refuse a value, this is what says so.
+ */
+export function FieldError({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--danger-500)", lineHeight: 1.5, marginTop: "6px" }}>
+      {children}
+    </p>
+  );
+}
+
+/** Whether this account may look at registered faces. See canViewFaces(). */
+export function usePortalFaceAccess(): { mayViewFaces: boolean; reason: string } {
+  const portalUsers = useVcaStore(s => s.portalUsers);
+  const [lang] = usePortalLanguage();
+  const me = currentPortalUser(portalUsers);
+  return { mayViewFaces: me ? canViewFaces(me.permission) : true, reason: FACE_HIDDEN_REASON[lang] };
+}
+
+const FACE_HIDDEN_REASON = {
+  en: "Photo hidden from read-only admin accounts",
+  ko: "읽기 전용 관리자 계정에는 사진이 보이지 않습니다",
+} as const;
+
+/**
+ * A registered face, or the space where one is.
+ *
+ * One component rather than a check at each of the six <img> tags, because the six are in two
+ * files and the seventh would have been written without it. It draws the placeholder at the same
+ * size and radius as the picture it stands in for: a row that shrinks when the photo is withheld
+ * tells a reader something is missing from the DATA, which is a different and wrong message.
+ *
+ * Marked, not blank. A grey square with no explanation reads as a failed image — the reader
+ * reloads, then files a bug. The title says who cannot see it and why, in one line.
+ */
+export function FacePhoto({ src, alt = "", size, radius, style, hiddenStyle }: {
+  /** Optional because Person.photoUrl is — a CSV import registers a name with no face. Passed
+   *  straight through, so a person with no photo renders exactly what it rendered before this
+   *  component existed: that is a different state from "withheld" and is not this gate's business. */
+  src?: string;
+  alt?: string;
+  /** Omitted for the detail sheet's full-bleed picture, which sizes itself from `style`. */
+  size?: number;
+  radius: string;
+  style?: React.CSSProperties;
+  /** Extra styling for the withheld tile only, where the picture's own rules do not apply. */
+  hiddenStyle?: React.CSSProperties;
+}) {
+  const { mayViewFaces, reason } = usePortalFaceAccess();
+  const box: React.CSSProperties = {
+    ...(size ? { width: `${size}px`, height: `${size}px` } : null),
+    borderRadius: radius,
+    ...style,
+  };
+  if (mayViewFaces) {
+    return <img src={src} alt={alt} style={{ objectFit: "cover", display: "block", ...box }} />;
+  }
+  return (
+    <span
+      title={reason}
+      aria-label={reason}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        backgroundColor: "var(--gray-100)", color: "var(--gray-400)",
+        border: "1px solid var(--gray-200)", boxSizing: "border-box",
+        ...box, ...hiddenStyle,
+      }}
+    >
+      <EyeOff size={size ? Math.max(12, Math.min(28, Math.round(size * 0.38))) : 28} strokeWidth={2} />
+    </span>
+  );
+}
+
+/**
  * A text field with the shared shape and the shared focus ring.
  *
  * A component rather than an exported style object because the ring needs focus state, and every
@@ -1341,6 +1563,8 @@ export function Tooltip({ text, children, placement = "bottom" }: {
 export function TextField({ value, onChange, placeholder, type, inputMode, autoComplete, autoFocus, disabled, readOnly, style }: {
   value: string;
   onChange?: (value: string) => void;
+  /** Drawn by globals.css's input::placeholder — light, heavy, and gone on focus. That rule is on
+   *  the element, not on this component, because half of Portal's fields are bare <input>s. */
   placeholder?: string;
   type?: string;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
@@ -1410,8 +1634,8 @@ export function SupportContactModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "400px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "400px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)", marginBottom: "2px" }}>{t.heading}</p>
           {row(t.email, (
@@ -1424,7 +1648,7 @@ export function SupportContactModal({ onClose }: { onClose: () => void }) {
               reader spends a moment looking for it. */}
           {SUPPORT_CONTACT.phone && row(t.phone, SUPPORT_CONTACT.phone)}
           {SUPPORT_CONTACT.hours && row(t.hours, SUPPORT_CONTACT.hours[lang])}
-          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.6, marginTop: "4px" }}>
+          <p style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5, marginTop: "4px" }}>
             {t.contractNote}
           </p>
         </div>

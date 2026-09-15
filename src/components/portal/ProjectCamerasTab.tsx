@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import CameraImportModal from "./CameraImportModal";
-import { CircleAlert, Film as FilmIcon, Image as ImageIcon, RotateCw, ShieldCheck, Video as VideoIcon, VideoOff } from "lucide-react";
-import { useVcaStore, projectChannelLimit, type Camera, type CameraStatus, type UploadedMedia, type UploadStatus, SIGNED_IN_USER } from "@/lib/vcaStore";
+import { CircleAlert, FileOutput, Film as FilmIcon, Image as ImageIcon, RotateCw, ShieldCheck, Unplug, Video as VideoIcon, VideoOff } from "lucide-react";
+import { useVcaStore, isAwaitingFirstContact, projectChannelLimit, type Camera, type CameraStatus, type UploadedMedia, type UploadStatus, SIGNED_IN_USER } from "@/lib/vcaStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { usePortalLanguage } from "@/lib/i18n";
+import { ipv4Problem, FIELD_CHECK_T } from "@/lib/fieldChecks";
 import { useToast } from "../Toast";
-import { CARD_BORDER, CARD_RADIUS, BORDER, TABLE_COLUMN_GAP, CONTROL_HEIGHT, PANEL_SHADOW, FIELD_STYLE, FIELD_FOCUS, RowActionsMenu, FilterSelect, TextField, SortableHeader, SummaryStrip, sortRows, useTableSort, ActiveFilterCount, usePortalEditAccess, ConfirmModal } from "./PortalShared";
+import { CARD_BORDER, CARD_RADIUS, BORDER, TABLE_COLUMN_GAP, CONTROL_HEIGHT, PANEL_SHADOW, FIELD_STYLE, FIELD_FOCUS, RowActionsMenu, FilterSelect, TextField, SortableHeader, SummaryStrip, sortRows, useTableSort, ActiveFilterCount, usePortalEditAccess, ConfirmModal, FieldError } from "./PortalShared";
 import CameraStreamModal from "./CameraStreamModal";
 
 const T = {
@@ -38,6 +39,9 @@ const T = {
     healthConnected: "connected",
     healthConnectedWhy: "Answered the last connection attempt. It says the stream is reachable, not that anything is looking at it.",
     healthOfFleet: (total: number) => `of ${total}`,
+    healthAwaiting: "awaiting first contact",
+    healthAwaitingWhy: "Registered here, never heard from. Not a fault — this is where every camera sits between being added and its first report. On installation day it is most of the fleet.",
+    statusAwaiting: "Not yet connected",
     healthOffline: "offline",
     healthOfflineWhy: "No answer at all — the address is unreachable. Usually power, cable or network rather than the camera itself.",
     healthError: "refusing the connection",
@@ -135,9 +139,7 @@ const T = {
     fieldZone: "Zone",
     fieldZonePlaceholder: "Front Gate",
     fieldRtspUrl: "Connection — RTSP URL *",
-    fieldResolution: "Resolution",
     fieldMaker: "Maker",
-    fieldStatus: "Status",
     cancel: "Cancel",
     saveChanges: "Save changes",
     addDevice: "Add device",
@@ -189,6 +191,9 @@ const T = {
     healthConnected: "연결됨",
     healthConnectedWhy: "마지막 연결 시도에 응답했습니다. 스트림에 닿는다는 뜻이지, 누가 보고 있다는 뜻은 아닙니다.",
     healthOfFleet: (total: number) => `/ ${total}대`,
+    healthAwaiting: "첫 연결 대기",
+    healthAwaitingWhy: "여기 등록만 되고 아직 한 번도 응답한 적이 없습니다. 고장이 아니라, 모든 카메라가 등록과 첫 보고 사이에 거치는 자리입니다. 설치 당일에는 대부분이 여기 있습니다.",
+    statusAwaiting: "연결 전",
     healthOffline: "오프라인",
     healthOfflineWhy: "응답이 아예 없습니다. 주소에 닿지 않는 상태로, 대개 카메라보다 전원·케이블·네트워크 문제입니다.",
     healthError: "연결 거부",
@@ -286,9 +291,7 @@ const T = {
     fieldZone: "구역",
     fieldZonePlaceholder: "정문 구역",
     fieldRtspUrl: "연결 — RTSP URL *",
-    fieldResolution: "해상도",
     fieldMaker: "제조사",
-    fieldStatus: "상태",
     cancel: "취소",
     saveChanges: "변경사항 저장",
     addDevice: "기기 추가",
@@ -432,7 +435,7 @@ type SourceRow =
   | { kind: "video" | "image" | "deepfake"; id: string; name: string; upload: UploadedMedia };
 
 const MAKERS = ["Hanwha", "Hikvision", "Dahua"];
-const RESOLUTIONS = ["FHD (1920×1080)", "4K (3840×2160)"];
+// No resolution chooser, and no status chooser — see CameraFormValues.
 // No Source Type chooser: the v1 contract is plain CCTV only, so there is nothing to choose
 // between (backend reply C2, 2026-09-09). See the note above Camera in the store.
 
@@ -442,7 +445,6 @@ interface CameraFormValues {
   location: string;
   zone: string;
   rtspUrl: string;
-  resolution: string;
   maker: string;
   model: string;
   username: string;
@@ -456,14 +458,25 @@ interface CameraFormValues {
   serverId: string;
   lat: string;
   lng: string;
-  status: CameraStatus;
+  /*
+   * NOT HERE, deliberately (2026-09-15): resolution and status used to be two selects at the foot
+   * of this form, and neither was a question the person filling it in could answer.
+   *
+   * Status was offered only on ADD, so an operator declared a camera online or offline before
+   * anything had been plugged in — and that answer went straight into the Overview's "51 of 60
+   * connected". The same fix the server form took this morning. A camera added here now starts
+   * offline, the way one added by the setup wizard already did: nothing has reached this address.
+   *
+   * Resolution is the device's own answer — an RTSP stream states it the moment it connects — and
+   * the field it wrote was read in exactly one place, a line on the grid card. Camera.resolution
+   * stays on the type for the server to fill; this form stops guessing it.
+   */
 }
 
 const EMPTY_FORM: CameraFormValues = {
   name: "", ip: "", location: "", zone: "", rtspUrl: "",
-  resolution: RESOLUTIONS[0], maker: MAKERS[0], model: "", username: "", password: "",
+  maker: MAKERS[0], model: "", username: "", password: "",
   serverId: "", lat: "", lng: "",
-  status: "offline",
 };
 
 // Camera codes are an internal identifier (shown in the table, used in mock RTSP paths) — the
@@ -515,6 +528,9 @@ function CameraFormModal({
 }) {
   useEscapeKey(onClose);
   const [form, setForm] = useState<CameraFormValues>(initial);
+  // This modal takes its dictionary as a prop, but the shared format messages are keyed by
+  // language rather than copied into every file's T — so it reads the language itself.
+  const [lang] = usePortalLanguage();
   /*
    * Coordinates and the address are checked, not swallowed.
    *
@@ -529,7 +545,12 @@ function CameraFormModal({
   const lngNum = form.lng.trim() === "" ? null : Number(form.lng);
   const latError = latNum !== null && (!Number.isFinite(latNum) || latNum < -90 || latNum > 90);
   const lngError = lngNum !== null && (!Number.isFinite(lngNum) || lngNum < -180 || lngNum > 180);
-  const ipError = form.ip.trim() !== "" && !/^[0-9a-zA-Z.:_-]+$/.test(form.ip.trim());
+  /* Two questions, because one of them was doing the other's job. The charset test refuses
+     "camera 3" and a pasted sentence; it said nothing at all about "192.168.0.300", which is
+     made only of characters it allows. A malformed address is the likelier typo of the two. */
+  const ipCharsBad = form.ip.trim() !== "" && !/^[0-9a-zA-Z.:_-]+$/.test(form.ip.trim());
+  const ipShape = ipv4Problem(form.ip);
+  const ipError = ipCharsBad || ipShape !== null;
   const rtspError = form.rtspUrl.trim() !== "" && !/^rtsp:\/\/.+/i.test(form.rtspUrl.trim());
   const valid = form.name.trim().length > 0 && form.rtspUrl.trim().length > 0
     && !latError && !lngError && !ipError && !rtspError;
@@ -554,9 +575,7 @@ function CameraFormModal({
       />
       {/* Under the field it belongs to. The submit button greys out either way, but a disabled
           button with no reason is a form that has stopped talking to you. */}
-      {opts?.error && (
-        <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--danger-500)", lineHeight: 1.5, marginTop: "6px" }}>{opts.error}</p>
-      )}
+      {opts?.error && <FieldError>{opts.error}</FieldError>}
     </div>
   );
 
@@ -572,8 +591,8 @@ function CameraFormModal({
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       // Scroll on the backdrop, not the sheet: this form holds FilterSelects, and those open as
       // absolutely positioned lists that an overflow-y on the sheet cuts off at its edge.
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", overflowY: "auto" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "460px", width: "100%", margin: "auto", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", overflowY: "auto" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "460px", width: "100%", margin: "auto", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "16px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{title}</p>
           <button className="portal-icon-btn" onClick={onClose} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex" }}>
@@ -583,7 +602,9 @@ function CameraFormModal({
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "14px" }}>
 
           {field("name", t.fieldDeviceName, t.fieldDeviceNamePlaceholder)}
-          {field("ip", t.fieldIp, t.fieldIpPlaceholder, { error: ipError ? t.errIp : undefined })}
+          {field("ip", t.fieldIp, t.fieldIpPlaceholder, {
+            error: ipShape ? FIELD_CHECK_T[lang][ipShape] : ipCharsBad ? t.errIp : undefined,
+          })}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             {selectField(t.fieldMaker, form.maker, MAKERS.map(m => ({ value: m, label: m })), v => setForm(f => ({ ...f, maker: v })))}
@@ -597,7 +618,7 @@ function CameraFormModal({
             </div>
             {/* Says where the password goes, because an empty box on the edit form otherwise reads
                 as "we lost it" rather than "we never had it". */}
-            <p style={{ fontSize: "11px", color: "var(--gray-400)", marginTop: "6px", lineHeight: 1.6 }}>
+            <p style={{ fontSize: "11px", color: "var(--gray-400)", marginTop: "6px", lineHeight: 1.45 }}>
               {isEdit ? `${t.fieldPasswordEditHint} ${t.passwordNotStoredHint}` : t.passwordNotStoredHint}
             </p>
           </div>
@@ -621,10 +642,6 @@ function CameraFormModal({
             {field("zone", t.fieldZone, t.fieldZonePlaceholder)}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            {selectField(t.fieldResolution, form.resolution, RESOLUTIONS.map(r => ({ value: r, label: r })), v => setForm(f => ({ ...f, resolution: v })))}
-            {!isEdit && selectField(t.fieldStatus, form.status === "online" ? "Online" : "Offline", [{ value: "Online", label: t.online }, { value: "Offline", label: t.offline }], v => setForm(f => ({ ...f, status: v === "Online" ? "online" : "offline" })))}
-          </div>
         </div>
         <div style={{ padding: "16px 20px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
           <button className="portal-btn-outline" onClick={onClose} style={{ padding: "10px 16px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
@@ -654,8 +671,8 @@ function ConfirmStatusModal({
   const goingOffline = nextStatus === "offline";
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "380px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+      style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "16px", border: BORDER, maxWidth: "380px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
         <div style={{ padding: "20px" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>
             {goingOffline ? t.confirmOfflineTitle : t.confirmReconnectTitle}
@@ -766,7 +783,9 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
   const [search, setSearch] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [zoneFilter, setZoneFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "online" | "offline" | "error">("ALL");
+  // "awaiting" is not a CameraStatus — it is offline plus a never-reported clock. The filter
+  // carries it anyway because it is what a reader actually wants to narrow to on install day.
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "online" | "offline" | "error" | "awaiting">("ALL");
   /**
    * Which "installed but doing nothing" gap the list is narrowed to, if any — set by the summary
    * strip above the table.
@@ -882,7 +901,11 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
   const matchingCameras = projectCameras.filter(c => {
     const matchesSearch = !q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || c.rtspUrl.toLowerCase().includes(q) || c.ip.includes(q);
     const matchesZone = zoneFilter === "ALL" || c.zone === zoneFilter;
-    const matchesStatus = statusFilter === "ALL" || c.status === statusFilter;
+    const matchesStatus = statusFilter === "ALL"
+      ? true
+      : statusFilter === "awaiting" ? isAwaitingFirstContact(c)
+      : statusFilter === "offline" ? c.status === "offline" && !isAwaitingFirstContact(c)
+      : c.status === statusFilter;
     return matchesSearch && matchesZone && matchesStatus;
   });
   const matchingUploads = projectUploads.filter(u => {
@@ -978,7 +1001,11 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
   const onlineCount = projectCameras.filter(c => c.status === "online").length;
   // Counted, not derived from the total: with a third state, "everything that is not online" is
   // two different errands and one number would hide the smaller one.
-  const offlineCount = projectCameras.filter(c => c.status === "offline").length;
+  /* Split off the ones nothing has ever reached. Before this, registering a camera added a number
+     to a warning cell — so installation day, when fifty are typed in and none is wired yet, read
+     as fifty faults. See isAwaitingFirstContact(). */
+  const awaitingCount = projectCameras.filter(isAwaitingFirstContact).length;
+  const offlineCount = projectCameras.filter(c => c.status === "offline" && !isAwaitingFirstContact(c)).length;
   const errorCount = projectCameras.filter(c => c.status === "error").length;
   // Anything not yet analysed — queued or mid-run. Both are "not done", and an administrator does
   // the same thing about either: wait, or find out why.
@@ -992,9 +1019,11 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
     addCamera({
       projectId, name: values.name.trim(), code: generateCameraCode(values.name.trim(), cameras.map(c => c.code)), rtspUrl: values.rtspUrl.trim(),
       location: values.location.trim(), zone: values.zone.trim() || values.location.trim(),
-      maker: values.maker, model: values.model.trim() || undefined, resolution: values.resolution,
+      maker: values.maker, model: values.model.trim() || undefined,
       username: values.username.trim() || undefined, serverId: values.serverId || undefined,
-      ip: values.ip.trim(), mac: "", status: values.status, thumbnail: DEFAULT_THUMBNAIL,
+      // Offline, not a claim. Portal has not reached this address and will not until camera
+      // polling lands — the same starting state the setup wizard's first camera gets.
+      ip: values.ip.trim(), mac: "", status: "offline", thumbnail: DEFAULT_THUMBNAIL,
       lat: values.lat.trim() === "" ? 0 : Number(values.lat),
       lng: values.lng.trim() === "" ? 0 : Number(values.lng),
     });
@@ -1007,7 +1036,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
     updateCamera(editingCamera.id, {
       name: values.name.trim(), rtspUrl: values.rtspUrl.trim(), ip: values.ip.trim(),
       location: values.location.trim(), zone: values.zone.trim() || values.location.trim(),
-      maker: values.maker, model: values.model.trim() || undefined, resolution: values.resolution,
+      maker: values.maker, model: values.model.trim() || undefined,
       username: values.username.trim() || undefined, serverId: values.serverId || undefined,
       lat: values.lat.trim() === "" ? 0 : Number(values.lat),
       lng: values.lng.trim() === "" ? 0 : Number(values.lng),
@@ -1121,7 +1150,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
       // the store's own note says so — and exporting it as Offline hands an auditor a file
       // that disagrees with the screen it came from.
       c.name, c.code, c.zone, c.location, c.rtspUrl,
-      c.status === "online" ? t.online : c.status === "error" ? t.statusError : t.offline,
+      c.status === "online" ? t.online : c.status === "error" ? t.statusError : isAwaitingFirstContact(c) ? t.statusAwaiting : t.offline,
     ]);
     const csv = [header, ...rows].map(row => row.map(csvEscape).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -1244,7 +1273,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
           <span style={{ display: "flex", flexShrink: 0, marginTop: "1px", color: "var(--warning-500)" }}>
             <CircleAlert size={15} strokeWidth={2.2} />
           </span>
-          <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--warning-500)", lineHeight: 1.6 }}>
+          <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--warning-500)", lineHeight: 1.5 }}>
             {channelLimitUnrecorded ? t.noLicenceBanner : zeroChannelLicence ? t.zeroChannelBanner : t.atLimitBanner(channelLimit)}
           </p>
         </div>
@@ -1264,6 +1293,12 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
           key: "error" as const, count: errorCount, label: t.healthError, why: t.healthErrorWhy,
           unit: undefined, tone: "warning" as const,
           icon: <CircleAlert size={14} strokeWidth={2.4} />,
+        },
+        {
+          // Neutral, not warning: nothing is wrong with a camera that was registered this morning.
+          key: "awaiting" as const, count: awaitingCount, label: t.healthAwaiting, why: t.healthAwaitingWhy,
+          unit: undefined, tone: "neutral" as const,
+          icon: <Unplug size={14} strokeWidth={2.4} />,
         },
       ]
         // A cell reading "0 refusing the connection" is a click that returns an empty table. The
@@ -1321,6 +1356,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
             { value: "ALL", label: t.filterAllStatus },
             { value: "online", label: `${t.online} (${onlineCount})` },
             { value: "offline", label: `${t.offline} (${offlineCount})` },
+            { value: "awaiting", label: `${t.statusAwaiting} (${awaitingCount})` },
             // Only when there is one to filter to. An option reading "Error (0)" invites a click
             // that returns an empty table.
             ...(errorCount > 0 ? [{ value: "error", label: `${t.statusError} (${errorCount})` }] : []),
@@ -1394,7 +1430,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
           )}
           <button className="portal-btn-quiet" onClick={exportCsv}
             style={{ display: "flex", alignItems: "center", gap: "6px", height: CONTROL_HEIGHT, padding: "0 10px", borderRadius: "8px", border: "none", backgroundColor: "transparent", color: "var(--gray-600)", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 1.75V9.33M7 9.33 4.08 6.42M7 9.33 9.92 6.42M2.33 9.92v1.17c0 .64.53 1.16 1.17 1.16h7c.64 0 1.17-.52 1.17-1.16V9.92" stroke="var(--gray-600)" strokeWidth="1.22" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <FileOutput size={14} strokeWidth={2.4} />
               {t.exportCsv}
             </button>
           {/* One primary action for both kinds, because "add a source" is one intention with two
@@ -1413,7 +1449,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
             {addMenuOpen && (
               <div style={{
                 position: "absolute", top: "100%", right: 0, marginTop: "4px", zIndex: 60,
-                backgroundColor: "white", border: BORDER, borderRadius: "10px", boxShadow: "0 8px 20px rgba(14,22,42,0.12)",
+                backgroundColor: "white", border: BORDER, borderRadius: "10px", boxShadow: "var(--shadow-popover)",
                 minWidth: "200px", padding: "4px",
               }}>
                 {[
@@ -1459,7 +1495,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
           <div style={{
             pointerEvents: "auto", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap",
             backgroundColor: "var(--gray-900)", borderRadius: "12px", padding: "10px 12px 10px 18px",
-            boxShadow: "0 12px 32px rgba(14,22,42,0.28)", maxWidth: "calc(100% - 48px)",
+            boxShadow: "0 12px 32px rgba(24,17,39,0.28)", maxWidth: "calc(100% - 48px)",
           }}>
             <span style={{ fontSize: "12px", fontWeight: 700, color: "white", flexShrink: 0 }}>
               {t.selectedCount(visibleSelectedIds.length)}
@@ -1710,7 +1746,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
                     fontSize: "12px", fontWeight: 700,
                     color: cam.status === "online" ? "var(--success-400)" : cam.status === "error" ? "var(--danger-400)" : "var(--gray-400)",
                   }}>
-                    {cam.status === "online" ? t.online : cam.status === "error" ? t.statusError : t.offline}
+                    {cam.status === "online" ? t.online : cam.status === "error" ? t.statusError : isAwaitingFirstContact(cam) ? t.statusAwaiting : t.offline}
                   </span>
                 </button>
                 {/* Preview first: it is the item somebody reaches for most and the only one that
@@ -1749,7 +1785,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
                     position: "absolute", top: "8px", left: "8px", fontSize: "10px", fontWeight: 600, padding: "4px 8px", borderRadius: "999px",
                     backgroundColor: cam.status === "online" ? "rgba(22,163,74,0.9)" : cam.status === "error" ? "rgba(244,63,94,0.9)" : "rgba(148,163,184,0.9)", color: "white",
                   }}>
-                    {(cam.status === "online" ? t.online : cam.status === "error" ? t.statusError : t.offline).toUpperCase()}
+                    {(cam.status === "online" ? t.online : cam.status === "error" ? t.statusError : isAwaitingFirstContact(cam) ? t.statusAwaiting : t.offline).toUpperCase()}
                   </span>
                 </button>
                 {/* No footer strip. It carried the AI-engine badges — which for a camera with no
@@ -1783,8 +1819,8 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
           video as well as image, which is the only real difference. */}
       {uploadPurpose && (
         <div onClick={e => { if (e.target === e.currentTarget) setUploadPurpose(null); }}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-          <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "520px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)" }}>
+          style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "520px", width: "100%", boxShadow: "var(--shadow-modal)" }}>
             <div style={{ padding: "16px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{uploadPurpose === "deepfake" ? t.deepfakeUploadTitle : t.uploadTitle}</p>
               <button onClick={() => setUploadPurpose(null)} style={{ padding: "4px", border: "none", background: "none", cursor: "pointer", color: "var(--gray-400)", display: "flex" }}>
@@ -1807,7 +1843,7 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
                 </span>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--gray-900)" }}>{t.uploadDrop}</span>
-                  <span style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.6 }}>{uploadPurpose === "deepfake" ? t.deepfakeUploadHint : t.uploadHint}</span>
+                  <span style={{ fontSize: "12px", color: "var(--gray-500)", lineHeight: 1.5 }}>{uploadPurpose === "deepfake" ? t.deepfakeUploadHint : t.uploadHint}</span>
                 </div>
                 <button className="portal-btn-primary" onClick={() => uploadInputRef.current?.click()}
                   style={{ padding: "10px 16px", borderRadius: "8px", border: "none", cursor: "pointer", backgroundColor: "var(--gray-900)", color: "white", fontSize: "13px", fontWeight: 700 }}>
@@ -1839,13 +1875,13 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
             name: editingCamera.name, ip: editingCamera.ip, rtspUrl: editingCamera.rtspUrl,
             location: editingCamera.location, zone: editingCamera.zone,
             maker: editingCamera.maker ?? MAKERS[0], model: editingCamera.model ?? "",
-            resolution: editingCamera.resolution ?? RESOLUTIONS[0],
+
             username: editingCamera.username ?? "",
             // Always blank. The store has no password to put here, which is the point.
             password: "",
             serverId: editingCamera.serverId ?? "",
             lat: String(editingCamera.lat ?? ""), lng: String(editingCamera.lng ?? ""),
-            status: editingCamera.status,
+
           }}
           servers={projectServers}
           onClose={() => setEditingCamera(null)}
@@ -1883,10 +1919,10 @@ export default function ProjectCamerasTab({ projectId, openCameraId, onCameraOpe
 
       {confirmingBulkDelete && (
         <div onClick={e => { if (e.target === e.currentTarget) setConfirmingBulkDelete(false); }}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(14,22,42,0.4)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-          <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "400px", width: "100%", boxShadow: "0 20px 60px rgba(14,22,42,0.18)", padding: "20px" }}>
+          style={{ position: "fixed", inset: 0, backgroundColor: "var(--scrim)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div style={{ backgroundColor: "white", border: BORDER, borderRadius: "16px", maxWidth: "400px", width: "100%", boxShadow: "var(--shadow-modal)", padding: "20px" }}>
             <p style={{ fontSize: "16px", fontWeight: 800, color: "var(--gray-900)" }}>{t.bulkDeleteConfirm(visibleSelectedIds.length)}</p>
-            <p style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.7, marginTop: "8px" }}>{t.bulkDeleteBody}</p>
+            <p style={{ fontSize: "12px", color: "var(--gray-600)", lineHeight: 1.5, marginTop: "8px" }}>{t.bulkDeleteBody}</p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "20px" }}>
               <button className="portal-btn-outline" onClick={() => setConfirmingBulkDelete(false)}
                 style={{ padding: "10px 16px", borderRadius: "8px", border: BORDER, backgroundColor: "white", color: "var(--gray-600)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
